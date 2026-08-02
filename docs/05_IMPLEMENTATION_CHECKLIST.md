@@ -176,10 +176,17 @@ Status: `NOT_STARTED`
 
 - [ ] dev auth isolated.
 - [ ] user resolution.
-- [ ] `/me`.
+- [ ] `/me` vraća `memberships` i `platformRoles` kao dva odvojena bloka.
+- [ ] `platformRoles` se ne pretvaraju u tenant membershipe.
+- [ ] `practice_memberships` bez RLS-a u ovoj fazi — bootstrap politika pripada Fazi 4 (D-033).
 - [ ] role permission map.
 - [ ] inactive user test.
 - [ ] inactive membership test.
+
+## BLOCKED — D-OPEN-011
+
+- [ ] Nema neograničenog ni generičkog runtime pristupa nad `users` i `practices`.
+- [ ] Phase gate pada ako je takav pristup tiho uveden.
 
 Evidence:
 
@@ -195,17 +202,85 @@ API tests:
 
 Status: `NOT_STARTED`
 
+Normativno: D-033; `02` §16.2 i §17.3; `04` §6.2; `07` Faza 4.
+
+## Schema i funkcije
+
 - [ ] `app_security` schema.
-- [ ] security-definer context function.
-- [ ] fixed search path.
-- [ ] public execute revoked.
-- [ ] membership validation.
-- [ ] PracticeContext guard.
-- [ ] `X-Practice-ID` validation.
-- [ ] TenantDatabaseService.
+- [ ] `set_user_context(p_user_id uuid)`.
+- [ ] `set_request_context(p_practice_id uuid)` — tačno taj potpis.
+- [ ] `set_request_context` je **SECURITY INVOKER**.
+- [ ] `set_request_context` ne prima `p_user_id` ni bilo koji caller-provided identifikator korisnika.
+- [ ] fixed search path na obje funkcije.
+- [ ] public execute revoked na obje funkcije.
+- [ ] **SECURITY DEFINER se ne koristi za zaobilaženje `practice_memberships` RLS-a.**
+
+## Autentifikovani user context
+
+- [ ] Bearer token validiran prije tenant bootstrapa.
+- [ ] Autentifikovani aplikacijski korisnik rezolviran iz pouzdanih auth podataka.
+- [ ] Identitet korisnika uspostavljen u transakciji/sesiji prije poziva `set_request_context`.
+- [ ] Klijent ne može poslati ni pregaziti identitet korisnika kroz `set_request_context`.
+- [ ] `set_user_context` je isključivo korak pouzdanog identiteta i nikada se ne puni iz request bodyja, query parametra ni `X-Practice-ID`.
+- [ ] `set_user_context` se ne uklanja i ne preimenuje samo zato što `set_request_context` ne smije primati `user_id` — to su odvojene odgovornosti.
+
+## Membership validacija
+
+- [ ] `X-Practice-ID` se tretira samo kao nepouzdan traženi tenant identifikator.
+- [ ] Tražena practice se prihvata tek nakon pronađenog aktivnog membershipa.
+- [ ] Rezolucija membershipa koristi posebnu user-scoped `practice_memberships` bootstrap politiku.
+- [ ] Bootstrap radi prije nego `app.practice_id` postoji.
+- [ ] Normalna tenant RLS se ne koristi za bootstrap konteksta koji ta ista RLS zahtijeva.
+- [ ] Nepostojeći membership mapira se na `403`.
+- [ ] Neaktivan membership mapira se na `403`.
+- [ ] Neuspjeh bootstrapa ne ostavlja upotrebljiv tenant context.
+
+## Transaction-local context
+
+- [ ] `app.user_id` uspostavljen iz pouzdanog auth stanja.
+- [ ] `app.practice_id` postavljen tek nakon uspješne membership validacije.
+- [ ] Tenant context je transakcijski lokalan.
 - [ ] interactive transaction.
+- [ ] Tenant-scoped upiti se izvršavaju tek nakon uspješnog bootstrapa.
+- [ ] Context se automatski čisti na kraju transakcije.
+- [ ] Pooled konekcija ne nasljeđuje context prethodnog requesta.
+- [ ] Failure i rollback putanje ne propuštaju `app.practice_id`.
+
+## Platform i tenant razdvajanje
+
+- [ ] `platformRoles` se obrađuju odvojeno od tenant membershipa.
+- [ ] `platformRoles` se ne pretvaraju automatski u tenant permisije.
+- [ ] Tenant membershipi i platform role se ne spajaju unijom.
+- [ ] Platform/system context se ne uspostavlja kroz `set_request_context`.
+
+## BLOCKED — D-OPEN-011
+
+- [ ] **BLOCKED** — generički runtime pristup nad `users` i `practices` se ne implementira dok D-OPEN-011 ne bude prihvaćen.
+- [ ] `practice_memberships` bootstrap pristup ne rješava opšti runtime pristup nad `users`.
+- [ ] `practice_memberships` bootstrap pristup ne rješava opšti runtime pristup nad `practices`.
+- [ ] Phase gate pada ako implementacija tiho uvede neograničen pristup nad bilo kojom od te dvije tabele.
+
+## Guard i servisi
+
+- [ ] PracticeContext guard.
+- [ ] TenantDatabaseService.
 - [ ] RLS enabled.
 - [ ] FORCE RLS.
+
+## Testovi
+
+- [ ] Validan aktivan membership uspostavlja tenant context.
+- [ ] Nepostojeći membership vraća `403`.
+- [ ] Neaktivan membership vraća `403`.
+- [ ] Pozivalac ne može impersonirati drugog korisnika kroz parametar funkcije.
+- [ ] `X-Practice-ID` sam po sebi ne autorizuje tenant pristup.
+- [ ] Tenant-scoped upit prije bootstrapa pada.
+- [ ] SECURITY INVOKER ne zaobilazi membership RLS.
+- [ ] Neuspjeh bootstrapa ne ostavlja `app.practice_id`.
+- [ ] Context nestaje nakon završetka transakcije.
+- [ ] Pooled konekcija ne dobija context prethodnog requesta.
+- [ ] `platformRoles` ne kreiraju tenant membership.
+- [ ] Opšti runtime pristup nad `users`/`practices` ostaje blokiran do D-OPEN-011.
 - [ ] no-context default deny.
 - [ ] pooled connection leakage test.
 - [ ] inactive membership denied.
