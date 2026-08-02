@@ -295,45 +295,161 @@ flowchart LR
 
 # 12. Encounter state
 
+Normativni izvor: `03` §29.1 (D-027). Ovaj dijagram ga preslikava; u slučaju neslaganja
+vrijedi `03` §29.1.
+
 ```mermaid
 stateDiagram-v2
     [*] --> DRAFT
+
     DRAFT --> READY_FOR_ANALYSIS
-    DRAFT --> CANCELLED
+    DRAFT --> CANCELLED: encounter.cancel
+
     READY_FOR_ANALYSIS --> ANALYSIS_IN_PROGRESS
-    READY_FOR_ANALYSIS --> CANCELLED
+    READY_FOR_ANALYSIS --> CANCELLED: encounter.cancel
+
     ANALYSIS_IN_PROGRESS --> REVIEW_REQUIRED
-    ANALYSIS_IN_PROGRESS --> READY_FOR_ANALYSIS: failure/retry policy
-    REVIEW_REQUIRED --> ANALYSIS_IN_PROGRESS: new revision
+    ANALYSIS_IN_PROGRESS --> READY_FOR_ANALYSIS: oporaviva greška / retry
+    ANALYSIS_IN_PROGRESS --> CANCELLED: encounter.cancel + kaskada
+
     REVIEW_REQUIRED --> APPROVED
-    REVIEW_REQUIRED --> CANCELLED
+    REVIEW_REQUIRED --> ANALYSIS_IN_PROGRESS: nova revizija
+    REVIEW_REQUIRED --> CANCELLED: encounter.cancel
+
     APPROVED --> EXPORT_PENDING
     APPROVED --> REVIEW_REQUIRED: approval revoked
+
     EXPORT_PENDING --> EXPORTED
-    EXPORT_PENDING --> APPROVED: export failed
+    EXPORT_PENDING --> APPROVED: export nije uspio
+
     EXPORTED --> CLOSED
+
+    CANCELLED --> [*]
+    CLOSED --> [*]
 ```
+
+## 12.1 Kaskadno otkazivanje iz `ANALYSIS_IN_PROGRESS` (D-035)
+
+Tranzicija `ANALYSIS_IN_PROGRESS → CANCELLED` je **atomarna kaskada**:
+
+- prvo se otkazuje **tekuća aktivna analiza**, zatim encounter;
+- `encounter.cancel` autorizuje kompletnu komandu i njenu internu kaskadu;
+- `analysis.cancel` se **ne traži dodatno**;
+- ako otkazivanje analize ne uspije, **kompletno otkazivanje encountera se rollback-uje** —
+  djelimičan ishod nije dozvoljen;
+- upisuju se **dva odvojena audit eventa** — jedan za analizu, jedan za encounter;
+- **historijske i terminalne analysis revizije ostaju nepromijenjene**.
+
+## 12.2 Eksplicitna pravila (`03` §29.1)
+
+- **`CANCELLED → CLOSED` nije dozvoljen.** `CANCELLED` i `CLOSED` su oba terminalna.
+- Ne postoji `ANALYSIS_IN_PROGRESS → APPROVED`. I analiza bez findinga prolazi kroz
+  `REVIEW_REQUIRED`; ljudski review se ne preskače.
+- `REJECT` odluka nad analizom **ne mijenja** encounter status — ostaje `REVIEW_REQUIRED`.
 
 ---
 
 # 13. Analysis state
 
+Normativni izvor: `03` §29.2 (D-031). Ovaj dijagram ga preslikava; u slučaju neslaganja
+vrijedi `03` §29.2.
+
 ```mermaid
 stateDiagram-v2
     [*] --> QUEUED
+
     QUEUED --> PREPARING_INPUT
+    QUEUED --> CANCELLED: cancel
+
     PREPARING_INPUT --> EXTRACTING
+    PREPARING_INPUT --> FAILED
+    PREPARING_INPUT --> CANCELLED: cancel
+
     EXTRACTING --> EVALUATING_TARIFF
     EXTRACTING --> EXTRACTION_FAILED
+    EXTRACTING --> CANCELLED: cancel
+
+    EXTRACTION_FAILED --> EXTRACTING: retry
+
     EVALUATING_TARIFF --> APPLYING_SAFETY_RULES
     EVALUATING_TARIFF --> TARIFF_EVALUATION_FAILED
+    EVALUATING_TARIFF --> CANCELLED: cancel
+
+    TARIFF_EVALUATION_FAILED --> EVALUATING_TARIFF: retry
+
     APPLYING_SAFETY_RULES --> REVIEW_REQUIRED
     APPLYING_SAFETY_RULES --> COMPLETED
-    REVIEW_REQUIRED --> APPROVED
-    REVIEW_REQUIRED --> SUPERSEDED
-    COMPLETED --> APPROVED
-    QUEUED --> CANCELLED
+    APPLYING_SAFETY_RULES --> FAILED
+    APPLYING_SAFETY_RULES --> CANCELLED: cancel
+
+    REVIEW_REQUIRED --> APPROVED: approve
+    REVIEW_REQUIRED --> REJECTED: reject
+    REVIEW_REQUIRED --> SUPERSEDED: child revizija kreirana
+
+    COMPLETED --> APPROVED: approve
+    COMPLETED --> SUPERSEDED: child revizija kreirana
+
+    APPROVED --> REVIEW_REQUIRED: approval revoked
+
+    CANCELLED --> [*]
+    FAILED --> [*]
+    REJECTED --> [*]
+    SUPERSEDED --> [*]
 ```
+
+Terminalna stanja: `CANCELLED`, `FAILED`, `REJECTED`, `SUPERSEDED`.
+
+Retry se uvijek vraća na svoj korak, nikada naprijed. Generički `FAILED` **nema** automatsku
+retry tranziciju — stage oporavka nije poznat, pa oporavak traži novu reviziju.
+
+## 13.1 Kreiranje revizije i linearni lanac (D-031 klauzula 8, D-034)
+
+Kreiranje child revizije nije uvijek tranzicija roditelja. Za dio dozvoljenih roditelja
+roditelj **zadržava** svoj status, pa se to ne crta kao tranzicija u §13.
+
+```mermaid
+flowchart TD
+    P[Parent revizija N] --> CHK{Roditelj već ima dijete?}
+    CHK -- da --> CONF[409 REVISION_CONFLICT]
+    CHK -- ne --> ST{Status roditelja dozvoljen?}
+    ST -- ne --> INV[409 INVALID_STATE_TRANSITION]
+    ST -- da --> MK[202 — child revizija N+1<br/>počinje u QUEUED]
+    MK --> SUP[REVIEW_REQUIRED ili COMPLETED<br/>roditelj → SUPERSEDED]
+    MK --> KEEP[REJECTED / FAILED / EXTRACTION_FAILED /<br/>TARIFF_EVALUATION_FAILED / CANCELLED<br/>roditelj zadržava status]
+```
+
+**Provjera postojanja djeteta prethodi validaciji statusa roditelja** (D-034). Zbog toga je
+kod greške deterministički i ne zavisi od statusa roditelja.
+
+Linearni lanac:
+
+- historija revizija je **linearni lanac, ne stablo**;
+- svaki roditelj ima **najviše jedno direktno dijete**;
+- `revisionNumber` djeteta je `roditelj.revisionNumber + 1`;
+- dijete počinje u `QUEUED`;
+- **retry nikada ne kreira reviziju N+2** od istog roditelja;
+- `parentAnalysisRunId` i `revisionNumber` su immutable nakon INSERT-a.
+
+Nedozvoljeni roditelji: `QUEUED`, `PREPARING_INPUT`, `EXTRACTING`, `EVALUATING_TARIFF`,
+`APPLYING_SAFETY_RULES`, `SUPERSEDED` i `APPROVED`. `APPROVED` mora prvo biti revoked u
+`REVIEW_REQUIRED` (§11).
+
+## 13.2 Otkazivanje analize (D-035)
+
+Direktno otkazivanje kroz `POST /analyses/{id}/cancel`:
+
+| Slučaj | Status | Ponašanje |
+|---|---:|---|
+| aktivno async stanje | `202` | analiza prelazi u `CANCELLED` |
+| analiza je već `CANCELLED` | `200` | postojeća reprezentacija, **bez promjene stanja** |
+| drugo neaktivno ili terminalno stanje | `409` | `INVALID_STATE_TRANSITION`, bez promjene stanja |
+
+Aktivna async stanja: `QUEUED`, `PREPARING_INPUT`, `EXTRACTING`, `EVALUATING_TARIFF`,
+`APPLYING_SAFETY_RULES`.
+
+**Ponovljeno otkazivanje ne kreira dodatni audit event.** Audit event se upisuje isključivo
+pri stvarnom prelasku u `CANCELLED`. Zato `CANCELLED → CANCELLED` **nije** tranzicija i ne
+crta se u §13.
 
 ---
 
