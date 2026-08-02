@@ -45,7 +45,8 @@ Greške:
 Content-Type: application/problem+json
 ```
 
-Upload koristi presigned URL ili multipart endpoint prema dokumentovanom flowu.
+Upload preko presigned URL-a ili multipart endpointa pripada **DEFERRED** upload putanji
+(§13.2). U aktivnom v1 dokumenti se kreiraju isključivo kao tekst (§13.1).
 
 ---
 
@@ -57,7 +58,10 @@ Upload koristi presigned URL ili multipart endpoint prema dokumentovanom flowu.
 Authorization: Bearer <JWT>
 ```
 
-Validacija:
+Normativna odluka: **D-033**.
+
+Redoslijed je obavezan. Prije nego što se pozove bilo koja database context funkcija,
+verifikuje se:
 
 - signature;
 - issuer;
@@ -65,15 +69,62 @@ Validacija:
 - expiration;
 - subject.
 
+Tek nakon uspješne verifikacije server rezolvira auth subjekt u interni `users.id`.
+
+Pravila:
+
+- **request body, query parametri i nepouzdani headeri ne mogu birati `user_id`**;
+- korisnik dolazi isključivo iz kriptografski verifikovanog JWT/OIDC subjekta;
+- context funkcije poziva samo `AuthService`, unutar kratke transakcije;
+- `app.user_id` je transakcijski lokalan i ne preživljava request.
+
+Tačan database put rezolucije `auth_subject` → `users.id` je otvoren u **D-OPEN-011** i
+nije definisan ovim dokumentom.
+
+Mehanizam ograničava normalni query scope i aplikacijske greške, ali ne autentifikuje
+korisnika nezavisno nakon kompromitacije dijeljenog database credentiala. Tačka
+sprovođenja autorizacije je API.
+
 ## 3.2 Practice context
 
 ```http
 X-Practice-ID: <uuid>
 ```
 
-Obavezan za tenant rute.
+**Obavezan za tenant rute.** Practice context se kreira tek nakon validacije **aktivnog**
+membershipa za traženu ordinaciju.
 
-## 3.3 Request ID
+Ponašanje:
+
+- header nedostaje na tenant ruti → `400 PRACTICE_CONTEXT_REQUIRED`;
+- header nije validan UUID → `400 PRACTICE_CONTEXT_INVALID`;
+- korisnik nema aktivan membership → **`403 ACCESS_DENIED`, i practice context se ne
+  kreira**;
+- neuspješna validacija ne ostavlja prethodni tenant scope aktivnim.
+
+Server prima samo `p_practice_id`; **nijedan endpoint ne prima `p_user_id` kao parametar
+za izbor konteksta** (D-033).
+
+## 3.3 Platform context
+
+Platform rute ne koriste practice context.
+
+- **`X-Practice-ID` se ne šalje** i ignoriše se ako je poslan;
+- pristup zahtijeva platform rolu `SYSTEM_ADMIN` (D-023);
+- `SYSTEM_ADMIN` je odvojen od `practice_memberships` i **ne daje automatski pristup**
+  encounterima, analizama, pacijentima ni medicinskim dokumentima;
+- korisnik koji je istovremeno `SYSTEM_ADMIN` i član ordinacije dobija dva **nezavisna**
+  skupa permisija; jedan se ne izvodi iz drugog.
+
+## 3.4 Klasifikacija ruta
+
+| Klasa | `X-Practice-ID` | Primjeri |
+|---|---|---|
+| Tenant | **obavezan** | `/encounters*`, `/analyses*`, `/exports*`, `/practices/{id}*`, `/admin/integrations` (read) |
+| Platform | **ne šalje se** | `/admin/tariff-releases*` |
+| Neutralno | nije primjenjiv | `/me`, `/health/*` |
+
+## 3.5 Request ID
 
 Klijent može poslati:
 
@@ -89,7 +140,7 @@ Server uvijek vraća:
 X-Request-ID: <uuid>
 ```
 
-## 3.4 Jezik
+## 3.6 Jezik
 
 ```http
 Accept-Language: de-CH
@@ -123,14 +174,42 @@ Pravila:
 
 - isti key + isti canonical request hash → isti poslovni rezultat;
 - isti key + drugi hash → `409 IDEMPOTENCY_CONFLICT`;
-- request in progress → `409 REQUEST_ALREADY_IN_PROGRESS` ili definisani `425`;
+- request in progress → **`409 REQUEST_ALREADY_IN_PROGRESS`** (D-028, klauzula 1);
 - key scope: practice + user + endpoint;
 - minimalni response cache;
 - retention 24–72 sata prema endpointu.
 
+**`425` se ne koristi.** `425 Too Early` (RFC 8470) semantički pokriva TLS early data, ne
+concurrency. Nijedan endpoint ne vraća `425` i status se ne pojavljuje u §9.
+
+`POST /analyses/{id}/cancel` namjerno **nije** na listi obaveznih `Idempotency-Key`
+endpointa: komanda je state-idempotentna (§15.4), pa ponovljeni poziv ne mijenja stanje.
+
 ---
 
 # 5. Optimistic locking
+
+Normativne odluke: **D-029** i **D-028**. Ova sekcija je jedini autoritativni spisak
+resursa pod optimistic lockingom; pojedinačne sekcije je referenciraju, ne proširuju.
+
+## 5.1 Obuhvat — tačno šest resursa
+
+| Resurs | Endpoint | Permission |
+|---|---|---|
+| encounter | `PATCH /encounters/{encounterId}` | `encounter.update` |
+| practice settings | `PATCH /practices/{practiceId}/settings` | `practice.settings.manage` |
+| integration connection | `PATCH /admin/integrations/{id}` — **DEFERRED** | `integration.manage` (reserved) |
+| extracted fact | `PATCH /analyses/{analysisId}/facts/{factId}` | `analysis.correct_fact` |
+| service candidate | `PATCH /analyses/{analysisId}/service-candidates/{candidateId}` | `analysis.correct_service` |
+| rule finding | `PATCH /analyses/{analysisId}/findings/{findingId}` | `finding.resolve` |
+
+Svaki od šest ima `version integer not null default 1` i `check (version >= 1)` u
+`02` §6.4, §7.2, §10.5, §10.6, §12.3 i §14.1.
+
+Integration connection zadržava dokumentovan `If-Match` iako je write endpoint DEFERRED,
+kako bi ugovor bio potpun kada endpoint postane aktivan.
+
+## 5.2 Protokol
 
 Mutable resurs vraća:
 
@@ -138,33 +217,38 @@ Mutable resurs vraća:
 ETag: "4"
 ```
 
-PATCH šalje:
+PATCH mora poslati:
 
 ```http
 If-Match: "4"
 ```
 
-Ako trenutna verzija nije 4:
+`If-Match` je **obavezan** na sva šest PATCH endpointa. Nije uslovan i ne zavisi od
+implementacije.
 
-```http
-409 Conflict
-```
+| Slučaj | Status | Code |
+|---|---:|---|
+| tačan `If-Match` | `200` | — uspjeh, `version` inkrementiran, novi `ETag` u odgovoru |
+| `If-Match` nedostaje | **`428`** | **`PRECONDITION_REQUIRED`** |
+| `If-Match` je stale | **`409`** | **`VERSION_CONFLICT`** |
 
-Error code:
+Pravila:
 
-```text
-VERSION_CONFLICT
-```
+- inkrement `version` je atomičan sa upisom; nema prozora u kojem je resurs izmijenjen a
+  `version` nepromijenjen;
+- uspješan odgovor **uvijek** vraća novi `ETag`;
+- `400` se ne koristi za nedostajući `If-Match` (D-028, klauzula 2).
 
-Primjenjuje se na:
+## 5.3 Ograničenje
 
-- encounter;
-- finding resolution;
-- integration connection;
-- practice settings;
-- drugi mutable admin resurs.
+Optimistic locking se **ne primjenjuje na command-style POST endpointe**. Nijedan `POST`
+ne zahtijeva `If-Match` osim ako to eksplicitno traži prihvaćena odluka; trenutno takve
+odluke nema.
 
-Analysis revision sama po sebi nije "edit in place"; kreira se nova revizija.
+Concurrency na command endpointima rješavaju `Idempotency-Key` (§4), state guard (§29) i
+`expectedAnalysisRevision` gdje je dokumentovan (§20).
+
+Analysis revision sama po sebi nije "edit in place"; kreira se nova revizija (§15.3).
 
 ---
 
@@ -250,16 +334,20 @@ RESOURCE_NOT_FOUND
 VALIDATION_ERROR
 INVALID_CURSOR
 VERSION_CONFLICT
+PRECONDITION_REQUIRED
 IDEMPOTENCY_KEY_REQUIRED
 IDEMPOTENCY_CONFLICT
 REQUEST_ALREADY_IN_PROGRESS
 INVALID_STATE_TRANSITION
+REVISION_CONFLICT
 ENCOUNTER_NOT_ANALYSABLE
 ANALYSIS_ALREADY_RUNNING
 ANALYSIS_NOT_APPROVABLE
 OPEN_BLOCKING_FINDINGS
 APPROVAL_REQUIRED
 APPROVAL_REVOKED
+INTEGRATION_CONNECTION_NOT_CONFIGURED
+INTEGRATION_CONNECTION_REQUIRED
 TARIFF_RELEASE_NOT_FOUND
 TARIFF_RELEASE_NOT_ACTIVE
 TARIFF_ENGINE_UNAVAILABLE
@@ -272,6 +360,32 @@ RATE_LIMIT_EXCEEDED
 DEPENDENCY_UNAVAILABLE
 INTERNAL_ERROR
 ```
+
+## 8.1 Mapiranje konflikata i preconditiona
+
+Normativno mapiranje koda na status:
+
+| Code | Status | Endpoint familija | Odluka |
+|---|---:|---|---|
+| `PRECONDITION_REQUIRED` | **428** | svih šest `If-Match` PATCH endpointa (§5.1) | D-028 |
+| `VERSION_CONFLICT` | 409 | svih šest `If-Match` PATCH endpointa (§5.1) | D-009 |
+| `REQUEST_ALREADY_IN_PROGRESS` | 409 | svi endpointi sa `Idempotency-Key` (§4) | D-028 |
+| `INVALID_STATE_TRANSITION` | 409 | revisions, cancel, close, decisions | D-027, D-031 |
+| `REVISION_CONFLICT` | 409 | `POST /analyses/{id}/revisions` | D-034 |
+| `APPROVAL_REQUIRED` | 409 | `POST /analyses/{id}/exports`, `POST /exports/{id}/retry` | D-037 |
+| `APPROVAL_REVOKED` | 409 | `POST /analyses/{id}/exports`, `POST /exports/{id}/retry` | D-037 |
+| `INTEGRATION_CONNECTION_NOT_CONFIGURED` | 409 | `POST /analyses/{id}/exports` | D-032 |
+| `INTEGRATION_CONNECTION_REQUIRED` | **422** | `POST /analyses/{id}/exports` | D-032 |
+
+### Značenje `REVISION_CONFLICT`
+
+`REVISION_CONFLICT` znači **isključivo** jedno od dvoje:
+
+- traženi roditelj **već ima direktno dijete**; ili
+- database parcijalni unique indeks je prijavio **konkurentno kreiranje djeteta**.
+
+**Ne zavisi od toga da li roditelj zadržava ili mijenja status.** Provjera postojanja djeteta
+prethodi svakoj provjeri statusa (§15.3, D-034).
 
 ---
 
@@ -288,12 +402,19 @@ INTERNAL_ERROR
 | 403 | nema permission/membership |
 | 404 | resurs nije vidljiv ili ne postoji |
 | 409 | state/version/idempotency konflikt |
-| 413 | upload prevelik |
-| 415 | content type nije podržan |
+| 413 | upload prevelik — **samo DEFERRED upload putanja (§13.2)** |
+| 415 | content type nije podržan — **samo DEFERRED upload putanja (§13.2)** |
 | 422 | semantička validacija |
+| 428 | nedostaje obavezan `If-Match` (§5.2) |
 | 429 | rate limit |
 | 500 | neočekivana interna greška |
 | 502/503 | dependency problem |
+
+`425` se ne koristi ni na jednom endpointu (§4).
+
+`413` i `415` nisu dostižni u aktivnom MVP-u, jer aktivna document putanja prima samo
+tekst (§13.1). Zadržani su u tabeli kako bi ugovor bio potpun kada upload putanja postane
+aktivna.
 
 Cross-tenant resource se u pravilu vraća kao `404` da se ne potvrđuje postojanje.
 
@@ -303,7 +424,7 @@ Cross-tenant resource se u pravilu vraća kao `404` da se ne potvrđuje postojan
 
 ## GET `/me`
 
-Permission: authenticated.
+Permission: authenticated. Nije ni tenant ni platform ruta; `X-Practice-ID` nije primjenjiv.
 
 Response:
 
@@ -313,6 +434,14 @@ Response:
   "email": "arzt@example.ch",
   "displayName": "Dr. Anna Muster",
   "preferredLanguage": "de-CH",
+  "platformRoles": [
+    {
+      "role": "SYSTEM_ADMIN",
+      "permissions": [
+        "tariff.manage"
+      ]
+    }
+  ],
   "memberships": [
     {
       "practiceId": "practice-uuid",
@@ -328,6 +457,15 @@ Response:
 }
 ```
 
+Pravila (D-023):
+
+- `platformRoles` i `memberships` su **odvojeni blokovi**; platform rola se nikada ne
+  prikazuje kao membership niti se membership prikazuje kao platform rola;
+- `platformRoles` je prazan niz za korisnika bez platform role;
+- korisnik koji je `SYSTEM_ADMIN` **i** član ordinacije dobija oba bloka, sa dva nezavisna
+  skupa permisija; unija se ne izvodi automatski;
+- `SYSTEM_ADMIN` bez aktivnog membershipa ne dobija pristup nijednoj tenant ruti.
+
 ## GET `/practices/{practiceId}`
 
 Permission: `practice.read`.
@@ -336,11 +474,15 @@ Permission: `practice.read`.
 
 Permission: `practice.settings.read`.
 
+Vraća `ETag` za optimistic locking (§5.2).
+
 ## PATCH `/practices/{practiceId}/settings`
+
+Puni PATCH je u **aktivnom v1 scopeu** (D-028, klauzula 4).
 
 Permission: `practice.settings.manage`.
 
-Headers:
+Headers — **obavezno** (§5.2):
 
 ```http
 If-Match: "3"
@@ -352,9 +494,30 @@ Request primjer:
 {
   "billingReviewRequired": true,
   "allowMpaApproval": false,
+  "allowBillingSpecialistApproval": false,
   "requireReasonForManualChange": true
 }
 ```
+
+Polja:
+
+| Polje | Tip | Default | Napomena |
+|---|---|---|---|
+| `billingReviewRequired` | boolean | — | |
+| `allowMpaApproval` | boolean | **`false`** | opt-in odobravanje za `MPA` |
+| `allowBillingSpecialistApproval` | boolean | **`false`** | opt-in odobravanje za `BILLING_SPECIALIST` |
+| `requireReasonForManualChange` | boolean | — | |
+| `aiEnabled` | boolean | — | |
+| `axenitaExportEnabled` | boolean | — | |
+| `retentionPolicyCode` | string, nullable | — | |
+
+Oba approval flaga imaju default `false` prema `02` §6.4. Odobravanje izvan
+`PHYSICIAN`/`PRACTICE_ADMIN` je opt-in odluka ordinacije, nikada podrazumijevano stanje.
+
+Odgovor `200` vraća **novi `ETag`**; `version` je inkrementiran atomično.
+
+Greške: `428 PRECONDITION_REQUIRED` bez `If-Match`, `409 VERSION_CONFLICT` na stale
+`If-Match`.
 
 ---
 
@@ -528,7 +691,7 @@ Vraća:
 
 Permission: `encounter.update`.
 
-Headers:
+Headers — **obavezno** (§5.2):
 
 ```http
 If-Match: "4"
@@ -536,7 +699,8 @@ If-Match: "4"
 
 Request je partial DTO. Nije dozvoljeno proizvoljno mijenjati status.
 
-Response vraća novi `ETag`.
+Response `200` vraća novi `ETag`. Bez `If-Match` → `428 PRECONDITION_REQUIRED`; stale
+`If-Match` → `409 VERSION_CONFLICT`.
 
 ## POST `/encounters/{encounterId}/cancel`
 
@@ -552,21 +716,67 @@ Request:
 }
 ```
 
-Dozvoljena stanja:
+Dozvoljena stanja (normativno §29.1):
 
-- DRAFT;
-- READY_FOR_ANALYSIS;
-- REVIEW_REQUIRED.
+- `DRAFT`;
+- `READY_FOR_ANALYSIS`;
+- `ANALYSIS_IN_PROGRESS`;
+- `REVIEW_REQUIRED`.
+
+Iz bilo kojeg drugog stanja → `409 INVALID_STATE_TRANSITION`.
+
+### Kaskada iz `ANALYSIS_IN_PROGRESS` (D-035)
+
+Komanda **atomarno** otkazuje tekuću aktivnu analizu, pa encounter.
+
+**Tekuća aktivna analiza** je:
+
+- **dijete-bez-djeteta vrh linearnog lanca revizija** (D-034, §15.3);
+- čiji je status jedan od aktivnih async statusa iz §15.4 — `QUEUED`, `PREPARING_INPUT`,
+  `EXTRACTING`, `EVALUATING_TARIFF`, `APPLYING_SAFETY_RULES`.
+
+Pravila:
+
+- **otkazuje se isključivo ta tekuća aktivna analiza**;
+- **historijske i terminalne revizije ostaju nepromijenjene** — `REJECTED`, `FAILED`,
+  `SUPERSEDED`, `EXTRACTION_FAILED`, `TARIFF_EVALUATION_FAILED` i ranije `CANCELLED`
+  revizije zadržavaju svoj status;
+- otkazivanje analize i otkazivanje encountera kreiraju **dva odvojena audit eventa**;
+- **ako otkazivanje aktivne analize ne uspije, kompletno otkazivanje encountera se
+  rollback-uje**;
+- **djelimičan uspjeh nije dozvoljen** — ili obje tranzicije prođu, ili nijedna.
+
+Autorizacija:
+
+- **`encounter.cancel` autorizuje kompletnu komandu i njenu internu kaskadu**;
+- **`analysis.cancel` se ne traži dodatno** za internu kaskadu.
+
+Dodjela ovih permisija rolama nije definisana u ovom dokumentu (§28.4).
+
+`CANCELLED` je terminalno. `CANCELLED → CLOSED` ne postoji.
 
 ## POST `/encounters/{encounterId}/close`
 
 Permission: `encounter.close`.
 
-Dozvoljeno kada nema aktivnih poslova i export stanje je konzistentno.
+Dozvoljeno **isključivo iz `EXPORTED`** (normativno §29.1):
+
+```text
+EXPORTED → CLOSED
+```
+
+Iz bilo kojeg drugog stanja → `409 INVALID_STATE_TRANSITION`. Nijedan close poziv ne
+zaobilazi export, a export ne zaobilazi approval (§21).
+
+`CLOSED` je terminalno.
 
 ---
 
 # 13. Document API
+
+## 13.1 Aktivna putanja — manuelni tekst
+
+U aktivnom v1 scopeu dokument se kreira isključivo kao tekst.
 
 ## POST `/encounters/{encounterId}/documents/text`
 
@@ -600,7 +810,14 @@ Response `201`:
 }
 ```
 
-## POST `/encounters/{id}/documents/upload-url`
+## 13.2 Upload putanja — DEFERRED
+
+Sljedeća dva endpointa su **DEFERRED** i nisu dostupna u aktivnom v1. `413` i `415` iz §9
+pripadaju isključivo ovoj putanji.
+
+Presigned upload se **ne** vraća u aktivni scope bez nove odluke.
+
+## POST `/encounters/{id}/documents/upload-url` — **DEFERRED**
 
 Permission: `encounter.document.create`.
 
@@ -629,7 +846,9 @@ Response:
 }
 ```
 
-## POST `/encounters/{id}/documents/{documentId}/complete`
+## POST `/encounters/{id}/documents/{documentId}/complete` — **DEFERRED**
+
+Permission: `encounter.document.create`.
 
 Request:
 
@@ -640,6 +859,8 @@ Request:
 ```
 
 Server provjerava size/hash/MIME/antivirus prema konfiguraciji.
+
+## 13.3 Aktivni read i archive endpointi
 
 ## GET `/encounters/{id}/documents`
 
@@ -655,9 +876,12 @@ Query:
 view=redacted|original
 ```
 
-`original` zahtijeva jaču permission i kreira `DOCUMENT_VIEWED`.
+`view=original` dodatno zahtijeva **`encounter.document.read_original`** i kreira
+`DOCUMENT_VIEWED` audit event. Bez te permisije zahtjev pada na `403 ACCESS_DENIED`.
 
 ## POST `/encounters/{id}/documents/{documentId}/archive`
+
+Permission: `encounter.document.archive`.
 
 Umjesto DELETE nakon analize.
 
@@ -796,9 +1020,35 @@ Agregirani UI endpoint:
 
 Original/raw matcher JSON nije dio običnog workspace responsea.
 
+### Uslovni `tariffEvaluation` blok (D-026, klauzula 6)
+
+Endpoint zahtijeva `analysis.read`. Blok `tariffEvaluation` se uključuje **samo** ako
+pozivalac ima i `tariff_evaluation.read`.
+
+Bez te permisije blok se **izostavlja**, a response sadrži marker:
+
+```json
+{
+  "analysis": {},
+  "findings": [],
+  "redacted": ["tariffEvaluation"]
+}
+```
+
+Razlika je normativna:
+
+| Oblik | Značenje |
+|---|---|
+| `"redacted": ["tariffEvaluation"]`, bez `tariffEvaluation` ključa | evaluacija postoji, ali pozivalac je ne smije vidjeti |
+| `"tariffEvaluation": null` | evaluacija još ne postoji |
+
+Klijent ne smije tretirati ta dva slučaja jednako.
+
 ## POST `/analyses/{analysisId}/revisions`
 
 Permission: `analysis.run`.
+
+Headers: Idempotency-Key.
 
 Request:
 
@@ -812,11 +1062,114 @@ Request:
 
 Server mora eksplicitno definisati šta se prenosi. AI/tariff rezultat se ne kopira kao validan rezultat.
 
-Response `202`.
+### Dozvoljeni status roditelja
+
+Normativno §29.2.
+
+| Status roditelja | Dozvoljeno | Roditelj nakon komande |
+|---|:-:|---|
+| `REVIEW_REQUIRED` | da | **`SUPERSEDED`** |
+| `COMPLETED` | da | **`SUPERSEDED`** |
+| `REJECTED` | da | `REJECTED` — zadržan |
+| `FAILED` | da | `FAILED` — zadržan |
+| `EXTRACTION_FAILED` | da | `EXTRACTION_FAILED` — zadržan |
+| `TARIFF_EVALUATION_FAILED` | da | `TARIFF_EVALUATION_FAILED` — zadržan |
+| `CANCELLED` | da | `CANCELLED` — zadržan |
+| `QUEUED` | ne | `409 INVALID_STATE_TRANSITION` |
+| `PREPARING_INPUT` | ne | `409 INVALID_STATE_TRANSITION` |
+| `EXTRACTING` | ne | `409 INVALID_STATE_TRANSITION` |
+| `EVALUATING_TARIFF` | ne | `409 INVALID_STATE_TRANSITION` |
+| `APPLYING_SAFETY_RULES` | ne | `409 INVALID_STATE_TRANSITION` |
+| `SUPERSEDED` | ne | `409 INVALID_STATE_TRANSITION` |
+| `APPROVED` | ne | `409 INVALID_STATE_TRANSITION` — approval se prvo revoke-a u `REVIEW_REQUIRED` (§20) |
+
+Kreiranje child revizije **ne prepisuje** terminalni status roditelja (D-015, D-031).
+
+### Child revizija
+
+Dijete dobija:
+
+- `parentAnalysisRunId` — referenca na roditelja;
+- `revisionNumber` — inkrementiran za 1;
+- novi `analysisId`.
+
+Veza dijete → roditelj je vidljiva bez obzira na status roditelja.
+
+### Linearni lanac revizija (D-034)
+
+Historija revizija je **linearni lanac, ne stablo**. Invarijante:
+
+- svaka revizija ima **najviše jedno direktno dijete**;
+- inicijalna revizija ima `revisionNumber = 1` i **nema roditelja**;
+- svaka kasnija revizija ima **non-null roditelja**;
+- dijete i roditelj pripadaju **istom practiceu i istom encounteru**;
+- `revisionNumber` djeteta je uvijek **`roditelj.revisionNumber + 1`**;
+- **retry nikada ne preračunava `MAX(revisionNumber)`**;
+- `parentAnalysisRunId` i `revisionNumber` su **immutable nakon INSERT-a**.
+
+### Redoslijed serverskih koraka
+
+Server izvršava sljedeće **atomarno i tim redom**:
+
+1. zaključava roditelja;
+2. provjerava da li dijete već postoji;
+3. validira status roditelja;
+4. ažurira roditelja kada je supersession potrebna;
+5. alocira `roditelj.revisionNumber + 1`;
+6. inserta dijete.
+
+Provjera postojanja djeteta (korak 2) **prethodi** validaciji statusa (korak 3). Zbog toga je
+kod greške deterministički i ne zavisi od statusa roditelja.
+
+### Ishodi
+
+| Uslov | Status | Kod |
+|---|---:|---|
+| dijete već postoji | **409** | **`REVISION_CONFLICT`** — bez obzira na status roditelja |
+| dijete ne postoji, status roditelja nije dozvoljen | **409** | `INVALID_STATE_TRANSITION` |
+| dijete ne postoji, status roditelja je dozvoljen | **202** | novokreirana child revizija |
+
+Uniqueness konflikt koji prijavi baza **prevodi se u `REVISION_CONFLICT`**, nikada u
+generičku `500` grešku.
+
+**Retry nikada ne kreira reviziju N+2 od istog roditelja.**
+
+Isti `Idempotency-Key` na oba zahtjeva daje isti poslovni rezultat (§4) i ne ulazi u trku.
 
 ## POST `/analyses/{analysisId}/cancel`
 
-Dozvoljeno samo u aktivnom async stanju.
+Permission: `analysis.cancel`.
+
+Dozvoljeno isključivo iz aktivnih async stanja (normativno §29.2):
+
+- `QUEUED`;
+- `PREPARING_INPUT`;
+- `EXTRACTING`;
+- `EVALUATING_TARIFF`;
+- `APPLYING_SAFETY_RULES`.
+
+Rezultat: `CANCELLED`.
+
+| Slučaj | Status | Ponašanje |
+|---|---:|---|
+| iz dozvoljenog aktivnog stanja | `202` | analiza prelazi u `CANCELLED` |
+| analiza je već `CANCELLED` | `200` | vraća postojeću cancelled reprezentaciju, **bez promjene stanja** |
+| terminalno stanje koje nije `CANCELLED` | `409` | `INVALID_STATE_TRANSITION`, bez promjene stanja |
+
+Ponovljena cancel komanda je idempotentna i nikada tiho ne mijenja stanje iz terminalnog
+ili neaktivnog statusa. `Idempotency-Key` nije obavezan (§4).
+
+**Audit (D-035, klauzula 6):**
+
+- audit event se upisuje **isključivo pri stvarnom prelasku** u `CANCELLED`;
+- ponovljeno otkazivanje **ne izvršava nikakvu mutaciju stanja**;
+- ponovljeno otkazivanje **ne kreira dodatni audit event**.
+
+Klijent koji dva puta pošalje istu cancel komandu dobija `202` pa `200`, a u audit tragu
+postoji **tačno jedan** zapis otkazivanja.
+
+Cancel se izvršava i kaskadno, kada `POST /encounters/{id}/cancel` cancel-uje encounter u
+`ANALYSIS_IN_PROGRESS` (§12). Kaskada koristi istu definiciju tekuće aktivne analize.
 
 ---
 
@@ -830,11 +1183,15 @@ Permission: `analysis.read`.
 
 Permission: `analysis.correct_fact`.
 
-Headers:
+Headers — **obavezno** (§5.2):
 
 ```http
-If-Match: "finding/resource version ako je implementiran"
+If-Match: "2"
 ```
+
+`extracted_facts` ima `version` kolonu prema D-029. Bez `If-Match` →
+`428 PRECONDITION_REQUIRED`; stale `If-Match` → `409 VERSION_CONFLICT`. Uspješan odgovor
+vraća novi `ETag`.
 
 Request:
 
@@ -869,6 +1226,8 @@ Response:
 
 ## GET `/analyses/{analysisId}/service-candidates`
 
+Permission: `analysis.read`.
+
 ## POST `/analyses/{analysisId}/service-candidates`
 
 Permission: `analysis.correct_service`.
@@ -889,6 +1248,14 @@ Server origin = USER.
 
 ## PATCH `/analyses/{analysisId}/service-candidates/{candidateId}`
 
+Permission: `analysis.correct_service`.
+
+Headers — **obavezno** (§5.2):
+
+```http
+If-Match: "2"
+```
+
 ```json
 {
   "reviewState": "CORRECTED",
@@ -898,9 +1265,15 @@ Server origin = USER.
 }
 ```
 
+`service_candidates` ima `version` kolonu prema D-029. Bez `If-Match` →
+`428 PRECONDITION_REQUIRED`; stale `If-Match` → `409 VERSION_CONFLICT`. Uspješan odgovor
+vraća novi `ETag`.
+
 ## POST `/analyses/{analysisId}/service-candidates/{candidateId}/reject`
 
-Umjesto DELETE.
+Permission: `analysis.correct_service`.
+
+Umjesto DELETE. Command-style POST — ne koristi `If-Match` (§5.3).
 
 ```json
 {
@@ -912,39 +1285,49 @@ Umjesto DELETE.
 
 # 18. Tarifna evaluacija
 
-## POST `/analyses/{analysisId}/tariff-evaluation`
+Normativna odluka: **D-026**.
 
-Permission: `analysis.run_tariff`.
+## 18.1 Jedna evaluacija po analysis runu
 
-Za v1 preferirati novu revision nakon značajne korekcije. Ovaj endpoint se može koristiti unutar iste neodobrene revizije samo ako je state model jasno implementiran.
+Vrijedi `unique (analysis_run_id)` na `tariff_evaluations` (`02` §11.1). Jedan analysis run
+ima **najviše jednu** tarifnu evaluaciju.
 
-Request:
+Posljedice:
 
-```json
-{
-  "reason": "SERVICE_CANDIDATES_CHANGED"
-}
-```
+- **`POST /analyses/{analysisId}/tariff-evaluation` ne postoji u API v1.** Endpoint je
+  uklonjen, ne odgođen.
+- Ponovna evaluacija ide **isključivo** kroz `POST /analyses/{analysisId}/revisions`
+  (§15.3).
+- Tehnički retry nakon greške **ponovo koristi postojeći `tariff_evaluations` red** i ne
+  kreira drugu evaluaciju za isti analysis run. Retry putanje su
+  `TARIFF_EVALUATION_FAILED → EVALUATING_TARIFF` (§29.2).
+- Permission `analysis.run_tariff` nije aktivna u v1; navedena je samo među rezervisanim
+  permisijama (§28.2).
 
-Response `202` sa job ID.
+## 18.2 GET `/analyses/{analysisId}/tariff-evaluation`
 
-## GET `/analyses/{analysisId}/tariff-evaluation`
-
-Permission: `analysis.read`.
+Permission: **`tariff_evaluation.read`**.
 
 Vraća normalizovani rezultat.
 
-## GET `/analyses/{analysisId}/tariff-evaluation/raw`
+Ista permission kontroliše i `tariffEvaluation` blok u workspace responseu (§15.2). Rola
+koja ima `analysis.read`, ali ne i `tariff_evaluation.read`, ne dobija tarifni rezultat ni
+na jednoj ruti.
 
-Permission: `tariff.raw_result.read`, tipično admin/auditor.
+## 18.3 GET `/analyses/{analysisId}/tariff-evaluation/raw`
 
-Response mora biti auditovan i sanitizovan gdje je potrebno.
+Permission: **`tariff.raw_result.read`**, tipično admin/auditor.
+
+Vraća sirovi matcher/provider odgovor. Response mora biti auditovan i sanitizovan gdje je
+potrebno.
 
 ---
 
 # 19. Findings API
 
 ## GET `/analyses/{analysisId}/findings`
+
+Permission: `analysis.read`.
 
 Filter:
 
@@ -960,7 +1343,15 @@ relatedServiceCode
 
 Permission: `finding.resolve`.
 
-Headers: `If-Match`.
+Headers — **obavezno** (§5.2):
+
+```http
+If-Match: "2"
+```
+
+`rule_findings` ima `version` kolonu i `check (version >= 1)` prema D-029. Bez `If-Match` →
+`428 PRECONDITION_REQUIRED`; stale `If-Match` → `409 VERSION_CONFLICT`. Uspješan odgovor
+vraća novi `ETag`.
 
 ### Resolve
 
@@ -1001,7 +1392,29 @@ Kritično pravilo može zabraniti dismiss.
 
 Headers: Idempotency-Key.
 
+### Izvođenje permisije (D-036)
+
+Permisija se izvodi iz polja `decision`:
+
+| `decision` | Permisija |
+|---|---|
+| `APPROVE` | **`analysis.approve`** |
+| `REJECT` | **`analysis.review_decision`** |
+| `REQUEST_CHANGES` | **`analysis.review_decision`** |
+| `SAVE_DRAFT` | **`analysis.review_decision`** |
+
+Sve četiri odluke su **write radnje** — svaka upisuje `review_decisions` red.
+**Nijedna write radnja nije autorizovana kroz `analysis.read`.** Pozivalac koji ima samo
+`analysis.read` dobija `403 ACCESS_DENIED` na svaku od četiri odluke.
+
+`APPROVE` je odvojen jer nosi pravnu težinu odobrenja i pokreće immutable approval payload
+(D-016); rola koja smije tražiti izmjene ne mora smjeti odobriti obračun.
+
+Dodjela permisija rolama pripada `docs/15` (§28.4).
+
 ### Save draft
+
+Permission: `analysis.review_decision`.
 
 ```json
 {
@@ -1013,6 +1426,8 @@ Headers: Idempotency-Key.
 
 ### Request changes
 
+Permission: `analysis.review_decision`.
+
 ```json
 {
   "decision": "REQUEST_CHANGES",
@@ -1023,6 +1438,10 @@ Headers: Idempotency-Key.
 
 ### Reject
 
+Permission: `analysis.review_decision`.
+
+`reason` je **obavezan**.
+
 ```json
 {
   "decision": "REJECT",
@@ -1030,6 +1449,18 @@ Headers: Idempotency-Key.
   "expectedAnalysisRevision": 2
 }
 ```
+
+Semantika (D-031, klauzule 1 i 9):
+
+- analiza prelazi `REVIEW_REQUIRED → REJECTED`;
+- **`REJECTED` je terminalno za tu analysis reviziju**;
+- **encounter ostaje `REVIEW_REQUIRED`** — §29.1 se ne mijenja;
+- upisuje se `review_decisions` red sa akterom, odlukom i `analysisRevisionNumber`;
+- emituje se audit event **`ANALYSIS_REJECTED`**;
+- nova obrada zahtijeva novu reviziju kroz `POST /analyses/{id}/revisions` (§15.3);
+  roditelj zadržava `REJECTED`.
+
+Iz bilo kojeg statusa osim `REVIEW_REQUIRED` → `409 INVALID_STATE_TRANSITION`.
 
 ### Approve
 
@@ -1094,7 +1525,19 @@ Permission: `analysis.approval.revoke`.
 }
 ```
 
-Revocation ne briše approval.
+Semantika (D-031, klauzula 6):
+
+- analiza prelazi **`APPROVED → REVIEW_REQUIRED`**;
+- encounter prelazi `APPROVED → REVIEW_REQUIRED` (§29.1);
+- revocation zahtijeva `analysis.approval.revoke`; nijedna druga permission je ne
+  omogućava;
+- **revocation ne briše approval** — `analysis_approvals` red ostaje, sa `revokedAt`,
+  `revokedBy` i `revocationReason`; approval historija je immutable;
+- **nova revizija se može kreirati tek nakon revocationa.** Dok je analiza `APPROVED`,
+  `POST /analyses/{id}/revisions` vraća `409 INVALID_STATE_TRANSITION` (§15.3).
+
+Concurrency revocationa se rješava kroz `SELECT … FOR UPDATE`, ne kroz `If-Match` — revoke
+je command-style POST (§5.3).
 
 ---
 
@@ -1106,7 +1549,7 @@ Permission: `analysis.export`.
 
 Headers: Idempotency-Key.
 
-Request:
+Request — `integrationConnectionId` je **opcionalan** (D-032, klauzula 1):
 
 ```json
 {
@@ -1115,6 +1558,42 @@ Request:
   "mode": "CREATE_DRAFT"
 }
 ```
+
+### Rezolucija integration konekcije
+
+**Ako je `integrationConnectionId` izostavljen**, server determinističkim upitom traži
+konekcije unutar tekućeg practice contexta gdje je `provider = 'MANUAL'` i
+`status = 'ACTIVE'`:
+
+| Broj pronađenih | Status | Code |
+|---:|---:|---|
+| tačno 1 | `202` | koristi se ta konekcija |
+| 0 | **`409`** | **`INTEGRATION_CONNECTION_NOT_CONFIGURED`** |
+| više od 1 | **`422`** | **`INTEGRATION_CONNECTION_REQUIRED`** |
+
+**Ako je `integrationConnectionId` poslan**, automatska rezolucija se **ne izvršava**.
+Primjenjuje se normalna validacija — konekcija mora:
+
+- postojati;
+- biti `ACTIVE`;
+- pripadati tekućem practiceu.
+
+Opseg rezolucije je ograničen na `provider = 'MANUAL'`. Kada Axenita adapter postane
+dostupan, automatska rezolucija se mora ponovo razmotriti novim ADR-om.
+
+### Perzistencija rezolviranog ID-a
+
+Bez obzira na to da li je poslan ili rezolviran, konačni ID se upisuje u:
+
+- `export_jobs.integration_connection_id`;
+- audit metadata;
+- export/artifact metadata prema postojećem ugovoru (§21.4).
+
+### Permission napomena
+
+`integration.read` ostaje ograničen na `PRACTICE_ADMIN` u budućoj role matrici.
+**Ne proširuje se** samo zato da bi role sa `analysis.export` mogle izlistati konekcije —
+deterministička rezolucija upravo uklanja tu potrebu.
 
 Preconditions:
 
@@ -1141,11 +1620,31 @@ Permission: `analysis.export.read`.
 
 Permission: `analysis.export`.
 
-Retry samo FAILED i isti approval hash.
+Headers: Idempotency-Key.
+
+Retry je dozvoljen samo za `FAILED` export job i samo uz nepromijenjen
+`approvedPayloadSha256`. Retry ne kreira novi approval i ne zaobilazi approval provjeru.
 
 ## GET `/exports/{exportJobId}/artifact`
 
+Permission: `analysis.export.read`.
+
 Za ManualAdapter može vratiti presigned download URL za JSON/PDF.
+
+## 21.5 Approval greške (D-037)
+
+**Aktivan, neopozvan approval je tvrdi precondition za svaki export endpoint.** Nijedan
+export endpoint ga ne zaobilazi — ni `POST /analyses/{id}/exports`, ni
+`POST /exports/{id}/retry`, ni `GET /exports/{id}/artifact`.
+
+| Uslov | Status | Kod |
+|---|---:|---|
+| ne postoji aktivan, neopozvan approval | **409** | **`APPROVAL_REQUIRED`** |
+| referencirani approval postoji, ali je opozvan | **409** | **`APPROVAL_REVOKED`** |
+
+Oba slučaja su konflikt stanja resursa, ne greška validacije bodyja, pa oba koriste `409`.
+Klijent ih razlikuje po `code` polju: u prvom slučaju approval treba kreirati, u drugom je
+postojao i namjerno je povučen (§20).
 
 ---
 
@@ -1159,7 +1658,11 @@ Cursor pagination.
 
 ## GET `/analyses/{analysisId}/audit-package`
 
-Permission: `audit.read`.
+Permission: **`audit.export`**.
+
+JSON audit package je obavezan u v1. `audit.read` pokriva čitanje audit timelinea
+(`/audit-events`), ali **ne** i izvoz paketa — izvoz je posebna radnja i traži
+`audit.export`.
 
 JSON package:
 
@@ -1189,11 +1692,14 @@ JSON package:
 }
 ```
 
-## POST `/analyses/{analysisId}/audit-package/pdf`
+## POST `/analyses/{analysisId}/audit-package/pdf` — **DEFERRED**
 
 Permission: `audit.export`.
 
 Async; response job ID.
+
+PDF audit package je **DEFERRED** (D-OPEN-006). JSON package iz prethodne sekcije je
+obavezan i pokriva v1 zahtjev.
 
 ---
 
@@ -1218,15 +1724,27 @@ Response:
 }
 ```
 
-## GET `/jobs/{jobId}/events`
+## GET `/jobs/{jobId}/events` — **DEFERRED**
 
-SSE je opcionalni v1 dodatak. Polling je dovoljan za prvi rez.
+SSE je **DEFERRED**. **Polling nad `GET /jobs/{jobId}` je normativan transport za v1.**
 
-SSE ne smije slati medicinski sadržaj.
+Kada endpoint postane aktivan, SSE ne smije slati medicinski sadržaj.
 
 ---
 
-# 24. Tariff release admin API
+# 24. Tariff release admin API — platform rute
+
+Normativna odluka: **D-023**.
+
+Sve rute u ovoj sekciji su **platform rute**, ne tenant rute:
+
+- **`X-Practice-ID` se ne šalje**; ako je poslan, ignoriše se;
+- koriste platform context (§3.3), ne practice context;
+- zahtijevaju permission **`tariff.manage`**;
+- `tariff.manage` pripada **isključivo `SYSTEM_ADMIN`**, nikada `PRACTICE_ADMIN`;
+- **ne daju pristup medicinskim podacima** — nijedna od njih ne čita encountere, analize,
+  pacijente ni dokumente;
+- `SYSTEM_ADMIN` bez aktivnog membershipa dobija `403` na svakoj tenant ruti.
 
 Base permission: `tariff.manage`.
 
@@ -1238,6 +1756,9 @@ POST /admin/tariff-releases/{id}/validate
 POST /admin/tariff-releases/{id}/activate
 POST /admin/tariff-releases/{id}/deactivate
 ```
+
+Sve navedene rute su aktivne u v1. Upis izvršava `copilot_system` rola preko
+`SYSTEM_DATABASE_URL` (`02` §20.1); runtime rola ne piše globalnu tarifnu konfiguraciju.
 
 Aktivacija request:
 
@@ -1253,46 +1774,85 @@ Aktivacija je transakcijska i auditovana.
 
 ---
 
-# 25. Prompt/rule admin API
+# 25. Prompt/rule admin API — **DEFERRED**
 
-Permission: `configuration.manage`.
+**Cijela sekcija je DEFERRED.** Nijedan endpoint nije dostupan u aktivnom v1.
+
+Permission `configuration.manage` je **rezervisana** i ne gate-uje nijedan aktivni
+endpoint (§28.2).
 
 ```text
-GET  /admin/ai-prompts
-POST /admin/ai-prompts/{promptCode}/versions
-POST /admin/ai-prompt-versions/{id}/activate
+GET  /admin/ai-prompts                          — DEFERRED
+POST /admin/ai-prompts/{promptCode}/versions    — DEFERRED
+POST /admin/ai-prompt-versions/{id}/activate    — DEFERRED
 
-GET  /admin/safety-rules
-GET  /admin/safety-rules/{id}
-POST /admin/safety-rules/{id}/versions
-POST /admin/safety-rule-versions/{id}/activate
+GET  /admin/safety-rules                        — DEFERRED
+GET  /admin/safety-rules/{id}                   — DEFERRED
+POST /admin/safety-rules/{id}/versions          — DEFERRED
+POST /admin/safety-rule-versions/{id}/activate  — DEFERRED
 ```
 
-Aktivni prompt/rule version se ne uređuje; kreira se nova verzija.
+U v1 se sadržaj `ai_prompt_versions`, `safety_rules` i `safety_rule_versions` upisuje
+isključivo seedom i migracijom (`02` §20.1, §23).
+
+Kada sekcija postane aktivna vrijedi: aktivni prompt/rule version se ne uređuje; kreira se
+nova verzija.
 
 ---
 
 # 26. Integration admin API
 
-Permission: `integration.manage`.
+Ova sekcija ima **dva različita režima**. Permission se ne izvodi iz naslova sekcije nego
+iz pojedinačne podsekcije.
+
+## 26.1 Aktivni read endpointi
+
+Permission: **`integration.read`**.
 
 ```text
-GET   /admin/integrations
-POST  /admin/integrations
-GET   /admin/integrations/{id}
-PATCH /admin/integrations/{id}
-POST  /admin/integrations/{id}/credentials
-POST  /admin/integrations/{id}/test
-POST  /admin/integrations/{id}/activate
-POST  /admin/integrations/{id}/deactivate
+GET /admin/integrations
+GET /admin/integrations/{id}
 ```
 
-Credentials endpoint:
+Ovo su **tenant/practice-scoped** administrativni read endpointi:
+
+- **`X-Practice-ID` je obavezan**;
+- vraćaju samo konekcije tekuće ordinacije;
+- `integration.read` je u budućoj role matrici ograničen na `PRACTICE_ADMIN`;
+- `credentialsSecretRef` se nikada ne vraća kao secret, samo kao referenca.
+
+`GET /admin/integrations/{id}` vraća `ETag`, jer `integration_connections` ima `version`
+kolonu (D-029, §5.1).
+
+## 26.2 DEFERRED write endpointi
+
+Permission: **`integration.manage`** — rezervisana, ne gate-uje nijedan aktivni endpoint
+(§28.2).
+
+```text
+POST  /admin/integrations                       — DEFERRED
+PATCH /admin/integrations/{id}                  — DEFERRED
+POST  /admin/integrations/{id}/credentials      — DEFERRED
+POST  /admin/integrations/{id}/test             — DEFERRED
+POST  /admin/integrations/{id}/activate         — DEFERRED
+POST  /admin/integrations/{id}/deactivate       — DEFERRED
+```
+
+`PATCH /admin/integrations/{id}` zadržava dokumentovan **obavezan `If-Match`** (§5.1) iako
+je DEFERRED, kako bi ugovor bio potpun kada endpoint postane aktivan.
+
+Credentials endpoint, kada postane aktivan:
 
 - prima secret;
 - šalje ga direktno u secrets manager;
-- u DB čuva reference;
+- u DB čuva referencu;
 - nikada ne vraća secret.
+
+## 26.3 ManualAdapter konekcija
+
+**ManualAdapter konekcija se kreira seedom** (`02` §23), ne kroz aktivni create endpoint.
+U MVP-u je to jedina aktivna konekcija, pa deterministička rezolucija pri exportu (§21)
+radi bez ijednog aktivnog write endpointa.
 
 ---
 
@@ -1328,7 +1888,7 @@ Ne vraća internal URL ili credential detalj.
 
 # 28. Permission katalog
 
-Minimalno:
+## 28.1 Aktivni katalog — tačno 32 permisije
 
 ```text
 practice.read
@@ -1352,78 +1912,216 @@ encounter.document.archive
 
 analysis.read
 analysis.run
-analysis.run_tariff
+analysis.cancel
 analysis.correct_fact
 analysis.correct_service
+analysis.review_decision
 analysis.approve
 analysis.approval.revoke
 analysis.export
 analysis.export.read
 
+tariff_evaluation.read
+tariff.raw_result.read
+
 finding.resolve
+
 audit.read
 audit.export
 
+integration.read
+
 tariff.manage
-configuration.manage
-integration.manage
 ```
 
-Role mapping se nalazi u kodu ili konfiguraciji, ali permission string je centralizovan.
+## 28.2 Rezervisane / odgođene permisije
+
+Nijedna od njih se **ne dodjeljuje nijednoj roli** u aktivnom v1 i **ne smije gate-ovati
+nijedan aktivni endpoint**.
+
+| Permisija | Rezervisana za | Razlog |
+|---|---|---|
+| `analysis.run_tariff` | ništa | Povučena odlukom D-026, klauzula 3. Zadržana u katalogu isključivo da se identifikator nikada ne iskoristi za drugu radnju. |
+| `configuration.manage` | odgođeni AI-prompt i safety-rule admin CRUD (§25) | Cijela §25 je DEFERRED. |
+| `integration.manage` | odgođeni integration write endpointi (§26.2) | Write putanja je DEFERRED. |
+
+## 28.3 Pravila kataloga
+
+1. **Svaka aktivna permisija gate-uje bar jedan aktivni endpoint ili response blok.**
+   `tariff_evaluation.read` gate-uje i endpoint (§18.2) i blok (§15.2).
+2. **Svaki aktivni endpoint deklariše permisiju ili eksplicitno pravilo izvođenja.**
+   Nakon D-036 nema nijednog izuzetka.
+3. **Rezervisane permisije ne gate-uju aktivne endpointe.**
+4. **`tariff.manage` je platform-scoped** i pripada isključivo `SYSTEM_ADMIN` (§24).
+5. **Nijedna write radnja nije autorizovana kroz `analysis.read`** (D-036, klauzula 7).
+
+Izvedene permisije:
+
+- `POST /analyses/{id}/decisions` — permisija se izvodi iz polja `decision` prema tabeli u
+  §20;
+- `GET /jobs/{jobId}` — permisija se izvodi iz resursa kojem job pripada;
+- `GET /me` — samo autentifikacija;
+- `/health/*` — bez permisije.
+
+## 28.4 Role matrica
+
+**Kompletna role-to-permission matrica nije dio ovog dokumenta.** Ovdje su fiksirana samo
+dva ograničenja koja proizlaze iz prihvaćenih odluka:
+
+- `tariff.manage` → isključivo `SYSTEM_ADMIN` (D-023, klauzula 9);
+- `integration.read` → ograničen na `PRACTICE_ADMIN` (D-032, klauzula 8).
+
+Puna matrica pripada zasebnom dokumentu. Permission string ostaje centralizovan.
 
 ---
 
 # 29. State machine
 
+**Ovaj dokument je normativni izvor za oba state machinea** (D-027, D-031). `08` i `14` ga
+preslikavaju i eksplicitno na njega upućuju; u slučaju neslaganja vrijedi §29.
+
+State transition provjerava backend; DTO ne prima proizvoljan status.
+
 ## 29.1 Encounter
+
+Normativna odluka: **D-027**. Kompletan skup dozvoljenih tranzicija:
 
 ```text
 DRAFT
   → READY_FOR_ANALYSIS
+  → CANCELLED
+
+READY_FOR_ANALYSIS
   → ANALYSIS_IN_PROGRESS
+  → CANCELLED
+
+ANALYSIS_IN_PROGRESS
   → REVIEW_REQUIRED
+  → READY_FOR_ANALYSIS
+  → CANCELLED
+
+REVIEW_REQUIRED
   → APPROVED
+  → ANALYSIS_IN_PROGRESS
+  → CANCELLED
+
+APPROVED
   → EXPORT_PENDING
+  → REVIEW_REQUIRED
+
+EXPORT_PENDING
   → EXPORTED
+  → APPROVED
+
+EXPORTED
   → CLOSED
+
+CANCELLED
+  → terminal
+
+CLOSED
+  → terminal
 ```
 
-Alternative:
+Značenje netrivijalnih tranzicija:
 
-```text
-DRAFT/READY/REVIEW → CANCELLED
-APPROVED → REVIEW_REQUIRED ako approval revoked
-EXPORT_PENDING → APPROVED ako export failed
-```
+| Tranzicija | Okidač |
+|---|---|
+| `ANALYSIS_IN_PROGRESS → READY_FOR_ANALYSIS` | oporaviva greška analize / retry |
+| `REVIEW_REQUIRED → ANALYSIS_IN_PROGRESS` | nova analysis revizija (§15.3) |
+| `APPROVED → REVIEW_REQUIRED` | approval je revoked (§20) |
+| `EXPORT_PENDING → APPROVED` | export nije uspio |
+| `EXPORTED → CLOSED` | eksplicitna close komanda (§12) |
+| `ANALYSIS_IN_PROGRESS → CANCELLED` | `encounter.cancel`; kaskadno cancel-uje aktivnu analizu (§12) |
+
+Eksplicitno:
+
+- **`CANCELLED → CLOSED` nije dozvoljen.** `CANCELLED` i `CLOSED` su oba terminalna.
+- Ne postoji `ANALYSIS_IN_PROGRESS → APPROVED`. I analiza bez findinga prolazi kroz
+  `REVIEW_REQUIRED`; ljudski review se ne preskače.
+- `REJECT` odluke nad analizom **ne mijenjaju** encounter status — ostaje
+  `REVIEW_REQUIRED` (§20).
 
 ## 29.2 Analysis
 
+Normativna odluka: **D-031**. Kompletan skup dozvoljenih tranzicija:
+
 ```text
 QUEUED
-→ PREPARING_INPUT
-→ EXTRACTING
-→ EVALUATING_TARIFF
-→ APPLYING_SAFETY_RULES
-→ REVIEW_REQUIRED ili COMPLETED
-→ APPROVED
-```
+  → PREPARING_INPUT
+  → CANCELLED
 
-Failure:
+PREPARING_INPUT
+  → EXTRACTING
+  → FAILED
+  → CANCELLED
 
-```text
+EXTRACTING
+  → EVALUATING_TARIFF
+  → EXTRACTION_FAILED
+  → CANCELLED
+
 EXTRACTION_FAILED
+  → EXTRACTING
+
+EVALUATING_TARIFF
+  → APPLYING_SAFETY_RULES
+  → TARIFF_EVALUATION_FAILED
+  → CANCELLED
+
 TARIFF_EVALUATION_FAILED
+  → EVALUATING_TARIFF
+
+APPLYING_SAFETY_RULES
+  → REVIEW_REQUIRED
+  → COMPLETED
+  → FAILED
+  → CANCELLED
+
+REVIEW_REQUIRED
+  → APPROVED
+  → REJECTED
+  → SUPERSEDED
+
+COMPLETED
+  → APPROVED
+  → SUPERSEDED
+
+APPROVED
+  → REVIEW_REQUIRED
+
+CANCELLED
+  → terminal
+
 FAILED
+  → terminal
+
+REJECTED
+  → terminal
+
+SUPERSEDED
+  → terminal
 ```
 
-Nova revizija:
+Eksplicitna pravila:
 
-```text
-old → SUPERSEDED
-new → QUEUED
-```
+1. **`REJECTED` je terminalno za tu analysis reviziju.** Nova obrada traži novu reviziju.
+2. **REJECT ostavlja encounter u `REVIEW_REQUIRED`** — §29.1 se ne mijenja.
+3. **`FAILED` nema automatsku retry tranziciju.** Stage oporavka nije poznat, pa bi
+   automatski retry mogao preskočiti ili ponoviti korak. Oporavak traži novu reviziju.
+4. **`EXTRACTION_FAILED` se retry-uje isključivo u `EXTRACTING`.**
+5. **`TARIFF_EVALUATION_FAILED` se retry-uje isključivo u `EVALUATING_TARIFF`.**
+   Retry se uvijek vraća na svoj korak, nikada naprijed.
+6. **`APPROVED` mora prvo biti revoked** u `REVIEW_REQUIRED` prije nego što ga druga
+   revizija može zamijeniti (§20).
+7. **`SUPERSEDED` se dostiže isključivo iz `REVIEW_REQUIRED` ili `COMPLETED`.**
+8. **Kreiranje child revizije ne prepisuje terminalni status roditelja** definisan u D-015
+   i D-031. `REJECTED`, `FAILED`, `EXTRACTION_FAILED`, `TARIFF_EVALUATION_FAILED` i
+   `CANCELLED` roditelji zadržavaju svoj status; veza ostaje vidljiva kroz
+   `parentAnalysisRunId` (§15.3).
 
-State transition provjerava backend; DTO ne prima proizvoljan status.
+Cancel je dozvoljen iz svih aktivnih async stanja — `QUEUED`, `PREPARING_INPUT`,
+`EXTRACTING`, `EVALUATING_TARIFF`, `APPLYING_SAFETY_RULES` (§15.4).
 
 ---
 
@@ -1634,6 +2332,58 @@ CI provjere:
 - raw document access without permission;
 - rate limit;
 - problem details ne sadrži stack/secrets.
+
+Dodatni testovi iz reconciliation odluka:
+
+- **nedostajući obavezni `If-Match` → `428 PRECONDITION_REQUIRED`** na svih šest resursa iz
+  §5.1;
+- **`425` se ne vraća ni na jednom endpointu**;
+- request u toku sa istim idempotency keyem → `409 REQUEST_ALREADY_IN_PROGRESS`;
+- platform ruta pozvana sa `X-Practice-ID` ne dobija tenant context;
+- **`SYSTEM_ADMIN` bez aktivnog membershipa dobija `403` na svakoj tenant ruti**;
+- korisnik sa `tariff.manage` ne čita encountere, analize ni dokumente;
+- `PRACTICE_ADMIN` bez `SYSTEM_ADMIN` ne može pozvati nijednu `/admin/tariff-releases` rutu;
+- korisnik bez `tariff_evaluation.read` ne dobija `tariffEvaluation` blok ni na jednoj ruti
+  i dobija `"redacted": ["tariffEvaluation"]`;
+- export bez `integrationConnectionId`: nula aktivnih MANUAL konekcija → `409`, dvije →
+  `422`, jedna → `202` uz rezolviran ID u `export_jobs` i audit eventu;
+- dvije istovremene revision komande nad istim roditeljem kreiraju tačno jedno dijete;
+- `POST /analyses/{id}/revisions` nad `APPROVED` roditeljem → `409`;
+- ponovljeni `POST /analyses/{id}/cancel` ne mijenja stanje;
+- `audit-package` bez `audit.export` → `403`, i kada pozivalac ima `audit.read`;
+- `user_id` poslan u bodyju, queryju ili headeru ne utiče na kontekst.
+
+## 33.1 Linearni lanac revizija — D-034
+
+- dva istovremena revision zahtjeva kreiraju **tačno jedno** dijete;
+- gubitnik trke dobija **`409 REVISION_CONFLICT`**;
+- drugi **sekvencijalni** zahtjev nad istim roditeljem dobija `409 REVISION_CONFLICT`;
+- retry **ne kreira reviziju N+2** od istog roditelja;
+- **provjera postojanja djeteta izvršava se prije mapiranja greške po statusu roditelja** —
+  roditelj koji već ima dijete daje `REVISION_CONFLICT` i kada mu je status nedozvoljen;
+- roditelj **bez djeteta** sa nedozvoljenim statusom daje `409 INVALID_STATE_TRANSITION`.
+
+## 33.2 Otkazivanje — D-035
+
+- prvo otkazivanje analize daje **`202`**;
+- ponovljeno otkazivanje daje **`200`**;
+- ponovljeno otkazivanje **ne kreira dodatni audit event**;
+- otkazivanje iz neaktivnog stanja daje **`409 INVALID_STATE_TRANSITION`**;
+- kaskada encounter cancela upisuje **dva audit eventa**;
+- neuspjeh kaskade **rollback-uje obje promjene stanja**;
+- historijske i terminalne revizije **ostaju nepromijenjene** nakon kaskade.
+
+## 33.3 Permisije odluka — D-036
+
+- `analysis.review_decision` bez `analysis.approve` dozvoljava `REJECT`, `REQUEST_CHANGES`
+  i `SAVE_DRAFT`;
+- isti pozivalac dobija **`403`** na `APPROVE`;
+- pozivalac sa samo `analysis.read` dobija **`403`** na sve četiri write odluke.
+
+## 33.4 Approval greške pri exportu — D-037
+
+- export bez aktivnog approvala → **`409 APPROVAL_REQUIRED`**;
+- export sa opozvanim approvalom → **`409 APPROVAL_REVOKED`**.
 
 ---
 
