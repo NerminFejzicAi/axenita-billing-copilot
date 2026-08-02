@@ -1274,12 +1274,40 @@ Constraints:
 
 ```sql
 unique (practice_id, id)
+unique (practice_id, encounter_id, id)
 unique (encounter_id, revision_number)
 check (revision_number >= 1)
+
 foreign key (practice_id, encounter_id)
   references encounters(practice_id, id)
-foreign key (practice_id, parent_analysis_run_id)
-  references analysis_runs(practice_id, id)
+
+foreign key (
+  practice_id,
+  encounter_id,
+  parent_analysis_run_id
+)
+references analysis_runs(
+  practice_id,
+  encounter_id,
+  id
+)
+
+check (
+  (
+    revision_number = 1
+    and parent_analysis_run_id is null
+  )
+  or
+  (
+    revision_number > 1
+    and parent_analysis_run_id is not null
+  )
+)
+
+check (
+  parent_analysis_run_id is null
+  or parent_analysis_run_id <> id
+)
 ```
 
 Indeksi:
@@ -1287,7 +1315,42 @@ Indeksi:
 ```sql
 (practice_id, encounter_id, revision_number desc)
 (practice_id, status, created_at desc)
+
+create unique index analysis_runs_one_child_per_parent_idx
+on analysis_runs (
+  practice_id,
+  parent_analysis_run_id
+)
+where parent_analysis_run_id is not null;
 ```
+
+### 10.2.1 Linearni lanac revizija (D-034)
+
+Historija analysis revizija je **linearni lanac, ne stablo**.
+
+**Parcijalni indeks `analysis_runs_one_child_per_parent_idx`:**
+
+- **dopušta više inicijalnih revizija sa `NULL` roditeljem** — svaki encounter ima vlastitu
+  inicijalnu reviziju, a `where parent_analysis_run_id is not null` te redove u potpunosti
+  izuzima iz indeksa;
+- **sprovodi najviše jedno direktno dijete po svakom non-NULL roditelju**;
+- **ne smije se mijenjati u `NULLS NOT DISTINCT`.** Ta semantika je namjerno korištena samo
+  za `rule_findings` (§12.3, D-030), gdje je izjednačavanje NULL-ova bilo cilj. Ovdje bi
+  dozvolila samo jednu inicijalnu reviziju u cijeloj tabeli. Razlika je namjerna i ne
+  ujednačava se.
+
+**Alokacija `revision_number`:**
+
+- `revision_number` djeteta je uvijek **`roditelj.revision_number + 1`**;
+- **aplikacijska logika nikada ne izvodi retry reviziju kroz `MAX(revision_number)`.**
+  Ponovno čitanje maksimuma nakon unique konflikta proizvelo bi reviziju N+2 i drugo dijete
+  istog roditelja — upravo defekt koji D-034 zatvara.
+
+Trokolonski self-FK garantuje da roditelj i dijete pripadaju istom `practice_id` i istom
+`encounter_id`; zato je `unique (practice_id, encounter_id, id)` obavezan kao cilj tog FK-a.
+
+Identitetska polja `parent_analysis_run_id` i `revision_number` su immutable nakon
+INSERT-a; enforcement je u §19.4.
 
 ## 10.3 `analysis_input_snapshots`
 
@@ -2651,6 +2714,61 @@ stare i nove vrijednosti. `WHEN` bi uslov premjestio u definiciju triggera, gdje
 lakše previdjeti pri izmjeni schema, a dobitak na performansama je na MVP obimu
 zanemariv.
 
+## 19.4 Immutability identiteta analysis revizije
+
+D-034 klauzula 7 traži da `parent_analysis_run_id` i `revision_number` budu immutable nakon
+INSERT-a. Bez enforcementa lanac revizija iz §10.2.1 može biti prepisan UPDATE-om, čime bi
+dijete promijenilo roditelja ili redni broj, a audit veza revizija postala neistinita.
+
+Zasebna trigger funkcija, jer štiti druge kolone od one iz §19.3:
+
+```sql
+create or replace function app_security.reject_analysis_revision_identity_change()
+returns trigger
+language plpgsql
+security invoker
+set search_path = pg_catalog, pg_temp
+as $$
+begin
+  if new.parent_analysis_run_id is distinct from old.parent_analysis_run_id
+     or new.revision_number is distinct from old.revision_number then
+    raise exception using
+      errcode = '23514',
+      message = 'Analysis revision identity (parent_analysis_run_id, revision_number) is immutable after INSERT';
+  end if;
+
+  return new;
+end;
+$$;
+
+revoke all on function app_security.reject_analysis_revision_identity_change() from public;
+```
+
+Osobine:
+
+- `returns trigger`;
+- `language plpgsql`;
+- `security invoker`;
+- fiksiran `search_path`;
+- odbija izmjenu `parent_analysis_run_id` ili `revision_number` sa SQLSTATE `23514`;
+- vraća `NEW` kada nijedna zaštićena kolona nije promijenjena;
+- `PUBLIC` privilegije su revoked.
+
+Imenovani trigger:
+
+```sql
+create trigger analysis_runs_revision_immutable_trg
+before update on analysis_runs
+for each row
+execute function app_security.reject_analysis_revision_identity_change();
+```
+
+Kao i u §19.3, **`WHEN` klauzula se ne koristi.**
+
+Ovaj trigger **ne mijenja** pet AAD triggera iz §19.3. `analysis_runs` nije u obuhvatu
+enkripcijskog envelopea (§2.7.7), pa nema AAD trigger; ova zaštita je nezavisna i pokriva
+integritet lanca revizija, ne enkripciju.
+
 ---
 
 # 20. Grants matrica
@@ -2824,6 +2942,15 @@ runtime role; owner ostaje `copilot_migrator`.
 `ai_prompt_versions`, `analysis_runs`, `analysis_input_snapshots`, `ai_extraction_runs`;
 `unique (practice_id, id)` na `analysis_input_snapshots` i `ai_extraction_runs`.
 
+**D-034 na `analysis_runs`:**
+
+- `unique (practice_id, encounter_id, id)`;
+- trokolonski self-FK `(practice_id, encounter_id, parent_analysis_run_id)` →
+  `analysis_runs(practice_id, encounter_id, id)`;
+- CHECK za par `revision_number` / `parent_analysis_run_id`;
+- CHECK protiv self-parent reference;
+- parcijalni unique indeks `analysis_runs_one_child_per_parent_idx`.
+
 ## 22.6 `006_facts_candidates_evidence`
 
 `extracted_facts`, `service_candidates`, `candidate_evidence`;
@@ -2885,7 +3012,9 @@ Tenant politike prema §17.1 i §18.1;
 
 Approval guard iz §19.1 i audit guard iz §19.2;
 **`app_security.reject_aad_bound_column_change()` i pet imenovanih AAD triggera** iz §19.3
-(D-025, klauzula 12).
+(D-025, klauzula 12);
+**`app_security.reject_analysis_revision_identity_change()` i trigger
+`analysis_runs_revision_immutable_trg`** iz §19.4 (D-034, klauzula 7).
 
 ## 22.15 `015_seed_baseline`
 
@@ -2973,6 +3102,31 @@ Object storage backup/retention se rješava odvojeno, uz očuvanje referencijaln
 - A evidence ne referencira B document;
 - svaka tenant tabela u obuhvatu §2.5 ima `unique (practice_id, id)`;
 - svaki composite FK ima unique constraint nad tačno referenciranim parom kolona.
+
+### 25.2.1 Lanac analysis revizija (D-034)
+
+Concurrency:
+
+- dvije istovremene revision komande nad istim roditeljem kreiraju **tačno jedno** dijete;
+- gubitnik trke mapira se na **`409 REVISION_CONFLICT`**;
+- drugi **sekvencijalni** zahtjev nad istim roditeljem koji već ima dijete takođe daje
+  `409 REVISION_CONFLICT`;
+- retry nakon unique konflikta **nikada ne kreira reviziju N+2** od istog roditelja.
+
+Integritet lanca:
+
+- dijete i roditelj ne mogu pripadati različitim encounterima — pada na trokolonskom FK;
+- `revision_number = 1` uz non-NULL `parent_analysis_run_id` je odbijen;
+- `revision_number > 1` uz `NULL` `parent_analysis_run_id` je odbijen;
+- self-parent referenca (`parent_analysis_run_id = id`) je odbijena;
+- **više inicijalnih revizija kroz različite encountere ostaje dozvoljeno** — parcijalni
+  indeks ih ne obuhvata.
+
+Immutability identiteta (§19.4):
+
+- UPDATE nad `parent_analysis_run_id` pada sa SQLSTATE `23514`;
+- UPDATE nad `revision_number` pada sa SQLSTATE `23514`;
+- UPDATE nad ostalim kolonama `analysis_runs` prolazi.
 
 ## 25.3 Immutability
 
@@ -3083,6 +3237,10 @@ Isto važi za RLS politike, grants, trigger funkcije iz §19 i column-level priv
 - **funkcija i svih pet AAD triggera iz §19.3 postoje**;
 - **`rule_findings` koristi `unique nulls not distinct`**;
 - **svih šest optimistic-locking resursa ima `version` i `check (version >= 1)`**;
+- **svaka analysis revizija ima najviše jedno direktno dijete**;
+- **historija analysis revizija je linearni lanac, ne stablo**;
+- **identitetska polja revizije — `parent_analysis_run_id` i `revision_number` — su
+  immutable nakon INSERT-a**;
 - composite FK testovi prolaze;
 - negativni privilege testovi iz §20.4 prolaze;
 - migration checksum nije ručno narušen;
