@@ -51,19 +51,28 @@ Database Schema v1 mora podržati:
 
 Sve poslovne tabele koriste UUID.
 
-Preporučeni default:
+**Projektno pravilo (D-025, klauzula 11):** aplikacijski kod eksplicitno generiše UUID i
+navodi ga u INSERT-u. Baza ne generiše poslovne ID-eve.
 
-```sql
-gen_random_uuid()
-```
+- poslovne tabele nemaju database ID default;
+- `gen_random_uuid()` se ne koristi kao column default;
+- Prisma `@default(uuid())` se ne koristi za poslovne entitete (`26`);
+- seed skripte i migracione skripte takođe eksplicitno navode UUID;
+- pravilo važi za sve poslovne tabele, ne samo za enkriptovane.
 
-Potrebna ekstenzija:
+Razlog: kanonski AAD (§2.7) sadrži `row_id`, pa `id` mora postojati u aplikaciji prije
+nego što se bilo koje polje tog reda enkriptuje. Jednoobrazno pravilo uklanja potrebu za
+procjenom po tabeli.
 
-```sql
-create extension if not exists pgcrypto;
-```
+Za generisanje ID-a nije potrebna nijedna PostgreSQL ekstenzija.
 
-UUID može generisati aplikacija ili baza, ali projekat mora koristiti jedan konzistentan pristup. Za Prisma modele je prihvatljivo `@default(uuid())`.
+### 2.2.1 Registar dokumentovanih iznimki
+
+| Tabela | Kolona | Razlog | Odobreno u |
+|---|---|---|---|
+| — | — | — | — |
+
+Registar je prazan. Novi unos zahtijeva novi ADR prema `00` §16.
 
 ## 2.3 Vrijeme
 
@@ -83,21 +92,163 @@ confidence     numeric(5,4)
 
 ## 2.5 Tenant ključ
 
-Sve tenant tabele imaju:
+**Bezuslovno pravilo (D-022):** svaka tenant tabela ima
 
 ```sql
 practice_id uuid not null
-```
-
-I, gdje ih druge tenant tabele referenciraju:
-
-```sql
 unique (practice_id, id)
 ```
+
+Constraint je obavezan bez obzira na to da li je tabela trenutno cilj composite foreign
+keya. PostgreSQL composite FK zahtijeva unique constraint nad tačno referenciranim parom
+kolona; uslovno pravilo je u v1 baselineu proizvelo šest tabela koje se koriste kao FK
+ciljevi, a nemaju potreban constraint.
+
+Posljedice pravila:
+
+- nema procjene po tabeli;
+- `11` §3 je mehanički provjerljiv;
+- budući composite FK ne zahtijeva migraciju nad popunjenom tabelom.
+
+`practice_id` je uvijek `not null`. Nijedna tenant tabela nema nullable tenant ključ, jer
+`NULL = <uuid>` u RLS politici daje `NULL` i red postaje nevidljiv bez greške (D-023).
+
+Tabele koje NISU tenant tabele i na koje se pravilo ne odnosi:
+
+```text
+practices                        (sama je tenant)
+users                            (globalna)
+platform_role_assignments        (globalna, user-scoped RLS)
+tariff_releases                  (globalna)
+tariff_release_artifacts         (globalna)
+system_storage_objects           (globalna)
+tariff_catalog_entries           (globalna)
+tariff_release_activation_history(globalna)
+ai_prompt_versions               (globalna)
+safety_rules                     (globalna)
+safety_rule_versions             (globalna)
+```
+
+Jedine dvije tenant tabele koje u v1 još nemaju constraint su `import_batches` i
+`webhook_receipts`. Obje su **DEFERRED do Axenita epica** (D-023), gdje se odlučuje njihov
+tenancy model. Nijedna od njih nije cilj postojećeg ni impliciranog composite FK-a.
 
 ## 2.6 Soft status
 
 Business zapisi se ne brišu standardnim CRUD deleteom. Koriste se statusi, archive i retention tok.
+
+## 2.7 Enkripcijski envelope
+
+Normativni izvor je D-025. Ova sekcija je jedini kanonski opis; pojedinačne tabele samo
+navode kolone i CHECK constrainte.
+
+### 2.7.1 Algoritam
+
+- AES-256-GCM;
+- ključ je tačno 32 bajta, verzionisani aplikacijski ključ iz secrets managera;
+- `envelope_version` počinje od 1;
+- nema per-row DEK u v1;
+- ključ nikada ne ulazi u bazu.
+
+### 2.7.2 Kolone po polju
+
+```sql
+<field>_ciphertext bytea
+<field>_iv         bytea   -- tačno 12 bajtova
+<field>_auth_tag   bytea   -- tačno 16 bajtova
+```
+
+IV je uvijek svjež po polju i po upisu. Ponovna upotreba IV-a sa istim ključem je
+zabranjena; svaki UPDATE ciphertext kolone generiše novi IV.
+
+### 2.7.3 Kolone po redu
+
+```sql
+encryption_algorithm   varchar(30)
+encryption_version     integer
+encryption_key_ref     varchar(255)
+encryption_key_version integer
+```
+
+Sva enkriptovana polja u jednom redu dijele jedan `encryption_key_ref` i jedan
+`encryption_key_version`. Kada red ima više enkriptovanih polja, IV i auth tag ostaju
+nezavisni po polju.
+
+### 2.7.4 Kanonski AAD
+
+UTF-8 string, LF separatori, bez završnog praznog reda:
+
+```text
+v1
+practice_id=<canonical UUID or SYSTEM>
+table=<table name>
+row_id=<canonical UUID>
+column=<column name>
+envelope_version=<integer>
+```
+
+`row_id` zahtijeva aplikacijski generisan UUID prije INSERT-a (§2.2).
+
+### 2.7.5 Obavezni CHECK constrainti
+
+Po enkriptovanom polju:
+
+```sql
+check (
+  (<field>_ciphertext is null
+   and <field>_iv is null
+   and <field>_auth_tag is null)
+  or
+  (<field>_ciphertext is not null
+   and <field>_iv is not null
+   and <field>_auth_tag is not null)
+)
+check (<field>_iv is null or octet_length(<field>_iv) = 12)
+check (<field>_auth_tag is null or octet_length(<field>_auth_tag) = 16)
+```
+
+Po redu, kada je bilo koje enkriptovano polje non-NULL:
+
+```sql
+check (
+  <nijedno enkriptovano polje nije non-null>
+  or (
+    encryption_algorithm = 'AES-256-GCM'
+    and encryption_version >= 1
+    and encryption_key_ref is not null
+    and encryption_key_version >= 1
+  )
+)
+```
+
+### 2.7.6 Rotacija
+
+Pri prelasku reda na novu verziju ključa sva non-null enkriptovana polja tog reda se
+ponovo enkriptuju atomarno, u jednoj transakciji, sa svježim IV-ovima. Re-enkripcija ne
+mijenja `*_hash` kolone. Stare verzije ključa se čuvaju za dekripciju kroz cijeli
+retention period.
+
+### 2.7.7 Obuhvat
+
+Envelope se primjenjuje na tačno ova polja:
+
+```text
+patient_references.external_patient_ref      (§7.1)
+encounters.external_encounter_ref            (§7.2)
+encounter_documents.normalized_text          (§8.2)
+encounter_documents.redacted_text            (§8.2)
+candidate_evidence.quoted_text               (§10.7)
+external_resource_links.external_id          (§14.2)
+```
+
+`storage_objects` i `system_storage_objects` NISU u obuhvatu. Njihove `encryption_key_ref`
+i `encryption_version` kolone opisuju enkripciju blob sadržaja u object storageu i nisu
+dio row envelopea.
+
+### 2.7.8 AAD immutability
+
+`id`, `practice_id`, ime tabele i ime kolone su immutable nakon INSERT-a. Enforcement je
+opisan u §19.3.
 
 ---
 
@@ -141,12 +292,64 @@ Odgovornosti:
 - minimalna prava;
 - podliježe RLS-u.
 
-## 3.3 Zabranjeno
+Ograničenja (D-023, klauzula 4):
+
+- isključivo SELECT na globalnim tarifnim tabelama;
+- **nema INSERT ni UPDATE nad globalnom tarifnom konfiguracijom**;
+- column-level SELECT na `system_storage_objects` prema D-024;
+- SELECT-only na `practice_memberships`, ograničen user-scoped RLS-om (§17.3).
+
+Credential: `DATABASE_URL`.
+
+## 3.3 `copilot_system`
+
+```sql
+create role copilot_system
+login
+nosuperuser
+nocreatedb
+nocreaterole
+noinherit
+nobypassrls;
+```
+
+Odgovornosti (D-023, klauzula 5):
+
+- upis globalne tarifne konfiguracije;
+- upis u `tariff_release_activation_history`;
+- SELECT nad svim kolonama `system_storage_objects`, INSERT i uski column-level UPDATE
+  prema D-024;
+- nije owner nijednog schema objekta.
+
+Ograničenja:
+
+- **nema nijedan grant nad tenant tabelama**;
+- nema DELETE nad `system_storage_objects`;
+- ne koristi se za tenant poslovne upite.
+
+Credential: `SYSTEM_DATABASE_URL`.
+
+## 3.4 Credential matrica
+
+| Credential | Rola | Runtime upotreba |
+|---|---|---|
+| `DATABASE_URL` | `copilot_app` | da — tenant poslovni upiti |
+| `SYSTEM_DATABASE_URL` | `copilot_system` | da — isključivo platform/tarifne operacije |
+| `MIGRATION_DATABASE_URL` | `copilot_migrator` | **nikada** — samo migracije i deployment |
+
+`MIGRATION_DATABASE_URL` se ne konfiguriše u runtime procesu aplikacije (D-023,
+klauzula 6).
+
+## 3.5 Zabranjeno
 
 - API koristi `copilot_migrator`;
-- tabela je owned by `copilot_app`;
-- `copilot_app` dobije `BYPASSRLS`;
-- `copilot_app` dobije blanket `ALL PRIVILEGES`.
+- `MIGRATION_DATABASE_URL` se koristi u runtimeu;
+- tabela je owned by `copilot_app` ili `copilot_system`;
+- bilo koja runtime rola je owner;
+- `copilot_app` ili `copilot_system` dobije `BYPASSRLS`;
+- `copilot_app` ili `copilot_system` dobije blanket `ALL PRIVILEGES`;
+- `copilot_system` dobije bilo koji grant nad tenant tabelom;
+- `copilot_app` dobije INSERT/UPDATE nad globalnom tarifnom konfiguracijom.
 
 ---
 
@@ -164,6 +367,8 @@ BILLING_SPECIALIST
 AUDITOR
 READ_ONLY
 ```
+
+Membership role vrijede unutar jedne ordinacije i čuvaju se u `practice_memberships`.
 
 ## 4.2 Status ordinacije/korisnika
 
@@ -318,11 +523,26 @@ FAILED
 CANCELLED
 ```
 
+## 4.16 Platform role
+
+```text
+SYSTEM_ADMIN
+```
+
+Platform rola je odvojena od membership role (D-023, klauzula 8). Čuva se u globalnoj
+tabeli `platform_role_assignments` (§6.5), nikada u `practice_memberships`.
+
+`SYSTEM_ADMIN` nema automatski pristup encounterima, analizama ni medicinskim
+dokumentima. Pristup tenant podacima zahtijeva aktivan `practice_memberships` red.
+
 ---
 
 # 5. Entity pregled
 
 ```text
+Platform (globalno)
+└── platform_role_assignments
+
 Identity/Tenant
 ├── practices
 ├── users
@@ -336,8 +556,9 @@ Clinical intake
 ├── storage_objects
 └── encounter_documents
 
-Tariff configuration
+Tariff configuration (globalno)
 ├── tariff_releases
+├── system_storage_objects
 ├── tariff_release_artifacts
 ├── tariff_catalog_entries
 └── tariff_release_activation_history
@@ -368,9 +589,9 @@ Rules/Review
 Integration/System
 ├── integration_connections
 ├── external_resource_links
-├── import_batches
+├── import_batches            (DEFERRED — Axenita epic)
 ├── export_jobs
-├── webhook_receipts
+├── webhook_receipts          (DEFERRED — Axenita epic)
 ├── async_jobs
 ├── idempotency_keys
 ├── outbox_events
@@ -447,24 +668,89 @@ Indeksi:
 (practice_id, active, role)
 ```
 
+**RLS napomena:** `practice_memberships` NE koristi standardnu tenant politiku
+`practice_id = app.practice_id`, jer `set_request_context` mora provjeriti membership
+prije nego što `app.practice_id` uopšte postoji. Tabela koristi bootstrap-safe
+user-scoped SELECT politiku opisanu u §17.3. `copilot_app` dobija isključivo SELECT.
+
 ## 6.4 `practice_settings`
 
 Jedan red po practice.
 
 | Kolona | Tip |
 |---|---|
-| practice_id | uuid PK/FK |
+| id | uuid PK |
+| practice_id | uuid not null FK |
 | billing_review_required | boolean |
-| allow_mpa_approval | boolean |
+| allow_mpa_approval | boolean not null default false |
+| allow_billing_specialist_approval | boolean not null default false |
 | require_reason_for_manual_change | boolean |
 | ai_enabled | boolean |
 | axenita_export_enabled | boolean |
 | retention_policy_code | varchar(100), nullable |
 | configuration | jsonb |
+| version | integer not null default 1 |
 | updated_by | uuid nullable |
 | updated_at | timestamptz |
 
+Constraints:
+
+```sql
+unique (practice_id)
+unique (practice_id, id)
+check (version >= 1)
+```
+
+`id` je surogat ključ i generiše ga aplikacija prije INSERT-a (§2.2). `unique (practice_id)`
+čuva pravilo "tačno jedan settings red po ordinaciji"; `unique (practice_id, id)` je
+bezuslovni tenant constraint iz §2.5.
+
+**Approval flagovi:** i `allow_mpa_approval` i `allow_billing_specialist_approval` imaju
+default `false`. Odobravanje izvan `PHYSICIAN`/`PRACTICE_ADMIN` je opt-in odluka
+ordinacije, nikada podrazumijevano stanje.
+
+`version` je optimistic locking kolona (D-029); `PATCH /practices/{id}/settings` zahtijeva
+`If-Match`.
+
 `configuration` ne sadrži secrets.
+
+## 6.5 `platform_role_assignments`
+
+Globalna tabela. Nema `practice_id` i nije tenant tabela.
+
+| Kolona | Tip |
+|---|---|
+| id | uuid PK |
+| user_id | uuid not null FK → users(id) |
+| platform_role | platform_role |
+| granted_by | uuid nullable |
+| granted_at | timestamptz |
+| revoked_at | timestamptz nullable |
+| revoked_by | uuid nullable |
+
+Constraints:
+
+```sql
+unique (user_id, platform_role)
+```
+
+Indeks:
+
+```sql
+create index platform_role_assignments_user_idx
+on platform_role_assignments(user_id);
+```
+
+Pravila (D-023, klauzule 8–12):
+
+- `SYSTEM_ADMIN` je odvojen od `practice_memberships` i nikada se ne izvodi iz membership
+  role;
+- `tariff.manage` pripada isključivo `SYSTEM_ADMIN`, nikada `PRACTICE_ADMIN`;
+- `SYSTEM_ADMIN` bez aktivnog membershipa nema pristup tenant podacima;
+- tabela koristi **user-scoped RLS** (§17.2), ne tenant RLS;
+- `copilot_app` NEMA neograničen SELECT nad ovom tabelom;
+- `copilot_system` ima SELECT nad svim redovima;
+- upis je u MVP-u isključivo seed/migracija.
 
 ---
 
@@ -479,6 +765,12 @@ Jedan red po practice.
 | source_system | integration_provider | |
 | external_patient_ref_hash | varchar(128) | HMAC/pretraživi token |
 | external_patient_ref_ciphertext | bytea nullable | samo ako write-back zahtijeva |
+| external_patient_ref_iv | bytea nullable | 12 bajtova |
+| external_patient_ref_auth_tag | bytea nullable | 16 bajtova |
+| encryption_algorithm | varchar(30) nullable | `AES-256-GCM` |
+| encryption_version | integer nullable | envelope verzija |
+| encryption_key_ref | varchar(255) nullable | referenca ključa |
+| encryption_key_version | integer nullable | verzija ključa |
 | pseudonym | varchar(50) | UI identifikator |
 | birth_year | smallint nullable | minimum |
 | sex_code | varchar(20) nullable | kada tarifno potrebno |
@@ -492,7 +784,36 @@ unique (practice_id, source_system, external_patient_ref_hash)
 unique (practice_id, pseudonym)
 unique (practice_id, id)
 check (birth_year is null or birth_year between 1900 and 2200)
+
+check (
+  (external_patient_ref_ciphertext is null
+   and external_patient_ref_iv is null
+   and external_patient_ref_auth_tag is null)
+  or
+  (external_patient_ref_ciphertext is not null
+   and external_patient_ref_iv is not null
+   and external_patient_ref_auth_tag is not null)
+)
+check (
+  external_patient_ref_iv is null
+  or octet_length(external_patient_ref_iv) = 12
+)
+check (
+  external_patient_ref_auth_tag is null
+  or octet_length(external_patient_ref_auth_tag) = 16
+)
+check (
+  external_patient_ref_ciphertext is null
+  or (
+    encryption_algorithm = 'AES-256-GCM'
+    and encryption_version >= 1
+    and encryption_key_ref is not null
+    and encryption_key_version >= 1
+  )
+)
 ```
+
+Enkripcijski envelope prema §2.7. AAD immutability trigger: §19.3.
 
 Produkcijski pseudonim ne smije biti izveden direktnim skraćivanjem eksternog ID-a.
 
@@ -505,6 +826,12 @@ Produkcijski pseudonim ne smije biti izveden direktnim skraćivanjem eksternog I
 | patient_reference_id | uuid |
 | external_encounter_ref_hash | varchar(128), nullable |
 | external_encounter_ref_ciphertext | bytea, nullable |
+| external_encounter_ref_iv | bytea, nullable |
+| external_encounter_ref_auth_tag | bytea, nullable |
+| encryption_algorithm | varchar(30), nullable |
+| encryption_version | integer, nullable |
+| encryption_key_ref | varchar(255), nullable |
+| encryption_key_version | integer, nullable |
 | occurred_at | timestamptz |
 | treatment_date | date |
 | responsible_physician_id | uuid nullable |
@@ -532,7 +859,38 @@ check (
 )
 foreign key (practice_id, patient_reference_id)
   references patient_references(practice_id, id)
+
+check (
+  (external_encounter_ref_ciphertext is null
+   and external_encounter_ref_iv is null
+   and external_encounter_ref_auth_tag is null)
+  or
+  (external_encounter_ref_ciphertext is not null
+   and external_encounter_ref_iv is not null
+   and external_encounter_ref_auth_tag is not null)
+)
+check (
+  external_encounter_ref_iv is null
+  or octet_length(external_encounter_ref_iv) = 12
+)
+check (
+  external_encounter_ref_auth_tag is null
+  or octet_length(external_encounter_ref_auth_tag) = 16
+)
+check (
+  external_encounter_ref_ciphertext is null
+  or (
+    encryption_algorithm = 'AES-256-GCM'
+    and encryption_version >= 1
+    and encryption_key_ref is not null
+    and encryption_key_version >= 1
+  )
+)
 ```
+
+`version` je optimistic locking kolona (D-029) i već je usklađena — ne dodaje se ponovo.
+
+Enkripcijski envelope prema §2.7. AAD immutability trigger: §19.3.
 
 Indeksi:
 
@@ -599,6 +957,10 @@ unique (practice_id, id)
 check (byte_size >= 0)
 ```
 
+**Napomena o imenovanju:** `encryption_key_ref` i `encryption_version` ovdje opisuju
+enkripciju **blob sadržaja u object storageu**. Nisu dio row envelopea iz §2.7 i ne nose
+njegove CHECK constrainte. `storage_objects` nema nijednu `*_ciphertext` kolonu.
+
 ## 8.2 `encounter_documents`
 
 | Kolona | Tip |
@@ -616,6 +978,10 @@ check (byte_size >= 0)
 | redacted_text_ciphertext | bytea nullable |
 | redacted_text_iv | bytea nullable |
 | redacted_text_auth_tag | bytea nullable |
+| encryption_algorithm | varchar(30) nullable |
+| encryption_version | integer nullable |
+| encryption_key_ref | varchar(255) nullable |
+| encryption_key_version | integer nullable |
 | source_text_hash | varchar(64) nullable |
 | redacted_text_hash | varchar(64) nullable |
 | language_code | varchar(10) nullable |
@@ -627,9 +993,11 @@ check (byte_size >= 0)
 | created_at | timestamptz |
 | archived_at | timestamptz nullable |
 
-Composite FK:
+Constraints:
 
 ```sql
+unique (practice_id, id)
+
 foreign key (practice_id, encounter_id)
   references encounters(practice_id, id)
 
@@ -641,7 +1009,49 @@ Check:
 
 ```sql
 check (page_count is null or page_count > 0)
+
+check (
+  (normalized_text_ciphertext is null
+   and normalized_text_iv is null
+   and normalized_text_auth_tag is null)
+  or
+  (normalized_text_ciphertext is not null
+   and normalized_text_iv is not null
+   and normalized_text_auth_tag is not null)
+)
+check (normalized_text_iv is null or octet_length(normalized_text_iv) = 12)
+check (normalized_text_auth_tag is null or octet_length(normalized_text_auth_tag) = 16)
+
+check (
+  (redacted_text_ciphertext is null
+   and redacted_text_iv is null
+   and redacted_text_auth_tag is null)
+  or
+  (redacted_text_ciphertext is not null
+   and redacted_text_iv is not null
+   and redacted_text_auth_tag is not null)
+)
+check (redacted_text_iv is null or octet_length(redacted_text_iv) = 12)
+check (redacted_text_auth_tag is null or octet_length(redacted_text_auth_tag) = 16)
+
+check (
+  (normalized_text_ciphertext is null and redacted_text_ciphertext is null)
+  or (
+    encryption_algorithm = 'AES-256-GCM'
+    and encryption_version >= 1
+    and encryption_key_ref is not null
+    and encryption_key_version >= 1
+  )
+)
 ```
+
+**Dva enkriptovana polja, jedan ključ (§2.7.3):** `normalized_text` i `redacted_text`
+dijele isti red i zato dijele `encryption_algorithm`, `encryption_version`,
+`encryption_key_ref` i `encryption_key_version`. IV i auth tag su **nezavisni po polju** —
+`normalized_text_iv` i `redacted_text_iv` nikada nisu ista vrijednost, jer je ponovna
+upotreba IV-a sa istim ključem zabranjena.
+
+AAD immutability trigger: §19.3.
 
 ---
 
@@ -692,26 +1102,85 @@ Napomena: kasnije može biti potrebna aktivnost po treatment periodu, a ne samo 
 
 | Kolona | Tip |
 |---|---|
+Globalna tabela, bez `practice_id`.
+
+| Kolona | Tip |
+|---|---|
 | id | uuid PK |
 | tariff_release_id | uuid FK |
 | artifact_type | varchar(50) |
 | filename | varchar(255) |
-| storage_object_id | uuid |
+| system_storage_object_id | uuid not null |
 | artifact_version | varchar(100) nullable |
 | sha256 | varchar(64) |
 | metadata | jsonb |
 | created_at | timestamptz |
 
-Napomena: global tariff artifacts ne bi idealno trebali koristiti tenant `storage_objects`. Za implementaciju izabrati jedno:
+Constraint:
 
-- posebna global `system_storage_objects` tabela; ili
-- `storage_objects.practice_id` nullable uz zasebna stroga pravila.
+```sql
+foreign key (system_storage_object_id)
+  references system_storage_objects(id)
+```
 
-**Zaključana preporuka v1:** kreirati zasebnu `system_storage_objects` tabelu za globalne tarifne artefakte, kako se tenant RLS ne bi komplikovao.
+Kolona se zove `system_storage_object_id` i referencira globalnu `system_storage_objects`
+tabelu (D-024, klauzula 1). Tenant `storage_objects` se ne koristi za globalne tarifne
+artefakte.
 
 ## 9.3 `system_storage_objects`
 
-Ista metadata struktura kao `storage_objects`, ali bez practice ID-a. Samo admin/migrator pristup.
+Globalna tabela. Nema `practice_id` i **ne koristi tenant RLS** (D-023, klauzula 7).
+Zaštita je ownership, uski GRANT i negativni privilege testovi.
+
+| Kolona | Tip |
+|---|---|
+| id | uuid PK |
+| bucket_name | varchar(100) |
+| object_key | varchar(500) |
+| content_type | varchar(150) |
+| original_filename | varchar(255), nullable |
+| byte_size | bigint |
+| sha256 | varchar(64) |
+| encryption_key_ref | varchar(255), nullable |
+| encryption_version | integer, nullable |
+| antivirus_status | varchar(30), nullable |
+| created_by | uuid nullable |
+| created_at | timestamptz |
+| archived_at | timestamptz nullable |
+| retention_delete_after | timestamptz nullable |
+
+Constraints:
+
+```sql
+unique (bucket_name, object_key)
+check (byte_size >= 0)
+```
+
+`archived_at` namjerno ostaje izvan column-level UPDATE granta za `copilot_system`
+(§9.3.1), pa je negativni test iz D-024 — "`copilot_system` UPDATE nad `archived_at`
+pada" — provjerljiv.
+
+Kao i kod `storage_objects` (§8.1), `encryption_key_ref` i `encryption_version` opisuju
+enkripciju blob sadržaja u object storageu i nisu dio row envelopea iz §2.7.
+
+### 9.3.1 Grants (D-024, klauzule 2–5)
+
+| Rola | Prava |
+|---|---|
+| `copilot_migrator` | owner; DDL |
+| `copilot_app` | **column-level SELECT** na `(id, original_filename, content_type, byte_size, sha256, created_at)` |
+| `copilot_system` | SELECT nad svim kolonama; INSERT; **column-level UPDATE** isključivo na `(sha256, byte_size, antivirus_status)` |
+
+Eksplicitno:
+
+- `copilot_app` nema pristup kolonama `bucket_name`, `object_key`, `antivirus_status`,
+  `created_by`, `retention_delete_after` ni bilo kojoj `encryption_*` koloni;
+- `copilot_system` ne smije mijenjati nijednu kolonu izvan navedene tri;
+- **nijedna runtime rola nema DELETE**;
+- **nijedna runtime rola nije owner**;
+- proširenje bilo kojeg granta zahtijeva novi ADR.
+
+Sadržaj artefakta se i dalje dohvata kroz storage adapter uz posebnu permission.
 
 ## 9.4 `tariff_catalog_entries`
 
@@ -837,6 +1306,7 @@ Indeksi:
 Constraints:
 
 ```sql
+unique (practice_id, id)
 unique (analysis_run_id)
 foreign key (practice_id, analysis_run_id)
   references analysis_runs(practice_id, id)
@@ -872,6 +1342,12 @@ Runtime prava: insert/select, bez update/delete.
 | started_at | timestamptz |
 | completed_at | timestamptz nullable |
 
+Constraint:
+
+```sql
+unique (practice_id, id)
+```
+
 Indeks:
 
 ```sql
@@ -896,13 +1372,19 @@ Indeks:
 | corrected_by | uuid nullable |
 | corrected_at | timestamptz nullable |
 | correction_reason | text nullable |
+| version | integer not null default 1 |
 | created_at | timestamptz |
 
-Checks:
+Constraints:
 
 ```sql
+unique (practice_id, id)
 check (confidence is null or confidence between 0 and 1)
+check (version >= 1)
 ```
+
+`version` je optimistic locking kolona (D-029); `PATCH /analyses/{id}/facts/{factId}`
+zahtijeva `If-Match`.
 
 ## 10.6 `service_candidates`
 
@@ -925,15 +1407,21 @@ check (confidence is null or confidence between 0 and 1)
 | corrected_by | uuid nullable |
 | corrected_at | timestamptz nullable |
 | correction_reason | text nullable |
+| version | integer not null default 1 |
 | created_at | timestamptz |
 
-Checks:
+Constraints:
 
 ```sql
+unique (practice_id, id)
 check (proposed_quantity > 0)
 check (effective_quantity is null or effective_quantity > 0)
 check (confidence is null or confidence between 0 and 1)
+check (version >= 1)
 ```
+
+`version` je optimistic locking kolona (D-029);
+`PATCH /analyses/{id}/service-candidates/{candidateId}` zahtijeva `If-Match`.
 
 ## 10.7 `candidate_evidence`
 
@@ -946,12 +1434,28 @@ check (confidence is null or confidence between 0 and 1)
 | start_offset | integer nullable |
 | end_offset | integer nullable |
 | quoted_text_ciphertext | bytea nullable |
+| quoted_text_iv | bytea nullable |
+| quoted_text_auth_tag | bytea nullable |
+| encryption_algorithm | varchar(30) nullable |
+| encryption_version | integer nullable |
+| encryption_key_ref | varchar(255) nullable |
+| encryption_key_version | integer nullable |
 | quoted_text_hash | varchar(64) nullable |
 | evidence_type | varchar(30) |
 | confidence | numeric(5,4) nullable |
 | created_at | timestamptz |
 
-Composite FK prema candidate i document tabeli.
+Constraints:
+
+```sql
+unique (practice_id, id)
+
+foreign key (practice_id, service_candidate_id)
+  references service_candidates(practice_id, id)
+
+foreign key (practice_id, document_id)
+  references encounter_documents(practice_id, id)
+```
 
 Checks:
 
@@ -961,7 +1465,33 @@ check (
   or end_offset is null
   or (start_offset >= 0 and end_offset >= start_offset)
 )
+
+check (
+  (quoted_text_ciphertext is null
+   and quoted_text_iv is null
+   and quoted_text_auth_tag is null)
+  or
+  (quoted_text_ciphertext is not null
+   and quoted_text_iv is not null
+   and quoted_text_auth_tag is not null)
+)
+check (quoted_text_iv is null or octet_length(quoted_text_iv) = 12)
+check (quoted_text_auth_tag is null or octet_length(quoted_text_auth_tag) = 16)
+check (
+  quoted_text_ciphertext is null
+  or (
+    encryption_algorithm = 'AES-256-GCM'
+    and encryption_version >= 1
+    and encryption_key_ref is not null
+    and encryption_key_version >= 1
+  )
+)
 ```
+
+Enkripcijski envelope prema §2.7. AAD immutability trigger: §19.3.
+
+Oba composite FK-a su sada izvodljiva jer §2.5 garantuje `unique (practice_id, id)` na
+`service_candidates` i `encounter_documents`.
 
 ---
 
@@ -993,6 +1523,7 @@ check (
 Constraints:
 
 ```sql
+unique (practice_id, id)
 unique (analysis_run_id)
 ```
 
@@ -1023,9 +1554,10 @@ Append-like: nema update/delete nakon `SUCCEEDED`, osim controlled status comple
 | sort_order | integer |
 | created_at | timestamptz |
 
-Checks:
+Constraints:
 
 ```sql
+unique (practice_id, id)
 check (quantity > 0)
 check (amount_chf is null or amount_chf >= 0)
 ```
@@ -1044,6 +1576,12 @@ check (amount_chf is null or amount_chf >= 0)
 | related_service_code | varchar(100) nullable |
 | details | jsonb |
 | created_at | timestamptz |
+
+Constraint:
+
+```sql
+unique (practice_id, id)
+```
 
 Source values:
 
@@ -1128,10 +1666,20 @@ unique (safety_rule_id, version)
 | created_at | timestamptz |
 | updated_at | timestamptz |
 
-Unique za determinističko ponovno izvršavanje:
+Constraints:
 
 ```sql
-unique (
+unique (practice_id, id)
+check (version >= 1)
+```
+
+`version` je optimistic locking kolona (D-029); kolona je već postojala, dodaje se samo
+check constraint.
+
+Unique za determinističko ponovno izvršavanje (D-030):
+
+```sql
+unique nulls not distinct (
   analysis_run_id,
   safety_rule_version_id,
   finding_code,
@@ -1140,7 +1688,17 @@ unique (
 )
 ```
 
-Napomena: null semantika unique constrainta zahtijeva pažnju. Može se koristiti generisani `finding_dedup_key` ili expression unique index.
+`NULLS NOT DISTINCT` je obavezan jer dvije kolone u ključu mogu biti NULL. U standardnoj
+SQL semantici NULL nije jednak NULL, pa bi dva identična findinga bez relacijskih kolona
+oba prošla.
+
+`finding_dedup_key` se **ne** kreira. Expression unique index se **ne** koristi.
+
+**Implementacijska napomena:** Prisma ne izražava `NULLS NOT DISTINCT`. Constraint se
+piše kao custom migration SQL u `--create-only` migraciji (D-004), i `prisma migrate diff`
+može prijavljivati drift na njemu. To je očekivano i ne ispravlja se. Vidi §26.
+
+Schema time ima tvrdi minimum PostgreSQL 15; D-003 zaključava 16, pa je uslov ispunjen.
 
 ## 12.4 `finding_evidence`
 
@@ -1162,6 +1720,12 @@ Veza na document/fact/candidate/tariff item.
 | explanation | text nullable |
 | created_at | timestamptz |
 
+Constraint:
+
+```sql
+unique (practice_id, id)
+```
+
 ---
 
 # 13. Review i approval
@@ -1179,6 +1743,12 @@ Veza na document/fact/candidate/tariff item.
 | decided_at | timestamptz |
 | analysis_revision_number | integer |
 | request_id | varchar(100) nullable |
+
+Constraint:
+
+```sql
+unique (practice_id, id)
+```
 
 Append-only.
 
@@ -1198,7 +1768,15 @@ Append-only.
 | changed_by | uuid |
 | changed_at | timestamptz |
 
+Constraint:
+
+```sql
+unique (practice_id, id)
+```
+
 Append-only.
+
+Composite FK prema `review_decisions` nije deklarisan u v1 — vidi §28.1.
 
 ## 13.3 `analysis_approvals`
 
@@ -1220,6 +1798,7 @@ Append-only.
 Constraints:
 
 ```sql
+unique (practice_id, id)
 unique (analysis_run_id)
 ```
 
@@ -1255,15 +1834,23 @@ unique (analysis_run_id)
 | last_successful_connection_at | timestamptz nullable |
 | last_error_at | timestamptz nullable |
 | last_error_code | varchar(100) nullable |
+| version | integer not null default 1 |
 | created_by | uuid |
 | created_at | timestamptz |
 | updated_at | timestamptz |
 
-Unique:
+Constraints:
 
 ```sql
+unique (practice_id, id)
 unique (practice_id, provider, connection_name)
+check (version >= 1)
 ```
+
+`version` je optimistic locking kolona (D-029);
+`PATCH /integrations/connections/{id}` zahtijeva `If-Match`.
+
+`credentials_secret_ref` je referenca na secrets manager, nikada sam secret.
 
 ## 14.2 `external_resource_links`
 
@@ -1277,23 +1864,59 @@ unique (practice_id, provider, connection_name)
 | external_resource_type | varchar(100) |
 | external_id_hash | varchar(128) |
 | external_id_ciphertext | bytea nullable |
+| external_id_iv | bytea nullable |
+| external_id_auth_tag | bytea nullable |
+| encryption_algorithm | varchar(30) nullable |
+| encryption_version | integer nullable |
+| encryption_key_ref | varchar(255) nullable |
+| encryption_key_version | integer nullable |
 | external_version | varchar(100) nullable |
 | last_synced_at | timestamptz nullable |
 
-Unique:
+Constraints:
 
 ```sql
+unique (practice_id, id)
 unique (
   practice_id,
   integration_connection_id,
   external_resource_type,
   external_id_hash
 )
+
+check (
+  (external_id_ciphertext is null
+   and external_id_iv is null
+   and external_id_auth_tag is null)
+  or
+  (external_id_ciphertext is not null
+   and external_id_iv is not null
+   and external_id_auth_tag is not null)
+)
+check (external_id_iv is null or octet_length(external_id_iv) = 12)
+check (external_id_auth_tag is null or octet_length(external_id_auth_tag) = 16)
+check (
+  external_id_ciphertext is null
+  or (
+    encryption_algorithm = 'AES-256-GCM'
+    and encryption_version >= 1
+    and encryption_key_ref is not null
+    and encryption_key_version >= 1
+  )
+)
 ```
+
+Enkripcijski envelope prema §2.7. AAD immutability trigger: §19.3.
+
+Composite FK prema `integration_connections` nije deklarisan u v1 — vidi §28.1.
 
 ## 14.3 `import_batches`
 
 Brojači, source reference, status i summary. Raw import ide u object storage.
+
+**Status: DEFERRED do Axenita epica (D-023).** Tenancy model tabele — uključujući
+`unique (practice_id, id)` iz §2.5 i nullability `practice_id` kolone — odlučuje se u tom
+epicu. Do tada tabela nije cilj nijednog composite FK-a i ne ulazi u §2.5 obuhvat.
 
 ## 14.4 `export_jobs`
 
@@ -1316,7 +1939,19 @@ Brojači, source reference, status i summary. Raw import ide u object storage.
 | started_at | timestamptz nullable |
 | completed_at | timestamptz nullable |
 
+Constraint:
+
+```sql
+unique (practice_id, id)
+```
+
+Composite FK prema `analysis_runs`, `analysis_approvals` i `integration_connections` nisu
+deklarisani u v1 — vidi §28.1.
+
 Export mora referencirati approval, ne samo analysis.
+
+`integration_connection_id` se popunjava i kada ga klijent nije poslao — server ga
+determinističkim upitom rezolvira prema D-032.
 
 ## 14.5 `webhook_receipts`
 
@@ -1342,16 +1977,32 @@ Unique:
 unique (provider, external_event_id)
 ```
 
+**Status: DEFERRED do Axenita epica (D-023).** Tenancy model tabele — uključujući
+nullability `practice_id` kolone i `unique (practice_id, id)` iz §2.5 — odlučuje se u tom
+epicu. Do tada tabela nije cilj nijednog composite FK-a i ne ulazi u §2.5 obuhvat.
+
+`system_webhook_receipts` se **ne** kreira.
+
 ---
 
 # 15. Sistemske tabele
+
+**D-023, klauzula 1–2:** `practice_id` je `not null` na `audit_events`, `outbox_events` i
+`async_jobs`. Nullable tenant ključ je pod FORCE RLS equality politikom značio da
+`NULL = <uuid>` daje `NULL`, pa runtime rola takav red nije mogla ni upisati ni pročitati —
+tiho, bez greške.
+
+Ne kreiraju se `system_audit_events`, `system_outbox_events`, `system_async_jobs` ni
+`system_webhook_receipts`. Jedini system-scope upis u MVP-u je aktivacija tarifne verzije,
+za koju već postoji globalna `tariff_release_activation_history` (§9.5) i rola
+`copilot_system` (§3.3).
 
 ## 15.1 `async_jobs`
 
 | Kolona | Tip |
 |---|---|
 | id | uuid |
-| practice_id | uuid nullable |
+| practice_id | uuid not null |
 | job_type | varchar(100) |
 | resource_type | varchar(50) nullable |
 | resource_id | uuid nullable |
@@ -1366,7 +2017,12 @@ unique (provider, external_event_id)
 | started_at | timestamptz nullable |
 | completed_at | timestamptz nullable |
 
-Check 0–100.
+Constraints:
+
+```sql
+unique (practice_id, id)
+check (progress_percent between 0 and 100)
+```
 
 ## 15.2 `idempotency_keys`
 
@@ -1385,9 +2041,10 @@ Check 0–100.
 | expires_at | timestamptz |
 | created_at | timestamptz |
 
-Unique:
+Constraints:
 
 ```sql
+unique (practice_id, id)
 unique (practice_id, user_id, endpoint, idempotency_key)
 ```
 
@@ -1398,7 +2055,7 @@ Ne čuvati medicinski body u cached responseu.
 | Kolona | Tip |
 |---|---|
 | id | uuid |
-| practice_id | uuid nullable |
+| practice_id | uuid not null |
 | aggregate_type | varchar(100) |
 | aggregate_id | uuid |
 | event_type | varchar(150) |
@@ -1408,6 +2065,12 @@ Ne čuvati medicinski body u cached responseu.
 | published_at | timestamptz nullable |
 | publish_attempts | integer |
 | last_error_safe | text nullable |
+
+Constraint:
+
+```sql
+unique (practice_id, id)
+```
 
 Partial index:
 
@@ -1424,7 +2087,7 @@ Payload ne sadrži medicinski tekst.
 | Kolona | Tip |
 |---|---|
 | id | uuid |
-| practice_id | uuid nullable |
+| practice_id | uuid not null |
 | occurred_at | timestamptz |
 | actor_type | varchar(30) |
 | actor_user_id | uuid nullable |
@@ -1441,6 +2104,12 @@ Payload ne sadrži medicinski tekst.
 | metadata | jsonb |
 | event_sha256 | varchar(64) |
 | previous_event_sha256 | varchar(64) nullable |
+
+Constraint:
+
+```sql
+unique (practice_id, id)
+```
 
 Runtime:
 
@@ -1461,26 +2130,100 @@ revoke update, delete, truncate
 create schema if not exists app_security;
 revoke all on schema app_security from public;
 grant usage on schema app_security to copilot_app;
+grant usage on schema app_security to copilot_system;
 ```
 
-## 16.2 Context funkcija
+## 16.2 Context funkcije
+
+**Normativna odluka: D-033.** Ova sekcija preslikava D-033 i ne smije od njega odstupiti.
+Svaka ranija formulacija koja opisuje `set_request_context` kao `SECURITY DEFINER` ili koja
+prima `p_user_id` je superseded (D-033, *Supersedes*).
+
+Kontekst se postavlja u dva koraka. Redoslijed je obavezan.
+
+### 16.2.1 Bootstrap tok
+
+1. `AuthService` kriptografski verifikuje JWT/OIDC token — potpis, issuer, audience i
+   istek — **prije** poziva bilo koje database context funkcije.
+2. `AuthService` rezolvira verifikovani auth subjekt `users.auth_subject` → `users.id`.
+   Tačan database put te rezolucije je otvoren u D-OPEN-011 (§28.2).
+3. U istoj kratkoj transakciji `set_user_context` postavlja transakcijski lokalni
+   `app.user_id` **i briše** `app.practice_id`.
+4. `copilot_app` sada može pročitati isključivo membership redove tog korisnika, kroz
+   user-scoped politiku iz §17.3.
+5. `set_request_context(p_practice_id uuid)` se izvršava kao **SECURITY INVOKER**. Prvo
+   briše `app.practice_id`, zatim izvodi korisnika isključivo iz `app.user_id`, pa
+   validira **aktivan** membership za traženu ordinaciju.
+6. `app.practice_id` se postavlja transakcijski lokalno **tek nakon** uspješne validacije.
+   Pošto je obrisan prije validacije, stari tenant kontekst ne može preživjeti neuspješnu
+   promjenu konteksta.
+
+### 16.2.2 `set_user_context`
 
 ```sql
-create or replace function app_security.set_request_context(
-  p_practice_id uuid,
+create or replace function app_security.set_user_context(
   p_user_id uuid
 )
 returns void
 language plpgsql
-security definer
+security invoker
 set search_path = public, pg_temp
 as $$
 begin
+  if p_user_id is null then
+    raise exception using
+      errcode = '42501',
+      message = 'User context requires a user id';
+  end if;
+
+  perform set_config('app.practice_id', '', true);
+  perform set_config('app.user_id', p_user_id::text, true);
+end;
+$$;
+
+revoke all on function app_security.set_user_context(uuid) from public;
+grant execute on function app_security.set_user_context(uuid) to copilot_app;
+```
+
+Normativna odluka: **D-033, klauzule 3–4**.
+
+Funkcija postavlja **transakcijski lokalni `app.user_id`** i **briše `app.practice_id`**,
+bez membership validacije. `AuthService` je poziva isključivo sa autentifikovanim internim
+`users.id` (D-033, klauzula 3).
+
+Membership validacija ovdje nije moguća jer `SYSTEM_ADMIN` nema membership; kada bi je
+funkcija tražila, korisnik nikada ne bi mogao pročitati vlastitu platform rolu (D-023,
+klauzula 11).
+
+### 16.2.3 `set_request_context`
+
+```sql
+create or replace function app_security.set_request_context(
+  p_practice_id uuid
+)
+returns void
+language plpgsql
+security invoker
+set search_path = public, pg_temp
+as $$
+declare
+  v_user_id uuid;
+begin
+  perform set_config('app.practice_id', '', true);
+
+  v_user_id := nullif(current_setting('app.user_id', true), '')::uuid;
+
+  if v_user_id is null then
+    raise exception using
+      errcode = '42501',
+      message = 'User context is not established';
+  end if;
+
   if not exists (
     select 1
     from practice_memberships pm
     where pm.practice_id = p_practice_id
-      and pm.user_id = p_user_id
+      and pm.user_id = v_user_id
       and pm.active = true
   ) then
     raise exception using
@@ -1489,15 +2232,57 @@ begin
   end if;
 
   perform set_config('app.practice_id', p_practice_id::text, true);
-  perform set_config('app.user_id', p_user_id::text, true);
 end;
 $$;
 
-revoke all on function app_security.set_request_context(uuid, uuid) from public;
-grant execute on function app_security.set_request_context(uuid, uuid) to copilot_app;
+revoke all on function app_security.set_request_context(uuid) from public;
+grant execute on function app_security.set_request_context(uuid) to copilot_app;
 ```
 
-Security-definer owner mora biti kontrolisana non-login ili migrator role, uz fiksiran search path.
+Normativna odluka: **D-033, klauzule 7–12**. Obavezne osobine:
+
+- **Potpis je `set_request_context(p_practice_id uuid)`** (klauzula 7).
+- **SECURITY INVOKER** (klauzula 8). Funkcija se izvršava kao `copilot_app`, pa membership
+  provjeru filtrira ista user-scoped politika iz §17.3. Podmetnut `user_id` ne bi vratio
+  nijedan red.
+- **Korisnik se izvodi isključivo iz `app.user_id`** (klauzula 9). Funkcija **ne prima
+  `p_user_id`** i nikada ne uzima korisnika iz argumenta koji kontroliše request.
+- **`app.practice_id` se briše prije validacije** (klauzula 10), pa neuspješna promjena
+  konteksta ne ostavlja stari tenant scope.
+- **Validira se aktivan membership** — `active = true` za `app.user_id` i `p_practice_id`
+  (klauzula 11).
+- **`app.practice_id` se postavlja tek nakon uspješne validacije** (klauzula 12).
+- Fiksiran `search_path`.
+- `practice_memberships` zadržava `ENABLE` i `FORCE ROW LEVEL SECURITY` (klauzula 5).
+
+## 16.2a Trust boundary
+
+Normativna odluka: **D-023, klauzula 13, uz amandman D-033**. D-033 proširuje granicu
+povjerenja sa `set_user_context` na `set_request_context` i zaključava potpis, security
+mode i izvor korisnika.
+
+Prihvaćeni tekst (D-023, klauzula 13):
+
+> Trust boundary za `set_user_context` dokumentovan je u `02` §16.2a i `09` §6:
+> `p_user_id` dolazi isključivo iz kriptografski verifikovanog JWT/OIDC subjekta, nikada
+> iz bodyja, query parametra ili nepouzdanog headera; poziva se samo unutar kratke
+> autentifikacione transakcije; samo `AuthService` ga smije pozvati. Mehanizam ograničava
+> normalni query scope i aplikacijske greške, ali NE autentifikuje korisnika nezavisno
+> nakon kompromitacije dijeljenog `copilot_app` credentiala. Tačka sprovođenja
+> autorizacije je API, ne baza.
+
+Praktične posljedice (D-033, klauzule 13–16):
+
+- API ne smije odabrati proizvoljan `user_id` iz requesta; request body, query parametri i
+  nepouzdani headeri ne smiju birati `user_id`;
+- `set_request_context` ne prima `p_user_id`, pa taj put strukturno ne postoji;
+- na nivou aplikacijske arhitekture samo `AuthService` smije pozivati context funkcije;
+- `copilot_app` dobija SELECT-only na `practice_memberships`, bez INSERT/UPDATE/DELETE;
+- nijedan korisnik ne može pročitati membership ni platform rolu drugog korisnika;
+- bez postavljenog `app.user_id` obje tabele vraćaju nula redova;
+- mehanizam **ne autentifikuje korisnika nezavisno** nakon kompromitacije dijeljenog
+  `copilot_app` database credentiala — napadač sa tim credentialom može sam pozvati
+  `set_user_context` sa proizvoljnim `user_id`.
 
 ## 16.3 Context helper expressions
 
@@ -1509,6 +2294,18 @@ nullif(current_setting('app.user_id', true), '')::uuid
 ---
 
 # 17. RLS policy pattern
+
+Postoje tri obrasca:
+
+| Obrazac | Predikat | Tabele |
+|---|---|---|
+| §17.1 tenant | `practice_id = app.practice_id` | sve tenant tabele osim `practice_memberships` |
+| §17.2 user-scoped, globalna | `user_id = app.user_id` | `platform_role_assignments` |
+| §17.3 user-scoped, bootstrap | `user_id = app.user_id` | `practice_memberships` |
+
+Globalne tarifne tabele i `system_storage_objects` ne koriste nijedan od njih (§18.2).
+
+## 17.1 Tenant obrazac
 
 ```sql
 alter table encounters enable row level security;
@@ -1548,9 +2345,87 @@ with check (
 
 DELETE policy se ne kreira ako business delete nije dozvoljen.
 
+Obrazac pretpostavlja `practice_id not null` (§2.5). Nad nullable tenant ključem
+`NULL = <uuid>` daje `NULL` i red postaje nevidljiv bez greške.
+
+## 17.2 User-scoped obrazac — `platform_role_assignments`
+
+Globalna tabela, nije tenant tabela, ne koristi `app.practice_id`.
+
+```sql
+alter table platform_role_assignments enable row level security;
+alter table platform_role_assignments force row level security;
+
+create policy platform_role_assignments_self_select
+on platform_role_assignments
+for select
+to copilot_app
+using (
+  user_id =
+  nullif(current_setting('app.user_id', true), '')::uuid
+);
+
+create policy platform_role_assignments_system_select
+on platform_role_assignments
+for select
+to copilot_system
+using (true);
+```
+
+Pravila:
+
+- `copilot_app` NEMA neograničen SELECT — vidi isključivo vlastite redove;
+- `copilot_app` nema INSERT, UPDATE ni DELETE; upis je u MVP-u seed/migracija;
+- bez postavljenog `app.user_id` tabela vraća nula redova;
+- ovo nije tenant RLS i nije u koliziji sa §18.2 (D-023, klauzula 12).
+
+## 17.3 Bootstrap-safe obrazac — `practice_memberships`
+
+**Normativna odluka: D-033, klauzule 5–6 i 13.**
+
+`practice_memberships` se čita **prije** nego što `app.practice_id` postoji, jer
+`set_request_context` upravo iz te tabele utvrđuje smije li kontekst biti postavljen.
+Standardna tenant politika bi bila ciklična.
+
+```sql
+alter table practice_memberships enable row level security;
+alter table practice_memberships force row level security;
+
+create policy practice_memberships_self_select
+on practice_memberships
+for select
+to copilot_app
+using (
+  user_id =
+  nullif(current_setting('app.user_id', true), '')::uuid
+);
+```
+
+Pravila:
+
+- tabela koristi `ENABLE ROW LEVEL SECURITY` **i** `FORCE ROW LEVEL SECURITY` (D-033,
+  klauzula 5);
+- politika je vezana za `app.user_id`, ne za `app.practice_id` (D-033, klauzula 6);
+- `app.user_id` postavlja `set_user_context`, isključivo iz kriptografski verifikovanog
+  autentifikovanog korisnika, prije membership validacije (§16.2a);
+- `set_request_context(p_practice_id uuid)` je SECURITY INVOKER, ne prima `p_user_id`, pa i
+  on vidi samo redove tog korisnika;
+- funkcija briše `app.practice_id` prije validacije i postavlja ga **tek nakon**
+  verifikovanog **aktivnog** membershipa;
+- **nijedan korisnik ne može pročitati membership redove drugog korisnika**;
+- `copilot_app` dobija **SELECT only** — bez INSERT, UPDATE i DELETE (D-033, klauzula 13);
+- bez postavljenog `app.user_id` tabela vraća nula redova.
+
+Administracija membershipa (kreiranje, promjena role, deaktivacija) nije runtime
+operacija `copilot_app` role u v1.
+
 ---
 
 # 18. RLS matrica
+
+## 18.1 Tenant tabele
+
+Matrica pokriva **isključivo tenant tabele** i rolu `copilot_app`.
 
 Legenda:
 
@@ -1562,6 +2437,8 @@ Legenda:
 
 | Tabela | S | I | U | D | FORCE RLS |
 |---|---:|---:|---:|---:|---:|
+| practice_memberships | da* | — | — | — | da |
+| practice_settings | da | — | da | — | da |
 | patient_references | da | da | ograničeno | — | da |
 | encounters | da | da | da | — | da |
 | encounter_diagnoses | da | da | ograničeno | — | da |
@@ -1583,15 +2460,71 @@ Legenda:
 | analysis_approvals | da | da | revoke fields kontrolisano | — | da |
 | integration_connections | da | da | da | — | da |
 | external_resource_links | da | da | sync fields | — | da |
-| import_batches | da | da | status | — | da |
 | export_jobs | da | da | status | — | da |
-| webhook_receipts | da | da | processing status | — | da |
 | async_jobs | da | da | status/progress | — | da |
 | idempotency_keys | da | da | response completion | cleanup job | da |
 | outbox_events | da | da | publish fields | retention job | da |
 | audit_events | da | da | — | — | da |
 
+`*` **`practice_memberships` ne koristi tenant predikat.** Politika je user-scoped
+(`user_id = app.user_id`) i bootstrap-safe, prema §17.3. Rola vidi isključivo vlastite
+membership redove i nema INSERT, UPDATE ni DELETE. Tabela je navedena u ovoj matrici jer
+jeste tenant tabela, ali njen predikat je namjerno drugačiji.
+
+`practice_settings` koristi standardni tenant predikat `practice_id = app.practice_id`.
+UPDATE je dozvoljen jer `PATCH /practices/{id}/settings` postoji; concurrency se štiti
+`version` kolonom i `If-Match` (D-029).
+
 "U ograničeno" se prvenstveno sprovodi kroz application service, permission i trigger; RLS štiti tenant, ali ne mora sam izraziti sve column-level poslovne zabrane.
+
+Matrica sadrži 28 tabela — tačno onoliko koliko ih nosi `unique (practice_id, id)` iz §2.5.
+`import_batches` i `webhook_receipts` nisu u matrici; vidi §18.4.
+
+## 18.2 Non-tenant RLS
+
+| Tabela | RLS | Predikat | Sekcija |
+|---|---|---|---|
+| platform_role_assignments | ENABLE + FORCE | `user_id = app.user_id` (`copilot_app`), `true` (`copilot_system`) | §17.2 |
+
+`platform_role_assignments` je globalna tabela i ne koristi `app.practice_id`.
+User-scoped RLS nije tenant RLS i nije u koliziji sa §18.3 (D-023, klauzula 12).
+
+## 18.3 Tabele bez RLS-a
+
+Sljedeće globalne tabele **ne koriste tenant RLS** (D-023, klauzula 7). Zaštita je
+ownership, uski GRANT i negativni privilege testovi (§20, §25.6):
+
+```text
+tariff_releases
+tariff_release_artifacts
+tariff_catalog_entries
+tariff_release_activation_history
+system_storage_objects
+ai_prompt_versions
+safety_rules
+safety_rule_versions
+```
+
+Lista sadrži isključivo odobrene globalne konfiguracione tabele.
+
+`users` i `practices` **nisu** na ovoj listi. Njihov access model je neriješena
+sigurnosna odluka (§28.2). Do prihvatanja te odluke nijedna od njih se ne smije opisivati
+kao neograničeno, RLS-free runtime-čitljiv podatak.
+
+## 18.4 DEFERRED tabele
+
+`import_batches` i `webhook_receipts` su **DEFERRED do Axenita epica** (D-023).
+
+- nijedan migration paket 001–015 ih ne kreira;
+- ne pojavljuju se u tenant matrici §18.1 jer u v1 nemaju RLS politiku;
+- §2.5 se na njih ne primjenjuje dok se tenancy model ne odluči;
+- `webhook_receipts.practice_id` ostaje nullable isključivo zato što tabela nije aktivna.
+  Nijedna FORCE RLS equality politika se nad njom ne kreira u v1 — takva politika nad
+  nullable tenant ključem bi tiho sakrila redove, što je upravo defekt koji D-023 zatvara.
+
+Axenita epic mora odlučiti tenancy model, nullability `practice_id`,
+`unique (practice_id, id)` i RLS politiku prije nego što bilo koja od njih uđe u
+migration paket.
 
 ---
 
@@ -1647,28 +2580,150 @@ raise exception
 
 Migrator može privremeno disableati u kontrolisanoj migraciji, ne aplikacija.
 
+## 19.3 AAD immutability
+
+Kanonski AAD (§2.7.4) sadrži `practice_id`, ime tabele, `row_id` i ime kolone. Ako se
+`id` ili `practice_id` promijene nakon INSERT-a, postojeći ciphertext više ne odgovara
+svom AAD-u i postaje nedekriptibilan. RLS to ne može spriječiti, jer je izmjena unutar
+istog tenanta legalna sa stanovišta politike.
+
+Jedna zajednička trigger funkcija (D-025, klauzula 12):
+
+```sql
+create or replace function app_security.reject_aad_bound_column_change()
+returns trigger
+language plpgsql
+security invoker
+set search_path = pg_catalog, pg_temp
+as $$
+begin
+  if new.id is distinct from old.id
+     or new.practice_id is distinct from old.practice_id then
+    raise exception using
+      errcode = '23514',
+      message = 'AAD-bound column (id, practice_id) is immutable after INSERT';
+  end if;
+
+  return new;
+end;
+$$;
+```
+
+Osobine:
+
+- `returns trigger`;
+- `security invoker`;
+- fiksiran `search_path`;
+- odbija izmjenu `id` ili `practice_id` sa SQLSTATE `23514`;
+- vraća `NEW` kada su zaštićene kolone nepromijenjene.
+
+Pet imenovanih triggera, obrazac `<table>_<purpose>_trg`:
+
+```sql
+create trigger patient_references_aad_immutable_trg
+before update on patient_references
+for each row
+execute function app_security.reject_aad_bound_column_change();
+
+create trigger encounters_aad_immutable_trg
+before update on encounters
+for each row
+execute function app_security.reject_aad_bound_column_change();
+
+create trigger encounter_documents_aad_immutable_trg
+before update on encounter_documents
+for each row
+execute function app_security.reject_aad_bound_column_change();
+
+create trigger candidate_evidence_aad_immutable_trg
+before update on candidate_evidence
+for each row
+execute function app_security.reject_aad_bound_column_change();
+
+create trigger external_resource_links_aad_immutable_trg
+before update on external_resource_links
+for each row
+execute function app_security.reject_aad_bound_column_change();
+```
+
+**`WHEN` klauzula se ne koristi.** Trigger se izvršava na svakom UPDATE-u i sam poredi
+stare i nove vrijednosti. `WHEN` bi uslov premjestio u definiciju triggera, gdje ga je
+lakše previdjeti pri izmjeni schema, a dobitak na performansama je na MVP obimu
+zanemariv.
+
 ---
 
 # 20. Grants matrica
 
-## 20.1 Global read tabele
+## 20.1 Globalne tarifne tabele
 
-`copilot_app` može SELECT:
+`copilot_app` ima **isključivo SELECT** (D-023, klauzula 4):
 
 - tariff_releases;
 - tariff_catalog_entries;
 - active safety rule metadata;
 - active AI prompt metadata bez prikaza punog prompta običnom korisniku.
 
-Admin write ide kroz API sa posebnom DB funkcijom ili istom runtime rolom uz application permission i RLS-free global tabelu. Sigurniji production smjer je posebna administrativna DB procedura/role; MVP može koristiti runtime INSERT/UPDATE uz strogi admin endpoint, ali to mora biti testirano.
+`copilot_app` **nema INSERT ni UPDATE** nad globalnom tarifnom konfiguracijom. Nijedan
+admin endpoint ne piše te tabele runtime rolom.
+
+Sve upise nad globalnom tarifnom konfiguracijom izvršava `copilot_system` preko
+`SYSTEM_DATABASE_URL` (D-023, klauzula 5):
+
+| Tabela | `copilot_app` | `copilot_system` |
+|---|---|---|
+| tariff_releases | SELECT | SELECT, INSERT, UPDATE |
+| tariff_catalog_entries | SELECT | SELECT, INSERT, UPDATE |
+| tariff_release_artifacts | SELECT | SELECT, INSERT |
+| tariff_release_activation_history | SELECT | SELECT, INSERT |
+| system_storage_objects | column-level SELECT (§9.3.1) | SELECT, INSERT, column-level UPDATE (§9.3.1) |
+| platform_role_assignments | user-scoped SELECT (§17.2) | SELECT |
+| safety_rules, safety_rule_versions | SELECT | SELECT |
+| ai_prompt_versions | SELECT (bez punog prompta) | SELECT |
+
+Sadržaj `safety_rules`, `safety_rule_versions` i `ai_prompt_versions` u v1 se upisuje
+isključivo seedom i migracijom. Admin CRUD nad njima je odgođen (D-023, analiza scopea:
+MVP ima tačno jedan system-scope upis — aktivaciju tarifne verzije). Kada se admin CRUD
+uvede, zahtijeva novi ADR i eksplicitan grant.
+
+DELETE nema nijedna runtime rola ni nad jednom globalnom tabelom.
+
+`MIGRATION_DATABASE_URL` se ne koristi u runtimeu (§3.4).
 
 ## 20.2 Tenant tabele
 
-Grant tabela prati RLS matricu.
+Grant tabela prati RLS matricu §18.1.
+
+`copilot_system` **nema nijedan grant nad tenant tabelama** (D-023). Platform
+administracija je odvojena od pristupa medicinskim podacima.
+
+`copilot_app` na `practice_memberships` ima isključivo SELECT, ograničen user-scoped RLS
+politikom iz §17.3.
 
 ## 20.3 Sequence
 
-Ako se koriste SQL sequence, dodijeliti minimalna prava. UUID dizajn izbjegava većinu sequence prava.
+Ako se koriste SQL sequence, dodijeliti minimalna prava. UUID dizajn i aplikacijsko
+generisanje ID-a (§2.2) izbjegavaju većinu sequence prava.
+
+## 20.4 Negativni privilege testovi
+
+Obavezni testovi, prema D-023 i D-024:
+
+- `copilot_app` INSERT/UPDATE nad `tariff_releases` pada;
+- `copilot_app` SELECT nad `system_storage_objects.object_key` pada;
+- `copilot_app` SELECT nad bilo kojom `system_storage_objects.encryption_*` kolonom pada;
+- `copilot_app` SELECT nad `platform_role_assignments` redom drugog korisnika vraća nula
+  redova;
+- `copilot_app` SELECT nad `practice_memberships` redom drugog korisnika vraća nula redova;
+- `copilot_app` INSERT/UPDATE/DELETE nad `practice_memberships` pada;
+- bez postavljenog `app.user_id`, `platform_role_assignments` i `practice_memberships`
+  vraćaju nula redova;
+- `copilot_system` UPDATE nad `system_storage_objects.archived_at` ili bilo kojom kolonom
+  izvan `(sha256, byte_size, antivirus_status)` pada;
+- `copilot_system` bilo koji pristup tenant tabeli pada;
+- DELETE nad `system_storage_objects` pada za obje runtime role;
+- nijedna runtime rola nije `tableowner` ni za jednu tabelu;
+- nijedna runtime rola nema `BYPASSRLS`.
 
 ---
 
@@ -1715,7 +2770,16 @@ on audit_events(practice_id, resource_type, resource_id, occurred_at);
 
 create index audit_actor_idx
 on audit_events(practice_id, actor_user_id, occurred_at desc);
+
+create index platform_role_assignments_user_idx
+on platform_role_assignments(user_id);
 ```
+
+`platform_role_assignments_user_idx` podupire RLS predikat iz §17.2 —
+`user_id = app.user_id` se izvršava na svakom autentifikacionom toku.
+
+`practice_memberships` već ima `(user_id, active)` indeks (§6.3), koji podupire
+bootstrap-safe politiku iz §17.3.
 
 Indeksi se validiraju `EXPLAIN` planom na realističnim test podacima prije optimizacije.
 
@@ -1723,23 +2787,111 @@ Indeksi se validiraju `EXPLAIN` planom na realističnim test podacima prije opti
 
 # 22. Migration paketi
 
-```text
-001_extensions_and_roles
-002_identity_and_practices
-003_patient_encounter_documents
-004_tariff_releases
-005_ai_prompts_and_analysis
-006_facts_candidates_evidence
-007_tariff_evaluation
-008_safety_findings
-009_review_approvals
-010_integrations
-011_jobs_idempotency_outbox_audit
-012_constraints_indexes
-013_rls_policies
-014_immutability_triggers
-015_seed_baseline
-```
+## 22.1 `001_extensions_and_roles`
+
+Kreira database role: `copilot_migrator`, `copilot_app` i **`copilot_system`** (D-023,
+klauzula 3), te credential mapiranje iz §3.4 uključujući `SYSTEM_DATABASE_URL`.
+
+**Nijedna PostgreSQL ekstenzija trenutno nije potrebna.** UUID-eve eksplicitno generiše
+aplikacija prije INSERT-a (§2.2). Dio imena `extensions` zadržan je kao stabilna
+historijska i buduće-kompatibilna oznaka; svaka buduća ekstenzija mora biti eksplicitno
+dokumentovana i odobrena prije dodavanja.
+
+## 22.2 `002_identity_and_practices`
+
+`practices`, `users`, `practice_memberships`;
+`practice_settings` sa `id`, `unique (practice_id)`, `unique (practice_id, id)`,
+`allow_billing_specialist_approval`, `version` i `check (version >= 1)`;
+enum `platform_role` (§4.16); globalna tabela `platform_role_assignments` (§6.5) i njen
+`user_id` indeks (D-023, klauzula 8).
+
+## 22.3 `003_patient_encounter_documents`
+
+`patient_references`, `encounters`, `encounter_diagnoses`, `storage_objects`,
+`encounter_documents`, uključujući `_iv` i `_auth_tag` kolone, row-level `encryption_*`
+kolone i sve CHECK constrainte iz §2.7.5 (D-025); `unique (practice_id, id)` na
+`encounter_documents`.
+
+## 22.4 `004_tariff_releases`
+
+**`system_storage_objects` se kreira prije `tariff_release_artifacts`** (D-024).
+`tariff_release_artifacts.system_storage_object_id` referencira `system_storage_objects(id)`.
+Column-level grants za `copilot_app` i `copilot_system` prema §9.3.1; bez DELETE za
+runtime role; owner ostaje `copilot_migrator`.
+
+## 22.5 `005_ai_prompts_and_analysis`
+
+`ai_prompt_versions`, `analysis_runs`, `analysis_input_snapshots`, `ai_extraction_runs`;
+`unique (practice_id, id)` na `analysis_input_snapshots` i `ai_extraction_runs`.
+
+## 22.6 `006_facts_candidates_evidence`
+
+`extracted_facts`, `service_candidates`, `candidate_evidence`;
+`unique (practice_id, id)` na sve tri;
+**`version integer not null default 1` i `check (version >= 1)` na `extracted_facts` i
+`service_candidates`** (D-029);
+`candidate_evidence` enkripcijske kolone i CHECK constrainti (D-025);
+composite FK prema `service_candidates` i `encounter_documents`.
+
+## 22.7 `007_tariff_evaluation`
+
+`tariff_evaluations`, `tariff_evaluation_items`, `tariff_messages`;
+`unique (practice_id, id)` na sve tri.
+
+## 22.8 `008_safety_findings`
+
+`safety_rules`, `safety_rule_versions`, `rule_findings`, `finding_evidence`;
+`unique (practice_id, id)` na `rule_findings` i `finding_evidence`;
+**`check (version >= 1)` na `rule_findings`** (D-029);
+**D-030 constraint `unique nulls not distinct (...)` kao custom migration SQL u
+`--create-only` migraciji.** Prisma ga ne izražava i može ga prijavljivati kao drift.
+
+## 22.9 `009_review_approvals`
+
+`review_decisions`, `review_item_changes`, `analysis_approvals`;
+`unique (practice_id, id)` na sve tri; composite FK
+`review_item_changes → review_decisions`.
+
+## 22.10 `010_integrations`
+
+`integration_connections` sa `version` i `check (version >= 1)` (D-029);
+`external_resource_links` sa enkripcijskim kolonama i CHECK constraintima (D-025);
+`unique (practice_id, id)` na `integration_connections`, `external_resource_links` i
+`export_jobs`.
+`import_batches` i `webhook_receipts` ostaju DEFERRED do Axenita epica (§14.3, §14.5).
+
+## 22.11 `011_jobs_idempotency_outbox_audit`
+
+**`practice_id not null` na `audit_events`, `outbox_events` i `async_jobs`** (D-023,
+klauzula 1); `unique (practice_id, id)` na sve četiri §15 tabele.
+**Ne kreiraju se `system_audit_events`, `system_outbox_events`, `system_async_jobs` ni
+`system_webhook_receipts`** (D-023, klauzula 2).
+
+## 22.12 `012_constraints_indexes`
+
+Verifikuje da svih 28 tenant tabela u obuhvatu nosi `unique (practice_id, id)` prema §2.5;
+kreira indeks katalog iz §21, uključujući `platform_role_assignments_user_idx`.
+
+## 22.13 `013_rls_policies`
+
+Tenant politike prema §17.1 i §18.1;
+**user-scoped RLS za `platform_role_assignments`** (§17.2);
+**bootstrap-safe user-scoped SELECT politika za `practice_memberships`** (§17.3);
+`app_security.set_user_context` i SECURITY INVOKER `app_security.set_request_context`
+(§16.2);
+**globalne tarifne tabele i `system_storage_objects` ne dobijaju tenant RLS** (§18.3).
+
+## 22.14 `014_immutability_triggers`
+
+Approval guard iz §19.1 i audit guard iz §19.2;
+**`app_security.reject_aad_bound_column_change()` i pet imenovanih AAD triggera** iz §19.3
+(D-025, klauzula 12).
+
+## 22.15 `015_seed_baseline`
+
+Vidi §23.
+
+---
 
 Ne mora svaki paket biti jedna migracija, ali redoslijed zavisnosti mora ostati.
 
@@ -1747,19 +2899,40 @@ Ne mora svaki paket biti jedna migracija, ali redoslijed zavisnosti mora ostati.
 
 # 23. Seed podaci
 
-Development seed je idempotentan i kreira:
+## 23.1 Pravila
+
+Sve seed skripte **eksplicitno generišu i navode UUID** za svaki red, prema §2.2. Seed se
+ne oslanja na database default i ne koristi Prisma `@default(uuid())`.
+
+Development seed je idempotentan.
+
+## 23.2 Development seed
+
+Kreira:
 
 - `demo-praxis`;
 - dev admin;
 - dev physician;
 - memberships;
-- practice settings;
+- practice settings, uz oba approval flaga na `false`;
+- **development `SYSTEM_ADMIN` dodjelu u `platform_role_assignments`** (D-023, klauzula 8);
+- **`integration_connections` red za ManualAdapter** — `provider = 'MANUAL'`,
+  `status = 'ACTIVE'` (D-017);
 - mock tariff release;
+- `system_storage_objects` redove za tarifne artefakte;
 - prompt versions;
 - safety rule metadata;
 - minimalni test encounter, opciono posebnim demo seedom.
 
-Production seed ne kreira demo medicinske podatke.
+ManualAdapter konekcija je u MVP-u jedina aktivna, pa deterministička rezolucija
+integration konekcije pri exportu (D-032) na njoj radi bez dodatne konfiguracije.
+
+Development `SYSTEM_ADMIN` postoji samo u development seedu.
+
+## 23.3 Production seed
+
+Production seed ne kreira demo medicinske podatke, ne kreira `SYSTEM_ADMIN` dodjelu i ne
+kreira demo integration konekcije.
 
 ---
 
@@ -1787,13 +2960,19 @@ Object storage backup/retention se rješava odvojeno, uz očuvanje referencijaln
 - practice A ne updatea B;
 - practice A ne inserta row sa B practice ID;
 - bez contexta nema tenant rowova;
-- inactive membership ne može postaviti context.
+- inactive membership ne može postaviti context;
+- bez `app.user_id` `set_request_context` pada sa `42501`;
+- `set_request_context` briše `app.practice_id` i pri neuspjehu ne ostavlja stari tenant
+  scope;
+- korisnik A ne čita membership ni platform rolu korisnika B.
 
 ## 25.2 Composite FK
 
 - A encounter ne referencira B patient;
 - A candidate ne referencira B analysis;
-- A evidence ne referencira B document.
+- A evidence ne referencira B document;
+- svaka tenant tabela u obuhvatu §2.5 ima `unique (practice_id, id)`;
+- svaki composite FK ima unique constraint nad tačno referenciranim parom kolona.
 
 ## 25.3 Immutability
 
@@ -1814,6 +2993,46 @@ Object storage backup/retention se rješava odvojeno, uz očuvanje referencijaln
 - isti key/drugi hash conflict;
 - response cache bez medicinskog sadržaja.
 
+## 25.6 Negativni privilege testovi
+
+Kompletna lista je u §20.4. Minimum za acceptance:
+
+- `copilot_app` ne piše globalnu tarifnu konfiguraciju;
+- `copilot_app` ne čita `system_storage_objects.object_key` ni `encryption_*` kolone;
+- `copilot_system` nema pristup nijednoj tenant tabeli;
+- `copilot_system` ne mijenja `system_storage_objects` kolone izvan
+  `(sha256, byte_size, antivirus_status)`;
+- nijedna runtime rola nema DELETE nad `system_storage_objects`;
+- nijedna runtime rola nije owner;
+- `MIGRATION_DATABASE_URL` nije prisutan u runtime konfiguraciji.
+
+## 25.7 Enkripcijski envelope
+
+- ciphertext ≠ plaintext;
+- dekripcija sa pogrešnim ključem ili verzijom pada;
+- izmijenjen auth tag pada;
+- ciphertext premješten u drugi red se ne dekriptuje;
+- neusklađena NULL trojka (ciphertext/IV/tag) odbijena;
+- IV od 11 bajtova odbijen;
+- auth tag od 15 bajtova odbijen;
+- non-null ciphertext bez `encryption_key_ref` odbijen;
+- `encryption_algorithm` različit od `AES-256-GCM` odbijen;
+- `encounter_documents` sa oba polja koristi jedan `encryption_key_ref`, ali različite
+  IV vrijednosti.
+
+## 25.8 AAD immutability
+
+- UPDATE nad `id` pada sa SQLSTATE `23514`;
+- UPDATE nad `practice_id` pada sa SQLSTATE `23514`;
+- UPDATE nad ostalim kolonama prolazi;
+- test se izvršava na svih pet tabela iz §19.3.
+
+## 25.9 Deduplikacija findinga
+
+- dva identična findinga sa NULL `related_service_candidate_id` i NULL
+  `related_tariff_item_id` ne mogu oba biti upisana;
+- drugi INSERT pada na database constraintu, ne na aplikacijskoj provjeri.
+
 ---
 
 # 26. Prisma implementacijske napomene
@@ -1827,20 +3046,147 @@ Prisma schema ne izražava sva pravila. Zato:
 - Decimal iz Prisma se mapira u API string;
 - `Json` ne koristi se kao zamjena za ključne normalizovane kolone.
 
+## 26.1 Identifikatori
+
+`@default(uuid())` se **ne koristi** za poslovne entitete. Aplikacija generiše UUID i
+navodi ga u `create`/`createMany` pozivu (§2.2). Isto važi za seed i migracione skripte.
+
+## 26.2 `NULLS NOT DISTINCT`
+
+Prisma ne izražava `NULLS NOT DISTINCT`. Constraint na `rule_findings` (§12.3, D-030) se
+piše kao custom SQL u `--create-only` migraciji, prema D-004.
+
+`prisma migrate diff` i `prisma migrate dev` mogu prijavljivati drift na tom constraintu.
+**To je očekivano i ne ispravlja se.** Uklanjanje constrainta radi "čistog" drift izvještaja
+je zabranjeno.
+
+Isto važi za RLS politike, grants, trigger funkcije iz §19 i column-level privilegije iz
+§9.3.1 — Prisma ih ne modelira.
+
 ---
 
 # 27. Definition of Done za Schema v1
 
 - sve migracije rade na praznoj bazi;
 - `migrate deploy` radi na testnoj bazi;
-- runtime role nije owner;
+- nijedna runtime rola nije owner;
 - RLS pokriva sve tenant tabele;
+- **svaka tenant tabela u obuhvatu §2.5 ima `unique (practice_id, id)`**;
+- **svaki composite FK ima unique constraint nad referenciranim parom kolona**;
+- **`practice_id` je `not null` na svim tenant tabelama u obuhvatu**;
+- **nijedna runtime rola ne piše globalnu tarifnu konfiguraciju**;
+- **`copilot_system` nema nijedan grant nad tenant tabelama**;
+- **`MIGRATION_DATABASE_URL` se ne koristi u runtimeu**;
+- **svako enkriptovano polje ima `_ciphertext`, `_iv` i `_auth_tag` kolonu**;
+- **svaka tabela sa enkriptovanim poljem ima četiri row-level `encryption_*` kolone**;
+- **svi CHECK constrainti iz §2.7.5 postoje**;
+- **funkcija i svih pet AAD triggera iz §19.3 postoje**;
+- **`rule_findings` koristi `unique nulls not distinct`**;
+- **svih šest optimistic-locking resursa ima `version` i `check (version >= 1)`**;
 - composite FK testovi prolaze;
+- negativni privilege testovi iz §20.4 prolaze;
 - migration checksum nije ručno narušen;
 - audit je append-only;
 - approval je immutable;
 - svi bitni inputi imaju hash;
 - indeksi postoje;
-- seed je idempotentan;
+- seed je idempotentan i eksplicitno navodi UUID-eve;
 - backup/restore test je dokumentovan;
-- Prisma validate i generate prolaze.
+- Prisma validate i generate prolaze;
+- očekivani drift iz §26.2 je dokumentovan i nije "ispravljen".
+
+## 27.1 Rokovi za neriješene stavke
+
+Stavke iz §28 nisu preduslov za Schema v1 baseline, ali **nemaju zajednički rok i ne
+čekaju produkcijski pilot**. Svaka ima vlastiti, raniji rok:
+
+| Stavka | Rok |
+|---|---|
+| §28.1 — odluke o composite FK relacijama | prije migration paketa koji prvi kreira izvornu tabelu te relacije (najraniji je `007_tariff_evaluation`) |
+| §28.1 — referencijalne akcije za već deklarisane composite FK-ove | prije paketa `003_patient_encounter_documents` |
+| §28.2 — access model za `users` i `practices` (D-OPEN-011) | **prije faze 3** |
+| Preostali pravni, hosting i eksterni integracijski gateovi | prema vlastitim, pojedinačno dokumentovanim rokovima u `06` i `13` |
+
+Rok "prije produkcijskog pilota" važi isključivo za one otvorene odluke koje ga same
+navode — na primjer D-OPEN-002, D-OPEN-007 i D-OPEN-004a. Ne primjenjuje se na §28.
+
+---
+
+# 28. Neriješene schema stavke
+
+Ove stavke su svjesno ostavljene otvorene. Nijedna se ne rješava pretpostavkom u
+implementaciji — svaka zahtijeva odluku prije nego što uđe u migraciju.
+
+## 28.1 Nedeklarisane composite FK relacije
+
+Sljedećih osam relacija postoji kroz imena kolona, ali u v1 **nije** deklarisano kao
+composite FK:
+
+| Source tabela | Source kolone | Target tabela | Rok — paket koji kreira source tabelu |
+|---|---|---|---|
+| `tariff_evaluation_items` | `(practice_id, tariff_evaluation_id)` | `tariff_evaluations` | `007_tariff_evaluation` |
+| `tariff_messages` | `(practice_id, tariff_evaluation_id)` | `tariff_evaluations` | `007_tariff_evaluation` |
+| `finding_evidence` | `(practice_id, rule_finding_id)` | `rule_findings` | `008_safety_findings` |
+| `review_item_changes` | `(practice_id, review_decision_id)` | `review_decisions` | `009_review_approvals` |
+| `external_resource_links` | `(practice_id, integration_connection_id)` | `integration_connections` | `010_integrations` |
+| `export_jobs` | `(practice_id, analysis_run_id)` | `analysis_runs` | `010_integrations` |
+| `export_jobs` | `(practice_id, approval_id)` | `analysis_approvals` | `010_integrations` |
+| `export_jobs` | `(practice_id, integration_connection_id)` | `integration_connections` | `010_integrations` |
+
+### Rok
+
+**Svaka relacija mora biti riješena prije migration paketa koji prvi kreira njenu izvornu
+tabelu**, prema koloni "Rok" iznad. Najraniji rok je `007_tariff_evaluation`.
+
+Odgađanje samo do produkcijskog pilota **nije dovoljno**. Kada paket jednom kreira izvornu
+tabelu bez FK-a, naknadno dodavanje traži migraciju nad popunjenom tabelom i provjeru
+postojećih redova — trošak koji se izbjegava odlukom prije tog paketa.
+
+Svi target ključevi već postoje — §2.5 garantuje `unique (practice_id, id)` na svakoj od
+tih tabela, pa je deklaracija tehnički moguća u bilo kojem trenutku. Odluka je odgođena
+namjerno, ne zbog tehničke prepreke.
+
+### Šta se mora definisati po relaciji
+
+Prije nego što se bilo koja od njih deklariše, za svaku se mora definisati:
+
+1. da li je relacija obavezna ili opciona;
+2. nullability source kolone;
+3. `ON DELETE` ponašanje;
+4. `ON UPDATE` ponašanje;
+5. lifecycle i immutability implikacije;
+6. da li historijski/audit redovi moraju preživjeti brisanje roditelja.
+
+**`CASCADE` nikada nije default.** Tačka 6 je odlučujuća za append-only tabele
+(`review_item_changes`, `export_jobs`, `finding_evidence`, `tariff_messages`), gdje bi
+kaskadno brisanje uklonilo audit trag. Nijedna od šest stavki se ne rješava
+pretpostavkom — izostanak odluke znači da se relacija ne deklariše, ne da se bira default.
+
+Isto pitanje referencijalnih akcija je otvoreno i za deset već deklarisanih composite
+FK-ova u ovom dokumentu — nijedan trenutno ne navodi `ON DELETE` ni `ON UPDATE`, pa svi
+padaju na PostgreSQL default `NO ACTION`. Odluka mora obuhvatiti i njih, **prije paketa
+`003_patient_encounter_documents`**, koji prvi kreira izvornu tabelu sa composite FK-om.
+
+## 28.2 Access model za `users` i `practices`
+
+- **Status:** MUST DECIDE BEFORE PHASE 3
+- **Odluka:** D-OPEN-011 — Runtime access model za `users` i `practices`
+
+Nijedna od ove dvije tabele nema definisan access model.
+
+**Ni `users` ni `practices` ne smiju se tretirati kao neograničene globalne
+runtime-čitljive tabele.** To važi do prihvatanja D-OPEN-011 i odnosi se i na §18.3, gdje
+nijedna od njih nije navedena.
+
+D-033 klauzula 2 zavisi od ove odluke za tačan database put rezolucije
+`auth_subject` → `users.id`; sam membership bootstrap model je prihvaćen i bez nje.
+
+**`users`** zahtijeva self-scoped identity access model, vezan za verifikovanog
+autentifikovanog korisnika. Širi pristup je moguć isključivo kroz eksplicitno autorizovanu
+platform administraciju.
+
+**`practices`** zahtijeva membership-scoped access model. Korisnik smije čitati ordinaciju
+samo kada aktivan `practice_memberships` red to autorizuje. Politika se mora projektovati
+zajedno sa membership bootstrap tokom (§16.2) i **ne smije izložiti sve ordinacije, ZSR
+brojeve ni konfiguraciju svakom autentifikovanom korisniku**. `practices.zsr_number` je u
+§6.1 označen kao osjetljiv poslovni podatak.
