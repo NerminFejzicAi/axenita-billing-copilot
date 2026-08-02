@@ -11,6 +11,8 @@ ACCEPTED
 SUPERSEDED
 REJECTED
 DEFERRED
+BLOCKED EXTERNAL
+MUST DECIDE BEFORE <faza>
 ```
 
 ---
@@ -270,6 +272,7 @@ DEFERRED
 - **Migration/rollout:** Migration paket 001 kreira `copilot_system`; paket 002 kreira `platform_role_assignments`.
 - **Test dokaz:** Negativni privilege testovi za `copilot_app` i `copilot_system`; faza 6 aktivacija upisuje tačno jedan red u `tariff_release_activation_history`; `SYSTEM_ADMIN` bez membershipa dobija 403 na tenant rutama; korisnik A ne može pročitati platform rolu korisnika B; bez postavljenog `app.user_id` tabela vraća nula redova; API ne može odabrati proizvoljan `user_id` iz requesta.
 - **Zavisnosti:** D-002, D-005, D-006. Uvodi novu DB rolu prema `00` §6.1.
+- **Amandman (D-033, 2026-08-02):** Klauzula 13 se proširuje sa `set_user_context` na `set_request_context`. Potpis je `set_request_context(p_practice_id uuid)`, funkcija je SECURITY INVOKER i ne prima `p_user_id`. `practice_memberships` dobija ENABLE + FORCE RLS uz user-scoped self-select politiku. Vidi D-033.
 
 ---
 
@@ -497,6 +500,46 @@ DEFERRED
 
 ---
 
+# D-033 — Tenant context bootstrap kroz user-scoped membership RLS
+
+- **Status:** ACCEPTED
+- **Datum:** 2026-08-02
+- **Kontekst/problem:** D-023 klauzula 11 uvodi `app_security.set_user_context` i user-scoped RLS nad `platform_role_assignments`, ali ne dotiče `set_request_context`. `02` §16.2 je u baselineu bio `SECURITY DEFINER` sa potpisom `(p_practice_id uuid, p_user_id uuid)`, gdje `p_user_id` dolazi kao argument koji kontroliše poziv. Istovremeno `practice_memberships` nije imao nijednu RLS politiku ni red u `02` §18. Kada se ta tabela stavi pod FORCE RLS — što `02` §27 traži za sve tenant tabele — `SECURITY DEFINER` poziv se izvršava kao owner, ne poklapa se ni sa jednom politikom i vraća nula redova, pa svaka promjena konteksta pada sa `42501`. Bootstrap je cikličan: membership se mora pročitati prije nego `app.practice_id` uopšte postoji.
+- **Odluka:**
+  1. Potpis, issuer, audience i istek JWT/OIDC tokena verifikuju se **prije** poziva bilo koje database context funkcije. Neverifikovan token ne smije doći do baze.
+  2. Verifikovani auth subjekt se rezolvira u `users.id`. Tačan database put te rezolucije je otvoren u D-OPEN-011.
+  3. `AuthService` poziva `app_security.set_user_context` isključivo sa autentifikovanim internim `users.id`.
+  4. `set_user_context(p_user_id uuid)` postavlja **transakcijski lokalni** `app.user_id` i briše `app.practice_id`. Bez membership validacije — `SYSTEM_ADMIN` nema membership.
+  5. `practice_memberships` koristi `ENABLE ROW LEVEL SECURITY` **i** `FORCE ROW LEVEL SECURITY`.
+  6. `copilot_app` smije čitati isključivo membership redove koji pripadaju `app.user_id`: `using (user_id = nullif(current_setting('app.user_id', true), '')::uuid)`.
+  7. Potpis je `app_security.set_request_context(p_practice_id uuid)`.
+  8. `set_request_context` je **SECURITY INVOKER**.
+  9. Korisnik se izvodi **isključivo** iz `app.user_id`. Funkcija **ne prima** `p_user_id`.
+  10. `app.practice_id` se briše **prije** validacije.
+  11. Funkcija verifikuje **aktivan** membership (`active = true`) za `app.user_id` i `p_practice_id`.
+  12. `app.practice_id` se postavlja transakcijski lokalno **tek nakon** uspješne validacije.
+  13. `copilot_app` nema INSERT, UPDATE ni DELETE grant nad `practice_memberships`.
+  14. Na nivou aplikacijske arhitekture samo `AuthService` smije pozivati context funkcije.
+  15. Request body, query parametri i nepouzdani headeri **ne smiju** birati `user_id`.
+- **Razlog:** SECURITY INVOKER čini membership provjeru predmetom iste politike koja ograničava pozivaoca, pa podmetnut `user_id` ne vraća nijedan red i funkcija pada zatvoreno. Uklanjanje `p_user_id` argumenta strukturno onemogućava da API odabere proizvoljnog korisnika. Brisanje prije validacije uklanja klasu grešaka gdje neuspješan context switch ostavlja prethodni tenant scope.
+- **Alternative:** Zadržati `SECURITY DEFINER` uz dodatnu politiku za owner rolu — radi, ali ostavlja `p_user_id` kao argument iz requesta i traži politiku koja propušta sve redove. `ENABLE` bez `FORCE RLS` na `practice_memberships` — owner zaobilazi politiku, ali ruši uniformno pravilo iz `02` §18 i §27. Bez RLS-a nad `practice_memberships` — baseline stanje; svaki korisnik bi mogao čitati tuđe membership redove.
+- **Ograničenje:** Mehanizam ograničava normalni query scope i aplikacijske greške, ali **ne autentifikuje korisnika nezavisno nakon kompromitacije dijeljenog `copilot_app` database credentiala**. Napadač sa tim credentialom može sam pozvati `set_user_context` sa proizvoljnim `user_id`. Tačka sprovođenja autorizacije je API, ne baza.
+- **Posljedice:** `AuthService` je jedini pozivalac obje funkcije, unutar jedne kratke transakcije. Svaki upit nad `practice_memberships` bez postavljenog `app.user_id` vraća nula redova. Administracija membershipa nije runtime operacija `copilot_app` role u v1. `02` §16.2, §17.3, §18.1 i §20.2 se usklađuju sa ovom odlukom. `07`, `14`, `08`, `09`, `01`, `04` i `05` sadrže zastarjelu formulaciju i moraju se uskladiti.
+- **Security/privacy uticaj:** Uklanja request-controlled `user_id`; sprečava čitanje tuđih membership redova; sprečava preživljavanje stale tenant contexta. Jača kontrole T1 i T10.
+- **Migration/rollout:** Migration paket `013_rls_policies` kreira obje funkcije i politiku. Primjenjuje se prije prvog tenant upita u fazi 3.
+- **Test dokaz:** Negativni testovi:
+  - bez postavljenog `app.user_id` — `practice_memberships` vraća nula redova;
+  - korisnik A ne može pročitati membership redove korisnika B;
+  - neaktivan ili tuđi membership odbija kreiranje konteksta;
+  - neuspješan context switch ostavlja `app.practice_id` obrisan;
+  - `user_id` poslan u requestu nema nikakav efekat;
+  - SECURITY INVOKER izvršavanje ostaje non-owner i `NOBYPASSRLS`.
+- **Amandman na:** D-023 klauzula 13.
+- **Supersedes:** Svaku raniju dokumentacijsku formulaciju koja opisuje `set_request_context` kao `SECURITY DEFINER` ili koja prima `p_user_id` — uključujući `02` §16.2 baseline tekst, `07` §180 i `14` §50.
+- **Zavisnosti:** D-005, D-006, D-023. D-OPEN-011 mora biti zatvoren prije implementacije faze 3 radi tačnog database puta za `users` i `practices`; D-033 i bez toga definiše prihvaćeni membership bootstrap model.
+
+---
+
 # Otvorene odluke
 
 ## D-OPEN-001 — Produkcijski OIDC provider
@@ -564,6 +607,24 @@ DEFERRED
 
 - **Status:** BLOCKED EXTERNAL
 - **Potrebno:** službeni paket, distribucijska prava, versioning i Java integration docs.
+
+## D-OPEN-011 — Runtime access model za `users` i `practices`
+
+- **Status:** MUST DECIDE BEFORE PHASE 3
+- **Kontekst:**
+  - `users.auth_subject` se mora rezolvirati u `users.id` **prije** nego što `app.user_id` postoji, pa ta rezolucija ne može zavisiti od user-scoped politike koja tek treba biti postavljena;
+  - `practices` sadrži osjetljive identifikatore, uključujući ZSR broj (`02` §6.1);
+  - nijedna od dvije tabele ne smije se tretirati kao neograničen globalni runtime-čitljiv podatak;
+  - `02` §28.2 ovo trenutno vodi kao neriješeno.
+- **Potrebno odlučiti:**
+  - tačan ograničen database put za verifikovani `auth_subject` → `users.id`;
+  - self-scoped pristup `users` redu autentifikovanog korisnika;
+  - pristup `practices` tek nakon uspješne membership validacije i postavljenog `app.practice_id`;
+  - da li se koristi grant, RLS politika ili usko ograničena resolver funkcija;
+  - negativni testovi i ograničenja pri kompromitaciji database credentiala.
+- **Ne bira se prećutno:** `SECURITY DEFINER`, neograničen `SELECT` ni pristup bez RLS-a. Nijedna od tih opcija nije prihvaćena ovim ADR-om — odluka ostaje eksplicitno otvorena.
+- **Vezano za:** D-033 (membership bootstrap koji ovu rezoluciju poziva), D-023, D-006.
+- **Potrebno do:** prije implementacije faze 3.
 
 ---
 
