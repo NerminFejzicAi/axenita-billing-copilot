@@ -371,6 +371,7 @@ MUST DECIDE BEFORE <faza>
 - **Posljedice:** Dijagram u `14` §12 se održava ručno u skladu sa §29.1.
 - **Security/privacy uticaj:** Nema direktnog; jasan state model je preduslov za kontrole T6.
 - **Test dokaz:** `08` §11.1 — test svake dozvoljene i svake zabranjene tranzicije prema jednoj listi.
+- **Amandman (D-035, 2026-08-02):** Tranzicija `ANALYSIS_IN_PROGRESS → CANCELLED` izvršava se kao atomarna kaskada koja prvo otkazuje tekuću aktivnu analizu, pa encounter. Permisija `encounter.cancel` autorizuje cijelu komandu i njenu internu kaskadu. Vidi D-035.
 
 ---
 
@@ -390,6 +391,7 @@ MUST DECIDE BEFORE <faza>
 - **Security/privacy uticaj:** Nema.
 - **Test dokaz:** `08` §10 i §20 — po jedna asercija za `409` i za `428`, po resursu iz D-029.
 - **Zavisnosti:** D-009, D-029.
+- **Amandman (D-037, 2026-08-02):** Katalog statusa se proširuje mapiranjem za export bez važećeg approvala — `409 APPROVAL_REQUIRED` i `409 APPROVAL_REVOKED`. Vidi D-037.
 
 ---
 
@@ -473,6 +475,7 @@ MUST DECIDE BEFORE <faza>
 - **Security/privacy uticaj:** Očuvanje terminalnog statusa čuva audit trag o tome da je revizija odbijena ili neuspjela.
 - **Test dokaz:** `08` §11.2 — svaka dozvoljena i svaka zabranjena tranzicija; posebno `APPROVED → SUPERSEDED` mora pasti, `EXTRACTION_FAILED → EVALUATING_TARIFF` mora pasti, a child revizija nad `REJECTED` ili `FAILED` roditeljem ne smije promijeniti status roditelja.
 - **Zavisnosti:** D-015 (amandman), D-027.
+- **Amandman (D-034, 2026-08-02):** Klauzula 6 ostaje na snazi — roditelj zadržava terminalni status — ali zadržani status više ne dozvoljava neograničen broj djece. Svaka revizija ima najviše jedno direktno dijete, a historija revizija je linearni lanac. Vidi D-034.
 
 ---
 
@@ -537,6 +540,147 @@ MUST DECIDE BEFORE <faza>
 - **Amandman na:** D-023 klauzula 13.
 - **Supersedes:** Svaku raniju dokumentacijsku formulaciju koja opisuje `set_request_context` kao `SECURITY DEFINER` ili koja prima `p_user_id` — uključujući `02` §16.2 baseline tekst, `07` §180 i `14` §50.
 - **Zavisnosti:** D-005, D-006, D-023. D-OPEN-011 mora biti zatvoren prije implementacije faze 3 radi tačnog database puta za `users` i `practices`; D-033 i bez toga definiše prihvaćeni membership bootstrap model.
+
+---
+
+# D-034 — Linearni lanac analysis revizija i konkurentno kreiranje revizije
+
+- **Status:** ACCEPTED
+- **Datum:** 2026-08-02
+- **Kontekst/problem:** `02` §10.2 propisuje `unique (encounter_id, revision_number)` i self-FK na `analysis_runs`, ali ne ograničava broj redova koji pokazuju na istog roditelja. D-031 klauzula 6 zadržava status roditelja za `REJECTED`, `FAILED`, `EXTRACTION_FAILED`, `TARIFF_EVALUATION_FAILED` i `CANCELLED`, pa status guard te roditelje nikada ne zatvara. Posljedica: dva reda mogu nositi isti `parent_analysis_run_id` sa različitim `revision_number` vrijednostima, pa historija revizija postaje stablo, a "sljedbenik" roditelja nije jednoznačan. Konkurentno je gore — dva zahtjeva pročitaju isti `MAX(revision_number)`, jedan izgubi na unique constraintu, a naivni retry alocira N+2 i uspije, tiho kreirajući drugo dijete istog roditelja.
+- **Odluka:**
+  1. Historija analysis revizija je **linearni lanac, ne stablo**.
+  2. Svaka revizija ima **najviše jedno direktno dijete**.
+  3. Inicijalna revizija ima `revision_number = 1` i `parent_analysis_run_id IS NULL`.
+  4. Svaka kasnija revizija ima `revision_number > 1` i `parent_analysis_run_id IS NOT NULL`.
+  5. Roditelj i dijete moraju pripadati istom `practice_id` i istom `encounter_id`.
+  6. Revizija ne može referencirati samu sebe kao roditelja.
+  7. `parent_analysis_run_id` i `revision_number` su **immutable nakon INSERT-a**.
+  8. `revision_number` djeteta je uvijek `roditelj.revision_number + 1`. **Nikada se ne računa ponovnim čitanjem `MAX(revision_number)`.**
+  9. Zaključavanje roditelja, provjera postojanja djeteta, validacija statusa roditelja, update roditelja, alokacija `revision_number` i INSERT djeteta izvršavaju se **atomarno**, u jednoj transakciji. Roditelj se zaključava prije bilo koje provjere.
+  10. Redoslijed provjera:
+      - dijete već postoji → **`409 REVISION_CONFLICT`**, bez obzira na status roditelja;
+      - dijete ne postoji, status roditelja nije dozvoljen → **`409 INVALID_STATE_TRANSITION`**;
+      - dijete ne postoji, status je dozvoljen → kreira se dijete.
+  11. Database uniqueness konflikt prevodi se u **`REVISION_CONFLICT`**, nikada u generičku `500` grešku.
+  12. **Retry nikada ne smije tiho kreirati reviziju N+2 od istog roditelja.**
+- **Schema smjer:**
+
+  ```sql
+  create unique index analysis_runs_one_child_per_parent_idx
+  on analysis_runs(practice_id, parent_analysis_run_id)
+  where parent_analysis_run_id is not null;
+
+  unique (practice_id, encounter_id, id)
+
+  foreign key (practice_id, encounter_id, parent_analysis_run_id)
+    references analysis_runs(practice_id, encounter_id, id)
+
+  check (
+    (revision_number = 1 and parent_analysis_run_id is null)
+    or
+    (revision_number > 1 and parent_analysis_run_id is not null)
+  )
+
+  check (
+    parent_analysis_run_id is null
+    or parent_analysis_run_id <> id
+  )
+  ```
+
+  **Parcijalni indeks namjerno dopušta više `NULL` roditelja**, jer svaki encounter ima vlastitu inicijalnu reviziju sa `parent_analysis_run_id IS NULL`. Klauzula `where parent_analysis_run_id is not null` izuzima te redove iz indeksa u potpunosti. Ovo se **ne** smije zamijeniti sa `NULLS NOT DISTINCT` iz D-030 — tamo je izjednačavanje NULL-ova bilo cilj, ovdje bi dozvolilo samo jednu inicijalnu reviziju u cijeloj tabeli. Razlika je namjerna i ne ujednačava se.
+
+  Trokolonski FK `(practice_id, encounter_id, parent_analysis_run_id)` sprovodi klauzulu 5 na nivou baze i zahtijeva `unique (practice_id, encounter_id, id)` kao cilj.
+- **Razlog:** Linearni lanac čini "sljedeću reviziju" jednoznačnom, što approval payload builder, workspace i audit package već pretpostavljaju. Redoslijed provjera — prvo postojanje djeteta, pa status — daje deterministički kod greške nezavisno od toga da li roditelj mijenja status, čime nestaje asimetrija koju je uvela D-031 klauzula 6. Klauzula 8 uklanja klasu grešaka u kojoj retry "popravlja" konflikt tako što preskoči broj.
+- **Alternative:** Dozvoliti stablo revizija uz eksplicitan koncept aktivne grane u API-ju i audit paketu (odbijeno — proširuje domenski model bez potrebe); osloniti se samo na `unique (encounter_id, revision_number)` (odbijeno — ne sprečava drugo dijete, samo isti broj).
+- **Posljedice:**
+  1. `02` §10.2 dobija parcijalni indeks, `unique (practice_id, encounter_id, id)`, trokolonski FK i dva CHECK constrainta.
+  2. `02` §19.3 dobija imenovani trigger `analysis_runs_revision_immutable_trg` — `BEFORE UPDATE ON analysis_runs`, `FOR EACH ROW`, bez `WHEN` klauzule, `SECURITY INVOKER`, fiksiran `search_path` — koji odbija izmjenu `parent_analysis_run_id` ili `revision_number` sa SQLSTATE `23514`. Bez njega klauzula 7 ostaje samo namjera.
+  3. Migration paket `005_ai_prompts_and_analysis` se dopunjuje; `014_immutability_triggers` dobija novi trigger.
+  4. `03` §15.3 se prepisuje prema klauzuli 10; postojeći tekst koji dijeli ponašanje po statusu roditelja je superseded.
+- **Security/privacy uticaj:** Nema direktnog. Jednoznačan lanac revizija je preduslov za reproduktivnost iz `00` §2.4 i za audit paket koji tvrdi koja revizija je zamijenila koju.
+- **Migration/rollout:** Paketi `005_ai_prompts_and_analysis` i `014_immutability_triggers`.
+- **Test dokaz:** Dvije istovremene revision komande nad istim roditeljem daju tačno jedno dijete, a gubitnik `409 REVISION_CONFLICT`; sekvencijalni drugi pokušaj nad `REJECTED` roditeljem koji već ima dijete daje `409 REVISION_CONFLICT`, ne novo dijete; retry nakon unique violationa ne kreira reviziju N+2; roditelj sa nedozvoljenim statusom i bez djeteta daje `409 INVALID_STATE_TRANSITION`; UPDATE nad `revision_number` ili `parent_analysis_run_id` pada sa `23514`; dijete sa drugim `encounter_id` od roditelja pada na FK; red sa `revision_number = 1` i non-NULL roditeljem pada na CHECK.
+- **Zavisnosti:** D-015, D-031.
+- **Amandman na:** D-031 klauzula 6 — status roditelja se i dalje zadržava, ali zadržani status više ne dozvoljava neograničen broj djece.
+
+---
+
+# D-035 — Semantika otkazivanja analize i encountera
+
+- **Status:** ACCEPTED
+- **Datum:** 2026-08-02
+- **Kontekst/problem:** `03` §15 je za `POST /analyses/{id}/cancel` navodio samo "dozvoljeno samo u aktivnom async stanju" — bez permisije, status kodova i ponašanja pri ponovljenom pozivu. Istovremeno D-027 dozvoljava `ANALYSIS_IN_PROGRESS → CANCELLED` na encounteru, što implicira sudbinu analize koja je u tom trenutku aktivna, a to nigdje nije bilo opisano.
+- **Odluka:**
+
+  **Otkazivanje analize**
+
+  1. Endpoint `POST /analyses/{id}/cancel`, permisija **`analysis.cancel`**.
+  2. Iz aktivnog async stanja — `QUEUED`, `PREPARING_INPUT`, `EXTRACTING`, `EVALUATING_TARIFF`, `APPLYING_SAFETY_RULES` — → **`202`** uz `CANCELLED` reprezentaciju.
+  3. Analiza je već `CANCELLED` → **`200`** uz postojeću reprezentaciju i **bez ikakve promjene stanja**.
+  4. Bilo koje drugo neaktivno ili terminalno stanje → **`409 INVALID_STATE_TRANSITION`**.
+  5. `Idempotency-Key` **nije obavezan**; komanda je state-idempotentna.
+  6. **Ponovljeno otkazivanje ne kreira dodatnu audit mutaciju.** Audit event se upisuje isključivo pri stvarnom prelasku u `CANCELLED`.
+
+  **Otkazivanje encountera**
+
+  7. `POST /encounters/{id}/cancel` iz `ANALYSIS_IN_PROGRESS` **atomarno** otkazuje tekuću aktivnu analizu i encounter.
+  8. **Tekuća aktivna analiza** je vrh linearnog lanca revizija (D-034) — revizija bez djeteta — čiji je status jedan od aktivnih async statusa iz klauzule 2.
+  9. **`encounter.cancel` autorizuje kompletnu komandu i njenu internu kaskadu.**
+  10. **`analysis.cancel` se ne traži dodatno** za internu kaskadu.
+  11. Ova odluka **ne dodjeljuje nijednu permisiju konkretnoj roli**; kompletna role matrica pripada `docs/15`.
+  12. **Historijske i terminalne revizije ostaju nepromijenjene** — `REJECTED`, `FAILED`, `SUPERSEDED`, `EXTRACTION_FAILED`, `TARIFF_EVALUATION_FAILED` i ranije `CANCELLED` revizije zadržavaju svoj status.
+  13. Audit bilježi tranziciju analize i tranziciju encountera kao **dva odvojena eventa**.
+  14. **Ako otkazivanje aktivne analize ne uspije, kompletno otkazivanje encountera se rollback-uje.**
+  15. **Djelimičan ishod nije dozvoljen.**
+- **Razlog:** Kaskada bez rollbacka ostavila bi otkazan encounter sa analizom koja i dalje radi i troši AI i tarifne resurse. Traženje `analysis.cancel` uz `encounter.cancel` blokiralo bi rolu koja smije otkazati kontakt, a nema operativnu permisiju nad pipelineom. Ograničenje na tekuću aktivnu analizu čuva audit trag zbog kojeg su terminalni statusi u D-031 uopšte zadržani. Klauzula 6 sprečava da ponovljeni klijentski poziv proizvede lažan trag višestrukog otkazivanja.
+- **Alternative:** Klijent prvo otkazuje analizu, pa encounter — dva poziva i dvije permisije (odbijeno, jer encounter tada nikada ne prelazi direktno iz `ANALYSIS_IN_PROGRESS` kako `03` §29.1 propisuje); kaskada uz obje permisije (odbijeno — vidi razlog); `204` umjesto `200` pri ponovljenom otkazivanju (odbijeno — klijent treba reprezentaciju).
+- **Posljedice:** `03` §12 i §15.4 se dopunjuju klauzulama 6 i 12–15. `02` ne mijenja šemu.
+- **Security/privacy uticaj:** Sprečava zombie pipeline nad otkazanim kontaktom i lažan audit trag ponovljenog otkazivanja.
+- **Test dokaz:** Ponovljeni cancel ne kreira drugi audit event; cancel iz terminalnog stanja ne mijenja stanje i vraća `409`; kaskada upisuje dva audit eventa; simulirani neuspjeh otkazivanja analize ostavlja encounter neizmijenjen; terminalne revizije ostaju netaknute nakon kaskade.
+- **Zavisnosti:** D-027, D-031, D-034.
+- **Amandman na:** D-027 — tranzicija `ANALYSIS_IN_PROGRESS → CANCELLED` dobija eksplicitnu kaskadnu semantiku.
+
+---
+
+# D-036 — Izvođenje permisija za analysis decisions
+
+- **Status:** ACCEPTED
+- **Datum:** 2026-08-02
+- **Kontekst/problem:** `POST /analyses/{analysisId}/decisions` prima četiri tipa odluke — `SAVE_DRAFT`, `REQUEST_CHANGES`, `REJECT` i `APPROVE` — ali `03` §20 navodi permisiju samo za `APPROVE`. Aktivni katalog nema `analysis.reject` ni `analysis.review`, pa je taj endpoint ostao jedini aktivni endpoint bez potpunog pravila izvođenja, što krši pravilo iz `03` §28.3. Korištenje `analysis.read` za write radnju nije prihvatljivo — read permisija ne smije autorizovati upis u `review_decisions`.
+- **Odluka:**
+  1. `APPROVE` → **`analysis.approve`**.
+  2. `REJECT` → **`analysis.review_decision`**.
+  3. `REQUEST_CHANGES` → **`analysis.review_decision`**.
+  4. `SAVE_DRAFT` → **`analysis.review_decision`**.
+  5. Uvodi se nova aktivna permisija **`analysis.review_decision`**.
+  6. Aktivni katalog raste sa 31 na **32** permisije. Rezervisani katalog ostaje na **3**.
+  7. **Nijedna write radnja ne smije biti autorizovana kroz `analysis.read`.**
+  8. Ova odluka **ne dodjeljuje permisije rolama**; kompletna role matrica pripada `docs/15`.
+- **Razlog:** `REJECT`, `REQUEST_CHANGES` i `SAVE_DRAFT` upisuju `review_decisions` red i mijenjaju tok pregleda, pa su write radnje i traže vlastitu write permisiju. `APPROVE` ostaje odvojen jer nosi pravnu težinu odobrenja i pokreće immutable approval payload (D-016); rola koja smije tražiti izmjene ne mora smjeti odobriti obračun.
+- **Alternative:** Sve četiri odluke pod `analysis.approve` (odbijeno — blokira recenzenta bez prava odobravanja da uopšte zabilježi `REQUEST_CHANGES`); `analysis.read` za tri ne-approve odluke (odbijeno — read permisija ne autorizuje upis); zasebne `analysis.reject`, `analysis.request_changes` i `analysis.save_draft` (odbijeno — dijele isti nivo ovlaštenja, tri permisije bi bile dekorativne).
+- **Posljedice:** `03` §20 dobija pravilo izvođenja po tipu odluke; `03` §28.1 raste na 32 permisije; `03` §28.3 gubi izuzetak iz pravila 2, a blockquote "Otvorena stavka" se briše. `docs/15` mora dodijeliti `analysis.review_decision` rolama koje učestvuju u pregledu.
+- **Security/privacy uticaj:** Uklanja aktivni endpoint bez potpunog authorization pravila i sprečava da read permisija autorizuje upis.
+- **Test dokaz:** Rola sa `analysis.review_decision` a bez `analysis.approve` može poslati `REJECT`, `REQUEST_CHANGES` i `SAVE_DRAFT`, ali na `APPROVE` dobija `403`; rola sa samo `analysis.read` dobija `403` na sve četiri odluke.
+- **Zavisnosti:** D-016, D-031.
+
+---
+
+# D-037 — Error mapping za export bez važećeg approvala
+
+- **Status:** ACCEPTED
+- **Datum:** 2026-08-02
+- **Kontekst/problem:** `03` §8 katalog sadrži `APPROVAL_REQUIRED` i `APPROVAL_REVOKED`, ali nijednom kodu nikada nije bio dodijeljen HTTP status. `03` §21 propisuje da export zahtijeva aktivan, neopozvan approval, pa je ponašanje pri neispunjenom uslovu bilo nedefinisano. D-028 je zatvorio status kodove za idempotency i `If-Match`, ali ne i za approval.
+- **Odluka:**
+  1. Export bez aktivnog, neopozvanog approvala → **`409 APPROVAL_REQUIRED`**.
+  2. Kada eksplicitno referencirani approval postoji, ali je opozvan → **`409 APPROVAL_REVOKED`**.
+- **Razlog:** Oba slučaja su konflikt stanja resursa, ne greška validacije bodyja, pa `409` odgovara semantici iz `03` §9. Razdvajanje dva koda čini razliku vidljivom klijentu: u prvom slučaju approval treba kreirati, u drugom je postojao i namjerno je povučen, što je informacija koju bi generički kod izgubio.
+- **Alternative:** Jedan kod za oba slučaja (odbijeno — klijent ne može razlikovati "nikad odobreno" od "odobrenje povučeno"); `422` (odbijeno — nije semantička greška bodyja); `412` (odbijeno — nije precondition header, a ta porodica je u D-028 vezana za `If-Match`).
+- **Posljedice:** `03` §21 dobija oba mapiranja. Generisani client razlikuje dva `409` slučaja po `code` polju, ne po statusu.
+- **Security/privacy uticaj:** Nema. Nijedan od kodova ne otkriva sadržaj approvala.
+- **Test dokaz:** `08` §18 — export nad analizom bez approvala daje `409 APPROVAL_REQUIRED`; export koji referencira opozvan approval daje `409 APPROVAL_REVOKED`.
+- **Zavisnosti:** D-016, D-028.
+- **Amandman na:** D-028 — katalog statusa se proširuje mapiranjem za approval greške.
 
 ---
 
