@@ -161,6 +161,19 @@ Kreiraj:
 Ne implementiraj patient/encounter/RLS poslovne tabele iz naredne faze.
 Dev auth mora biti nemoguće uključiti u production bez eksplicitne konfiguracije i startup zaštite.
 
+Tabela practice_memberships se kreira u ovoj fazi, ali njena bootstrap RLS politika
+pripada FAZI 4 (D-033). Ne postavljaj RLS na nju u ovoj fazi.
+
+D-OPEN-011 je OTVOREN — runtime access model za users i practices nije odlučen.
+Zato u ovoj fazi:
+- ne uvodi globalan neograničen read nad users ni practices;
+- GET /api/v1/me vraća isključivo identitet pozivaoca, njegove memberships i njegove
+  platformRoles, kao dva odvojena bloka prema docs/03 §10;
+- platformRoles se nikada ne prikazuju kao memberships niti se sa njima spajaju.
+
+Ne rješavaj D-OPEN-011 u ovoj fazi. Ako scope zahtijeva širi pristup nad users ili
+practices, zaustavi se i traži odluku.
+
 Dodaj unit/integration/e2e testove za active/inactive user i membership.
 ```
 
@@ -175,24 +188,79 @@ Implementiraj isključivo FAZU 4 — Tenant isolation i RLS.
 
 Ovo je kritični security gate.
 
+Normativna odluka za tenant context bootstrap je D-033 iz docs/06_DECISION_LOG.md.
+Implementacija mora tačno pratiti docs/02_DATABASE_SCHEMA_V1.md §16.2, §16.2a i §17.3,
+te docs/03_API_CONTRACT_V1.md §3.
+
 Kreiraj:
 - app_security schema;
-- sigurnu security-definer set_request_context funkciju;
-- fixed search_path;
-- execute grants;
+- app_security.set_user_context(p_user_id uuid);
+- app_security.set_request_context(p_practice_id uuid) — SECURITY INVOKER;
+- fixed search_path na obje funkcije;
+- execute grants za copilot_app;
+- ENABLE i FORCE RLS na practice_memberships;
+- user-scoped bootstrap self-select politiku na practice_memberships;
 - PracticeContext guard;
-- X-Practice-ID validaciju;
+- X-Practice-ID validaciju kroz membership provjeru;
 - TenantDatabaseService sa Prisma interactive transactionom;
 - RLS pattern;
 - FORCE RLS;
 - A/B tenant integration test harness.
+
+Obavezni redoslijed bootstrapa (D-033):
+1. autentifikuj bearer token — potpis, issuer, audience i istek;
+2. uspostavi autentifikovani aplikacijski/database user identitet kroz
+   set_user_context, koji postavlja transakcijski lokalni app.user_id;
+3. pozovi set_request_context(p_practice_id);
+4. rezolviraj AKTIVAN membership kroz user-scoped RLS nad practice_memberships;
+5. postavi transakcijski lokalni tenant context app.practice_id;
+6. tek tada izvrši tenant-scoped upite;
+7. kontekst se automatski čisti na kraju transakcije.
+
+Obavezna pravila:
+- bootstrap poziv mora biti moguć PRIJE nego tenant context postoji;
+- practice_memberships ima posebnu user-scoped bootstrap politiku vezanu za app.user_id;
+- normalna tenant RLS se NE SMIJE koristiti za bootstrap konteksta koji joj je preduslov —
+  to je ciklična zavisnost i faza mora ostati BLOCKED ako je implementirana tako;
+- NEMA SECURITY DEFINER bypassa za tenant bootstrap;
+- set_request_context NE PRIMA caller-supplied user_id; korisnik se izvodi isključivo iz
+  app.user_id;
+- aplikacija NE SMIJE vjerovati X-Practice-ID bez membership validacije;
+- neuspjela rezolucija membershipa vraća 403 na aplikacijskom/API sloju i NE SMIJE ostaviti
+  upotrebljiv tenant context u transakciji;
+- platform/system context je odvojen i NE izvodi se unijom tenant membershipa i
+  platformRoles;
+- ne uvodi se globalan neograničen pristup nad users ni practices — to ostaje pod
+  D-OPEN-011, koji je i dalje otvoren.
+
+Vlasništvo faze i migration paketa:
+- membership bootstrap RLS politika — Faza 4, paket 013_rls_policies (docs/02 §22.13);
+- set_request_context(p_practice_id uuid) — Faza 4, paket 013_rls_policies;
+- set_user_context(p_user_id uuid) — Faza 4, paket 013_rls_policies;
+- transakcijski lokalne context varijable — Faza 4, paket 013_rls_policies;
+- negativni testovi za nevažeći ili neaktivan membership — Faza 4;
+- test da kontekst ne ostaje nakon završetka transakcije — Faza 4.
+
+Tabela practice_memberships kreira se u Fazi 3; njena bootstrap RLS politika u Fazi 4.
+Brojevi migration paketa u docs/02 §22 su redoslijed zavisnosti, NE brojevi faza. Paket
+013_rls_policies se primjenjuje inkrementalno kako tenant tabele nastaju. Ne mijenjaj
+numeraciju migration paketa i ne uvodi novi broj paketa.
 
 Dokaži testovima:
 - practice A ne čita/piše B;
 - bez contexta default deny;
 - inactive membership ne postavlja context;
 - context ne curi između pooled requesta;
-- runtime role ne zaobilazi RLS.
+- runtime role ne zaobilazi RLS;
+- validan aktivan membership uspostavlja kontekst;
+- membership koji ne postoji je odbijen;
+- neaktivan membership je odbijen;
+- pozivalac ne može impersonirati drugog korisnika kroz parametar funkcije;
+- pozivalac ne može odabrati practice samo slanjem X-Practice-ID;
+- tenant-scoped upit prije uspješnog bootstrapa pada;
+- kontekst je transakcijski lokalan i ne curi u sljedeći request;
+- SECURITY INVOKER izvršavanje ne zaobilazi membership RLS;
+- platformRoles se ne pretvaraju automatski u tenant membershipe.
 
 Ako bilo koji RLS test ne prolazi, faza mora ostati BLOCKED i ne smiješ nastaviti.
 ```
