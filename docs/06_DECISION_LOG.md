@@ -684,6 +684,65 @@ MUST DECIDE BEFORE <faza>
 
 ---
 
+# D-038 — Multi-role tenant membership i kompozicija efektivnih permisija
+
+- **Status:** ACCEPTED
+- **Datum:** 2026-08-04
+- **Kontekst/problem:** Trenutni model ima jedan `practice_memberships` red po ordinaciji i korisniku, singularnu kolonu `practice_memberships.role` i `unique (practice_id, user_id)`. Takav model dopušta **tačno jednu tenant rolu po korisniku po ordinaciji**. Ne može predstaviti korisnika koji je legitimno istovremeno `PRACTICE_ADMIN` i `PHYSICIAN`, `PHYSICIAN` i `BILLING_SPECIALIST`, ili neku drugu prihvaćenu kombinaciju. Nasljeđivanje rola je odbijeno jer bi svakog `PRACTICE_ADMIN`-a učinilo klinički ovlaštenim. Per-membership permission override je odbijen jer bi stvorio drugi, teško auditabilan authorization sistem izvan role matrice.
+- **Odluka:**
+  1. Zadržava se **tačno jedan** `practice_memberships` red po korisniku i ordinaciji.
+  2. `role` se u kasnijoj schema izmjeni **uklanja** kao singularni atribut `practice_memberships`.
+  3. Uvodi se `practice_membership_roles` kao izvor dodjele tenant rola.
+  4. Jedan membership može nositi **nula, jednu ili više** tenant aplikacijskih rola.
+  5. Svaka rola se za jedan membership može pojaviti **najviše jednom**.
+  6. Prihvaćeni katalog tenant rola ostaje nepromijenjen: `PRACTICE_ADMIN`, `PHYSICIAN`, `MPA`, `BILLING_SPECIALIST`, `AUDITOR`, `READ_ONLY`.
+  7. **Efektivne tenant permisije su unija** permisija koje daju sve aktivne tenant role dodijeljene aktivnom membershipu za tekuću ordinaciju.
+  8. Unija permisija važi **isključivo** između tenant rola istog membershipa i iste ordinacije.
+  9. `DENY` ćelija u role matrici znači da ta rola **ne doprinosi grant** za tu permisiju. **Nije negativni override** koji poništava `ALLOW` dobijen od druge dodijeljene tenant role.
+  10. U v1 **nema per-user permission overrida**.
+  11. U v1 **nema implicitnog nasljeđivanja rola**.
+  12. `platformRoles` se **nikada** ne spajaju unijom sa tenant rolama.
+  13. `SYSTEM_ADMIN` **ne dobija** tenant permisije kroz svoju platform rolu.
+  14. `SYSTEM_ADMIN` smije koristiti tenant permisije **samo** kada isti korisnik ima i aktivan membership u toj ordinaciji i potrebnu dodjelu tenant role.
+  15. `copilot_system`, `copilot_app` i `copilot_migrator` su **database role** i nikada ne učestvuju u kompoziciji aplikacijskih permisija.
+  16. Neaktivan `practice_memberships` red **ne doprinosi** nijednu tenant rolu ni tenant permisiju.
+  17. Aktivan membership sa **nula** dodijeljenih rola ne autorizuje nijednu tenant operaciju. Autorizacija je **deny-by-default**.
+  18. Uslovne permisije zahtijevaju **oboje**: dodijeljenu rolu koja je podobna za tu permisiju **i** odgovarajuću prihvaćenu practice postavku ili runtime uslov. Konkretno: `MPA` odobravanje zahtijeva `allow_mpa_approval = true`; `BILLING_SPECIALIST` odobravanje zahtijeva `allow_billing_specialist_approval = true`.
+  19. Dodjele rola **nikada ne prelaze granicu ordinacije**.
+  20. Autorizacija evaluira role **tek nakon** uspješnog D-033 tenant bootstrapa.
+  21. D-033 `set_request_context(p_practice_id uuid)` ostaje **nepromijenjen**: validira aktivan membership; ne prima rolu; ne prima `user_id`; ne uspostavlja platform context.
+  22. `practice_membership_roles` zahtijeva **user-scoped bootstrap-readable pristup** za `GET /me` i enumeraciju vlastitih membershipa autentifikovanog korisnika.
+  23. Bootstrap-readable pristup nad `practice_membership_roles` **nije** generički role-administration pristup i **ne rješava D-OPEN-011**.
+  24. Generička dodjela rola i administracija practice membershipa ostaju **izvan aktivnog v1 runtime permission kataloga** dok ne budu zasebno prihvaćene.
+- **Posljedica za API contract:** `GET /me` mijenja `memberships[].role: string` u `memberships[].roles: membership_role[]`. Niz `roles` mora sadržavati **jedinstvene** vrijednosti; koristiti **isključivo** prihvaćene `membership_role` vrijednosti; imati **deterministički redoslijed**; predstavljati **samo** role pripadajućeg membershipa; i **nikada** uključivati `platformRoles`. `platformRoles` ostaje **zaseban top-level blok**.
+- **Schema smjer:** Kasnija `02` izmjena uvodi `practice_membership_roles` sa najmanje: aplikacijski generisanim `id`; `practice_id`; `membership_id`; `role`; timestampovima prema projektnim konvencijama; `unique (practice_id, id)`; `unique (practice_id, membership_id, role)`; i composite FK `(practice_id, membership_id)` → `practice_memberships(practice_id, id)`. **Tačna schema pripada kasnijoj `02` izmjeni, ne ovom Decision Log batchu.**
+- **Razlog:** Unija dodijeljenih rola je jedini model koji dopušta da ordinacija izrazi "administrator **i** ljekar" bez da svaki administrator postane klinički ovlašten. Klauzula 9 čuva least-privilege čitljivost matrice: rola ili doprinosi grant ili ne doprinosi ništa, pa se efektivne permisije mogu izračunati bez rezolucije konflikata. Klauzule 12–15 čuvaju razdvajanje uvedeno u D-023 i D-033.
+- **Alternative:**
+  1. Nasljeđivanje `PHYSICIAN` permisija u `PRACTICE_ADMIN` — odbijeno jer čini nekliničke administratore klinički ovlaštenim.
+  2. Tabela individualnih permission overrida — odbijena jer stvara teško provjerljive izuzetke izvan normativne role matrice.
+  3. Clinical-eligibility boolean — odbijen jer rješava samo jednu kombinaciju rola i postaje drugi authorization model.
+  4. Odvojeni korisnički nalozi za administrativni i klinički rad — odbijeni jer štete upotrebljivosti, kontinuitetu audit identiteta i operativnoj sigurnosti.
+- **Posljedice:** Kasnije kontrolisane izmjene su obavezne u: `02` (schema i RLS); `03` (`GET /me` contract i authorization pravila); `04` (implementacijski plan); `05` (checklist); `07` (fazni promptovi); `08` (test fixtures i pokrivenost). `14` ne zahtijeva izmjenu zbog kompozicije rola, osim ako neki budući dijagram eksplicitno prikazuje `memberships[].role`. **D-OPEN-011 ostaje otvoren i nepromijenjen.**
+- **Security/privacy uticaj:** Dodjela i uklanjanje role moraju biti auditabilni. Osjetljive authorization odluke moraju ostati reproducibilne iz: aktera, ordinacije, aktivnog membershipa, dodijeljenih tenant rola, tražene permisije i relevantnih uslovnih practice postavki. **Nije dozvoljeno implicitno zaključivanje role** iz naziva radnog mjesta, email domene, platform role ni database role. Multi-role kompozicija **ne slabi** cross-tenant izolaciju.
+- **Migration/rollout:** Vlasništvo ostaje `002_identity_and_practices`. **Ne uvodi se novi broj migration paketa.** Projekat nema produkcijske podatke, pa produkcijska backfill strategija nije potrebna. Seed i fixture podaci moraju kreirati **eksplicitne** membership-role redove.
+- **Test dokaz:** Kasniji testovi moraju dokazati:
+  - jedan membership može imati više jedinstvenih rola;
+  - duplirana dodjela iste role je odbijena;
+  - dodjela role ne može referencirati membership u drugoj ordinaciji;
+  - neaktivan membership ne daje nijednu efektivnu permisiju;
+  - aktivan membership sa nula rola ne daje nijednu efektivnu permisiju;
+  - `PHYSICIAN` + `PRACTICE_ADMIN` dobija uniju tih tenant permisija;
+  - `DENY` u jednoj roli ne poništava `ALLOW` iz druge dodijeljene tenant role;
+  - `platformRoles` nikada ne doprinose tenant permission uniji;
+  - `SYSTEM_ADMIN` bez aktivnog tenant membershipa dobija `403`;
+  - uslovno odobravanje i dalje zahtijeva odgovarajući practice flag;
+  - `GET /me` vraća `roles[]` odvojeno od `platformRoles`;
+  - dodjele rola jedne ordinacije ne mogu uticati na drugu;
+  - enumeracija rola kroz bootstrap politiku izlaže isključivo vlastite membership role autentifikovanog korisnika.
+- **Zavisnosti:** D-023, D-033, D-035, D-036, D-OPEN-011.
+
+---
+
 # Otvorene odluke
 
 ## D-OPEN-001 — Produkcijski OIDC provider
