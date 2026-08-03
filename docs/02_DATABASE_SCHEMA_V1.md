@@ -297,7 +297,9 @@ Ograničenja (D-023, klauzula 4):
 - isključivo SELECT na globalnim tarifnim tabelama;
 - **nema INSERT ni UPDATE nad globalnom tarifnom konfiguracijom**;
 - column-level SELECT na `system_storage_objects` prema D-024;
-- SELECT-only na `practice_memberships`, ograničen user-scoped RLS-om (§17.3).
+- SELECT-only na `practice_memberships`, ograničen user-scoped RLS-om (§17.3);
+- SELECT-only na `practice_membership_roles`, ograničen bootstrap-readable politikom kroz
+  vlasnički membership red (§17.4).
 
 Credential: `DATABASE_URL`.
 
@@ -368,7 +370,12 @@ AUDITOR
 READ_ONLY
 ```
 
-Membership role vrijede unutar jedne ordinacije i čuvaju se u `practice_memberships`.
+Membership role vrijede unutar jedne ordinacije.
+
+**D-038:** dodjele tenant rola čuvaju se u `practice_membership_roles` (§6.3a), **ne** kao
+singularna kolona na `practice_memberships`. Jedan membership može nositi nula, jednu ili
+više rola, a svaka rola se za taj membership pojavljuje najviše jednom. Enum
+`membership_role` se nikada ne upisuje u `platform_role_assignments` (§6.5).
 
 ## 4.2 Status ordinacije/korisnika
 
@@ -530,10 +537,13 @@ SYSTEM_ADMIN
 ```
 
 Platform rola je odvojena od membership role (D-023, klauzula 8). Čuva se u globalnoj
-tabeli `platform_role_assignments` (§6.5), nikada u `practice_memberships`.
+tabeli `platform_role_assignments` (§6.5), nikada u `practice_memberships` ni u
+`practice_membership_roles` (D-038, klauzula 12).
 
 `SYSTEM_ADMIN` nema automatski pristup encounterima, analizama ni medicinskim
-dokumentima. Pristup tenant podacima zahtijeva aktivan `practice_memberships` red.
+dokumentima. **Platform rola sama ne daje nijednu tenant permisiju** (D-038,
+klauzula 13). Pristup tenant podacima zahtijeva aktivan `practice_memberships` red **i**
+odgovarajuću dodjelu tenant role u `practice_membership_roles` (D-038, klauzula 14).
 
 ---
 
@@ -547,6 +557,7 @@ Identity/Tenant
 ├── practices
 ├── users
 ├── practice_memberships
+├── practice_membership_roles
 └── practice_settings
 
 Clinical intake
@@ -648,7 +659,6 @@ Napomena: lozinke se ne čuvaju.
 | id | uuid PK |
 | practice_id | uuid FK |
 | user_id | uuid FK |
-| role | membership_role |
 | professional_gln | varchar(50), nullable |
 | active | boolean |
 | created_at | timestamptz |
@@ -665,13 +675,137 @@ Indeksi:
 
 ```sql
 (user_id, active)
-(practice_id, active, role)
 ```
+
+**D-038 — nema singularne role.** Kolona `role membership_role` je uklonjena (D-038,
+klauzula 2), a s njom i indeks `(practice_id, active, role)`. Tabela i dalje nosi tačno
+jedan red po ordinaciji i korisniku (klauzula 1) i ostaje jedini izvor:
+
+- članskog odnosa korisnika i ordinacije;
+- `active` / neaktivnog statusa membershipa;
+- identiteta membershipa kao cilja composite FK-a;
+- lifecycle metapodataka.
+
+Dodjela tenant rola je premještena u `practice_membership_roles` (§6.3a). Nijedan
+authorization put više ne čita `practice_memberships.role`.
+
+`unique (practice_id, user_id)` čuva pravilo "jedan membership po ordinaciji i korisniku";
+`unique (practice_id, id)` je bezuslovni tenant constraint iz §2.5 i istovremeno roditeljski
+ključ composite FK-a iz §6.3a.
+
+**Indeks pokrivenost nakon uklanjanja `(practice_id, active, role)`.** Nijedan zamjenski
+indeks se ne kreira — svaki dokumentovani query put već pokriva postojeći constraint:
+
+| Dokumentovani query put | Pokriva |
+|---|---|
+| aktivan membership po ordinaciji i korisniku (`set_request_context`, D-033 klauzula 11) | `unique (practice_id, user_id)` |
+| vlastiti membershipi prije tenant konteksta (`GET /me`, §17.3) | `(user_id, active)` |
+| enumeracija rola jednog membershipa | `unique (practice_id, membership_id, role)` (§6.3a) |
+| provjera jedne role unutar jedne ordinacije | isti unique indeks, tačno poklapanje |
+| pretraga vlasničkog membershipa u politici §17.4 | `unique (practice_id, id)` |
+
+Administracija membershipa (kreiranje, deaktivacija) nije runtime operacija `copilot_app`
+role u v1; isto važi za dodjelu rola iz §6.3a.
 
 **RLS napomena:** `practice_memberships` NE koristi standardnu tenant politiku
 `practice_id = app.practice_id`, jer `set_request_context` mora provjeriti membership
 prije nego što `app.practice_id` uopšte postoji. Tabela koristi bootstrap-safe
 user-scoped SELECT politiku opisanu u §17.3. `copilot_app` dobija isključivo SELECT.
+`practice_membership_roles` nasljeđuje istu user-scoped vidljivost kroz vlasnički
+membership red (§17.4).
+
+## 6.3a `practice_membership_roles`
+
+**Normativna odluka: D-038.** Tabela je jedini izvor dodjele tenant aplikacijskih rola.
+
+| Kolona | Tip |
+|---|---|
+| id | uuid PK |
+| practice_id | uuid not null FK |
+| membership_id | uuid not null |
+| role | membership_role not null |
+| created_at | timestamptz not null |
+| updated_at | timestamptz not null |
+
+Constraints:
+
+```sql
+unique (practice_id, id)
+unique (practice_id, membership_id, role)
+foreign key (practice_id, membership_id)
+  references practice_memberships(practice_id, id)
+```
+
+`id` generiše aplikacija prije INSERT-a (§2.2). `practice_id` je `not null` prema §2.5.
+
+Osobine constraint seta:
+
+- **composite FK `(practice_id, membership_id)`** čini dodjelu preko granice ordinacije
+  strukturno nemogućom (D-038, klauzula 19). Roditeljski ključ
+  `practice_memberships(practice_id, id)` već postoji (§6.3), pa nije potrebna nova
+  schema priprema;
+- **`unique (practice_id, membership_id, role)`** odbija duplu dodjelu iste role istom
+  membershipu (D-038, klauzula 5) i istovremeno je jedini indeks potreban za enumeraciju
+  i provjeru rola (§21);
+- **`unique (practice_id, id)`** je bezuslovni tenant constraint iz §2.5;
+- referencijalne akcije nisu deklarisane — FK pada na PostgreSQL default `NO ACTION`, kao
+  i svi ostali composite FK-ovi u ovom dokumentu; otvoreno pitanje `ON DELETE`/`ON UPDATE`
+  iz §28.1 obuhvata i ovaj FK.
+
+**Timestampovi.** `created_at` i `updated_at` prate obrazac §6.3, a **ne**
+`granted_by`/`granted_at`/`revoked_at` obrazac iz `platform_role_assignments` (§6.5). Taj
+obrazac podrazumijeva administracijski tok koji D-038 klauzula 24 svjesno drži izvan v1.
+
+**Napomena o opozivu.** Historija opoziva u stilu `revoked_at` ne može koegzistirati sa
+`unique (practice_id, membership_id, role)` — opozvan pa ponovo dodijeljen par bi se sudario
+sa postojećim redom, pa bi constraint morao postati parcijalan. Ovo je zabilježena
+interakcija constrainta, ne odluka; rješava se tek uz prihvaćeni administracijski tok.
+
+**Auditabilnost.** Dodjela i uklanjanje role su sigurnosno osjetljive mutacije. Kada
+administracijski put bude prihvaćen, obavezni audit dokaz mora identifikovati: aktera;
+ordinaciju; membership; dodijeljenu ili uklonjenu rolu; prethodno i rezultujuće stanje
+dodjele; vrijeme; i authorization put. Runtime implementacija se ovdje **ne izmišlja** dok
+je izvan v1 obuhvata.
+
+Tabela **ne modelira**: per-user permission overrid, nasljeđivanje rola, platform role,
+database role ni generičke permission redove (D-038, klauzule 10–12, 15).
+
+RLS: §17.4. Grants: §20.2. Migration paket: §22.2. Testovi: §25.10.
+
+### 6.3a.1 Efektivne tenant permisije
+
+**Normativna odluka: D-038, klauzule 7–11 i 16–18.**
+
+- jedan aktivan membership može imati **nula, jednu ili više** tenant rola;
+- **efektivne tenant permisije su unija** grantova svih dodijeljenih tenant rola tog istog
+  membershipa i te iste ordinacije;
+- `DENY` ćelija u role matrici znači da ta rola **ne doprinosi grant** za tu permisiju;
+- `DENY` **nije negativni override** i ne poništava `ALLOW` dobijen od druge dodijeljene
+  tenant role istog membershipa;
+- **nema implicitnog nasljeđivanja rola**;
+- **nema per-user permission overrida** u v1;
+- **neaktivan membership** ne doprinosi nijednu rolu ni permisiju;
+- **aktivan membership sa nula rola** ne autorizuje nijednu tenant operaciju;
+- autorizacija je **deny-by-default**;
+- uslovne permisije zahtijevaju **oboje**: podobnu dodijeljenu tenant rolu **i**
+  odgovarajući prihvaćeni runtime uslov ili practice postavku — `allow_mpa_approval` i
+  `allow_billing_specialist_approval` (§6.4).
+
+Ovaj dokument definiše **isključivo pravilo kompozicije**. Konkretni grantovi po roli
+pripadaju budućoj role-to-permission matrici u `15` i ovdje se **ne dodjeljuju**.
+
+### 6.3a.2 Tenant, platform i database role
+
+**Normativna odluka: D-038, klauzule 12–15, uz D-023.**
+
+- `practice_membership_roles` sadrži **isključivo tenant aplikacijske role** iz §4.1;
+- `platformRoles` ostaju odvojeni i čuvaju se u `platform_role_assignments` (§6.5);
+- `platformRoles` se **nikada ne spajaju unijom** sa tenant rolama;
+- `SYSTEM_ADMIN` **ne dobija** nijednu tenant permisiju kroz svoju platform rolu;
+- `SYSTEM_ADMIN` koristi tenant permisije samo kada isti korisnik ima aktivan membership u
+  toj ordinaciji **i** potrebnu dodjelu tenant role;
+- `copilot_app`, `copilot_migrator` i `copilot_system` su **database role** (§3) i nikada
+  se ne pojavljuju u `practice_membership_roles` ni u kompoziciji aplikacijskih permisija.
 
 ## 6.4 `practice_settings`
 
@@ -2221,6 +2355,11 @@ Kontekst se postavlja u dva koraka. Redoslijed je obavezan.
    Pošto je obrisan prije validacije, stari tenant kontekst ne može preživjeti neuspješnu
    promjenu konteksta.
 
+Bootstrap ne čita `practice_membership_roles` (D-038, klauzule 20–21). Postojanje i
+`active` status membershipa utvrđuju se isključivo iz `practice_memberships`. Membership
+sa **nula** dodijeljenih rola smije uspostaviti tenant kontekst, ali nakon toga ne
+autorizuje nijednu tenant operaciju (§6.3a.1).
+
 ### 16.2.2 `set_user_context`
 
 ```sql
@@ -2318,6 +2457,12 @@ Normativna odluka: **D-033, klauzule 7–12**. Obavezne osobine:
 - Fiksiran `search_path`.
 - `practice_memberships` zadržava `ENABLE` i `FORCE ROW LEVEL SECURITY` (klauzula 5).
 
+**D-038 ne mijenja ovu funkciju.** Potpis, security mode i tijelo ostaju nepromijenjeni
+(D-038, klauzula 21). Funkcija validira membership isključivo nad `practice_memberships`,
+**ne čita `practice_membership_roles`**, ne prima rolu, ne prima `user_id` i ne uspostavlja
+platform kontekst. Dodijeljene role se evaluiraju tek nakon uspješnog bootstrapa (D-038,
+klauzula 20).
+
 ## 16.2a Trust boundary
 
 Normativna odluka: **D-023, klauzula 13, uz amandman D-033**. D-033 proširuje granicu
@@ -2358,13 +2503,14 @@ nullif(current_setting('app.user_id', true), '')::uuid
 
 # 17. RLS policy pattern
 
-Postoje tri obrasca:
+Postoje četiri obrasca:
 
 | Obrazac | Predikat | Tabele |
 |---|---|---|
-| §17.1 tenant | `practice_id = app.practice_id` | sve tenant tabele osim `practice_memberships` |
+| §17.1 tenant | `practice_id = app.practice_id` | sve tenant tabele osim `practice_memberships` i `practice_membership_roles` |
 | §17.2 user-scoped, globalna | `user_id = app.user_id` | `platform_role_assignments` |
 | §17.3 user-scoped, bootstrap | `user_id = app.user_id` | `practice_memberships` |
+| §17.4 user-scoped, bootstrap kroz vlasnički membership | `exists (...)` nad `practice_memberships` uz `user_id = app.user_id` | `practice_membership_roles` |
 
 Globalne tarifne tabele i `system_storage_objects` ne koriste nijedan od njih (§18.2).
 
@@ -2479,8 +2625,58 @@ Pravila:
 - `copilot_app` dobija **SELECT only** — bez INSERT, UPDATE i DELETE (D-033, klauzula 13);
 - bez postavljenog `app.user_id` tabela vraća nula redova.
 
-Administracija membershipa (kreiranje, promjena role, deaktivacija) nije runtime
-operacija `copilot_app` role u v1.
+Administracija membershipa (kreiranje i deaktivacija) nije runtime operacija `copilot_app`
+role u v1. Dodjela i uklanjanje tenant rola žive u `practice_membership_roles` (§6.3a) i
+takođe nisu v1 runtime operacija (D-038, klauzula 24).
+
+## 17.4 Bootstrap-readable obrazac — `practice_membership_roles`
+
+**Normativna odluka: D-038, klauzule 22–23.**
+
+`GET /me` enumeriše membershipe i role autentifikovanog korisnika **prije** nego što tenant
+kontekst postoji, pa politika ne smije zavisiti od `app.practice_id`. Tabela nema vlastitu
+`user_id` kolonu, pa se vlasništvo izvodi kroz vlasnički `practice_memberships` red.
+
+```sql
+alter table practice_membership_roles enable row level security;
+alter table practice_membership_roles force row level security;
+
+create policy practice_membership_roles_self_select
+on practice_membership_roles
+for select
+to copilot_app
+using (
+  exists (
+    select 1
+    from practice_memberships pm
+    where pm.practice_id = practice_membership_roles.practice_id
+      and pm.id          = practice_membership_roles.membership_id
+      and pm.user_id =
+          nullif(current_setting('app.user_id', true), '')::uuid
+  )
+);
+```
+
+Pravila:
+
+- tabela koristi `ENABLE ROW LEVEL SECURITY` **i** `FORCE ROW LEVEL SECURITY`;
+- politika je vezana za `app.user_id` kroz vlasnički membership red, **ne** za
+  `app.practice_id`, pa radi prije uspostavljenog tenant konteksta;
+- **nijedan korisnik ne može pročitati dodjele rola drugog korisnika**;
+- **nema cross-practice curenja** — predikat poredi i `practice_id` i `membership_id`, pa
+  red druge ordinacije ne može biti vidljiv kroz tuđi membership;
+- politika **ne filtrira po `pm.active`**, jednako kao §17.3. RLS ovdje uređuje
+  **vidljivost vlastitih redova**, a ne autorizaciju; validaciju aktivnog membershipa
+  zadržavaju `set_request_context` (D-033, klauzula 11) i aplikacijska autorizacija
+  (§6.3a.1);
+- `copilot_app` dobija **SELECT only** — bez INSERT, UPDATE i DELETE, pa ovo **nije**
+  role administration;
+- politika je **SECURITY INVOKER kompatibilna**; podupirući EXISTS upit i sam podliježe
+  user-scoped politici iz §17.3, jer `practice_memberships` nosi `FORCE RLS`;
+- **nijedan SECURITY DEFINER bypass se ne uvodi**;
+- bez postavljenog `app.user_id` tabela vraća nula redova;
+- bootstrap-readable pristup nad vlastitim redovima **ne rješava i ne slabi D-OPEN-011**
+  (§28.2).
 
 ---
 
@@ -2501,6 +2697,7 @@ Legenda:
 | Tabela | S | I | U | D | FORCE RLS |
 |---|---:|---:|---:|---:|---:|
 | practice_memberships | da* | — | — | — | da |
+| practice_membership_roles | da** | — | — | — | da |
 | practice_settings | da | — | da | — | da |
 | patient_references | da | da | ograničeno | — | da |
 | encounters | da | da | da | — | da |
@@ -2534,13 +2731,19 @@ Legenda:
 membership redove i nema INSERT, UPDATE ni DELETE. Tabela je navedena u ovoj matrici jer
 jeste tenant tabela, ali njen predikat je namjerno drugačiji.
 
+`**` **`practice_membership_roles` takođe ne koristi tenant predikat.** Politika je
+bootstrap-readable kroz vlasnički membership red, prema §17.4, jer `GET /me` enumeriše role
+prije nego što `app.practice_id` postoji. Rola vidi isključivo dodjele vezane za vlastite
+membershipe i nema INSERT, UPDATE ni DELETE.
+
 `practice_settings` koristi standardni tenant predikat `practice_id = app.practice_id`.
 UPDATE je dozvoljen jer `PATCH /practices/{id}/settings` postoji; concurrency se štiti
 `version` kolonom i `If-Match` (D-029).
 
 "U ograničeno" se prvenstveno sprovodi kroz application service, permission i trigger; RLS štiti tenant, ali ne mora sam izraziti sve column-level poslovne zabrane.
 
-Matrica sadrži 28 tabela — tačno onoliko koliko ih nosi `unique (practice_id, id)` iz §2.5.
+Matrica sadrži 29 tabela — tačno onoliko koliko ih nosi `unique (practice_id, id)` iz §2.5.
+Broj je porastao sa 28 na 29 uvođenjem `practice_membership_roles` (D-038, §6.3a).
 `import_batches` i `webhook_receipts` nisu u matrici; vidi §18.4.
 
 ## 18.2 Non-tenant RLS
@@ -2818,6 +3021,20 @@ administracija je odvojena od pristupa medicinskim podacima.
 `copilot_app` na `practice_memberships` ima isključivo SELECT, ograničen user-scoped RLS
 politikom iz §17.3.
 
+`copilot_app` na `practice_membership_roles` ima isključivo SELECT, ograničen
+bootstrap-readable politikom iz §17.4:
+
+| Tabela | `copilot_migrator` | `copilot_app` | `copilot_system` | `PUBLIC` |
+|---|---|---|---|---|
+| practice_membership_roles | owner, kreira kroz migraciju `002` | SELECT (RLS §17.4) | — | — |
+
+- **nema INSERT, UPDATE ni DELETE** za `copilot_app`; generička administracija dodjele rola
+  ostaje izvan aktivnog v1 permission kataloga (D-038, klauzula 24) i dobiće grant tek uz
+  prihvaćenu runtime permisiju i endpoint;
+- `copilot_system` **nema nijedan grant** — tabela je tenant tabela (D-023);
+- `PUBLIC` nema nijedan grant;
+- owner ostaje `copilot_migrator` (§3.5).
+
 ## 20.3 Sequence
 
 Ako se koriste SQL sequence, dodijeliti minimalna prava. UUID dizajn i aplikacijsko
@@ -2834,8 +3051,12 @@ Obavezni testovi, prema D-023 i D-024:
   redova;
 - `copilot_app` SELECT nad `practice_memberships` redom drugog korisnika vraća nula redova;
 - `copilot_app` INSERT/UPDATE/DELETE nad `practice_memberships` pada;
-- bez postavljenog `app.user_id`, `platform_role_assignments` i `practice_memberships`
-  vraćaju nula redova;
+- `copilot_app` SELECT nad `practice_membership_roles` dodjelom drugog korisnika vraća nula
+  redova;
+- `copilot_app` INSERT/UPDATE/DELETE nad `practice_membership_roles` pada;
+- `copilot_system` bilo koji pristup `practice_membership_roles` pada;
+- bez postavljenog `app.user_id`, `platform_role_assignments`, `practice_memberships` i
+  `practice_membership_roles` vraćaju nula redova;
 - `copilot_system` UPDATE nad `system_storage_objects.archived_at` ili bilo kojom kolonom
   izvan `(sha256, byte_size, antivirus_status)` pada;
 - `copilot_system` bilo koji pristup tenant tabeli pada;
@@ -2897,7 +3118,20 @@ on platform_role_assignments(user_id);
 `user_id = app.user_id` se izvršava na svakom autentifikacionom toku.
 
 `practice_memberships` već ima `(user_id, active)` indeks (§6.3), koji podupire
-bootstrap-safe politiku iz §17.3.
+bootstrap-safe politiku iz §17.3. Indeks `(practice_id, active, role)` je uklonjen zajedno
+sa kolonom `role` (D-038); zamjenski indeks se ne kreira, jer je pokrivenost dokazana u
+tabeli query putova u §6.3.
+
+`practice_membership_roles` **ne dobija nijedan dodatni indeks**. Oba constrainta iz §6.3a
+već stvaraju btree indekse koji pokrivaju svaki dokumentovani query put:
+
+- `unique (practice_id, membership_id, role)` — enumeracija rola jednog membershipa
+  (prefiks `(practice_id, membership_id)`) i provjera jedne role unutar jedne ordinacije
+  (tačno poklapanje);
+- `unique (practice_id, id)` — pretraga vlasničkog membershipa u `EXISTS` predikatu
+  politike §17.4 poklapa se sa `practice_memberships(practice_id, id)`.
+
+Spekulativni indeksi bez dokumentovanog query puta se ne kreiraju.
 
 Indeksi se validiraju `EXPLAIN` planom na realističnim test podacima prije optimizacije.
 
@@ -2922,6 +3156,18 @@ dokumentovana i odobrena prije dodavanja.
 `allow_billing_specialist_approval`, `version` i `check (version >= 1)`;
 enum `platform_role` (§4.16); globalna tabela `platform_role_assignments` (§6.5) i njen
 `user_id` indeks (D-023, klauzula 8).
+
+**D-038 u istom paketu — ne uvodi se novi broj paketa:**
+
+- `practice_memberships` se kreira **bez kolone `role`** i **bez indeksa
+  `(practice_id, active, role)`** (D-038, klauzula 2);
+- kreira se `practice_membership_roles` (§6.3a) sa `unique (practice_id, id)`,
+  `unique (practice_id, membership_id, role)` i composite FK
+  `(practice_id, membership_id)` → `practice_memberships(practice_id, id)`;
+- enum `membership_role` ostaje nepromijenjen (§4.1) i sada ga koristi
+  `practice_membership_roles`.
+
+Projekat nema produkcijske podatke, pa produkcijska backfill procedura nije potrebna.
 
 ## 22.3 `003_patient_encounter_documents`
 
@@ -2996,7 +3242,7 @@ klauzula 1); `unique (practice_id, id)` na sve četiri §15 tabele.
 
 ## 22.12 `012_constraints_indexes`
 
-Verifikuje da svih 28 tenant tabela u obuhvatu nosi `unique (practice_id, id)` prema §2.5;
+Verifikuje da svih 29 tenant tabela u obuhvatu nosi `unique (practice_id, id)` prema §2.5;
 kreira indeks katalog iz §21, uključujući `platform_role_assignments_user_idx`.
 
 ## 22.13 `013_rls_policies`
@@ -3004,6 +3250,7 @@ kreira indeks katalog iz §21, uključujući `platform_role_assignments_user_idx
 Tenant politike prema §17.1 i §18.1;
 **user-scoped RLS za `platform_role_assignments`** (§17.2);
 **bootstrap-safe user-scoped SELECT politika za `practice_memberships`** (§17.3);
+**bootstrap-readable SELECT politika za `practice_membership_roles`** (§17.4, D-038);
 `app_security.set_user_context` i SECURITY INVOKER `app_security.set_request_context`
 (§16.2);
 **globalne tarifne tabele i `system_storage_objects` ne dobijaju tenant RLS** (§18.3).
@@ -3043,6 +3290,10 @@ Kreira:
 - dev admin;
 - dev physician;
 - memberships;
+- **eksplicitne `practice_membership_roles` redove za svaki seed membership** (D-038) —
+  seed se ne oslanja na singularnu `role` kolonu, koja više ne postoji;
+- **najmanje jedan aktivan membership sa nula dodijeljenih rola**, za negativne testove iz
+  §25.10;
 - practice settings, uz oba approval flaga na `false`;
 - **development `SYSTEM_ADMIN` dodjelu u `platform_role_assignments`** (D-023, klauzula 8);
 - **`integration_connections` red za ManualAdapter** — `provider = 'MANUAL'`,
@@ -3187,6 +3438,43 @@ Kompletna lista je u §20.4. Minimum za acceptance:
   `related_tariff_item_id` ne mogu oba biti upisana;
 - drugi INSERT pada na database constraintu, ne na aplikacijskoj provjeri.
 
+## 25.10 Dodjele tenant rola (D-038)
+
+Testovi dokazuju **pravilo kompozicije**, ne konkretne grantove po roli — oni pripadaju
+budućoj matrici u `15`.
+
+Struktura i constrainti:
+
+- jedan membership može nositi **više jedinstvenih** `practice_membership_roles` redova;
+- **dupla dodjela iste role** istom membershipu pada na
+  `unique (practice_id, membership_id, role)`;
+- red dodjele **ne može referencirati membership druge ordinacije** — pada na composite FK
+  `(practice_id, membership_id)`;
+- ponašanje pri brisanju roditelja prati prihvaćene FK konvencije; referencijalne akcije
+  nisu deklarisane, pa FK pada na `NO ACTION`, a odluka je otvorena u §28.1.
+
+Efektivne permisije:
+
+- **neaktivan membership** ne daje nijednu efektivnu permisiju, bez obzira na postojeće
+  redove dodjele;
+- **aktivan membership sa nula rola** ne daje nijednu efektivnu permisiju;
+- membership sa više rola dobija **uniju** tenant grantova tih rola;
+- `DENY` u jednoj roli **ne poništava** `ALLOW` iz druge dodijeljene tenant role.
+
+Razdvajanje i izolacija:
+
+- `platformRoles` **nikada ne doprinose** tenant permission uniji;
+- `SYSTEM_ADMIN` bez aktivnog tenant membershipa nema pristup nijednoj tenant ruti ni
+  tenant tabeli;
+- enumeracija kroz politiku §17.4 izlaže **isključivo** dodjele vlastitih membershipa
+  autentifikovanog korisnika;
+- dodjele rola jedne ordinacije **ne mogu uticati** na autorizaciju u drugoj ordinaciji.
+
+Uslovne permisije:
+
+- uslovno odobravanje i dalje zahtijeva odgovarajući practice flag — `allow_mpa_approval`
+  odnosno `allow_billing_specialist_approval` (§6.4) — pored podobne dodijeljene role.
+
 ---
 
 # 26. Prisma implementacijske napomene
@@ -3241,6 +3529,13 @@ Isto važi za RLS politike, grants, trigger funkcije iz §19 i column-level priv
 - **historija analysis revizija je linearni lanac, ne stablo**;
 - **identitetska polja revizije — `parent_analysis_run_id` i `revision_number` — su
   immutable nakon INSERT-a**;
+- **`practice_memberships` nema singularnu kolonu `role`**;
+- **`practice_membership_roles` postoji sa `unique (practice_id, id)`,
+  `unique (practice_id, membership_id, role)` i composite FK-om prema
+  `practice_memberships(practice_id, id)`**;
+- **jedan membership može nositi nula, jednu ili više tenant rola**;
+- **efektivne tenant permisije su unija dodijeljenih tenant rola istog membershipa**;
+- **aktivan membership sa nula rola ne autorizuje nijednu tenant operaciju**;
 - composite FK testovi prolaze;
 - negativni privilege testovi iz §20.4 prolaze;
 - migration checksum nije ručno narušen;
@@ -3320,8 +3615,10 @@ Prije nego što se bilo koja od njih deklariše, za svaku se mora definisati:
 kaskadno brisanje uklonilo audit trag. Nijedna od šest stavki se ne rješava
 pretpostavkom — izostanak odluke znači da se relacija ne deklariše, ne da se bira default.
 
-Isto pitanje referencijalnih akcija je otvoreno i za deset već deklarisanih composite
-FK-ova u ovom dokumentu — nijedan trenutno ne navodi `ON DELETE` ni `ON UPDATE`, pa svi
+Isto pitanje referencijalnih akcija je otvoreno i za **deset** već deklarisanih composite
+FK-ova u ovom dokumentu — §6.3a, §7.2, §7.3, §8.2 (dva), §10.2 (dva), §10.3 i §10.7 (dva),
+uključujući FK `(practice_id, membership_id)` iz §6.3a (D-038). Nijedan trenutno ne navodi
+`ON DELETE` ni `ON UPDATE`, pa svi
 padaju na PostgreSQL default `NO ACTION`. Odluka mora obuhvatiti i njih, **prije paketa
 `003_patient_encounter_documents`**, koji prvi kreira izvornu tabelu sa composite FK-om.
 
@@ -3348,3 +3645,12 @@ samo kada aktivan `practice_memberships` red to autorizuje. Politika se mora pro
 zajedno sa membership bootstrap tokom (§16.2) i **ne smije izložiti sve ordinacije, ZSR
 brojeve ni konfiguraciju svakom autentifikovanom korisniku**. `practices.zsr_number` je u
 §6.1 označen kao osjetljiv poslovni podatak.
+
+**D-038 ne mijenja status ovog pitanja** (D-038, klauzula 23). Bootstrap-readable pristup
+vlastitim redovima dodjele rola iz §17.4:
+
+- **nije** generički runtime pristup nad `users`;
+- **nije** generički runtime pristup nad `practices`;
+- **nije** role administration — politika daje isključivo SELECT nad vlastitim redovima;
+- **ne definiše** platform ni cross-practice pristup;
+- **ne rješava D-OPEN-011.**
