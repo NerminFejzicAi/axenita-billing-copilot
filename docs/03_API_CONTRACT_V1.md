@@ -105,6 +105,11 @@ Ponašanje:
 Server prima samo `p_practice_id`; **nijedan endpoint ne prima `p_user_id` kao parametar
 za izbor konteksta** (D-033).
 
+**Kontekst nije autorizacija (D-038).** Uspješno uspostavljen practice context dokazuje
+**aktivan membership**, a ne pravo na bilo koju operaciju. Membership sa **nula**
+dodijeljenih tenant rola smije uspostaviti kontekst i i dalje dobija `403` na svakoj
+permission-gated operaciji. Redoslijed autorizacije je u §3.7.
+
 ## 3.3 Platform context
 
 Platform rute ne koriste practice context.
@@ -115,6 +120,13 @@ Platform rute ne koriste practice context.
   encounterima, analizama, pacijentima ni medicinskim dokumentima;
 - korisnik koji je istovremeno `SYSTEM_ADMIN` i član ordinacije dobija dva **nezavisna**
   skupa permisija; jedan se ne izvodi iz drugog.
+
+Dopuna prema D-038, klauzule 12–14:
+
+- `platformRoles` se **nikada ne spajaju unijom** sa tenant rolama;
+- `SYSTEM_ADMIN` **ne dobija nijednu tenant permisiju** kroz svoju platform rolu;
+- korisnik koji je i `SYSTEM_ADMIN` i član ordinacije koristi tenant permisije izvedene
+  **isključivo** iz tenant rola tog membershipa.
 
 ## 3.4 Klasifikacija ruta
 
@@ -147,6 +159,66 @@ Accept-Language: de-CH
 ```
 
 MVP podržava `de-CH`; error code je stabilan bez obzira na lokalizovanu poruku.
+
+## 3.7 Autorizacija tenant ruta
+
+**Normativna odluka: D-038, uz D-033.**
+
+### 3.7.1 Redoslijed
+
+Redoslijed je obavezan i nema preskakanja koraka:
+
+1. autentifikacija bearer tokena (§3.1);
+2. izvođenje pouzdanog `app.user_id` iz verifikovanog subjekta;
+3. čitanje i validacija `X-Practice-ID` (§3.2);
+4. poziv SECURITY INVOKER funkcije `set_request_context(p_practice_id uuid)`;
+5. provjera **aktivnog** `practice_memberships` reda;
+6. uspostavljanje transakcijski lokalnog tenant konteksta;
+7. učitavanje dodijeljenih tenant rola za taj membership i tu ordinaciju;
+8. izvođenje efektivnih tenant permisija (§28.5);
+9. evaluacija permisije koju endpoint zahtijeva i svakog prihvaćenog uslovnog pravila;
+10. izvršenje komande pod tenant RLS-om.
+
+Pojašnjenja:
+
+- `set_request_context` **ne prima rolu**;
+- `set_request_context` **ne prima `user_id`**;
+- `set_request_context` **ne uspostavlja platform kontekst**;
+- `practice_membership_roles` **nije potreban** za provjeru postojanja membershipa —
+  koraci 4–6 čitaju isključivo `practice_memberships` (D-038, klauzule 20–21);
+- role se evaluiraju **tek nakon** uspješnog bootstrapa, u koracima 7–9;
+- aktivan membership sa **nula** rola prolazi korake 1–6 i pada na koraku 9.
+
+### 3.7.2 Ponašanje pri greškama
+
+| Situacija | Ishod |
+|---|---|
+| nema aktivnog membershipa za traženu ordinaciju | **`403 ACCESS_DENIED`**, tenant context se ne kreira |
+| neaktivan membership | **`403 ACCESS_DENIED`** pri uspostavljanju konteksta |
+| aktivan membership sa nula rola | kontekst se uspostavlja; svaka permission-gated operacija vraća uobičajeni **`403 ACCESS_DENIED`** |
+| aktivan membership sa rolama, ali bez tražene permisije | **`403 ACCESS_DENIED`** |
+| tenant rola dodijeljena u drugoj ordinaciji | **ne doprinosi** autorizaciju; ishod je isti kao da rola ne postoji |
+| samo `platformRoles`, bez tenant membershipa | **`403 ACCESS_DENIED`** na svakoj tenant ruti |
+
+**Nijedan novi error code se ne uvodi.** Sve navedeno koristi već prihvaćeni
+`403 ACCESS_DENIED` i tabelu iz §9.
+
+### 3.7.3 Audit dokaz autorizacije
+
+Autorizaciona odluka za osjetljive operacije mora biti reproducibilna iz:
+
+- autentifikovanog korisnika;
+- odabrane ordinacije;
+- aktivnog membershipa;
+- dodijeljenih tenant rola;
+- tražene permisije;
+- relevantne uslovne postavke;
+- rezultata autorizacije.
+
+**Audit event ne čuva jednu "aktivnu rolu".** Jednu permisiju može doprinijeti više
+dodijeljenih rola, pa bi izbor jedne bio proizvoljan i neistinit. Audit bilježi
+**iskorištenu permisiju** i **identitet aktera**; historija dodjele rola pripada
+schema/audit modelu (`02` §6.3a).
 
 ---
 
@@ -399,7 +471,7 @@ prethodi svakoj provjeri statusa (§15.3, D-034).
 | 204 | uspješna komanda bez bodyja |
 | 400 | header/query/request format |
 | 401 | nema/invalid auth |
-| 403 | nema permission/membership |
+| 403 | nema permission, nema membership, ili aktivan membership bez dodijeljene tenant role (§3.7.2) |
 | 404 | resurs nije vidljiv ili ne postoji |
 | 409 | state/version/idempotency konflikt |
 | 413 | upload prevelik — **samo DEFERRED upload putanja (§13.2)** |
@@ -444,13 +516,16 @@ Response:
   ],
   "memberships": [
     {
+      "membershipId": "membership-uuid",
       "practiceId": "practice-uuid",
       "practiceName": "Praxis Muster",
-      "role": "PHYSICIAN",
+      "active": true,
+      "roles": [
+        "PHYSICIAN",
+        "PRACTICE_ADMIN"
+      ],
       "permissions": [
-        "encounter.read",
-        "analysis.run",
-        "analysis.approve"
+        "..."
       ]
     }
   ]
@@ -465,6 +540,55 @@ Pravila (D-023):
 - korisnik koji je `SYSTEM_ADMIN` **i** član ordinacije dobija oba bloka, sa dva nezavisna
   skupa permisija; unija se ne izvodi automatski;
 - `SYSTEM_ADMIN` bez aktivnog membershipa ne dobija pristup nijednoj tenant ruti.
+
+### Breaking izmjena ugovora (D-038)
+
+`memberships[].role` → `memberships[].roles`
+
+Ovo je **breaking pre-implementation ispravka v1 ugovora**. Projekat nema produkcijsku
+implementaciju ni klijente, pa se **ne uvodi** compatibility endpoint ni prelazni period sa
+dva polja. **`role` i `roles` nikada ne postoje istovremeno** unutar `memberships[]`.
+
+### `memberships[].roles`
+
+Tip: `membership_role[]`.
+
+- sadrži **nula, jednu ili više** tenant rola;
+- vrijednosti su **jedinstvene**;
+- koriste se **isključivo** prihvaćene `membership_role` vrijednosti (`02` §4.1);
+- sadrži **isključivo role tog tačnog membershipa i te ordinacije**;
+- redoslijed je **determinističan**;
+- **nikada** ne sadrži `platformRoles`;
+- **prazan niz** za aktivan membership bez dodijeljenih rola;
+- ostaje popunjen i za **neaktivne** membershipe autentifikovanog korisnika, u mjeri u kojoj
+  bootstrap-readable politika (`02` §17.4) dozvoljava enumeraciju.
+
+### `memberships[].permissions`
+
+Vrijednost u primjeru je **elidirana** namjerno. Lista je **unija** grantova svih
+dodijeljenih tenant rola tog membershipa, uvećana za prihvaćene uslovne rezultate (§28.5).
+
+**Primjer ne dodjeljuje nijednu permisiju nijednoj roli.** Stvarna role-to-permission
+matrica pripada `docs/15` i odlukama od D-039 nadalje (§28.4).
+
+### Vidljivost naspram autorizacije
+
+- `active: false` membership **smije biti vidljiv** u `/me`;
+- vidljiv neaktivan membership **nikada ne doprinosi** efektivne permisije (§28.5);
+- autorizacija ide isključivo kroz **aktivan, odabrani** membership i redoslijed iz §3.7.
+
+### Bootstrap self-enumeracija
+
+`GET /me` smije nabrojati membershipe autentifikovanog korisnika i njihove dodijeljene
+tenant role **prije** nego što je izabran ijedan tenant kontekst. Ta self-enumeracija:
+
+- ograničena je na **autentifikovanog korisnika**;
+- **ne izlaže** membershipe ni role drugog korisnika;
+- **nije** generička role administration;
+- **ne autorizuje** nijednu tenant operaciju;
+- **ne definiše** generički pristup nad `users` ni `practices`;
+- **nije** cross-practice ni platform pristup;
+- **ne rješava D-OPEN-011.**
 
 ## GET `/practices/{practiceId}`
 
@@ -1310,9 +1434,9 @@ Permission: **`tariff_evaluation.read`**.
 
 Vraća normalizovani rezultat.
 
-Ista permission kontroliše i `tariffEvaluation` blok u workspace responseu (§15.2). Rola
-koja ima `analysis.read`, ali ne i `tariff_evaluation.read`, ne dobija tarifni rezultat ni
-na jednoj ruti.
+Ista permission kontroliše i `tariffEvaluation` blok u workspace responseu (§15.2).
+Pozivalac čije **efektivne permisije** (§28.5) sadrže `analysis.read`, ali ne i
+`tariff_evaluation.read`, ne dobija tarifni rezultat ni na jednoj ruti.
 
 ## 18.3 GET `/analyses/{analysisId}/tariff-evaluation/raw`
 
@@ -1973,6 +2097,46 @@ dva ograničenja koja proizlaze iz prihvaćenih odluka:
 
 Puna matrica pripada zasebnom dokumentu. Permission string ostaje centralizovan.
 
+D-038 definiše **kako se permisije komponuju**, a ne **ko ih ima** (§28.5). Dvije prihvaćene
+dodjele iznad i katalog od 32 aktivne i 3 rezervisane permisije ostaju nepromijenjeni.
+
+## 28.5 Kompozicija efektivnih tenant permisija
+
+**Normativna odluka: D-038, klauzule 7–11 i 16–18.**
+
+- uspješan D-033 bootstrap uspostavlja **membership i tenant kontekst**, a ne autorizaciju
+  za svaku tenant operaciju;
+- autorizacija izvodi efektivne tenant permisije iz **svih rola dodijeljenih aktivnom
+  membershipu** za odabranu ordinaciju;
+- efektivne permisije su **unija** grantova koje doprinose te tenant role;
+- unija važi **isključivo** unutar jednog membershipa i jedne ordinacije;
+- `DENY` znači da ta rola **ne doprinosi grant** za tu permisiju;
+- `DENY` **ne poništava** `ALLOW` koji doprinosi druga dodijeljena tenant rola;
+- **nema implicitnog nasljeđivanja rola**;
+- **nema per-user permission overrida** u v1;
+- **neaktivan membership** ne doprinosi nijednu tenant permisiju;
+- **aktivan membership sa nula rola** ne doprinosi nijednu tenant permisiju;
+- autorizacija je **deny-by-default**;
+- uslovne permisije zahtijevaju **oboje**: podobnu dodijeljenu tenant rolu **i**
+  odgovarajuću practice postavku ili prihvaćeni runtime uslov — `allowMpaApproval` odnosno
+  `allowBillingSpecialistApproval` (§10).
+
+### Razdvajanje klasa rola
+
+- tenant role dolaze **isključivo** iz `practice_membership_roles` (`02` §6.3a);
+- `platformRoles` su **zasebna klasa aplikacijskih rola** i ostaju odvojen top-level blok
+  u `/me`;
+- `platformRoles` se **nikada ne spajaju unijom** sa tenant rolama;
+- `SYSTEM_ADMIN` **ne dobija automatski** nijednu tenant permisiju;
+- `copilot_app`, `copilot_migrator` i `copilot_system` su **database role** (`02` §3), a ne
+  API aplikacijske role;
+- **database grant nikada ne zamjenjuje permisiju endpointa.**
+
+Platform model za `tariff.manage` ostaje nepromijenjen (§24, §28.3 pravilo 4).
+
+Konkretne dodjele rolama pripadaju `docs/15` i odlukama od **D-039** nadalje; ovaj dokument
+ih **ne uvodi**.
+
 ---
 
 # 29. State machine
@@ -2385,6 +2549,39 @@ Dodatni testovi iz reconciliation odluka:
 - export bez aktivnog approvala → **`409 APPROVAL_REQUIRED`**;
 - export sa opozvanim approvalom → **`409 APPROVAL_REVOKED`**.
 
+## 33.5 Multi-role membership — D-038
+
+Testovi provjeravaju **pravilo kompozicije**; nijedan ne tvrdi konkretan grant iz D-039
+nadalje.
+
+Ugovor `/me`:
+
+- `GET /me` vraća `memberships[].roles` i **nikada** `memberships[].role`;
+- vrijednosti u `roles[]` su **jedinstvene** i **deterministički poredane**;
+- `roles[]` sadrži isključivo role pripadajućeg membershipa;
+- `platformRoles` ostaje **zaseban blok** i ne pojavljuje se unutar `memberships[]`;
+- `GET /me` **nikada** ne izlaže dodjele rola drugog korisnika.
+
+Vidljivost naspram autorizacije:
+
+- neaktivan membership smije biti nabrojan, ali **ne autorizuje** nijednu tenant operaciju;
+- aktivan membership sa **nula** rola ne dobija nijednu efektivnu permisiju.
+
+Kompozicija:
+
+- membership sa `PHYSICIAN` **i** `PRACTICE_ADMIN` dobija **uniju** prihvaćenih grantova —
+  provjerljivo tek kada ih `docs/15` definiše;
+- `DENY` u jednoj roli **ne poništava** `ALLOW` iz druge dodijeljene tenant role;
+- `platformRoles` **nikada ne doprinose** tenant permission uniji;
+- `SYSTEM_ADMIN` bez aktivnog membershipa dobija **`403`** na tenant rutama;
+- dodjele rola u jednoj ordinaciji **ne utiču** na autorizaciju u drugoj;
+- uslovno odobravanje zahtijeva **i** podobnu rolu **i** odgovarajući practice flag.
+
+Injekcija:
+
+- pozivalac **ne može ubaciti rolu** kroz request body, query parametar, header ni argument
+  database funkcije.
+
 ---
 
 # 34. API Definition of Done
@@ -2396,6 +2593,8 @@ Dodatni testovi iz reconciliation odluka:
 - JWT;
 - practice guard;
 - permission guard;
+- `/me` izlaže `memberships[].roles`, bez polja `role`;
+- efektivne tenant permisije se komponuju kao unija po aktivnom membershipu (§28.5);
 - request ID;
 - idempotency;
 - optimistic locking;
