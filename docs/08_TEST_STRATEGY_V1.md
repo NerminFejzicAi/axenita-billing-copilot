@@ -922,9 +922,304 @@ Ovaj dokument **ne dodjeljuje permisije konkretnim rolama**.
 
 ---
 
-# 24. Fixtures i izolacija
+# 24. D-038 — Multi-role tenant membership i kompozicija permisija
 
-## 24.1 Obavezne dimenzije fixtura
+Normativno: D-038; `02` §6.3, §6.3a, §17.4, §20.2, §22.2 i §25.10; `03` §3.7, §10 i §28.5;
+`04` §5.2 i §6.4.1; `05` Faze 3 i 4.
+
+Vlasništvo migracija ostaje nepromijenjeno: schema objekti u **`002_identity_and_practices`**,
+RLS politike u **`013_rls_policies`**. Nijedan novi broj paketa se ne uvodi.
+
+Ovaj dokument **ne dodjeljuje permisije rolama**. Svi testovi kompozicije koriste
+**test-only ili sintetičku matricu**; produkcijske dodjele pripadaju `docs/15` i odlukama od
+D-039 nadalje.
+
+## 24.1 Schema constrainti
+
+Nivo: integration nad stvarnim PostgreSQL-om.
+
+`practice_memberships`:
+
+- `unique (practice_id, user_id)` postoji i odbija drugi membership istog korisnika u istoj
+  ordinaciji;
+- `unique (practice_id, id)` postoji;
+- **singularna kolona `role` ne postoji** — asertirati kroz `information_schema.columns`,
+  ne kroz aplikacijski model;
+- **indeks `(practice_id, active, role)` ne postoji** — asertirati kroz `pg_indexes`;
+- `active` je i dalje jedini lifecycle flag membershipa.
+
+`practice_membership_roles`:
+
+- tabela postoji sa kolonama `id`, `practice_id`, `membership_id`, `role membership_role`,
+  `created_at` i `updated_at`;
+- primarni ključ nad `id` postoji;
+- `unique (practice_id, id)` postoji;
+- `unique (practice_id, membership_id, role)` postoji;
+- composite FK `(practice_id, membership_id)` → `practice_memberships(practice_id, id)`
+  postoji;
+- jedan membership prihvata **nula** role redova;
+- jedan membership prihvata **jedan** role red;
+- jedan membership prihvata **više različitih** role redova;
+- **duplirana dodjela iste role istom membershipu je odbijena** na database constraintu;
+- **role red koji referencira membership druge ordinacije je odbijen** na composite FK-u;
+- **nevažeća `membership_role` enum vrijednost je odbijena.**
+
+Svaka od ovih asercija mora pasti na database constraintu, ne na aplikacijskoj validaciji.
+
+## 24.2 Životni ciklus dodjele
+
+Nivo: integration.
+
+Normativno: D-038, klauzule 25–33.
+
+- `practice_membership_roles` sadrži **isključivo trenutne dodjele**;
+- uklanjanje role **briše** trenutni red dodjele;
+- brisanje **oslobađa** trojac `unique (practice_id, membership_id, role)`;
+- ista rola se nakon uklanjanja **može ponovo dodijeliti**;
+- ponovna dodjela **kreira novi trenutni red**, ne oživljava stari;
+- kolone `revoked_at`, `revoked_by`, `active`, `valid_from` i `valid_to` **ne postoje** na ovoj
+  tabeli — asertirati kroz `information_schema.columns`;
+- **ne postoji append-only historija dodjele**;
+- `practice_memberships.active` je vlasnik aktivnosti membershipa;
+- neaktivan membership **smije zadržati** svoje role redove;
+- zadržani role redovi neaktivnog membershipa doprinose **nula** permisija;
+- ponovna aktivacija vraća **tačno** eksplicitno pohranjene trenutne role;
+- ponovna aktivacija **ne zaključuje i ne rekreira** obrisane role;
+- aktivan membership sa nula rola daje **nula** permisija.
+
+**Runtime role-administration endpoint se ne testira jer nijedan nije prihvaćen u v1.** Gdje
+je za database testove potrebna mutacija dodjele, koristi se kontrolisani migration ili
+fixture setup, **nikada izmišljeni API**.
+
+## 24.3 Audit — BLOCKED
+
+Testovi audita za role administration su **BLOKIRANI** dok prihvaćeni administracijski put ne
+bude uveden. Nisu izostavljeni — vode se kao blokirani.
+
+Kada taj put bude prihvaćen, testovi moraju dokazati **immutable** audit dokaz koji sadrži:
+
+- aktera;
+- ordinaciju;
+- membership;
+- rolu;
+- radnju — `ASSIGNED` ili `REMOVED`;
+- vrijeme;
+- prethodno stanje dodjele;
+- rezultujuće stanje dodjele;
+- authorization put.
+
+Izvodivo već sada, na schema/domain nivou:
+
+- **brisanje trenutnog reda dodjele ne briše postojeće audit zapise** (`02` §19.2).
+
+**Komanda, endpoint ni permisija koja kreira te evente se ne izmišljaju u testovima.**
+
+## 24.4 RLS self-enumeracija
+
+Nivo: security/RLS integration. Normativno: `02` §17.4.
+
+- RLS je **enabled** na `practice_membership_roles`;
+- RLS je **forced**;
+- autentifikovan korisnik enumeriše role vlastitih membershipa;
+- self-enumeracija radi **prije nego `app.practice_id` postoji**;
+- politika izvodi identitet iz pouzdanog `app.user_id`;
+- politika se spaja kroz vlasnički `practice_memberships` red;
+- role neaktivnog membershipa **ostaju vidljive vlasniku**;
+- vidljivost neaktivnih rola **nikada ne autorizuje** tenant pristup;
+- role redovi drugog korisnika su **odbijeni**;
+- role redovi druge ordinacije ili drugog korisnika su **odbijeni**;
+- neispravan ili nedostajući `app.user_id` **pada zatvoreno** — nula redova, ne svi redovi;
+- politika **ne zavisi** od caller-supplied `user_id`;
+- SELECT pristup **ne implicira** INSERT, UPDATE ni DELETE;
+- `copilot_system` **nema** automatski pristup ovoj tenant tabeli;
+- `PUBLIC` **nema** nijedan pristup;
+- **nema SECURITY DEFINER bypassa**;
+- SECURITY INVOKER ponašanje je očuvano.
+
+D-OPEN-011 ostaje **neriješen** — ova politika ga ne zatvara (§24.12).
+
+## 24.5 Interakcija sa D-033 bootstrapom
+
+Nivo: security/integration. Proširuje §21 i ništa iz njega ne oslabljuje.
+
+- `set_request_context(p_practice_id uuid)` ostaje **jednoargumentna**;
+- funkcija **ne prima rolu**;
+- funkcija **ne prima `user_id`**;
+- funkcija validira **isključivo** aktivan `practice_memberships` red;
+- funkcija **ne zahtijeva** `practice_membership_roles` za provjeru postojanja membershipa;
+- **aktivan membership sa nula rola smije uspostaviti** transakcijski lokalni tenant context;
+- taj membership dobija **`403`** na **svakoj** permission-gated tenant ruti;
+- neaktivan membership dobija **`403` prije učitavanja rola**;
+- nepostojeći membership dobija **`403`**;
+- neuspio bootstrap **ne ostavlja upotrebljiv `app.practice_id`**;
+- rollback čisti context;
+- pooled konekcija **ne nasljeđuje** ni `app.user_id`, ni `app.practice_id`, ni membership ni
+  učitane role prethodnog requesta;
+- role redovi drugog membershipa **nikada ne ulaze** u odabrani context.
+
+## 24.6 Redoslijed autorizacije
+
+Nivo: integration + e2e. Normativno: `03` §3.7.1.
+
+Testira se prihvaćeni redoslijed, sa negativnim testom na svakoj relevantnoj granici:
+
+1. autentifikacija bearer tokena;
+2. izvođenje pouzdanog `app.user_id`;
+3. validacija `X-Practice-ID`;
+4. poziv `set_request_context(p_practice_id uuid)`;
+5. validacija aktivnog `practice_memberships` reda;
+6. uspostavljanje transakcijski lokalnog tenant konteksta;
+7. učitavanje dodijeljenih tenant rola;
+8. izvođenje efektivnih permisija;
+9. evaluacija tražene permisije i prihvaćenog uslova;
+10. izvršenje pod tenant RLS-om.
+
+Nijedan authorization put ne smije:
+
+- učitati role **prije** autentifikacije;
+- vjerovati caller-supplied roli;
+- vjerovati caller-supplied `user_id`;
+- koristiti `platformRoles` kao tenant role;
+- zaobići provjeru aktivnog membershipa.
+
+## 24.7 `GET /me` ugovor
+
+Nivo: contract + e2e. Normativno: `03` §10.
+
+Svaki membership objekt vraća: `membershipId`; `practiceId`; `practiceName`; `active`;
+`roles[]`; izvedene `permissions[]`.
+
+- **`memberships[].role` je odsutan**;
+- **`role` i `roles` nikada ne koegzistiraju** — singularno polje je odsutno, a poslano
+  singularno polje se odbija;
+- `roles[]` prihvata **nula, jednu ili više** vrijednosti;
+- `roles[]` sadrži **isključivo** `membership_role` vrijednosti;
+- vrijednosti u `roles[]` su **jedinstvene**;
+- redoslijed u `roles[]` je **determinističan** — dva uzastopna poziva daju isti niz;
+- `roles[]` sadrži isključivo role pripadajućeg membershipa;
+- **jedan korisnik smije imati različite role u različitim ordinacijama**;
+- neaktivan membership i njegove role **smiju** biti vraćeni;
+- role tuđeg membershipa **nikada** nisu vraćene;
+- `platformRoles` ostaje **zaseban top-level blok**;
+- `platformRoles` se **nikada** ne pojavljuju unutar `roles[]`;
+- `permissions[]` je **izveden**, ne perzistiran na membershipu;
+- **ilustrativni API primjeri ne definišu produkcijske grantove.**
+
+Kompatibilnosti test za istovremena polja `role` i `roles` **nije potreban** — projekat nema
+produkcijskog klijenta.
+
+## 24.8 Kompozicija efektivnih tenant permisija
+
+Nivo: unit + integration. Normativno: `03` §28.5.
+
+**Svi testovi u ovoj grupi koriste test-only ili sintetičke permisije.** Konkretne poslovne
+dodjele se **ne asertiraju** dok `docs/15` ne postoji.
+
+- grantovi svih dodijeljenih tenant rola se **spajaju unijom**;
+- unija je ograničena na **jedan membership i jednu ordinaciju**;
+- duplirani grant iz dvije role pojavljuje se u efektivnom skupu **samo jednom**;
+- `DENY` **ne doprinosi** grant;
+- `DENY` **ne poništava** `ALLOW` iz druge dodijeljene role;
+- **nema implicitnog nasljeđivanja rola**;
+- **nijedan per-user permission overrid ne učestvuje**;
+- neaktivan membership daje **prazan** efektivni skup;
+- aktivan membership sa nula rola daje **prazan** efektivni skup;
+- **deny-by-default** važi kada nijedna rola ne daje traženu permisiju;
+- rola dodijeljena u ordinaciji A **ne doprinosi ništa** u ordinaciji B;
+- `platformRoles` **ne doprinose ništa** tenant uniji;
+- `SYSTEM_ADMIN` bez aktivnog membershipa dobija **`403`** na tenant rutama;
+- `SYSTEM_ADMIN` sa aktivnim membershipom dobija **isključivo** permisije koje doprinose
+  tenant role tog membershipa.
+
+Testovi sa `PHYSICIAN` + `PRACTICE_ADMIN` dokazuju **mehaniku unije**, nikada konačne poslovne
+permisije tih rola.
+
+## 24.9 Uslovne permisije
+
+Nivo: integration + e2e.
+
+Za uslovnu podobnost odobravanja:
+
+- podobna tenant rola je **prisutna**;
+- odgovarajući practice flag je **uključen**;
+- **oba** uslova su nužna;
+- rola bez flaga je **odbijena**;
+- flag bez podobne role je **odbijen**;
+- neaktivan membership je **odbijen** i kada je flag uključen;
+- **platform rola nikada ne zadovoljava** uslov tenant role.
+
+Gdje testovi spominju `allow_mpa_approval` i `allow_billing_specialist_approval`, oni testiraju
+**evaluaciju uslova**, a **ne** prihvatanje konačnih ćelija matrice iz D-039 nadalje. Ovaj
+dokument **ne odlučuje** nove approval dodjele.
+
+## 24.10 Injekcija role
+
+Nivo: security.
+
+Pokušaj pozivaoca da sam dostavi tenant role mora biti **odbijen** kroz svaki od ovih puteva:
+
+- request body;
+- query parametar;
+- proizvoljan header;
+- manipulacija `X-Practice-ID`;
+- JWT polje koje prihvaćeno auth mapiranje ne prihvata;
+- argument funkcije `set_request_context`;
+- direktan app-setting koji pozivalac ne smije postavljati;
+- `platformRoles` blok;
+- identitet database role.
+
+Pozitivna asercija: **dodjele rola se čitaju isključivo iz `practice_membership_roles`** za
+odabrani membership.
+
+## 24.11 Razdvajanje klasa rola
+
+Nivo: security + e2e.
+
+| Klasa | Vrijednosti |
+|---|---|
+| tenant aplikacijske role | `PRACTICE_ADMIN`, `PHYSICIAN`, `MPA`, `BILLING_SPECIALIST`, `AUDITOR`, `READ_ONLY` |
+| platform aplikacijska rola | `SYSTEM_ADMIN` |
+| database role | `copilot_app`, `copilot_migrator`, `copilot_system` |
+
+- platform rola **nije** tenant rola;
+- database rola **nije** aplikacijska rola;
+- **`SYSTEM_ADMIN` nije `copilot_system`** (§5.1);
+- database grant **nikada ne zadovoljava** permisiju endpointa;
+- tenant membership role **nikada ne autorizuju** platform `tariff.manage`;
+- platform `tariff.manage` **nikada ne autorizuje** tenant endpoint;
+- dvije već prihvaćene dodjele ostaju nepromijenjene:
+  - `integration.read` → `PRACTICE_ADMIN` (D-032, klauzula 8);
+  - `tariff.manage` → isključivo `SYSTEM_ADMIN` (D-023, klauzula 9).
+
+**Nijedna druga produkcijska dodjela se ne dodaje.**
+
+## 24.12 BLOCKED — D-OPEN-011 i role matrica
+
+Autentifikovana self-enumeracija vlastitih membership rola:
+
+- **nije** generički pristup nad `users`;
+- **nije** generički pristup nad `practices`;
+- **nije** role administration;
+- **nije** cross-practice administracija;
+- **ne definiše** platform administraciju;
+- **ne rješava D-OPEN-011.**
+
+Guard testovi iz §21.5 ostaju obavezni i nepromijenjeni.
+
+Produkcijski role-to-permission testovi su **BLOKIRANI** dok:
+
+- vlasničke odluke Q1–Q9 ne budu prihvaćene;
+- D-039 do D-045 ne budu zabilježeni;
+- `docs/15` ne bude kreiran.
+
+**Blokirani testovi se vode vidljivo, nikada tiho izostavljeni.** Suite koji ih preskoči bez
+oznake tretira se kao neuspio gate.
+
+---
+
+# 25. Fixtures i izolacija
+
+## 25.1 Obavezne dimenzije fixtura
 
 - najmanje dvije ordinacije;
 - najmanje dva korisnika;
@@ -935,7 +1230,23 @@ Ovaj dokument **ne dodjeljuje permisije konkretnim rolama**.
 - approvali: aktivan, opozvan i nepostojeći;
 - aktivna i terminalna analysis stanja.
 
-## 24.2 Pravila izolacije
+### D-038 dimenzije
+
+- korisnik **bez ijednog** membershipa;
+- aktivan membership sa **nula** rola;
+- aktivan membership sa **jednom** rolom;
+- aktivan membership sa **više** rola;
+- neaktivan membership koji **zadržava** svoje role redove;
+- **isti korisnik sa različitim rolama u dvije ordinacije**;
+- **dva korisnika u istoj ordinaciji**;
+- pokušaj duplirane dodjele iste role;
+- pokušaj cross-practice membership-role FK-a;
+- `SYSTEM_ADMIN` **bez** membershipa;
+- `SYSTEM_ADMIN` **sa** zasebnim aktivnim tenant membershipom;
+- uslovni approval flagovi u oba stanja — uključeni i isključeni;
+- **obrisana rola pa kasnija ponovna dodjela** iste role.
+
+## 25.2 Pravila izolacije
 
 - svaki test počinje sa poznatim transaction/context stanjem;
 - nijedan test ne zavisi od redoslijeda izvršavanja;
@@ -944,13 +1255,15 @@ Ovaj dokument **ne dodjeljuje permisije konkretnim rolama**.
 - tenant testovi dokazuju **i pozitivan pristup i cross-tenant odbijanje**;
 - audit asercije provjeravaju actor, practice, resource, action i before/after stanje gdje je
   primjenjivo;
-- osjetljivi payloadi se **ne upisuju** u test logove (§27).
+- osjetljivi payloadi se **ne upisuju** u test logove (§28);
+- D-038 role fixture prate ista pravila — svaki test počinje od poznatog membership i role
+  stanja i ne zavisi od redoslijeda izvršavanja.
 
 ---
 
-# 25. Evidence i phase gates
+# 26. Evidence i phase gates
 
-## 25.1 Evidencija po test grupi
+## 26.1 Evidencija po test grupi
 
 Za svaku grupu evidentirati: test nivo, vlasničku fazu, preduslovni migration paket, fixture,
 očekivani status/kod, obaveznu audit asertaciju i da li blokira završetak faze.
@@ -969,11 +1282,17 @@ očekivani status/kod, obaveznu audit asertaciju i da li blokira završetak faze
 | §18.1 D-037 approval kodovi | contract + e2e | Faza 11 | — | **da** |
 | §11.1–11.2 state machine | unit + e2e | prema fazi vlasnika stanja | — | **da** |
 | §20.1 error matrica | contract | Faza 12 | — | **da** |
+| §24.1 D-038 schema constrainti | integration | Faza 3 | `002_identity_and_practices` | **da** |
+| §24.2 D-038 životni ciklus | integration | Faza 3 | `002_identity_and_practices` | **da** |
+| §24.3 D-038 audit | schema/domain | Faza 3 | `002_identity_and_practices` | **BLOCKED** za administracijski put |
+| §24.4–24.6 D-038 RLS, bootstrap i redoslijed | security/integration/e2e | Faza 4 | `013_rls_policies` | **da** |
+| §24.7 D-038 `GET /me` ugovor | contract + e2e | Faza 3 | `002_identity_and_practices` | **da** |
+| §24.8–24.11 D-038 kompozicija, uslovi, injekcija i klase rola | unit/integration/security/e2e | Faza 4 | `013_rls_policies` | **da** za mehaniku; **BLOCKED** za produkcijske grantove |
 
 Vlasništvo migration paketa preuzeto je iz `02` §22 i `04`. **Nijedan novi broj paketa se ne
 uvodi.**
 
-## 25.2 Uslovi pada phase gatea
+## 26.2 Uslovi pada phase gatea
 
 Phase gate **mora pasti** kada:
 
@@ -983,12 +1302,31 @@ Phase gate **mora pasti** kada:
 - D-036 authorization testovi padnu;
 - D-037 export precondition testovi padnu.
 
+Faza 3 ili Faza 4 **mora pasti** i kada:
+
+- singularna kolona `practice_memberships.role` postoji;
+- `practice_membership_roles` nedostaje ili je neispravno definisana;
+- duplirana dodjela role uspije;
+- cross-practice dodjela role uspije;
+- testovi uklanjanja i ponovne dodjele iz §24.2 padnu;
+- neaktivan ili zero-role membership dobije bilo koju permisiju;
+- `GET /me` vrati `role` umjesto `roles[]`;
+- `roles[]` je nedeterminističan ili izloži role drugog korisnika;
+- injekcija role uspije;
+- `platformRoles` uđu u tenant permission uniju;
+- RLS self-enumeracija propusti cross-user ili cross-practice podatke;
+- ponašanje D-033 bootstrapa se promijeni;
+- vlasništvo migration paketa odstupi od `02` i `04`.
+
 D-OPEN-011 testovi ostaju **vidljivo BLOCKED**, nikada tiho izostavljeni. Suite koji ih
 preskoči bez oznake tretira se kao neuspio gate.
 
+Isto važi za produkcijske role-to-permission testove: ostaju **vidljivo BLOCKED** dok Q1–Q9 ne
+budu prihvaćeni, D-039 do D-045 zabilježeni i `docs/15` kreiran (§24.12).
+
 ---
 
-# 26. OpenAPI
+# 27. OpenAPI
 
 CI:
 
@@ -1002,7 +1340,7 @@ CI:
 
 ---
 
-# 27. Logging security
+# 28. Logging security
 
 Capture test logger output.
 
@@ -1029,7 +1367,7 @@ durationMs
 
 ---
 
-# 28. Performance smoke
+# 29. Performance smoke
 
 Nije load certification, ali minimalno:
 
@@ -1043,7 +1381,7 @@ Query count može biti instrumentovan u test modu.
 
 ---
 
-# 29. CI gate
+# 30. CI gate
 
 Pull request ne može biti green bez:
 
@@ -1064,7 +1402,7 @@ dependency scan
 
 ---
 
-# 30. Test evidence report
+# 31. Test evidence report
 
 Nakon faze u checklistu upisati:
 
