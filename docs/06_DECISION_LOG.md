@@ -714,6 +714,20 @@ MUST DECIDE BEFORE <faza>
   22. `practice_membership_roles` zahtijeva **user-scoped bootstrap-readable pristup** za `GET /me` i enumeraciju vlastitih membershipa autentifikovanog korisnika.
   23. Bootstrap-readable pristup nad `practice_membership_roles` **nije** generički role-administration pristup i **ne rješava D-OPEN-011**.
   24. Generička dodjela rola i administracija practice membershipa ostaju **izvan aktivnog v1 runtime permission kataloga** dok ne budu zasebno prihvaćene.
+  25. `practice_membership_roles` čuva **isključivo trenutno efektivne dodjele** tenant rola.
+  26. Tabela **nije append-only history tabela**.
+  27. U v1 uklanjanje role **briše** odgovarajući trenutni red dodjele.
+  28. Ponovna dodjela iste role kasnije **kreira novi trenutni red dodjele**.
+  29. Prihvaćeni constraint ostaje **`unique (practice_id, membership_id, role)`** i klauzula 27 ga ne mijenja — brisanjem reda par se oslobađa, pa ponovna dodjela iz klauzule 28 ne pada na tom constraintu.
+  30. Historijski dokaz dodjele i uklanjanja pripada **audit tragu**, a ne zadržanim opozvanim redovima dodjele.
+  31. Kada budući prihvaćeni role-administration put bude uveden, **svaka** dodjela i **svako** uklanjanje moraju proizvesti auditabilan dokaz koji sadrži najmanje: aktera; ordinaciju; membership; rolu; radnju; vrijeme; prethodno i rezultujuće stanje dodjele; i authorization put.
+  32. U v1 se **ne uvode**: `revoked_at`; `revoked_by`; `active` na `practice_membership_roles`; `valid_from` / `valid_to`; append-only historija dodjele rola; per-user permission overrid.
+  33. Aktivnost membershipa ostaje u vlasništvu **`practice_memberships.active`**, ne kolone na `practice_membership_roles`.
+  34. Deaktivacija vlasničkog membershipa čini da **sve** pripadajuće role dodjele doprinose **nula** efektivnih permisija, čak i kada ti redovi ostanu pohranjeni. Ovo je posljedica klauzule 16 i ne zahtijeva brisanje role redova.
+  35. Brisanje trenutnog role reda uz upis mutacije u audit **nije isto** što i brisanje audit historije. Audit zapisi ostaju **immutable** prema prihvaćenom audit modelu.
+  36. Generička runtime dodjela i uklanjanje rola ostaju **izvan aktivnog v1 permission kataloga** dok ne budu zasebno prihvaćeni; klauzula 24 se ovim potvrđuje, ne mijenja.
+  37. Ovo pojašnjenje **ne kreira** endpoint, komandu ni API permisiju za role administration.
+- **Napomena o pojašnjenju:** Klauzule 25–37 pojašnjavaju **životni ciklus dodjela** unutar već prihvaćenog D-038. One **ne mijenjaju** nijednu klauzulu 1–24, **ne uvode novi ADR**, **ne mijenjaju** D-023 ni D-033, **ne uvode** nijednu permisiju ni endpoint i **ne rješavaju D-OPEN-011**. Vlasništvo migration paketa ostaje nepromijenjeno.
 - **Posljedica za API contract:** `GET /me` mijenja `memberships[].role: string` u `memberships[].roles: membership_role[]`. Niz `roles` mora sadržavati **jedinstvene** vrijednosti; koristiti **isključivo** prihvaćene `membership_role` vrijednosti; imati **deterministički redoslijed**; predstavljati **samo** role pripadajućeg membershipa; i **nikada** uključivati `platformRoles`. `platformRoles` ostaje **zaseban top-level blok**.
 - **Schema smjer:** Kasnija `02` izmjena uvodi `practice_membership_roles` sa najmanje: aplikacijski generisanim `id`; `practice_id`; `membership_id`; `role`; timestampovima prema projektnim konvencijama; `unique (practice_id, id)`; `unique (practice_id, membership_id, role)`; i composite FK `(practice_id, membership_id)` → `practice_memberships(practice_id, id)`. **Tačna schema pripada kasnijoj `02` izmjeni, ne ovom Decision Log batchu.**
 - **Razlog:** Unija dodijeljenih rola je jedini model koji dopušta da ordinacija izrazi "administrator **i** ljekar" bez da svaki administrator postane klinički ovlašten. Klauzula 9 čuva least-privilege čitljivost matrice: rola ili doprinosi grant ili ne doprinosi ništa, pa se efektivne permisije mogu izračunati bez rezolucije konflikata. Klauzule 12–15 čuvaju razdvajanje uvedeno u D-023 i D-033.
@@ -722,7 +736,7 @@ MUST DECIDE BEFORE <faza>
   2. Tabela individualnih permission overrida — odbijena jer stvara teško provjerljive izuzetke izvan normativne role matrice.
   3. Clinical-eligibility boolean — odbijen jer rješava samo jednu kombinaciju rola i postaje drugi authorization model.
   4. Odvojeni korisnički nalozi za administrativni i klinički rad — odbijeni jer štete upotrebljivosti, kontinuitetu audit identiteta i operativnoj sigurnosti.
-- **Posljedice:** Kasnije kontrolisane izmjene su obavezne u: `02` (schema i RLS); `03` (`GET /me` contract i authorization pravila); `04` (implementacijski plan); `05` (checklist); `07` (fazni promptovi); `08` (test fixtures i pokrivenost). `14` ne zahtijeva izmjenu zbog kompozicije rola, osim ako neki budući dijagram eksplicitno prikazuje `memberships[].role`. **D-OPEN-011 ostaje otvoren i nepromijenjen.**
+- **Posljedice:** Kasnije kontrolisane izmjene su obavezne u: `02` (schema i RLS); `03` (`GET /me` contract i authorization pravila); `04` (implementacijski plan); `05` (checklist); `07` (fazni promptovi); `08` (test fixtures i pokrivenost). `14` ne zahtijeva izmjenu zbog kompozicije rola, osim ako neki budući dijagram eksplicitno prikazuje `memberships[].role`. Zbog klauzula 25–37, `02` §6.3a se **mora kasnije uskladiti** tako da se ukloni formulacija koja ovu interakciju constrainta ostavlja neodlučenom; `04` **već odražava** ovaj prihvaćeni smjer i ne zahtijeva izmjenu u ovom batchu. **D-OPEN-011 ostaje otvoren i nepromijenjen.**
 - **Security/privacy uticaj:** Dodjela i uklanjanje role moraju biti auditabilni. Osjetljive authorization odluke moraju ostati reproducibilne iz: aktera, ordinacije, aktivnog membershipa, dodijeljenih tenant rola, tražene permisije i relevantnih uslovnih practice postavki. **Nije dozvoljeno implicitno zaključivanje role** iz naziva radnog mjesta, email domene, platform role ni database role. Multi-role kompozicija **ne slabi** cross-tenant izolaciju.
 - **Migration/rollout:** Vlasništvo ostaje `002_identity_and_practices`. **Ne uvodi se novi broj migration paketa.** Projekat nema produkcijske podatke, pa produkcijska backfill strategija nije potrebna. Seed i fixture podaci moraju kreirati **eksplicitne** membership-role redove.
 - **Test dokaz:** Kasniji testovi moraju dokazati:
@@ -738,7 +752,10 @@ MUST DECIDE BEFORE <faza>
   - uslovno odobravanje i dalje zahtijeva odgovarajući practice flag;
   - `GET /me` vraća `roles[]` odvojeno od `platformRoles`;
   - dodjele rola jedne ordinacije ne mogu uticati na drugu;
-  - enumeracija rola kroz bootstrap politiku izlaže isključivo vlastite membership role autentifikovanog korisnika.
+  - enumeracija rola kroz bootstrap politiku izlaže isključivo vlastite membership role autentifikovanog korisnika;
+  - uklanjanje role **briše** trenutni red dodjele;
+  - ista rola se **može ponovo dodijeliti** nakon uklanjanja, bez sudara sa `unique (practice_id, membership_id, role)`;
+  - deaktivacija vlasničkog membershipa daje **nula** efektivnih permisija dok role redovi ostaju pohranjeni.
 - **Zavisnosti:** D-023, D-033, D-035, D-036, D-OPEN-011.
 
 ---
