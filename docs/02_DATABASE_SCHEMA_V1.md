@@ -754,18 +754,30 @@ Osobine constraint seta:
 
 **Timestampovi.** `created_at` i `updated_at` prate obrazac §6.3, a **ne**
 `granted_by`/`granted_at`/`revoked_at` obrazac iz `platform_role_assignments` (§6.5). Taj
-obrazac podrazumijeva administracijski tok koji D-038 klauzula 24 svjesno drži izvan v1.
+obrazac modelira historiju opoziva, koju ova tabela po D-038 klauzuli 26 **ne vodi**; vidi
+životni ciklus ispod.
 
-**Napomena o opozivu.** Historija opoziva u stilu `revoked_at` ne može koegzistirati sa
-`unique (practice_id, membership_id, role)` — opozvan pa ponovo dodijeljen par bi se sudario
-sa postojećim redom, pa bi constraint morao postati parcijalan. Ovo je zabilježena
-interakcija constrainta, ne odluka; rješava se tek uz prihvaćeni administracijski tok.
+**Životni ciklus dodjela.** Normativna odluka: **D-038, klauzule 25–32**.
+
+- tabela čuva **isključivo trenutno efektivne dodjele** tenant rola;
+- tabela **nije append-only history tabela**;
+- uklanjanje tenant role **briše** odgovarajući trenutni red dodjele;
+- ponovna dodjela iste role kasnije **kreira novi trenutni red dodjele**;
+- `unique (practice_id, membership_id, role)` ostaje **nepromijenjen** — brisanje reda
+  **oslobađa** taj trojac, pa kasnija ponovna dodjela ne pada na constraintu i constraint
+  **nikada ne mora postati parcijalan**;
+- historija dodjele i uklanjanja čuva se u **immutable audit dokazu**, a ne kroz zadržane
+  opozvane redove dodjele;
+- u v1 se **ne uvode**: `revoked_at`; `revoked_by`; `active` na ovoj tabeli; `valid_from`;
+  `valid_to`; append-only historija dodjele.
 
 **Auditabilnost.** Dodjela i uklanjanje role su sigurnosno osjetljive mutacije. Kada
 administracijski put bude prihvaćen, obavezni audit dokaz mora identifikovati: aktera;
-ordinaciju; membership; dodijeljenu ili uklonjenu rolu; prethodno i rezultujuće stanje
-dodjele; vrijeme; i authorization put. Runtime implementacija se ovdje **ne izmišlja** dok
-je izvan v1 obuhvata.
+ordinaciju; membership; rolu; **radnju — `ASSIGNED` ili `REMOVED`**; vrijeme; prethodno
+stanje dodjele; rezultujuće stanje dodjele; i authorization put. Audit zapisi su
+**immutable** prema prihvaćenom audit modelu (§19.2), pa je brisanje trenutnog reda dodjele
+**nešto sasvim drugo** od brisanja audit historije (D-038, klauzula 35). Runtime
+implementacija se ovdje **ne izmišlja** dok je izvan v1 obuhvata.
 
 Tabela **ne modelira**: per-user permission overrid, nasljeđivanje rola, platform role,
 database role ni generičke permission redove (D-038, klauzule 10–12, 15).
@@ -790,6 +802,17 @@ RLS: §17.4. Grants: §20.2. Migration paket: §22.2. Testovi: §25.10.
 - uslovne permisije zahtijevaju **oboje**: podobnu dodijeljenu tenant rolu **i**
   odgovarajući prihvaćeni runtime uslov ili practice postavku — `allow_mpa_approval` i
   `allow_billing_specialist_approval` (§6.4).
+
+Odnos prema životnom ciklusu membershipa (D-038, klauzule 10–12 i 33):
+
+- aktivnost membershipa je **isključivo** u vlasništvu `practice_memberships.active`; ova
+  tabela nema vlastitu `active` kolonu;
+- kada membership postane neaktivan, njegovi role redovi **smiju ostati pohranjeni**,
+  doprinose **nula** efektivnih permisija i **ne autorizuju** nijednu tenant operaciju;
+- ponovna aktivacija membershipa **ne kreira i ne zaključuje** nijednu rolu — efektivni
+  ponovo postaju **isključivo** eksplicitno pohranjeni trenutni redovi dodjele;
+- aktivan membership sa **nula** trenutnih redova dodjele ostaje **važeći membership**, ali
+  daje **nula** tenant permisija.
 
 Ovaj dokument definiše **isključivo pravilo kompozicije**. Konkretni grantovi po roli
 pripadaju budućoj role-to-permission matrici u `15` i ovdje se **ne dodjeljuju**.
@@ -3031,6 +3054,9 @@ bootstrap-readable politikom iz §17.4:
 - **nema INSERT, UPDATE ni DELETE** za `copilot_app`; generička administracija dodjele rola
   ostaje izvan aktivnog v1 permission kataloga (D-038, klauzula 24) i dobiće grant tek uz
   prihvaćenu runtime permisiju i endpoint;
+- **uklanjanje role (`DELETE`) nije dostupno** kroz trenutni `copilot_app` runtime put;
+  buduća implementacija dodjele i uklanjanja zahtijeva **zasebno prihvaćen authorization
+  put**, ne proširenje ovog granta;
 - `copilot_system` **nema nijedan grant** — tabela je tenant tabela (D-023);
 - `PUBLIC` nema nijedan grant;
 - owner ostaje `copilot_migrator` (§3.5).
@@ -3452,6 +3478,18 @@ Struktura i constrainti:
   `(practice_id, membership_id)`;
 - ponašanje pri brisanju roditelja prati prihvaćene FK konvencije; referencijalne akcije
   nisu deklarisane, pa FK pada na `NO ACTION`, a odluka je otvorena u §28.1.
+
+Životni ciklus dodjela (D-038, klauzule 25–32):
+
+- uklanjanje role **briše** trenutni red dodjele;
+- ista rola se nakon uklanjanja **može ponovo dodijeliti**, bez sudara sa
+  `unique (practice_id, membership_id, role)`;
+- neaktivan membership **zadržava** svoje role redove i i dalje daje **nula** efektivnih
+  permisija;
+- ponovna aktivacija membershipa vraća **tačno** pohranjene redove i **ne zaključuje**
+  nijednu dodatnu rolu;
+- aktivan membership sa nula redova dodjele ostaje **važeći membership** i daje **nula**
+  permisija.
 
 Efektivne permisije:
 
