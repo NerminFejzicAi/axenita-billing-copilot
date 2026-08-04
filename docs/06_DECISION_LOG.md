@@ -760,6 +760,320 @@ MUST DECIDE BEFORE <faza>
 
 ---
 
+# D-039 — Definicije tenant rola i osnovne workflow permisije
+
+- **Status:** ACCEPTED
+- **Datum:** 2026-08-05
+- **Kontekst/problem:** D-038 je prihvatio multi-role model i pravilo kompozicije, ali nijedna konkretna dodjela permisija rolama nije bila prihvaćena. Od 32 aktivne permisije samo dvije su imale prihvaćenog vlasnika — `integration.read` (D-032, klauzula 8) i `tariff.manage` (D-023, klauzula 9). Bez prihvaćene matrice implementacija bi morala pogađati grantove, a `03` §28.4 i `08` §17.1 izričito zabranjuju dodjelu permisija rolama izvan prihvaćene odluke.
+- **Odluka:** Ovaj ADR prihvata **tačno deset** osnovnih workflow permisija. Matrica je normativna i potpuna — nijedna ćelija nije prazna ni `OPEN`.
+
+| Permisija | PRACTICE_ADMIN | PHYSICIAN | MPA | BILLING_SPECIALIST | AUDITOR | READ_ONLY | SYSTEM_ADMIN |
+|---|---|---|---|---|---|---|---|
+| `patient_reference.read` | DENY | ALLOW | ALLOW | ALLOW | DENY | DENY | DENY |
+| `patient_reference.create` | DENY | ALLOW | ALLOW | DENY | DENY | DENY | DENY |
+| `encounter.read` | DENY | ALLOW | ALLOW | ALLOW | DENY | DENY | DENY |
+| `encounter.create` | DENY | ALLOW | ALLOW | DENY | DENY | DENY | DENY |
+| `encounter.update` | DENY | ALLOW | ALLOW | DENY | DENY | DENY | DENY |
+| `encounter.document.list` | DENY | ALLOW | ALLOW | ALLOW | DENY | DENY | DENY |
+| `encounter.document.read` | DENY | ALLOW | ALLOW | DENY | DENY | DENY | DENY |
+| `encounter.document.create` | DENY | ALLOW | ALLOW | DENY | DENY | DENY | DENY |
+| `analysis.read` | DENY | ALLOW | ALLOW | ALLOW | DENY | DENY | DENY |
+| `analysis.run` | DENY | ALLOW | ALLOW | DENY | DENY | DENY | DENY |
+
+**Definicije rola (v1):**
+
+1. `PHYSICIAN` — klinički ovlašten korisnik; nosi punu kliničku radnu putanju.
+2. `MPA` — medicinski asistent; nosi unos, dokumentaciju i pokretanje analize, ali nema kliničku odluku ni korekciju.
+3. `BILLING_SPECIALIST` — obračunska uloga; čita pacijentsku referencu, encounter, listu dokumenata i analizu radi provjere obračuna.
+4. `PRACTICE_ADMIN` — **isključivo administrativna** rola (D-039 klauzula 6, detaljno u D-044). Ne dobija nijednu kliničku permisiju iz ovog ADR-a.
+5. `AUDITOR` — nadzorna rola; obuhvat je u D-043.
+6. `READ_ONLY` — zadržana u `membership_role` enumu, ali je u v1 **deny-all**; ne dobija nijednu aktivnu permisiju.
+7. `SYSTEM_ADMIN` — platform rola; **ne dobija nijednu tenant permisiju** (D-038, klauzula 13).
+
+**Odluka o `READ_ONLY` (Q4):** enum vrijednost se **zadržava** u `02` §4.1. Uklanjanje bi tražilo izmjenu prihvaćenog enum kataloga i migraciju, bez dobiti. Rola ostaje neaktivna dok joj se zaseban ADR ne dodijeli profil.
+
+- **Negativna ograničenja:**
+  - `PRACTICE_ADMIN` **ne dobija** nijednu od ovih deset permisija samo zato što je administrator;
+  - korisnik kojem treba i klinička ovlast **mora zasebno nositi `PHYSICIAN`** kroz D-038 multi-role membership;
+  - `BILLING_SPECIALIST` **ne dobija** `encounter.document.read` — obračunska provjera se oslanja na izvučene service kandidate, ne na klinički tekst;
+  - `BILLING_SPECIALIST` **ne dobija** `patient_reference.create`, `encounter.create` ni `encounter.update`;
+  - `AUDITOR` i `READ_ONLY` **ne dobijaju nijednu** od ovih deset permisija;
+  - `SYSTEM_ADMIN` **ne dobija nijednu** tenant permisiju kroz platform rolu.
+- **Semantika matrice (D-038, klauzule 7–11):** efektivne permisije su **unija** `ALLOW` grantova dodijeljenih tenant rola istog aktivnog membershipa i iste ordinacije. `DENY` **ne doprinosi** grant i **ne poništava** `ALLOW` druge dodijeljene role. `platformRoles` se nikada ne spajaju unijom sa tenant rolama. Database role (`copilot_app`, `copilot_migrator`, `copilot_system`) **nikada nisu kolone ove matrice**. Neaktivan membership i aktivan membership sa nula rola doprinose **nula** permisija.
+- **Razlog:** Podjela `PHYSICIAN` / `MPA` / `BILLING_SPECIALIST` prati stvarni tok rada u ordinaciji: asistent priprema i pokreće, ljekar odlučuje, obračunska uloga provjerava rezultat. Administrativna rola je namjerno odvojena da administracija ne bi tiho postala klinička ovlast — što je upravo defekt koji je D-038 otvorio.
+- **Alternative:** Dati `PRACTICE_ADMIN` puni tenant read (odbijeno — protivno `09` §3 data minimization i prijetnji T10); ukloniti `READ_ONLY` iz enuma (odbijeno — mijenja prihvaćeni katalog bez dobiti); dati `BILLING_SPECIALIST` pristup dokumentima (odbijeno u v1 — klinički tekst je Class A prema `09` §2).
+- **Security/privacy uticaj:** Klinički dokumenti (`09` Class A) ostaju dostupni isključivo `PHYSICIAN` i `MPA` rolama. Nijedna nadzorna ni administrativna rola ne dobija klinički read kroz ovaj ADR. Least privilege iz `09` §6 je očuvan.
+- **Operativni nedostaci:** `BILLING_SPECIALIST` ne može otvoriti dokument da provjeri da li dokumentacija podupire obračunatu uslugu; takav upit zahtijeva `PHYSICIAN`. Ordinacija u kojoj je administrator ujedno i ljekar mora eksplicitno dodijeliti obje role.
+- **Implementacijske posljedice:** Matrica se materijalizuje u budućem `docs/15`; resolver iz `04` §6.4.1 je konzumira. Ne uvodi se nijedan endpoint, permisija, schema kolona, database rola ni migration paket.
+- **Test dokaz:** Za svaku od deset permisija — pozitivan test za svaku `ALLOW` rolu i negativan `403` test za svaku `DENY` rolu; test da `PRACTICE_ADMIN` bez `PHYSICIAN` dobija `403`; test da `PRACTICE_ADMIN` **sa** `PHYSICIAN` dobija uniju; test da `READ_ONLY` dobija `403` na svih deset; test da `SYSTEM_ADMIN` bez aktivnog membershipa dobija `403`.
+- **Zavisnosti:** D-023, D-032, D-036, D-038.
+- **Dokumenti za kasniju rekonsilijaciju:** `docs/15` (kreiranje matrice); `03` §28.4; `05` Faze 3–4; `07` Faza 3; `08` §24.8.
+
+---
+
+# D-040 — Kliničke i obračunske korekcije i rješavanje findinga
+
+- **Status:** ACCEPTED
+- **Datum:** 2026-08-05
+- **Kontekst/problem:** Korekcije mijenjaju sadržaj analize prije odobrenja, a `finding.resolve` zatvara sigurnosni nalaz. Nijedna od te tri permisije nije imala prihvaćenog vlasnika. `finding.resolve` je dodatno grub jer jedna permisija pokriva tri različita ishoda.
+- **Odluka:**
+
+| Permisija | PRACTICE_ADMIN | PHYSICIAN | MPA | BILLING_SPECIALIST | AUDITOR | READ_ONLY | SYSTEM_ADMIN |
+|---|---|---|---|---|---|---|---|
+| `analysis.correct_fact` | DENY | ALLOW | DENY | DENY | DENY | DENY | DENY |
+| `analysis.correct_service` | DENY | ALLOW | DENY | ALLOW | DENY | DENY | DENY |
+| `finding.resolve` | DENY | ALLOW | DENY | DENY | DENY | DENY | DENY |
+
+**Granularnost `finding.resolve` (Q6):** permisija ostaje **gruba** i pokriva sva tri ishoda — `RESOLVED`, `ACCEPTED_RISK` i `DISMISSED`. To je **prihvatljivo u v1 isključivo zato što je dodijeljena samo `PHYSICIAN` roli**. `ACCEPTED_RISK` je klinička i pravna prihvatanje rizika; nijedna neklinička rola je ne smije izvršiti.
+
+- **Negativna ograničenja:**
+  - `MPA` **ne smije** korigovati ni činjenice ni usluge;
+  - `BILLING_SPECIALIST` **ne smije** korigovati klinički izvučene činjenice (`analysis.correct_fact` DENY);
+  - `BILLING_SPECIALIST` **ne dobija** `finding.resolve` — ako mu ikada zatreba, permisija se **prvo mora podijeliti**, ne proširiti;
+  - `PRACTICE_ADMIN` **ne dobija** nijednu od tri permisije bez zasebne `PHYSICIAN` role.
+- **Semantika matrice:** kao u D-039 (D-038, klauzule 7–11).
+- **Razlog:** Činjenice su klinička ekstrakcija i pripadaju ljekaru. Service kandidati su tarifno-obračunski i legitimno ih koriguje i obračunska uloga. Rješavanje findinga nosi prihvatanje rizika i ostaje klinička odluka.
+- **Alternative:** Podijeliti `finding.resolve` na `finding.resolve` / `finding.accept_risk` / `finding.dismiss` (odgođeno — povećava katalog i nije potrebno dok je permisija `PHYSICIAN`-only); dati `MPA` korekciju činjenica (odbijeno — klinička odluka).
+- **Security/privacy uticaj:** Prihvatanje rizika ostaje u rukama klinički ovlaštene osobe, što čuva vrijednost audit traga o tome ko je prihvatio rizik.
+- **Operativni nedostaci:** `finding.resolve` ostaje gruba; svako buduće proširenje na druge role zahtijeva prethodnu podjelu permisije i novi ADR. `MPA` ne može ispraviti ni očitu grešku u ekstrakciji.
+- **Implementacijske posljedice:** Bez izmjene kataloga. `03` §16, §17 i §19 zadržavaju postojeće permisije po endpointu.
+- **Test dokaz:** `PHYSICIAN` koriguje činjenicu i uslugu; `BILLING_SPECIALIST` koriguje uslugu ali dobija `403` na činjenicu; `MPA` dobija `403` na sve tri; `PRACTICE_ADMIN` bez `PHYSICIAN` dobija `403`; `finding.resolve` sa `ACCEPTED_RISK` uspijeva samo za `PHYSICIAN`.
+- **Zavisnosti:** D-030, D-036, D-038, D-039.
+- **Dokumenti za kasniju rekonsilijaciju:** `docs/15`; `08` §24.8.
+
+---
+
+# D-041 — Review, odobravanje i opoziv odobrenja
+
+- **Status:** ACCEPTED
+- **Datum:** 2026-08-05
+- **Kontekst/problem:** `analysis.review_decision` je **grupna** permisija: D-036 iz nje izvodi `REJECT`, `REQUEST_CHANGES` i `SAVE_DRAFT`. `REJECT` je po D-031 klauzuli 1 **terminalan** za tu analysis reviziju, pa svaka rola koja dobije grupnu permisiju dobija i pravo terminalnog odbijanja. Odobravanje ima dva prihvaćena uslovna flaga, a opoziv odobrenja nije imao definisanog vlasnika.
+- **Odluka:**
+
+| Permisija | PRACTICE_ADMIN | PHYSICIAN | MPA | BILLING_SPECIALIST | AUDITOR | READ_ONLY | SYSTEM_ADMIN |
+|---|---|---|---|---|---|---|---|
+| `analysis.review_decision` | DENY | ALLOW | DENY | ALLOW | DENY | DENY | DENY |
+| `analysis.approve` | DENY | ALLOW | CONDITIONAL | CONDITIONAL | DENY | DENY | DENY |
+| `analysis.approval.revoke` | DENY | ALLOW | CONDITIONAL | CONDITIONAL | DENY | DENY | DENY |
+
+**Uslovna pravila:**
+
+1. `MPA` `analysis.approve` — grant postoji **isključivo** kada je `allow_mpa_approval = true`.
+2. `BILLING_SPECIALIST` `analysis.approve` — grant postoji **isključivo** kada je `allow_billing_specialist_approval = true`.
+3. `MPA` `analysis.approval.revoke` — isti uslov kao klauzula 1.
+4. `BILLING_SPECIALIST` `analysis.approval.revoke` — isti uslov kao klauzula 2.
+5. `CONDITIONAL` doprinosi grant **samo** kada su zadovoljeni **i** dodijeljena rola **i** prihvaćeni uslov (D-038, klauzula 18).
+
+**Granularnost (Q1):** `analysis.review_decision` **ostaje grupna** u v1. Katalog ostaje na **32** aktivne permisije. `REJECT`, `REQUEST_CHANGES` i `SAVE_DRAFT` se i dalje izvode iz te jedne permisije prema D-036.
+
+**Pravila opoziva (Q7):**
+
+6. Opozivalac **ne mora biti originalni odobravatelj**.
+7. Podobnost role se evaluira **u trenutku opoziva**, ne u trenutku odobrenja.
+8. `reason` je **obavezan**.
+9. Dokaz odobrenja se **nikada ne briše**.
+10. Immutable approval historija ostaje netaknuta (D-016).
+11. Revocation audit event je **obavezan**.
+12. Opozivačka ovlast **nikada ne prelazi** ovlast odobravanja — matrica opoziva je identična matrici odobravanja.
+
+- **Negativna ograničenja:**
+  - `MPA` **ne dobija** `analysis.review_decision`, jer bi time dobio i pravo **terminalnog** `REJECT`;
+  - `PRACTICE_ADMIN` **ne odobrava i ne opoziva** samo na osnovu administrativne role; to je moguće isključivo ako isti korisnik zasebno nosi `PHYSICIAN` kroz D-038;
+  - `AUDITOR`, `READ_ONLY` i `SYSTEM_ADMIN` **ne dobijaju** nijednu od tri permisije;
+  - uključen practice flag **bez** podobne role **ne daje** grant;
+  - podobna rola **bez** uključenog flaga **ne daje** grant.
+- **Semantika matrice:** kao u D-039 (D-038, klauzule 7–11 i 18).
+- **Razlog:** Zadržavanje grupne permisije izbjegava izmjenu prihvaćenog D-036 i očuvanje kataloga od 32 permisije. Cijena je da rola koja smije pisati review bilješku nužno smije i terminalno odbiti — zato je grupna permisija data samo rolama kojima je terminalno odbijanje legitimno. Opoziv koji prati odobravanje sprječava zastoj kada originalni odobravatelj više nije dostupan, a istovremeno onemogućava da neklinička administracija poništi kliničko odobrenje.
+- **Alternative:** Podjela na `analysis.reject` i `analysis.review_note` (odbijeno u v1 — podiže katalog na 33 i **amandmanira prihvaćeni D-036**; zabilježeno u D-045 kao buduća odluka); opoziv isključivo od strane originalnog odobravatelja (odbijeno — zastoj pri odlasku osoblja); opoziv za `PRACTICE_ADMIN` (odbijeno — neklinička rola nad kliničkim odobrenjem).
+- **Security/privacy uticaj:** Odobrenje i opoziv su pravno najteže radnje u sistemu. Opozivačka ovlast ograničena na odobravačku ovlast sprječava tihu eskalaciju prava. Obavezan `reason` i revocation audit event čuvaju rekonstrukciju odluke.
+- **Operativni nedostaci:** **`MPA` u v1 nema nikakav put za review bilješku** — ne može poslati ni `SAVE_DRAFT` ni `REQUEST_CHANGES`. Ovo je poznata i prihvaćena posljedica opcije Q1-A. Ordinacija koja to treba mora sačekati podjelu permisije.
+- **Implementacijske posljedice:** D-036 izvođenje permisije iz polja `decision` ostaje **nepromijenjeno**. Uslovni flagovi se čitaju iz `practice_settings` (`02` §6.4).
+- **Test dokaz:** `PHYSICIAN` šalje sve četiri odluke; `BILLING_SPECIALIST` šalje sve četiri; `MPA` dobija `403` na sve četiri; `PRACTICE_ADMIN` bez `PHYSICIAN` dobija `403`; `MPA` sa `allow_mpa_approval = true` odobrava, sa `false` dobija `403`; isto za `BILLING_SPECIALIST`; opoziv od drugog `PHYSICIAN`-a koji nije originalni odobravatelj uspijeva; opoziv bez `reason` daje `422`; opoziv upisuje audit event; approval payload ostaje immutable nakon opoziva.
+- **Zavisnosti:** D-016, D-031, D-036, D-038, D-039.
+- **Dokumenti za kasniju rekonsilijaciju:** `docs/15`; `03` §10 i §20; `08` §17.1 i §24.9.
+
+---
+
+# D-042 — Ovlast otkazivanja i arhiviranja
+
+- **Status:** ACCEPTED
+- **Datum:** 2026-08-05
+- **Kontekst/problem:** D-035 je definisao semantiku otkazivanja i kaskadu, ali ne i koja rola smije otkazati. `encounter.cancel` je posebno osjetljiv jer autorizuje **kompletnu kaskadu** nad tekućom aktivnom analizom.
+- **Odluka:**
+
+| Permisija | PRACTICE_ADMIN | PHYSICIAN | MPA | BILLING_SPECIALIST | AUDITOR | READ_ONLY | SYSTEM_ADMIN |
+|---|---|---|---|---|---|---|---|
+| `encounter.cancel` | DENY | ALLOW | DENY | DENY | DENY | DENY | DENY |
+| `analysis.cancel` | DENY | ALLOW | ALLOW | DENY | DENY | DENY | DENY |
+| `encounter.document.archive` | DENY | ALLOW | DENY | DENY | DENY | DENY | DENY |
+
+**Očuvanje D-035:**
+
+1. `encounter.cancel` autorizuje **kompletnu komandu i njenu internu kaskadu** (D-035, klauzula 9).
+2. `analysis.cancel` se **ne traži dodatno** za internu kaskadu (D-035, klauzula 10).
+3. Rola koja nosi samo `analysis.cancel` **ne može** pokrenuti encounter kaskadu.
+
+- **Negativna ograničenja:**
+  - `MPA` **ne smije** otkazati encounter, jer bi time kaskadno otkazao i tekuću analizu;
+  - `MPA` **ne smije** arhivirati dokument;
+  - `BILLING_SPECIALIST` **ne dobija** nijednu od tri permisije;
+  - `PRACTICE_ADMIN` **ne dobija** nijednu bez zasebne `PHYSICIAN` role.
+- **Semantika matrice:** kao u D-039.
+- **Razlog:** Otkazivanje encountera je nepovratna promjena kliničkog zapisa sa kaskadom; ostaje kod klinički ovlaštene osobe. Otkazivanje pojedinačne analize je operativna radnja koju asistent koji je analizu i pokrenuo mora moći zaustaviti.
+- **Alternative:** Dati `MPA` `encounter.cancel` (odbijeno — kaskada); podijeliti `encounter.cancel` na odbacivanje `DRAFT` encountera i kaskadno otkazivanje (odgođeno — zabilježeno u D-045).
+- **Security/privacy uticaj:** Otkazivanje i arhiviranje ostaju auditabilne radnje klinički ovlaštene osobe; retention i audit tok se ne mijenjaju.
+- **Operativni nedostaci:** **`MPA` ne može odbaciti vlastiti pogrešno kreiran `DRAFT` encounter** i mora tražiti ljekara. Permisija je gruba — pokriva i odbacivanje praznog nacrta i kaskadno otkazivanje analize u toku.
+- **Implementacijske posljedice:** Bez izmjene state machinea i bez novog endpointa.
+- **Test dokaz:** `PHYSICIAN` otkazuje encounter i kaskada otkazuje tekuću analizu; `MPA` dobija `403` na `encounter.cancel`; `MPA` uspješno otkazuje analizu; `MPA` dobija `403` na arhiviranje dokumenta; korisnik sa samo `analysis.cancel` dobija `403` na encounter cancel; ponovljeno otkazivanje ne kreira dodatni audit event (D-035).
+- **Zavisnosti:** D-027, D-031, D-035, D-038, D-039.
+- **Dokumenti za kasniju rekonsilijaciju:** `docs/15`; `08` §23 i §24.8.
+
+---
+
+# D-043 — Export, osjetljiva čitanja, tarifni rezultat i audit permisije
+
+- **Status:** ACCEPTED
+- **Datum:** 2026-08-05
+- **Kontekst/problem:** Sedam permisija u ovoj grupi nose najosjetljivija čitanja u sistemu — originalni klinički dokument, sirovi tarifni odgovor, export artefakt i audit paket. `09` §6 ih izričito navodi kao posebne permisije. `analysis.export.read` dodatno gate-uje **i** status export joba **i** preuzimanje artefakta.
+- **Odluka:**
+
+| Permisija | PRACTICE_ADMIN | PHYSICIAN | MPA | BILLING_SPECIALIST | AUDITOR | READ_ONLY | SYSTEM_ADMIN |
+|---|---|---|---|---|---|---|---|
+| `encounter.document.read_original` | DENY | ALLOW | DENY | DENY | DENY | DENY | DENY |
+| `analysis.export` | DENY | ALLOW | DENY | ALLOW | DENY | DENY | DENY |
+| `analysis.export.read` | DENY | ALLOW | DENY | ALLOW | DENY | DENY | DENY |
+| `tariff_evaluation.read` | DENY | ALLOW | DENY | ALLOW | DENY | DENY | DENY |
+| `tariff.raw_result.read` | ALLOW | DENY | DENY | DENY | DENY | DENY | DENY |
+| `audit.read` | ALLOW | DENY | DENY | DENY | ALLOW | DENY | DENY |
+| `audit.export` | ALLOW | DENY | DENY | DENY | ALLOW | DENY | DENY |
+
+**Granularnost `analysis.export.read` (Q2):** permisija **ostaje jedna** i pokriva i status export joba i pristup artefaktu. Katalog se **ne proširuje**. Nijedna nadzorna rola ne traži status bez artefakta — `AUDITOR` prati export kroz audit evente, ne kroz export API.
+
+**Obuhvat `AUDITOR` role (Q5):** `AUDITOR` dobija **isključivo** `audit.read` i `audit.export`. Nijedan discovery ni listing endpoint se **ne uvodi**. U v1 se analysis ID-evi auditoru dostavljaju **izvan sistema**.
+
+- **Negativna ograničenja:**
+  - `AUDITOR` **ne dobija** `tariff.raw_result.read`;
+  - `AUDITOR` **ne dobija** pristup encounterima, analizama, dokumentima ni tarifnim rezultatima;
+  - `MPA` **ne dobija** nijednu od sedam permisija;
+  - `PHYSICIAN` **ne dobija** `tariff.raw_result.read`, `audit.read` ni `audit.export`;
+  - `BILLING_SPECIALIST` **ne dobija** `encounter.document.read_original`;
+  - `READ_ONLY` i `SYSTEM_ADMIN` **ne dobijaju** nijednu.
+- **Semantika matrice:** kao u D-039.
+- **Razlog:** Originalni dokument je Class A (`09` §2) i ostaje isključivo klinički. Sirovi tarifni odgovor je tarifno-tehnički, ne medicinski, pa pripada administrativnoj roli koja inače nema klinički read. Audit je nadzorna funkcija: nosi je `AUDITOR`, ali i `PRACTICE_ADMIN`, jer ordinacija mora moći proizvesti vlastiti audit paket bez prisustva vanjskog auditora.
+- **Alternative:** Podijeliti `analysis.export.read` na status i artefakt (odgođeno — zabilježeno u D-045); dati `tariff.raw_result.read` i `AUDITOR` roli (odbijeno — proširuje obuhvat auditora izvan Q5); dati `audit.export` samo `AUDITOR` roli (odbijeno — ordinacija bi ostala bez vlastitog audit izlaza).
+- **Security/privacy uticaj:** Sva osjetljiva čitanja iz `09` §6 imaju najviše dvije role. `PRACTICE_ADMIN` i dalje nema nijedan klinički read — `tariff.raw_result.read` je tarifni payload, a `audit.read` metapodaci o radnjama. Prijetnja T10 je adresirana time što nijedna rola ne nosi istovremeno klinički read i audit export.
+- **Operativni nedostaci:** **`AUDITOR` mora dobiti analysis ID-eve izvan sistema** — nema listing putanje. `PHYSICIAN` ne može pročitati audit trag vlastite analize bez `PRACTICE_ADMIN` ili `AUDITOR` role.
+- **Implementacijske posljedice:** `03` §18.3 trenutno kaže da je `tariff.raw_result.read` „tipično admin/auditor". To je **prozni nagovještaj iz D-026, nikada prihvaćena dodjela**. Konačno prihvaćeno značenje je **`PRACTICE_ADMIN` only**; formulacija se mora ispraviti u kasnijem kontrolisanom `03` batchu.
+- **Test dokaz:** `PHYSICIAN` čita original i dobija `DOCUMENT_VIEWED` audit event; `MPA` dobija `403` na original; `BILLING_SPECIALIST` exportuje i čita export status i artefakt; `AUDITOR` dobija `403` na `tariff_evaluation.read`, `tariff.raw_result.read` i export rute; `AUDITOR` čita i exportuje audit; `PRACTICE_ADMIN` čita sirovi tarifni rezultat i audit; `PRACTICE_ADMIN` dobija `403` na `analysis.export`; pozivalac sa `audit.read` bez `audit.export` dobija `403` na audit paket.
+- **Zavisnosti:** D-023, D-024, D-026, D-032, D-037, D-038, D-039.
+- **Dokumenti za kasniju rekonsilijaciju:** `docs/15`; **`03` §18.3 (obavezna ispravka formulacije)**; `08` §24.8.
+
+---
+
+# D-044 — Practice postavke i obuhvat zatvaranja encountera
+
+- **Status:** ACCEPTED
+- **Datum:** 2026-08-05
+- **Kontekst/problem:** Practice postavke sadrže i approval flagove koji upravljaju uslovnim permisijama iz D-041, pa je pristup njima sam po sebi sigurnosno osjetljiv. Zatvaranje encountera je dozvoljeno isključivo iz `EXPORTED` (`03` §29.1) i predstavlja završetak obračunskog ciklusa.
+- **Odluka:**
+
+| Permisija | PRACTICE_ADMIN | PHYSICIAN | MPA | BILLING_SPECIALIST | AUDITOR | READ_ONLY | SYSTEM_ADMIN |
+|---|---|---|---|---|---|---|---|
+| `practice.settings.read` | ALLOW | DENY | DENY | DENY | DENY | DENY | DENY |
+| `practice.settings.manage` | ALLOW | DENY | DENY | DENY | DENY | DENY | DENY |
+| `encounter.close` | ALLOW | ALLOW | DENY | ALLOW | DENY | DENY | DENY |
+
+**Obuhvat `PRACTICE_ADMIN` (Q3):** rola je **isključivo administrativna** i u cijelom v1 katalogu nosi tačno sedam permisija: `practice.settings.read`, `practice.settings.manage`, `encounter.close`, `tariff.raw_result.read` (D-043), `audit.read` (D-043), `audit.export` (D-043) i `integration.read` (D-032, već prihvaćeno). Nijednu drugu.
+
+- **Negativna ograničenja:**
+  - druge role **ne dobijaju** puni settings dokument; ako im treba ponašanje izvedeno iz postavke, dobijaju **izvedeni flag**, ne dokument;
+  - `PRACTICE_ADMIN` **ne dobija** kliničku ovlast ni kroz jednu od ovih permisija;
+  - `MPA` **ne zatvara** encounter;
+  - `AUDITOR`, `READ_ONLY` i `SYSTEM_ADMIN` **ne dobijaju** nijednu od tri permisije.
+- **Semantika matrice:** kao u D-039.
+- **Razlog:** Postavke uključuju `allow_mpa_approval` i `allow_billing_specialist_approval`; ko ih mijenja, indirektno mijenja skup odobravatelja. Zato pripadaju isključivo administratoru. Zatvaranje encountera nakon exporta je zajednička administrativno-obračunsko-klinička radnja, pa ga nose sve tri odgovorne role.
+- **Alternative:** Dati `encounter.close` samo `PRACTICE_ADMIN` i `BILLING_SPECIALIST` (odbijeno vlasničkom odlukom — ljekar mora moći zatvoriti vlastiti encounter); dati `practice.settings.read` svim rolama (odbijeno — postavke otkrivaju konfiguraciju odobravanja).
+- **Security/privacy uticaj:** Kontrola nad approval flagovima je koncentrisana u jednoj roli i podliježe optimistic lockingu i audit tragu. `practice_settings.configuration` ne sadrži secrets (`02` §6.4).
+- **Operativni nedostaci:** Ordinacija bez dodijeljenog `PRACTICE_ADMIN`-a ne može promijeniti nijednu postavku niti uključiti uslovno odobravanje. `MPA` ne može zatvoriti ni potpuno obrađen encounter.
+- **Implementacijske posljedice:** `PATCH /practices/{id}/settings` zadržava `If-Match` i `version` (D-029). Bez novog endpointa i bez izmjene kataloga.
+- **Test dokaz:** `PRACTICE_ADMIN` čita i mijenja postavke; sve ostale role dobijaju `403` na oba; `PHYSICIAN`, `PRACTICE_ADMIN` i `BILLING_SPECIALIST` zatvaraju encounter iz `EXPORTED`; `MPA` dobija `403`; zatvaranje iz stanja različitog od `EXPORTED` daje `409 INVALID_STATE_TRANSITION` bez obzira na rolu.
+- **Zavisnosti:** D-027, D-029, D-032, D-038, D-039, D-041, D-043.
+- **Dokumenti za kasniju rekonsilijaciju:** `docs/15`; `03` §10; `08` §24.8.
+
+---
+
+# D-045 — Operacije izvan v1 i neriješene granice pristupa
+
+- **Status:** ACCEPTED
+- **Datum:** 2026-08-05
+- **Kontekst/problem:** Prihvaćena matrica pokriva 32 aktivne permisije. Postoje operacije koje se u praksi očekuju, ali nisu ni permisija ni endpoint u v1. Bez eksplicitne klasifikacije implementacija bi ih mogla tiho uvesti, a `practice.read` bi mogao dobiti dodjelu uprkos otvorenom D-OPEN-011.
+- **Odluka:**
+
+**1. `practice.read` ostaje blokiran.**
+
+| Permisija | PRACTICE_ADMIN | PHYSICIAN | MPA | BILLING_SPECIALIST | AUDITOR | READ_ONLY | SYSTEM_ADMIN |
+|---|---|---|---|---|---|---|---|
+| `practice.read` | BLOCKED — D-OPEN-011 | BLOCKED — D-OPEN-011 | BLOCKED — D-OPEN-011 | BLOCKED — D-OPEN-011 | BLOCKED — D-OPEN-011 | BLOCKED — D-OPEN-011 | BLOCKED — D-OPEN-011 |
+
+`BLOCKED` se **ne smije** pretvoriti u `DENY` ni u `ALLOW`. `DENY` bi značilo da je odluka donesena; `BLOCKED` znači da je nije dozvoljeno donijeti dok D-OPEN-011 ne bude prihvaćen.
+
+**2. Klasifikacija operacija izvan matrice od 32 permisije:**
+
+| Operacija | Klasifikacija |
+|---|---|
+| generički runtime read/write nad `users` | BLOCKED — D-OPEN-011 |
+| generički runtime read/write nad `practices` | BLOCKED — D-OPEN-011 |
+| `practice.read` | BLOCKED — D-OPEN-011 |
+| generički cross-practice pristup nad `users`/`practices` | BLOCKED — D-OPEN-011 |
+| kreiranje, deaktivacija i administracija membershipa | OUT OF V1 |
+| dodjela i uklanjanje tenant rola | OUT OF V1 |
+| cross-practice support pristup | OUT OF V1 |
+| otkazivanje export joba | OUT OF V1 |
+| generička platform administracija izvan `tariff.manage` | REQUIRES NEW PERMISSION AND ADR |
+| `AUDITOR` discovery/listing putanja | REQUIRES NEW PERMISSION AND ADR |
+| buduća podjela `analysis.review_decision` | REQUIRES NEW PERMISSION AND ADR |
+| buduća podjela `analysis.export.read` | REQUIRES NEW PERMISSION AND ADR |
+| finija permisija za rješavanje findinga | REQUIRES NEW PERMISSION AND ADR |
+| `analysis.run_tariff` | RESERVED |
+| `configuration.manage` | RESERVED |
+| `integration.manage` | RESERVED |
+
+**3. Rezervisane permisije se ne dodjeljuju nijednoj roli** i ne gate-uju nijedan aktivni endpoint (`03` §28.2–28.3). Katalog ostaje **32 aktivne** i **3 rezervisane**.
+
+**4. Dokaz pokrivenosti — svih 32 aktivnih permisija ima tačno jednog vlasnika:**
+
+| Vlasnik | Broj permisija |
+|---|---:|
+| D-023 (`tariff.manage`) | 1 |
+| D-032 (`integration.read`) | 1 |
+| D-039 | 10 |
+| D-040 | 3 |
+| D-041 | 3 |
+| D-042 | 3 |
+| D-043 | 7 |
+| D-044 | 3 |
+| D-045 (`practice.read`, BLOCKED) | 1 |
+| **Ukupno** | **32** |
+
+Nijedan red se ne pojavljuje dva puta i nijedan red ne nedostaje.
+
+- **Negativna ograničenja:**
+  - nijedna operacija iz tabele klasifikacije **ne smije** biti implementirana kao tiho proširenje postojeće permisije;
+  - `OUT OF V1` **nije** dozvola za implementaciju bez ADR-a;
+  - `REQUIRES NEW PERMISSION AND ADR` znači da i permisija i endpoint zahtijevaju zasebnu prihvaćenu odluku;
+  - `RESERVED` identifikatori se **nikada** ne smiju iskoristiti za drugu radnju.
+- **Semantika matrice:** kao u D-039. `BLOCKED` nije član unije i ne doprinosi nijedan grant.
+- **Razlog:** Eksplicitna klasifikacija sprječava da neriješena pitanja postanu implementacijske pretpostavke. Ista disciplina je već primijenjena na D-OPEN-011 kroz `02` §28.2, `08` §21.5 i `13` §16.
+- **Alternative:** Ostaviti operacije nenavedene (odbijeno — nenavedeno se u praksi čita kao dozvoljeno); označiti `practice.read` kao `DENY` (odbijeno — prikriva otvorenu odluku).
+- **Security/privacy uticaj:** Zabrane iz `13` §16.3 ostaju na snazi. Nijedan `SECURITY DEFINER` bypass i nijedan generički grant prema `PUBLIC` se ne uvodi.
+- **Operativni nedostaci:** Administracija membershipa i dodjela rola u v1 su isključivo migracijski/seed tok. Ordinacija ne može samostalno dodati člana kroz aplikaciju.
+- **Implementacijske posljedice:** Phase gate pada ako implementacija uvede bilo koju blokiranu operaciju bez prihvaćene odluke (`05` Faze 3–4, `07` Faze 3–4).
+- **Test dokaz:** `practice.read` nema nijednu rolu koja ga dobija; guard testovi iz `08` §21.5 ostaju obavezni; nijedna rezervisana permisija ne gate-uje aktivni endpoint; test da nijedna rola ne dobija membership ni role administration.
+- **Zavisnosti:** D-023, D-026, D-032, D-036, D-038, D-039, D-040, D-041, D-042, D-043, D-044, D-OPEN-011.
+- **Dokumenti za kasniju rekonsilijaciju:** `docs/15`; `03` §28.4; `13` §16.
+
+---
+
 # Otvorene odluke
 
 ## D-OPEN-001 — Produkcijski OIDC provider
