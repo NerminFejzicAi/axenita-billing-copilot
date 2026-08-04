@@ -153,7 +153,14 @@ Test output:
 
 Status: `NOT_STARTED`
 
+Normativno: D-033 i D-038; `02` §6.3, §6.3a, §22.2 i §23.2; `03` §10; `04` §5.2, §5.2.1 i §5.4.1.
+
+Vlasnik migration paketa za sve schema stavke ove faze: **`002_identity_and_practices`**. Ne uvodi
+se novi broj paketa.
+
 ## Schema
+
+Paket: `002_identity_and_practices`.
 
 - [ ] practices.
 - [ ] users.
@@ -163,12 +170,68 @@ Status: `NOT_STARTED`
 - [ ] indexes.
 - [ ] grants.
 
+### `membership_role` enum
+
+- [ ] enum `membership_role` postoji.
+- [ ] enum sadrži tačno šest prihvaćenih tenant rola: `PRACTICE_ADMIN`, `PHYSICIAN`, `MPA`, `BILLING_SPECIALIST`, `AUDITOR`, `READ_ONLY`.
+
+### `practice_memberships`
+
+- [ ] `id`.
+- [ ] `practice_id`.
+- [ ] `user_id`.
+- [ ] `professional_gln`.
+- [ ] `active`.
+- [ ] `created_at` i `updated_at`.
+- [ ] `unique (practice_id, user_id)`.
+- [ ] `unique (practice_id, id)`.
+- [ ] **`practice_memberships` NEMA singularnu kolonu `role`** (D-038, klauzula 2).
+- [ ] **Indeks `(practice_id, active, role)` ne postoji** — uklonjen zajedno sa kolonom.
+- [ ] `(user_id, active)` indeks postoji.
+
+### `practice_membership_roles`
+
+- [ ] tabela postoji.
+- [ ] `id`.
+- [ ] `practice_id`.
+- [ ] `membership_id`.
+- [ ] `role membership_role`.
+- [ ] `created_at` i `updated_at`.
+- [ ] primarni ključ nad `id`.
+- [ ] `unique (practice_id, id)`.
+- [ ] `unique (practice_id, membership_id, role)`.
+- [ ] composite FK `(practice_id, membership_id)` → `practice_memberships(practice_id, id)`.
+- [ ] duplirana dodjela iste role istom membershipu je **odbijena**.
+- [ ] dodjela koja referencira membership druge ordinacije je **odbijena**.
+- [ ] jedan membership smije imati **nula, jednu ili više** role redova.
+- [ ] **nijedan spekulativni indeks** nije kreiran — pokrivenost je dokazana u `02` §6.3 i §21.
+
+## Životni ciklus dodjele rola
+
+Normativno: D-038, klauzule 25–33; `02` §6.3a.
+
+- [ ] `practice_membership_roles` čuva **isključivo trenutno efektivne dodjele**.
+- [ ] tabela **nije** append-only history tabela.
+- [ ] uklanjanje role **briše** trenutni red dodjele.
+- [ ] ponovna dodjela iste role kasnije **kreira novi** red dodjele.
+- [ ] `unique (practice_id, membership_id, role)` ostaje **neparcijalan**.
+- [ ] historija dodjele i uklanjanja pripada **immutable audit dokazu**, ne zadržanim redovima.
+- [ ] na `practice_membership_roles` **ne postoje** kolone `revoked_at`, `revoked_by`, `active`, `valid_from` ni `valid_to`.
+- [ ] **`practice_memberships.active` je jedini flag aktivnosti membershipa.**
+- [ ] role redovi neaktivnog membershipa **smiju ostati pohranjeni** i doprinose **nula** permisija.
+- [ ] ponovna aktivacija membershipa vraća **isključivo** eksplicitno pohranjene trenutne role.
+- [ ] aktivan membership sa nula rola daje **nula** tenant permisija.
+- [ ] **generička runtime administracija rola ostaje izvan v1** — bez endpointa, permisije i bez `copilot_app` mutation granta.
+
 ## Seed
 
 - [ ] demo practice.
 - [ ] dev admin.
 - [ ] dev physician.
 - [ ] memberships.
+- [ ] **eksplicitni `practice_membership_roles` redovi za svaki seed membership.**
+- [ ] **najmanje jedan aktivan membership sa nula dodijeljenih rola** za negativne testove.
+- [ ] seed se **ne oslanja** na singularnu `role` kolonu.
 - [ ] settings.
 - [ ] seed idempotent.
 
@@ -179,21 +242,54 @@ Status: `NOT_STARTED`
 - [ ] `/me` vraća `memberships` i `platformRoles` kao dva odvojena bloka.
 - [ ] `platformRoles` se ne pretvaraju u tenant membershipe.
 - [ ] `practice_memberships` bez RLS-a u ovoj fazi — bootstrap politika pripada Fazi 4 (D-033).
-- [ ] role permission map.
+- [ ] **effective-permission resolver postoji kao interface** koji konzumira buduću matricu iz `docs/15`; **ne hard-koduje** nijedan grant (`04` §5.3, aktivnost 6).
 - [ ] inactive user test.
 - [ ] inactive membership test.
+
+### `GET /me` ugovor
+
+Normativno: `03` §10.
+
+- [ ] svaki membership vraća `membershipId`.
+- [ ] svaki membership vraća `practiceId`.
+- [ ] svaki membership vraća `practiceName`.
+- [ ] svaki membership vraća `active`.
+- [ ] svaki membership vraća `roles[]`.
+- [ ] svaki membership vraća izvedene `permissions[]`.
+- [ ] **polje `memberships[].role` ne postoji.**
+- [ ] `roles[]` sadrži nula, jednu ili više rola.
+- [ ] vrijednosti u `roles[]` su **jedinstvene**.
+- [ ] redoslijed u `roles[]` je **determinističan**.
+- [ ] `roles[]` sadrži isključivo role tog tačnog membershipa.
+- [ ] neaktivni membershipi **smiju** biti vidljivi.
+- [ ] `platformRoles` ostaje **zaseban** top-level blok.
+- [ ] `platformRoles` se **nikada** ne pojavljuju unutar `roles[]`.
+- [ ] `permissions[]` se **izvodi**, ne čuva kao stanje membershipa.
+- [ ] **nema compatibility dual polja** `role` + `roles`.
+- [ ] membershipi ni role drugog korisnika **nikada** nisu izloženi.
 
 ## BLOCKED — D-OPEN-011
 
 - [ ] Nema neograničenog ni generičkog runtime pristupa nad `users` i `practices`.
 - [ ] Phase gate pada ako je takav pristup tiho uveden.
+- [ ] Self-enumeracija vlastitih membership rola **nije** generički pristup nad `users`.
+- [ ] Self-enumeracija vlastitih membership rola **nije** generički pristup nad `practices`.
+- [ ] Self-enumeracija **nije** role administration.
+- [ ] Self-enumeracija **nije** cross-practice administracija.
+- [ ] Self-enumeracija **ne rješava D-OPEN-011** — status ostaje `BLOCKED`.
+
+## BLOCKED — role matrica
+
+- [ ] **BLOCKED** — nijedan konkretan role-to-permission grant se ne implementira dok Q1–Q9 ne budu prihvaćeni, D-039 do D-045 zabilježeni i `docs/15` kreiran. Vidi §5, sekcija `BLOCKED — role matrica`.
 
 Evidence:
 
 ```text
-Migration:
+Migration paket: 002_identity_and_practices
 Seed command:
 API tests:
+practice_membership_roles constraints:
+GET /me response sample:
 ```
 
 ---
@@ -202,7 +298,11 @@ API tests:
 
 Status: `NOT_STARTED`
 
-Normativno: D-033; `02` §16.2 i §17.3; `04` §6.2; `07` Faza 4.
+Normativno: D-033 i D-038; `02` §16.2, §17.3, §17.4, §20.2 i §22.13; `03` §3.7 i §28.5;
+`04` §6.2, §6.4.1 i §6.4.2; `07` Faza 4.
+
+Vlasnik migration paketa za sve RLS stavke ove faze: **`013_rls_policies`**. Schema objekti ostaju
+u `002_identity_and_practices` (Faza 3). Ne uvodi se novi broj paketa.
 
 ## Schema i funkcije
 
@@ -234,6 +334,76 @@ Normativno: D-033; `02` §16.2 i §17.3; `04` §6.2; `07` Faza 4.
 - [ ] Nepostojeći membership mapira se na `403`.
 - [ ] Neaktivan membership mapira se na `403`.
 - [ ] Neuspjeh bootstrapa ne ostavlja upotrebljiv tenant context.
+- [ ] **`practice_membership_roles` NIJE potreban** za provjeru postojanja membershipa (D-038, klauzule 20–21).
+- [ ] `set_request_context` **ne čita** `practice_membership_roles`.
+- [ ] `set_request_context` ne prima ni `user_id` ni rolu.
+- [ ] **Aktivan membership sa nula rola SMIJE uspostaviti tenant context.**
+- [ ] Takav membership dobija **`403`** na svakoj permission-gated tenant ruti.
+
+## RLS za `practice_membership_roles`
+
+Paket: `013_rls_policies`. Normativno: `02` §17.4; D-038, klauzule 22–23.
+
+- [ ] `ENABLE ROW LEVEL SECURITY`.
+- [ ] `FORCE ROW LEVEL SECURITY`.
+- [ ] SELECT politika za self-enumeraciju autentifikovanog korisnika postoji.
+- [ ] Politika radi **prije** nego `app.practice_id` postoji.
+- [ ] Politika izvodi identitet korisnika iz pouzdanog `app.user_id`.
+- [ ] Politika se spaja kroz vlastite `practice_memberships` redove tog korisnika.
+- [ ] Politika smije vlasniku izložiti **trenutne role neaktivnih membershipa**.
+- [ ] Neaktivan membership i dalje **ne autorizuje** nijednu tenant operaciju.
+- [ ] Role redovi drugog korisnika su **odbijeni**.
+- [ ] Cross-practice curenje je **odbijeno**.
+- [ ] SELECT politika **ne dozvoljava** INSERT, UPDATE ni DELETE.
+- [ ] **Nema SECURITY DEFINER bypassa.**
+- [ ] SECURITY INVOKER kompatibilnost je zadržana.
+- [ ] **D-OPEN-011 ostaje neriješen** — ova politika ga ne zatvara.
+
+## Database grants
+
+Normativno: `02` §20.2.
+
+- [ ] `copilot_migrator` je owner i kreira tabelu kroz migraciju.
+- [ ] `copilot_app` ima **isključivo** RLS-zaštićeni runtime SELECT.
+- [ ] `copilot_app` **nema** generički role-assignment mutation pristup.
+- [ ] `copilot_app` **nema** DELETE za uklanjanje role kroz trenutni runtime put.
+- [ ] `copilot_system` **nema** nijedan automatski grant nad tenant tabelom.
+- [ ] `PUBLIC` **nema** nijedan grant.
+- [ ] **Database role nisu aplikacijske role.**
+- [ ] **`SYSTEM_ADMIN` nije `copilot_system`** — platform aplikacijska rola naspram database role.
+
+## Redoslijed autorizacije
+
+Normativno: `03` §3.7.1; `04` §6.2.1. Svaka granica se dokazuje **zasebno**.
+
+- [ ] 1. bearer token je autentifikovan.
+- [ ] 2. pouzdani `app.user_id` je izveden iz verifikovanog subjekta.
+- [ ] 3. `X-Practice-ID` je pročitan i validiran.
+- [ ] 4. `set_request_context(p_practice_id uuid)` je pozvan.
+- [ ] 5. aktivan `practice_memberships` red je validiran.
+- [ ] 6. transakcijski lokalni tenant context je uspostavljen.
+- [ ] 7. dodijeljene tenant role su učitane.
+- [ ] 8. efektivne permisije su izvedene.
+- [ ] 9. tražena permisija i prihvaćeni uslovi su evaluirani.
+- [ ] 10. komanda je izvršena pod tenant RLS-om.
+
+## Kompozicija efektivnih permisija
+
+Normativno: D-038, klauzule 7–11 i 16–18; `03` §28.5; `04` §6.4.1.
+
+- [ ] Efektivne permisije se izvode iz **svih** rola dodijeljenih odabranom aktivnom membershipu.
+- [ ] Unija je ograničena na **jednu ordinaciju**.
+- [ ] `DENY` **ne doprinosi** grant.
+- [ ] `DENY` **ne poništava** `ALLOW` druge dodijeljene tenant role.
+- [ ] **Nema implicitnog nasljeđivanja rola.**
+- [ ] **Nema per-user permission overrida.**
+- [ ] Neaktivan membership doprinosi **nula** permisija.
+- [ ] Aktivan membership sa nula rola doprinosi **nula** permisija.
+- [ ] Autorizacija je **deny-by-default**.
+- [ ] Uslovna permisija zahtijeva podobnu tenant rolu **i** prihvaćenu practice postavku ili runtime uslov.
+- [ ] `platformRoles` **nikada** ne doprinose tenant permission uniji.
+- [ ] `SYSTEM_ADMIN` bez aktivnog tenant membershipa dobija **`403`** na tenant rutama.
+- [ ] **Nijedan grant koji pripada D-039 do D-045 ili `docs/15` nije hard-kodiran.**
 
 ## Transaction-local context
 
@@ -252,6 +422,11 @@ Normativno: D-033; `02` §16.2 i §17.3; `04` §6.2; `07` Faza 4.
 - [ ] `platformRoles` se ne pretvaraju automatski u tenant permisije.
 - [ ] Tenant membershipi i platform role se ne spajaju unijom.
 - [ ] Platform/system context se ne uspostavlja kroz `set_request_context`.
+- [ ] Tenant role dolaze **isključivo** iz `practice_membership_roles`.
+- [ ] `SYSTEM_ADMIN` sa aktivnim membershipom izvodi tenant permisije **samo** iz dodijeljenih tenant rola.
+- [ ] `tariff.manage` ostaje platform permisija i platform ruta.
+- [ ] `integration.read` ostaje tenant-scoped i ograničen na `PRACTICE_ADMIN`.
+- [ ] **Database grant nikada ne zamjenjuje permisiju endpointa.**
 
 ## BLOCKED — D-OPEN-011
 
@@ -259,6 +434,16 @@ Normativno: D-033; `02` §16.2 i §17.3; `04` §6.2; `07` Faza 4.
 - [ ] `practice_memberships` bootstrap pristup ne rješava opšti runtime pristup nad `users`.
 - [ ] `practice_memberships` bootstrap pristup ne rješava opšti runtime pristup nad `practices`.
 - [ ] Phase gate pada ako implementacija tiho uvede neograničen pristup nad bilo kojom od te dvije tabele.
+- [ ] Self-enumeracija vlastitih membership rola (§17.4) **ne rješava D-OPEN-011**.
+
+## BLOCKED — role matrica
+
+- [ ] **BLOCKED** — finalna role-to-permission implementacija ostaje blokirana dok:
+      **(a)** vlasničke odluke Q1–Q9 ne budu prihvaćene;
+      **(b)** D-039 do D-045 ne budu zabilježeni;
+      **(c)** `docs/15` ne bude kreiran.
+- [ ] Do tada resolver koristi **praznu ili test-only matricu**, nikada pogođene grantove.
+- [ ] Nijedan test ne tvrdi konkretan `PHYSICIAN` ili `PRACTICE_ADMIN` grant koji još nije prihvaćen.
 
 ## Guard i servisi
 
@@ -288,17 +473,65 @@ Normativno: D-033; `02` §16.2 i §17.3; `04` §6.2; `07` Faza 4.
 - [ ] Practice A/B write isolation.
 - [ ] runtime role cannot bypass.
 
+## Fixtures — D-038
+
+- [ ] membership sa **nula** rola.
+- [ ] membership sa **jednom** rolom.
+- [ ] membership sa **više** rola.
+- [ ] korisnik sa `PRACTICE_ADMIN` **i** `PHYSICIAN` u istoj ordinaciji.
+- [ ] **isti korisnik sa drugačijim skupom rola** u drugoj ordinaciji.
+- [ ] neaktivan membership koji **zadržava** svoje role redove.
+- [ ] pokušaj duplirane dodjele iste role.
+- [ ] pokušaj cross-practice dodjele koji krši composite FK.
+- [ ] `SYSTEM_ADMIN` **bez** tenant membershipa.
+- [ ] uslovni approval flagovi u oba stanja — uključeni i isključeni.
+
+## Testovi — D-038
+
+- [ ] schema constraint testovi.
+- [ ] RLS self-enumeracija.
+- [ ] odbijanje pristupa rolama drugog korisnika.
+- [ ] odbijanje cross-practice pristupa.
+- [ ] **determinističan redoslijed `roles[]`**.
+- [ ] **odsustvo polja `memberships[].role`**.
+- [ ] unija permisija za membership sa više rola.
+- [ ] `DENY` u jednoj roli **ne poništava** `ALLOW` iz druge.
+- [ ] zero-role membership — **deny-by-default**.
+- [ ] neaktivan membership — odbijen na tenant rutama.
+- [ ] razdvajanje platform i tenant klase rola.
+- [ ] **odbijanje injekcije role** kroz request body, query parametar, header i argument database funkcije.
+- [ ] uklanjanje role, pa **uspješna ponovna dodjela** iste role.
+- [ ] zahtjevi za audit dokazom budućeg assignment/removal puta (`ASSIGNED` / `REMOVED`).
+- [ ] **BLOCKED** — testovi koji zahtijevaju konkretan grant po roli ostaju blokirani do D-039 do D-045 i `docs/15`; očekivani grantovi se **ne izmišljaju**.
+
 Gate:
 
 - [ ] **ALL RLS TESTS GREEN — required before phase 5.**
+
+D-038 gate — svaka stavka mora biti **dokazano ispunjena** prije nego što se faza smatra
+završenom. Nijedan checkbox se ne označava bez izvršene provjere.
+
+- [ ] singularna kolona `practice_memberships.role` **ne postoji**;
+- [ ] tabela `practice_membership_roles` i svi njeni constrainti **postoje**;
+- [ ] vlasništvo paketa je **identično** onome u `02` i `04`;
+- [ ] RLS self-enumeracija **ne izlaže** role redove drugog korisnika;
+- [ ] `GET /me` vraća `roles[]`, **nikada** `role`;
+- [ ] tenant i platform role se **ne spajaju** unijom;
+- [ ] membership sa nula rola **ne dobija** nijednu tenant permisiju;
+- [ ] neaktivan membership **ne autorizuje** nijednu tenant rutu;
+- [ ] duplirana i cross-practice dodjela role **padaju**;
+- [ ] injekcija role **nije moguća**;
+- [ ] generički `users`/`practices` pristup zavisan od D-OPEN-011 **nije implementiran** bez prihvaćene odluke.
 
 Evidence:
 
 ```text
 Policies:
 Tables:
+Migration paket: 013_rls_policies
 Test command:
 Test result:
+Role matrica status: BLOCKED (D-039 … D-045, docs/15)
 ```
 
 ---
