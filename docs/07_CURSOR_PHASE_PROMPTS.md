@@ -56,6 +56,12 @@ Ne resetuj bazu ili volume bez eksplicitne dozvole.
 Ne zaobilazi TenantDatabaseService za tenant podatke.
 Ne loguj medicinski sadržaj ili secrets.
 Ne označavaj zadatak završenim dok relevantni testovi ne prođu.
+Ne dodavaj nove API permisije ni endpointe.
+Ne uvodi novi broj migration paketa i ne renumeriši postojeće.
+Ne implementiraj role grantove iz D-039 nadalje — oni pripadaju docs/15.
+Pokreni git diff --check.
+Prikaži tačnu listu izmijenjenih fajlova.
+Ne commituj i ne pushuj bez zasebne instrukcije.
 
 Na kraju:
 - navedi rezultat;
@@ -146,23 +152,108 @@ Ne koristi runtime credential za migracije.
 
 Implementiraj isključivo FAZU 3 — Identity i practice domena.
 
+Normativne odluke: D-033 i D-038. Prati docs/02 §6.3, §6.3a, §22.2 i §23.2;
+docs/03 §10; docs/04 §5.2, §5.2.1 i §5.4.1; docs/05 Faza 3.
+
+Vlasnik migration paketa za sve schema objekte ove faze je 002_identity_and_practices.
+Ne uvodi novi broj paketa.
+
 Kreiraj:
 - practices;
 - users;
 - practice_memberships;
+- practice_membership_roles;
 - practice_settings;
 - migration/grants;
 - idempotentan development seed;
-- role-to-permission map;
+- effective-permission resolver interface;
 - kontrolisani dev auth;
 - GET /api/v1/me;
 - osnovni practice read/settings endpoint prema contractu.
 
+practice_memberships (D-038):
+- tačno jedan red po ordinaciji i korisniku;
+- unique (practice_id, user_id);
+- unique (practice_id, id);
+- active membership lifecycle;
+- NEMA singularne kolone role;
+- NEMA indeksa (practice_id, active, role).
+
+practice_membership_roles (D-038):
+- id;
+- practice_id;
+- membership_id;
+- role membership_role;
+- created_at i updated_at prema projektnim konvencijama;
+- primarni ključ nad id;
+- unique (practice_id, id);
+- unique (practice_id, membership_id, role);
+- composite FK (practice_id, membership_id) -> practice_memberships(practice_id, id).
+
+Jedan membership smije nositi nula, jednu ili više tenant rola, svaku najviše jednom.
+
+ZABRANJENO u ovoj tabeli i u ovoj fazi:
+- nasljeđivanje rola;
+- per-user permission overrid;
+- revoked_at;
+- revoked_by;
+- active na practice_membership_roles;
+- valid_from / valid_to;
+- append-only historija dodjele;
+- platform role u tenant role tabeli;
+- database role u tenant role tabeli.
+
+Životni ciklus dodjele (D-038, klauzule 25–33):
+- practice_membership_roles čuva isključivo trenutno efektivne dodjele;
+- uklanjanje role BRIŠE trenutni red dodjele;
+- kasnija ponovna dodjela iste role KREIRA novi red;
+- unique (practice_id, membership_id, role) ostaje neparcijalan — brisanje oslobađa trojac;
+- historiju dodjele i uklanjanja čuva audit dokaz, ne zadržani redovi;
+- aktivnost membershipa ostaje isključivo na practice_memberships.active;
+- role redovi neaktivnog membershipa smiju ostati pohranjeni, ali daju nula permisija;
+- ponovna aktivacija koristi isključivo eksplicitno pohranjene role redove;
+- aktivan membership sa nula rola daje nula permisija.
+
+Generička runtime administracija rola ostaje IZVAN v1. Ne kreiraj:
+- role-administration endpoint;
+- role-administration permisiju;
+- copilot_app INSERT/UPDATE/DELETE grant za upravljanje rolama.
+
+Effective-permission resolver u ovoj fazi je SAMO interface koji konzumira buduću
+normativnu matricu iz docs/15. Ne hard-koduj nijedan grant po roli.
+
+GET /api/v1/me — svaki membership vraća:
+- membershipId;
+- practiceId;
+- practiceName;
+- active;
+- roles[];
+- izvedene permissions[].
+
+Obavezno:
+- polje memberships[].role NE POSTOJI;
+- nema compatibility oblika sa oba polja role i roles;
+- roles[] ima jedinstvene vrijednosti i determinističan redoslijed;
+- roles[] podržava nula, jednu ili više rola;
+- roles[] sadrži isključivo role tog tačnog membershipa;
+- neaktivni membershipi smiju biti vraćeni;
+- platformRoles ostaje zaseban top-level blok;
+- platformRoles se NIKADA ne pojavljuju unutar roles[];
+- permissions[] se izvodi pri čitanju, ne čuva se kao stanje membershipa;
+- membershipi ni role drugog korisnika nikada nisu izloženi.
+
+Ne hard-koduj ilustrativne PHYSICIAN, PRACTICE_ADMIN ni druge grantove prije docs/15.
+
+Seed mora kreirati eksplicitne practice_membership_roles redove za svaki membership i
+najmanje jedan aktivan membership sa nula dodijeljenih rola za negativne testove.
+Seed se ne oslanja na singularnu role kolonu.
+
 Ne implementiraj patient/encounter/RLS poslovne tabele iz naredne faze.
 Dev auth mora biti nemoguće uključiti u production bez eksplicitne konfiguracije i startup zaštite.
 
-Tabela practice_memberships se kreira u ovoj fazi, ali njena bootstrap RLS politika
-pripada FAZI 4 (D-033). Ne postavljaj RLS na nju u ovoj fazi.
+Tabele practice_memberships i practice_membership_roles kreiraju se u ovoj fazi, ali njihove
+bootstrap RLS politike pripadaju FAZI 4 i paketu 013_rls_policies (D-033, D-038).
+Ne postavljaj RLS na njih u ovoj fazi.
 
 D-OPEN-011 je OTVOREN — runtime access model za users i practices nije odlučen.
 Zato u ovoj fazi:
@@ -171,10 +262,25 @@ Zato u ovoj fazi:
   platformRoles, kao dva odvojena bloka prema docs/03 §10;
 - platformRoles se nikada ne prikazuju kao memberships niti se sa njima spajaju.
 
+Self-enumeracija vlastitih membership rola NIJE generički pristup nad users, NIJE generički
+pristup nad practices, NIJE role administration, NIJE cross-practice administracija i NE
+RJEŠAVA D-OPEN-011.
+
 Ne rješavaj D-OPEN-011 u ovoj fazi. Ako scope zahtijeva širi pristup nad users ili
 practices, zaustavi se i traži odluku.
 
 Dodaj unit/integration/e2e testove za active/inactive user i membership.
+
+Dokaži testovima:
+- membership sa nula, jednom i više rola;
+- duplirana dodjela iste role je odbijena;
+- dodjela koja referencira membership druge ordinacije je odbijena na composite FK-u;
+- uklanjanje role briše red, a ista rola se nakon toga može ponovo dodijeliti;
+- GET /api/v1/me vraća roles[] i nikada role;
+- roles[] ima determinističan redoslijed.
+
+BLOCKED: konkretna role-to-permission implementacija ostaje blokirana dok Q1–Q9 ne budu
+prihvaćeni, D-039 do D-045 zabilježeni i docs/15 kreiran.
 ```
 
 ---
@@ -188,9 +294,10 @@ Implementiraj isključivo FAZU 4 — Tenant isolation i RLS.
 
 Ovo je kritični security gate.
 
-Normativna odluka za tenant context bootstrap je D-033 iz docs/06_DECISION_LOG.md.
-Implementacija mora tačno pratiti docs/02_DATABASE_SCHEMA_V1.md §16.2, §16.2a i §17.3,
-te docs/03_API_CONTRACT_V1.md §3.
+Normativne odluke za tenant context bootstrap i kompoziciju permisija su D-033 i D-038 iz
+docs/06_DECISION_LOG.md. Implementacija mora tačno pratiti docs/02_DATABASE_SCHEMA_V1.md
+§16.2, §16.2a, §17.3, §17.4 i §20.2, docs/03_API_CONTRACT_V1.md §3, §3.7 i §28.5, te
+docs/04 §6.4.1 i §6.4.2.
 
 Kreiraj:
 - app_security schema;
@@ -200,6 +307,9 @@ Kreiraj:
 - execute grants za copilot_app;
 - ENABLE i FORCE RLS na practice_memberships;
 - user-scoped bootstrap self-select politiku na practice_memberships;
+- ENABLE i FORCE RLS na practice_membership_roles;
+- bootstrap-readable self-enumeration SELECT politiku na practice_membership_roles;
+- effective-permission resolver;
 - PracticeContext guard;
 - X-Practice-ID validaciju kroz membership provjeru;
 - TenantDatabaseService sa Prisma interactive transactionom;
@@ -207,15 +317,29 @@ Kreiraj:
 - FORCE RLS;
 - A/B tenant integration test harness.
 
-Obavezni redoslijed bootstrapa (D-033):
+Obavezni redoslijed autorizacije (D-033 i D-038; identičan docs/03 §3.7.1):
 1. autentifikuj bearer token — potpis, issuer, audience i istek;
-2. uspostavi autentifikovani aplikacijski/database user identitet kroz
-   set_user_context, koji postavlja transakcijski lokalni app.user_id;
-3. pozovi set_request_context(p_practice_id);
-4. rezolviraj AKTIVAN membership kroz user-scoped RLS nad practice_memberships;
-5. postavi transakcijski lokalni tenant context app.practice_id;
-6. tek tada izvrši tenant-scoped upite;
-7. kontekst se automatski čisti na kraju transakcije.
+2. izvedi pouzdani app.user_id kroz set_user_context;
+3. pročitaj i validiraj X-Practice-ID;
+4. pozovi set_request_context(p_practice_id uuid);
+5. validiraj AKTIVAN practice_memberships red kroz user-scoped bootstrap politiku;
+6. uspostavi transakcijski lokalni tenant context app.practice_id;
+7. učitaj dodijeljene tenant role za taj membership i tu ordinaciju;
+8. izvedi efektivne tenant permisije;
+9. provjeri permisiju koju endpoint zahtijeva i prihvaćene uslove;
+10. izvrši komandu pod tenant RLS-om.
+
+Kontekst se automatski čisti na kraju transakcije.
+
+Pojašnjenja (D-038, klauzule 20–21):
+- set_request_context NE PRIMA rolu;
+- set_request_context NE PRIMA user_id;
+- practice_membership_roles se NE KONSULTUJE za provjeru postojanja membershipa;
+- aktivan membership sa nula rola SMIJE uspostaviti tenant context;
+- takav membership pada na svakoj permission-gated ruti sa 403;
+- nepostojeći ili neaktivan membership vraća 403;
+- neuspjeh bootstrapa ne ostavlja upotrebljiv kontekst;
+- pooled konekcija ne smije propustiti ni tenant ni role stanje.
 
 Obavezna pravila:
 - bootstrap poziv mora biti moguć PRIJE nego tenant context postoji;
@@ -233,18 +357,87 @@ Obavezna pravila:
 - ne uvodi se globalan neograničen pristup nad users ni practices — to ostaje pod
   D-OPEN-011, koji je i dalje otvoren.
 
+RLS za practice_membership_roles (paket 013_rls_policies; docs/02 §17.4):
+- ENABLE ROW LEVEL SECURITY;
+- FORCE ROW LEVEL SECURITY;
+- SELECT politika za self-enumeraciju autentifikovanog korisnika;
+- korisnik se izvodi iz pouzdanog app.user_id;
+- politika se spaja kroz vlastite practice_memberships redove tog korisnika;
+- politika NE SMIJE zavisiti od app.practice_id, jer GET /me enumeriše prije tenant konteksta;
+- vlasniku smiju biti vidljive trenutne role neaktivnih membershipa;
+- neaktivan membership i dalje NE AUTORIZUJE nijedan tenant pristup;
+- role redovi drugog korisnika su odbijeni;
+- cross-practice curenje je odbijeno;
+- trenutni runtime put je SELECT-only — bez INSERT, UPDATE i DELETE;
+- NEMA SECURITY DEFINER bypassa;
+- politika ostaje SECURITY INVOKER kompatibilna;
+- D-OPEN-011 ostaje neriješen — ova politika ga ne zatvara.
+
+Effective-permission resolver (D-038; docs/03 §28.5):
+- unija ALLOW grantova svih tenant rola dodijeljenih odabranom AKTIVNOM membershipu;
+- unija je ograničena na jednu ordinaciju i jedan membership;
+- DENY znači da rola ne doprinosi grant;
+- DENY NE PONIŠTAVA ALLOW iz druge dodijeljene tenant role;
+- nema implicitnog nasljeđivanja rola;
+- nema per-user permission overrida;
+- neaktivan membership daje nula permisija;
+- aktivan membership sa nula rola daje nula permisija;
+- autorizacija je deny-by-default;
+- uslovna permisija zahtijeva podobnu rolu I prihvaćeni practice flag ili runtime uslov;
+- platformRoles NIKADA ne doprinose tenant permission uniji.
+
+Resolver mora konzumirati buduću normativnu matricu. Dok D-039 do D-045 i docs/15 nisu
+prihvaćeni:
+- ne popunjavaj pogođene produkcijske grantove;
+- koristi praznu, blokiranu ili test-only matricu prema postojećoj projektnoj konvenciji;
+- ne izvodi dodjele iz API primjera ni iz proznih nagovještaja.
+
+Preostaju samo dvije već prihvaćene dodjele, i to tamo gdje ih njihove klase ruta već nose:
+- integration.read -> PRACTICE_ADMIN;
+- tariff.manage -> isključivo SYSTEM_ADMIN.
+
+Klase rola se NE SMIJU miješati:
+- tenant aplikacijske role: PRACTICE_ADMIN, PHYSICIAN, MPA, BILLING_SPECIALIST, AUDITOR,
+  READ_ONLY;
+- platform aplikacijska rola: SYSTEM_ADMIN;
+- database role: copilot_app, copilot_migrator, copilot_system.
+
+Obavezno:
+- platformRoles se nikada ne spajaju unijom sa tenant rolama;
+- SYSTEM_ADMIN ne dobija nijedan automatski tenant pristup;
+- SYSTEM_ADMIN bez aktivnog membershipa dobija 403 na tenant rutama;
+- copilot_system NIJE SYSTEM_ADMIN;
+- database grant ne zamjenjuje permisiju endpointa;
+- PUBLIC ne dobija nijedan grant.
+
 Vlasništvo faze i migration paketa:
 - membership bootstrap RLS politika — Faza 4, paket 013_rls_policies (docs/02 §22.13);
+- practice_membership_roles RLS politika — Faza 4, paket 013_rls_policies (docs/02 §17.4);
+- effective-permission resolver — Faza 4, aplikacijski sloj, bez migration paketa;
 - set_request_context(p_practice_id uuid) — Faza 4, paket 013_rls_policies;
 - set_user_context(p_user_id uuid) — Faza 4, paket 013_rls_policies;
 - transakcijski lokalne context varijable — Faza 4, paket 013_rls_policies;
 - negativni testovi za nevažeći ili neaktivan membership — Faza 4;
 - test da kontekst ne ostaje nakon završetka transakcije — Faza 4.
 
-Tabela practice_memberships kreira se u Fazi 3; njena bootstrap RLS politika u Fazi 4.
+Tabele practice_memberships i practice_membership_roles kreiraju se u Fazi 3 i paketu
+002_identity_and_practices; njihove bootstrap RLS politike u Fazi 4 i paketu 013_rls_policies.
+Ne premještaj kreiranje RLS-a u paket 002.
 Brojevi migration paketa u docs/02 §22 su redoslijed zavisnosti, NE brojevi faza. Paket
 013_rls_policies se primjenjuje inkrementalno kako tenant tabele nastaju. Ne mijenjaj
 numeraciju migration paketa i ne uvodi novi broj paketa.
+
+Obavezni D-038 fixture:
+- membership sa nula rola;
+- membership sa jednom rolom;
+- membership sa više rola;
+- korisnik sa PRACTICE_ADMIN i PHYSICIAN u istoj ordinaciji;
+- isti korisnik sa drugačijim skupom rola u drugoj ordinaciji;
+- neaktivan membership koji zadržava svoje role redove;
+- pokušaj duplirane dodjele iste role;
+- pokušaj cross-practice dodjele koji krši composite FK;
+- SYSTEM_ADMIN bez tenant membershipa;
+- uslovni approval flagovi u oba stanja — uključeni i isključeni.
 
 Dokaži testovima:
 - practice A ne čita/piše B;
@@ -261,6 +454,46 @@ Dokaži testovima:
 - kontekst je transakcijski lokalan i ne curi u sljedeći request;
 - SECURITY INVOKER izvršavanje ne zaobilazi membership RLS;
 - platformRoles se ne pretvaraju automatski u tenant membershipe.
+
+D-038 testovi:
+- schema constrainti practice_membership_roles;
+- uklanjanje role briše red, pa se ista rola može ponovo dodijeliti;
+- neaktivan membership daje nula permisija iako role redovi postoje;
+- aktivan membership sa nula rola je deny-by-default;
+- roles[] ima determinističan redoslijed;
+- polje memberships[].role ne postoji;
+- self-enumeracija radi, a pristup rolama drugog korisnika je odbijen;
+- cross-practice pristup rolama je odbijen;
+- unija tenant rola daje očekivani skup permisija;
+- DENY u jednoj roli ne poništava ALLOW iz druge;
+- platform i tenant klase rola ostaju odvojene;
+- injekcija role kroz body, query, header i argument database funkcije je odbijena;
+- kontekst i role ne cure kroz pooled konekciju;
+- rollback bootstrapa čisti i kontekst i učitane role;
+- uslovno odobravanje zahtijeva i podobnu rolu i odgovarajući practice flag.
+
+Testovi koji zavise od konkretnih grantova iz D-039 do D-045 ostaju BLOCKED. Ne izmišljaj
+očekivane grantove.
+
+Faza se NE SMIJE označiti završenom dok sve ovo ne vrijedi:
+- singularna kolona practice_memberships.role ne postoji;
+- practice_membership_roles postoji sa svim prihvaćenim constraintima;
+- vlasništvo paketa odgovara docs/02 i docs/04;
+- životni ciklus dodjele odgovara D-038;
+- self-enumeration RLS testovi prolaze;
+- GET /me vraća roles[];
+- injekcija role nije moguća;
+- neaktivan i zero-role membership ne daju nijednu permisiju;
+- cross-user i cross-practice curenje rola je odbijeno;
+- platformRoles ne ulaze u tenant permission uniju;
+- svi D-038 schema, API i security testovi prolaze.
+
+BLOCKED: role-to-permission implementacija ostaje blokirana dok Q1–Q9 ne budu prihvaćeni,
+D-039 do D-045 zabilježeni i docs/15 kreiran.
+
+Self-enumeracija vlastitih membership rola NIJE generički pristup nad users, NIJE generički
+pristup nad practices, NIJE role administration, NIJE cross-practice administracija i NE
+RJEŠAVA D-OPEN-011.
 
 Ako bilo koji RLS test ne prolazi, faza mora ostati BLOCKED i ne smiješ nastaviti.
 ```
