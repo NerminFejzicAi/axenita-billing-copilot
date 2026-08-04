@@ -220,6 +220,20 @@ dodijeljenih rola, pa bi izbor jedne bio proizvoljan i neistinit. Audit bilježi
 **iskorištenu permisiju** i **identitet aktera**; historija dodjele rola pripada
 schema/audit modelu (`02` §6.3a).
 
+### 3.7.4 Normativni izvor dodjele permisija rolama
+
+**`15_ROLE_PERMISSION_MATRIX_V1.md` je konsolidovana normativna v1 role-permission matrica.**
+Izvorne prihvaćene odluke su u `06` — D-023, D-032 i D-039 do D-045.
+
+- sekcije endpointa u ovom dokumentu definišu **traženu permisiju**, a ne kompletnu dodjelu
+  rolama;
+- implementacija **ne smije izvoditi role grantove iz proznih primjera** ovog dokumenta;
+- pri neslaganju `03` i `15` mjerodavan je **posljednji ACCEPTED ADR u `06`**, a dokumenti se
+  moraju **uskladiti kontrolisanim batchom**, nikada tiho protumačiti.
+
+Kompletna matrica se ovdje **ne duplira**; jedna normativna referenca je namjerna, da ne bi
+postojale dvije nezavisno uređive matrice.
+
 ---
 
 # 4. Idempotency
@@ -594,9 +608,17 @@ tenant role **prije** nego što je izabran ijedan tenant kontekst. Ta self-enume
 
 Permission: `practice.read`.
 
+**`practice.read` je `BLOCKED — D-OPEN-011` za sve role, uključujući `SYSTEM_ADMIN`**
+(D-045; `15` §8.1). Nijedna dodjela nije prihvaćena; implementacija mora **pasti zatvoreno**.
+`BLOCKED` se **ne smije** tumačiti kao `DENY`-all, kao `SYSTEM_ADMIN`-only, kao
+`PRACTICE_ADMIN`-only ni kao budući implicitni platform pristup.
+
 ## GET `/practices/{practiceId}/settings`
 
 Permission: `practice.settings.read`.
+
+Podobne role (D-044; matrica u `15`): `PRACTICE_ADMIN` **ALLOW**, sve ostale **DENY**. Isto
+važi za `practice.settings.manage` na `PATCH` ruti.
 
 Vraća `ETag` za optimistic locking (§5.2).
 
@@ -628,15 +650,31 @@ Polja:
 | Polje | Tip | Default | Napomena |
 |---|---|---|---|
 | `billingReviewRequired` | boolean | — | |
-| `allowMpaApproval` | boolean | **`false`** | opt-in odobravanje za `MPA` |
-| `allowBillingSpecialistApproval` | boolean | **`false`** | opt-in odobravanje za `BILLING_SPECIALIST` |
+| `allowMpaApproval` | boolean | **`false`** | uslovna podobnost odobravanja za `MPA` (D-041) |
+| `allowBillingSpecialistApproval` | boolean | **`false`** | uslovna podobnost odobravanja za `BILLING_SPECIALIST` (D-041) |
 | `requireReasonForManualChange` | boolean | — | |
 | `aiEnabled` | boolean | — | |
 | `axenitaExportEnabled` | boolean | — | |
 | `retentionPolicyCode` | string, nullable | — | |
 
-Oba approval flaga imaju default `false` prema `02` §6.4. Odobravanje izvan
-`PHYSICIAN`/`PRACTICE_ADMIN` je opt-in odluka ordinacije, nikada podrazumijevano stanje.
+Oba approval flaga imaju default `false` prema `02` §6.4.
+
+**Podobnost za `analysis.approve` (D-041; matrica u `15`):**
+
+- `PHYSICIAN` — **ALLOW**;
+- `MPA` — **CONDITIONAL**, isključivo kada je `allowMpaApproval = true`;
+- `BILLING_SPECIALIST` — **CONDITIONAL**, isključivo kada je `allowBillingSpecialistApproval = true`;
+- `PRACTICE_ADMIN` — **DENY** kroz administrativnu rolu samu po sebi. Odobravanje je moguće
+  isključivo ako isti korisnik **zasebno nosi `PHYSICIAN`** kroz D-038 multi-role membership;
+- `AUDITOR`, `READ_ONLY` i `SYSTEM_ADMIN` — **DENY**.
+
+Pojašnjenja:
+
+- flag **proširuje podobnost isključivo na svoju odgovarajuću tenant rolu** — `allowMpaApproval`
+  ne čini `BILLING_SPECIALIST`-a podobnim i obratno;
+- **flag sam po sebi ne daje permisiju**; bez dodijeljene podobne role nema granta;
+- **neaktivan membership uvijek odbija**, bez obzira na flag;
+- **platform rola nikada ne zadovoljava** uslov tenant podobnosti za odobravanje.
 
 Odgovor `200` vraća **novi `ETag`**; `version` je inkrementiran atomično.
 
@@ -875,13 +913,18 @@ Autorizacija:
 - **`encounter.cancel` autorizuje kompletnu komandu i njenu internu kaskadu**;
 - **`analysis.cancel` se ne traži dodatno** za internu kaskadu.
 
-Dodjela ovih permisija rolama nije definisana u ovom dokumentu (§28.4).
+Podobne role (D-042; matrica u `15`): `encounter.cancel` — `PHYSICIAN` **ALLOW**, sve ostale
+**DENY**; `analysis.cancel` — `PHYSICIAN` i `MPA` **ALLOW**, sve ostale **DENY**. Kaskada ne
+uvodi dodatnu provjeru permisije (§28.4, §3.7.4).
 
 `CANCELLED` je terminalno. `CANCELLED → CLOSED` ne postoji.
 
 ## POST `/encounters/{encounterId}/close`
 
 Permission: `encounter.close`.
+
+Podobne role (D-044; matrica u `15`): `PRACTICE_ADMIN` **ALLOW**, `PHYSICIAN` **ALLOW**,
+`BILLING_SPECIALIST` **ALLOW**; `MPA`, `AUDITOR`, `READ_ONLY` i `SYSTEM_ADMIN` **DENY**.
 
 Dozvoljeno **isključivo iz `EXPORTED`** (normativno §29.1):
 
@@ -1440,7 +1483,16 @@ Pozivalac čije **efektivne permisije** (§28.5) sadrže `analysis.read`, ali ne
 
 ## 18.3 GET `/analyses/{analysisId}/tariff-evaluation/raw`
 
-Permission: **`tariff.raw_result.read`**, tipično admin/auditor.
+Permission: **`tariff.raw_result.read`**.
+
+Podobne role (D-043; matrica u `15`): `PRACTICE_ADMIN` **ALLOW**; `PHYSICIAN`, `MPA`,
+`BILLING_SPECIALIST`, `AUDITOR`, `READ_ONLY` i `SYSTEM_ADMIN` **DENY**.
+
+- `AUDITOR` dobija **isključivo** `audit.read` i `audit.export` — **ne** i ovu permisiju;
+- permisija je **tenant-scoped** i traži aktivan membership sa `PRACTICE_ADMIN` rolom;
+- `SYSTEM_ADMIN` je **ne dobija** kroz `tariff.manage`;
+- korisnik kojem trebaju i administrativne i kliničke ovlasti mora nositi **obje** tenant role
+  kroz D-038 multi-role membership.
 
 Vraća sirovi matcher/provider odgovor. Response mora biti auditovan i sanitizovan gdje je
 potrebno.
@@ -1534,7 +1586,15 @@ Sve četiri odluke su **write radnje** — svaka upisuje `review_decisions` red.
 `APPROVE` je odvojen jer nosi pravnu težinu odobrenja i pokreće immutable approval payload
 (D-016); rola koja smije tražiti izmjene ne mora smjeti odobriti obračun.
 
-Dodjela permisija rolama pripada `docs/15` (§28.4).
+Podobne role za `analysis.review_decision` (D-041; matrica u `15`): `PHYSICIAN` **ALLOW**,
+`BILLING_SPECIALIST` **ALLOW**; `PRACTICE_ADMIN`, `MPA`, `AUDITOR`, `READ_ONLY` i `SYSTEM_ADMIN`
+**DENY**.
+
+Permisija **ostaje grupna** i u v1 se **ne dijeli**; katalog ostaje na **32** aktivne permisije.
+
+**Poznati nedostatak v1:** `MPA` **nema nijedan put za review bilješku**, jer grupna permisija
+nosi i **terminalni** `REJECT` (D-031, klauzula 1). Buduća podjela zahtijeva novu permisiju i
+zaseban ADR (D-045).
 
 ### Save draft
 
@@ -1590,6 +1650,11 @@ Iz bilo kojeg statusa osim `REVIEW_REQUIRED` → `409 INVALID_STATE_TRANSITION`.
 
 Permission: `analysis.approve`.
 
+Podobne role (D-041; matrica u `15`): `PHYSICIAN` **ALLOW**; `MPA` **CONDITIONAL** uz
+`allowMpaApproval = true`; `BILLING_SPECIALIST` **CONDITIONAL** uz
+`allowBillingSpecialistApproval = true`; `PRACTICE_ADMIN`, `AUDITOR`, `READ_ONLY` i
+`SYSTEM_ADMIN` **DENY**. Puna pravila uslovnosti su u §10.
+
 ```json
 {
   "decision": "APPROVE",
@@ -1642,6 +1707,23 @@ Response `201`:
 ## POST `/analyses/{analysisId}/approval/revoke`
 
 Permission: `analysis.approval.revoke`.
+
+Podobne role (D-041; matrica u `15`) — **identične podobnosti za `analysis.approve`**:
+`PHYSICIAN` **ALLOW**; `MPA` **CONDITIONAL** uz `allowMpaApproval = true`;
+`BILLING_SPECIALIST` **CONDITIONAL** uz `allowBillingSpecialistApproval = true`;
+`PRACTICE_ADMIN`, `AUDITOR`, `READ_ONLY` i `SYSTEM_ADMIN` **DENY**.
+
+Pravila opoziva (D-041):
+
+- **opozivalac ne mora biti originalni odobravatelj**;
+- podobnost role i flaga se evaluira **u trenutku opoziva**, ne u trenutku odobrenja;
+- `reason` je **obavezan**;
+- dokaz odobrenja se **nikada ne briše**;
+- immutable approval historija ostaje;
+- **revocation audit event je obavezan**;
+- opozivačka ovlast **nikada ne prelazi** ovlast odobravanja.
+
+**Nijedna zasebna permisija ni uslov vezan za originalnog odobravatelja se ne uvodi.**
 
 ```json
 {
@@ -1715,7 +1797,7 @@ Bez obzira na to da li je poslan ili rezolviran, konačni ID se upisuje u:
 
 ### Permission napomena
 
-`integration.read` ostaje ograničen na `PRACTICE_ADMIN` u budućoj role matrici.
+`integration.read` je u prihvaćenoj matrici (`15`) ograničen na `PRACTICE_ADMIN` (D-032, klauzula 8).
 **Ne proširuje se** samo zato da bi role sa `analysis.export` mogle izlistati konekcije —
 deterministička rezolucija upravo uklanja tu potrebu.
 
@@ -1942,7 +2024,7 @@ Ovo su **tenant/practice-scoped** administrativni read endpointi:
 
 - **`X-Practice-ID` je obavezan**;
 - vraćaju samo konekcije tekuće ordinacije;
-- `integration.read` je u budućoj role matrici ograničen na `PRACTICE_ADMIN`;
+- `integration.read` je u prihvaćenoj matrici (`15`) ograničen na `PRACTICE_ADMIN` (D-032);
 - `credentialsSecretRef` se nikada ne vraća kao secret, samo kao referenca.
 
 `GET /admin/integrations/{id}` vraća `ETag`, jer `integration_connections` ima `version`
@@ -2089,16 +2171,20 @@ Izvedene permisije:
 
 ## 28.4 Role matrica
 
-**Kompletna role-to-permission matrica nije dio ovog dokumenta.** Ovdje su fiksirana samo
-dva ograničenja koja proizlaze iz prihvaćenih odluka:
+**Kompletna role-to-permission matrica je prihvaćena i živi u
+`15_ROLE_PERMISSION_MATRIX_V1.md`.** Izvorne odluke su D-023, D-032 i D-039 do D-045 u `06`.
+
+Dvije dodjele koje su prihvaćene ranije i ostaju nepromijenjene:
 
 - `tariff.manage` → isključivo `SYSTEM_ADMIN` (D-023, klauzula 9);
 - `integration.read` → ograničen na `PRACTICE_ADMIN` (D-032, klauzula 8).
 
-Puna matrica pripada zasebnom dokumentu. Permission string ostaje centralizovan.
+Ovaj dokument i dalje imenuje **traženu permisiju po endpointu**; kompletna dodjela rolama se
+**ne duplira ovdje**, da ne bi postojale dvije nezavisno uređive matrice (§3.7.4). Permission
+string ostaje centralizovan.
 
-D-038 definiše **kako se permisije komponuju**, a ne **ko ih ima** (§28.5). Dvije prihvaćene
-dodjele iznad i katalog od 32 aktivne i 3 rezervisane permisije ostaju nepromijenjeni.
+D-038 definiše **kako se permisije komponuju** (§28.5); D-039 do D-045 definišu **ko ih ima**.
+Katalog od **32 aktivne** i **3 rezervisane** permisije ostaje nepromijenjen.
 
 ## 28.5 Kompozicija efektivnih tenant permisija
 
@@ -2134,8 +2220,8 @@ dodjele iznad i katalog od 32 aktivne i 3 rezervisane permisije ostaju nepromije
 
 Platform model za `tariff.manage` ostaje nepromijenjen (§24, §28.3 pravilo 4).
 
-Konkretne dodjele rolama pripadaju `docs/15` i odlukama od **D-039** nadalje; ovaj dokument
-ih **ne uvodi**.
+Konkretne dodjele rolama su prihvaćene u **D-039 do D-045** i konsolidovane u `15`; ovaj
+dokument ih **ne uvodi i ne mijenja**, nego na njih upućuje (§3.7.4, §28.4).
 
 ---
 
@@ -2569,8 +2655,8 @@ Vidljivost naspram autorizacije:
 
 Kompozicija:
 
-- membership sa `PHYSICIAN` **i** `PRACTICE_ADMIN` dobija **uniju** prihvaćenih grantova —
-  provjerljivo tek kada ih `docs/15` definiše;
+- membership sa `PHYSICIAN` **i** `PRACTICE_ADMIN` dobija **uniju** grantova obje role prema
+  prihvaćenoj matrici u `15`;
 - `DENY` u jednoj roli **ne poništava** `ALLOW` iz druge dodijeljene tenant role;
 - `platformRoles` **nikada ne doprinose** tenant permission uniji;
 - `SYSTEM_ADMIN` bez aktivnog membershipa dobija **`403`** na tenant rutama;
