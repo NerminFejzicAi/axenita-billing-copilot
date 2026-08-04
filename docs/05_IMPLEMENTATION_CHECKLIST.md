@@ -242,7 +242,7 @@ Normativno: D-038, klauzule 25–33; `02` §6.3a.
 - [ ] `/me` vraća `memberships` i `platformRoles` kao dva odvojena bloka.
 - [ ] `platformRoles` se ne pretvaraju u tenant membershipe.
 - [ ] `practice_memberships` bez RLS-a u ovoj fazi — bootstrap politika pripada Fazi 4 (D-033).
-- [ ] **effective-permission resolver postoji kao interface** koji konzumira buduću matricu iz `docs/15`; **ne hard-koduje** nijedan grant (`04` §5.3, aktivnost 6).
+- [ ] **effective-permission resolver postoji** i konzumira **prihvaćenu** matricu iz `15`; **ne hard-koduje** nijedan grant izvan nje (`04` §5.3, aktivnost 6).
 - [ ] inactive user test.
 - [ ] inactive membership test.
 
@@ -278,9 +278,52 @@ Normativno: `03` §10.
 - [ ] Self-enumeracija **nije** cross-practice administracija.
 - [ ] Self-enumeracija **ne rješava D-OPEN-011** — status ostaje `BLOCKED`.
 
-## BLOCKED — role matrica
+## Role matrica — prihvaćena
 
-- [ ] **BLOCKED** — nijedan konkretan role-to-permission grant se ne implementira dok Q1–Q9 ne budu prihvaćeni, D-039 do D-045 zabilježeni i `docs/15` kreiran. Vidi §5, sekcija `BLOCKED — role matrica`.
+Preduslovi su ispunjeni: vlasničke odluke su prihvaćene, **D-039 do D-045 su zabilježeni**, a
+**`15_ROLE_PERMISSION_MATRIX_V1.md` je kreiran i ACCEPTED**. Raniji blocker više ne važi.
+
+### Normativni izvor
+
+- [ ] `15_ROLE_PERMISSION_MATRIX_V1.md` **postoji** i status mu je **ACCEPTED**.
+- [ ] `15` je **konsolidovana normativna v1 role-permission matrica**.
+- [ ] `06` zadržava izvorne ADR-ove — D-023, D-032 i D-039 do D-045.
+- [ ] `03` definiše **imena permisija koje endpointi traže**.
+- [ ] `04` definiše **vlasništvo i sekvencu implementacije**.
+- [ ] Role grantovi se **ne izvode** iz proznih primjera ni starije dokumentacije.
+- [ ] Budući konflikt zahtijeva **ADR/dokument rekonsilijaciju**, nikada tiho tumačenje.
+
+### Katalog permisija
+
+- [ ] Postoji **tačno 32** aktivne permisije.
+- [ ] Nijedna aktivna permisija nije **dodana, uklonjena, preimenovana, podijeljena ni spojena**.
+- [ ] Postoje **tačno tri** rezervisane permisije: `analysis.run_tariff`, `configuration.manage`, `integration.manage`.
+- [ ] Nijedna rezervisana permisija **nije aktivan red matrice**.
+- [ ] Nijedna rezervisana permisija **nema produkcijski grant**.
+- [ ] Nepoznata ili rezervisana permisija **pada zatvoreno**.
+
+### Inventar rola
+
+- [ ] Tenant role su tačno: `PRACTICE_ADMIN`, `PHYSICIAN`, `MPA`, `BILLING_SPECIALIST`, `AUDITOR`, `READ_ONLY`.
+- [ ] Platform rola je tačno: `SYSTEM_ADMIN`.
+- [ ] Database role su tačno: `copilot_app`, `copilot_migrator`, `copilot_system`.
+- [ ] **Database role nisu kolone matrice.**
+- [ ] **`SYSTEM_ADMIN` nije `copilot_system`.**
+- [ ] `platformRoles` **nikada** ne ulaze u tenant kompoziciju.
+- [ ] `SYSTEM_ADMIN` **ne dobija** nijedan automatski tenant pristup.
+- [ ] **Database grant ne zadovoljava** permisiju endpointa.
+
+### Reprezentacija matrice
+
+- [ ] Implementacija predstavlja **tačno 32 reda** iz `15`.
+- [ ] Svaka ćelija je jedno od: `ALLOW`, `DENY`, `CONDITIONAL`, `BLOCKED — D-OPEN-011`.
+- [ ] Svaka aktivna permisija se pojavljuje **tačno jednom**.
+- [ ] Svaki red ima **svih sedam** aplikacijskih role ćelija.
+- [ ] Svaki `Source` se prati do **prihvaćenog ADR-a**.
+- [ ] **Nema prazne, `OPEN` ni nepoznate** ćelije.
+- [ ] Nijedna rezervisana permisija nije aktivan red.
+- [ ] Implementacijski izlaz se **mehanički poredi** sa `15`.
+- [ ] **Odstupanje od `15` obara build ili testove.**
 
 Evidence:
 
@@ -403,7 +446,10 @@ Normativno: D-038, klauzule 7–11 i 16–18; `03` §28.5; `04` §6.4.1.
 - [ ] Uslovna permisija zahtijeva podobnu tenant rolu **i** prihvaćenu practice postavku ili runtime uslov.
 - [ ] `platformRoles` **nikada** ne doprinose tenant permission uniji.
 - [ ] `SYSTEM_ADMIN` bez aktivnog tenant membershipa dobija **`403`** na tenant rutama.
-- [ ] **Nijedan grant koji pripada D-039 do D-045 ili `docs/15` nije hard-kodiran.**
+- [ ] **Svaki grant dolazi iz prihvaćene matrice u `15`**; resolver je učitava, a nijedan grant nije hard-kodiran izvan nje.
+- [ ] Duplirani grantovi iz dvije role **kolabiraju** u jednu efektivnu permisiju.
+- [ ] Trenutne role se učitavaju iz `practice_membership_roles` za **odabrani aktivni membership**.
+- [ ] **Caller-supplied rola se nikada ne prihvata.**
 
 ## Transaction-local context
 
@@ -436,14 +482,140 @@ Normativno: D-038, klauzule 7–11 i 16–18; `03` §28.5; `04` §6.4.1.
 - [ ] Phase gate pada ako implementacija tiho uvede neograničen pristup nad bilo kojom od te dvije tabele.
 - [ ] Self-enumeracija vlastitih membership rola (§17.4) **ne rješava D-OPEN-011**.
 
-## BLOCKED — role matrica
+## Role matrica — prihvaćene dodjele
 
-- [ ] **BLOCKED** — finalna role-to-permission implementacija ostaje blokirana dok:
-      **(a)** vlasničke odluke Q1–Q9 ne budu prihvaćene;
-      **(b)** D-039 do D-045 ne budu zabilježeni;
-      **(c)** `docs/15` ne bude kreiran.
-- [ ] Do tada resolver koristi **praznu ili test-only matricu**, nikada pogođene grantove.
-- [ ] Nijedan test ne tvrdi konkretan `PHYSICIAN` ili `PRACTICE_ADMIN` grant koji još nije prihvaćen.
+Normativni izvor: `15` §5; izvorne odluke D-023, D-032 i D-039 do D-045.
+
+### Dodjele sa najvećim rizikom
+
+- [ ] `integration.read` → `PRACTICE_ADMIN` only.
+- [ ] `tariff.manage` → `SYSTEM_ADMIN` only (platform).
+- [ ] `tariff.raw_result.read` → `PRACTICE_ADMIN` only.
+- [ ] `audit.read` → `PRACTICE_ADMIN` + `AUDITOR`.
+- [ ] `audit.export` → `PRACTICE_ADMIN` + `AUDITOR`.
+- [ ] `encounter.close` → `PRACTICE_ADMIN` + `PHYSICIAN` + `BILLING_SPECIALIST`.
+- [ ] `analysis.review_decision` → `PHYSICIAN` + `BILLING_SPECIALIST`.
+- [ ] `analysis.export` → `PHYSICIAN` + `BILLING_SPECIALIST`.
+- [ ] `analysis.export.read` → `PHYSICIAN` + `BILLING_SPECIALIST`.
+- [ ] `finding.resolve` → `PHYSICIAN` only.
+- [ ] `encounter.cancel` → `PHYSICIAN` only.
+- [ ] `analysis.cancel` → `PHYSICIAN` + `MPA`.
+- [ ] `encounter.document.archive` → `PHYSICIAN` only.
+
+### Negativne provjere
+
+- [ ] `PRACTICE_ADMIN` sam po sebi **nema nijednu kliničku ovlast**.
+- [ ] `AUDITOR` **ne pregleda** encountere, analize ni sirovi tarifni rezultat.
+- [ ] `READ_ONLY` ima **nula `ALLOW`** i **nula `CONDITIONAL`**.
+- [ ] `SYSTEM_ADMIN` **nema nijednu tenant permisiju** kroz platform rolu.
+- [ ] `MPA` **nema** `analysis.review_decision`.
+- [ ] `PRACTICE_ADMIN` sam po sebi **ne odobrava i ne opoziva** odobrenje.
+
+### Baseline workflow
+
+Vrijednosti se **mehanički porede** sa `15`; ne izvode se iz naziva role.
+
+- [ ] `patient_reference.read` odgovara `15`.
+- [ ] `patient_reference.create` odgovara `15`.
+- [ ] `encounter.read` odgovara `15`.
+- [ ] `encounter.create` odgovara `15`.
+- [ ] `encounter.update` odgovara `15`.
+- [ ] `encounter.document.list` odgovara `15`.
+- [ ] `encounter.document.read` odgovara `15`.
+- [ ] `encounter.document.create` odgovara `15`.
+- [ ] `analysis.read` odgovara `15`.
+- [ ] `analysis.run` odgovara `15`.
+
+### Uslovno odobravanje i opoziv
+
+Normativno: D-041; `03` §10 i §20; `15` §6.
+
+- [ ] `analysis.approve` — `PHYSICIAN` `ALLOW`.
+- [ ] `analysis.approve` — `MPA` `CONDITIONAL` uz `allow_mpa_approval = true`.
+- [ ] `analysis.approve` — `BILLING_SPECIALIST` `CONDITIONAL` uz `allow_billing_specialist_approval = true`.
+- [ ] `analysis.approve` — sve ostale role `DENY`.
+- [ ] `analysis.approval.revoke` ima **identične role ćelije** kao `analysis.approve`.
+- [ ] Flag **bez** odgovarajuće role **ne daje** permisiju.
+- [ ] Rola **bez** uključenog flaga je **odbijena**.
+- [ ] **Neaktivan membership je odbijen** i kada je flag uključen.
+- [ ] Podobnost se evaluira **u trenutku opoziva**.
+- [ ] **Opozivalac ne mora biti originalni odobravatelj.**
+- [ ] `reason` je **obavezan**.
+- [ ] Dokaz odobrenja se **nikada ne briše**.
+- [ ] Approval historija ostaje **immutable**.
+- [ ] **Revocation audit event** je emitovan.
+
+## Profili rola
+
+### AUDITOR
+
+- [ ] `audit.read` `ALLOW`.
+- [ ] `audit.export` `ALLOW`.
+- [ ] Sve ostale aktivne permisije `DENY`.
+- [ ] `practice.read` ostaje `BLOCKED — D-OPEN-011`.
+- [ ] **Nema discovery ni listing endpointa.**
+
+### READ_ONLY
+
+- [ ] **Nula `ALLOW`.**
+- [ ] **Nula `CONDITIONAL`.**
+- [ ] `practice.read` ostaje `BLOCKED — D-OPEN-011`.
+- [ ] Sve ostale aktivne permisije `DENY`.
+
+### PRACTICE_ADMIN
+
+- [ ] `practice.settings.read`.
+- [ ] `practice.settings.manage`.
+- [ ] `encounter.close`.
+- [ ] `tariff.raw_result.read`.
+- [ ] `audit.read`.
+- [ ] `audit.export`.
+- [ ] `integration.read`.
+- [ ] **Nema kliničkog pristupa** osim ako je zasebno dodijeljena druga prihvaćena tenant rola.
+
+## Endpoint authorization guards
+
+- [ ] Tražena permisija dolazi iz `03`.
+- [ ] Podobnost role dolazi iz `15`.
+- [ ] Guard koristi **centralizovani effective-permission resolver**.
+- [ ] Kod endpointa **ne hard-koduje** alternativnu listu rola.
+- [ ] Uslovi se provjeravaju **nakon** rezolucije membershipa i rola.
+- [ ] **RLS ostaje nezavisan drugi sloj**, ne zamjena za provjeru permisije.
+
+Negativne provjere:
+
+- [ ] nedostajuća permisija → `403`.
+- [ ] neaktivan membership → `403`.
+- [ ] membership sa nula rola → `403`.
+- [ ] samo `SYSTEM_ADMIN` na tenant ruti → `403`.
+- [ ] injekcija role → odbijena.
+- [ ] rola iz druge ordinacije → ne doprinosi.
+- [ ] isključen approval flag → `403`.
+- [ ] cross-user curenje rola → odbijeno.
+- [ ] cross-practice curenje rola → odbijeno.
+
+## Granice — izvan v1
+
+Klasifikacija je prihvaćena u D-045. **Za ove stavke se ne otvaraju implementacijski zadaci.**
+
+`OUT OF V1`:
+
+- [ ] kreiranje membershipa — **ne implementira se**.
+- [ ] deaktivacija membershipa — **ne implementira se**.
+- [ ] administracija membershipa — **ne implementira se**.
+- [ ] dodjela role — **ne implementira se**.
+- [ ] uklanjanje role — **ne implementira se**.
+- [ ] generička runtime administracija rola — **ne implementira se**.
+- [ ] cross-practice support pristup — **ne implementira se**.
+- [ ] otkazivanje export joba — **ne implementira se**.
+
+`REQUIRES NEW PERMISSION AND ADR`:
+
+- [ ] generička platform administracija izvan `tariff.manage`.
+- [ ] `AUDITOR` discovery/listing endpoint.
+- [ ] podjela `analysis.review_decision`.
+- [ ] podjela `analysis.export.read`.
+- [ ] finija permisija za rješavanje findinga.
 
 ## Guard i servisi
 
@@ -484,7 +656,13 @@ Normativno: D-038, klauzule 7–11 i 16–18; `03` §28.5; `04` §6.4.1.
 - [ ] pokušaj duplirane dodjele iste role.
 - [ ] pokušaj cross-practice dodjele koji krši composite FK.
 - [ ] `SYSTEM_ADMIN` **bez** tenant membershipa.
+- [ ] `SYSTEM_ADMIN` **sa** zasebnim tenant membershipom.
+- [ ] korisnik **bez ijednog** membershipa.
+- [ ] `PRACTICE_ADMIN` **bez** `PHYSICIAN`.
+- [ ] `AUDITOR`.
+- [ ] `READ_ONLY`.
 - [ ] uslovni approval flagovi u oba stanja — uključeni i isključeni.
+- [ ] Fixture **ne zavise od redoslijeda izvršavanja**.
 
 ## Testovi — D-038
 
@@ -502,7 +680,8 @@ Normativno: D-038, klauzule 7–11 i 16–18; `03` §28.5; `04` §6.4.1.
 - [ ] **odbijanje injekcije role** kroz request body, query parametar, header i argument database funkcije.
 - [ ] uklanjanje role, pa **uspješna ponovna dodjela** iste role.
 - [ ] zahtjevi za audit dokazom budućeg assignment/removal puta (`ASSIGNED` / `REMOVED`).
-- [ ] **BLOCKED** — testovi koji zahtijevaju konkretan grant po roli ostaju blokirani do D-039 do D-045 i `docs/15`; očekivani grantovi se **ne izmišljaju**.
+- [ ] **conformance test** — implementacijska matrica se mehanički poredi sa `15` i **odstupanje obara test**.
+- [ ] testovi tvrde **isključivo prihvaćene ćelije iz `15`** i ništa izvan njih.
 
 Gate:
 
@@ -521,7 +700,21 @@ završenom. Nijedan checkbox se ne označava bez izvršene provjere.
 - [ ] neaktivan membership **ne autorizuje** nijednu tenant rutu;
 - [ ] duplirana i cross-practice dodjela role **padaju**;
 - [ ] injekcija role **nije moguća**;
-- [ ] generički `users`/`practices` pristup zavisan od D-OPEN-011 **nije implementiran** bez prihvaćene odluke.
+- [ ] generički `users`/`practices` pristup zavisan od D-OPEN-011 **nije implementiran** bez prihvaćene odluke;
+- [ ] implementacijska matrica **ne odstupa** od `15`;
+- [ ] broj aktivnih permisija je **32**;
+- [ ] broj rezervisanih permisija je **3**;
+- [ ] nijedna rezervisana permisija **nema grant**;
+- [ ] nijedan `Source` u matrici **ne nedostaje** i svaki je **prihvaćen**;
+- [ ] nijedna role ćelija nije **prazna ni nepoznata**;
+- [ ] `DENY` **ne poništava** `ALLOW`;
+- [ ] `platformRoles` **ne ulaze** u tenant uniju;
+- [ ] `READ_ONLY` **ne dobija** nijedan grant;
+- [ ] `AUDITOR` **ne dobija** treću permisiju;
+- [ ] `PRACTICE_ADMIN` **ne dobija** klinički pristup automatski;
+- [ ] podobnost za `analysis.approve` i `analysis.approval.revoke` je **identična**;
+- [ ] `encounter.close` ima **sve tri** prihvaćene role;
+- [ ] endpoint guardovi **ne odstupaju** od `03` ni od `15`.
 
 Evidence:
 
@@ -531,7 +724,7 @@ Tables:
 Migration paket: 013_rls_policies
 Test command:
 Test result:
-Role matrica status: BLOCKED (D-039 … D-045, docs/15)
+Role matrica conformance (vs docs/15):
 ```
 
 ---
@@ -881,3 +1074,24 @@ Final commit:
 - [ ] penetration/security review.
 - [ ] support/runbook.
 - [ ] rollback plan.
+
+---
+
+# 16. Dokumentacijska sekvenca — role-permission model
+
+Već usklađeno:
+
+- [x] `06_DECISION_LOG.md` — D-039 do D-045 **ACCEPTED**.
+- [x] `15_ROLE_PERMISSION_MATRIX_V1.md` — **kreiran i ACCEPTED**.
+- [x] `03_API_CONTRACT_V1.md` — usklađen sa `15`.
+- [x] `04_BACKEND_IMPLEMENTATION_PLAN_V1.md` — usklađen sa `15`.
+- [x] `05_IMPLEMENTATION_CHECKLIST.md` — ovaj dokument, usklađen sa `15`.
+
+Čeka kontrolisani batch:
+
+- [ ] `07_CURSOR_PHASE_PROMPTS.md`.
+- [ ] `08_TEST_STRATEGY_V1.md`.
+- [ ] `MANIFEST.md`.
+
+Dok ta tri dokumenta ne budu usklađena, njihove `BLOCKED` oznake za produkcijske role grantove
+ostaju na snazi i **ne uklanjaju se iz ovog dokumenta**.
