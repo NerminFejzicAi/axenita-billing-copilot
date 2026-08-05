@@ -1074,6 +1074,205 @@ Nijedan red se ne pojavljuje dva puta i nijedan red ne nedostaje.
 
 ---
 
+# D-046 — Immutable correction events i deterministička pokrivenost review odluka
+
+- **Status:** ACCEPTED
+- **Datum:** 2026-08-05
+- **Kontekst/problem:** `02` sadrži tri međusobno protivrječne normativne tvrdnje o relaciji `review_item_changes` → `review_decisions`: §13.2 kaže da composite FK **nije deklarisan**, §28.1 je navodi među osam nedeklarisanih relacija, a §22.9 tvrdi da ga paket `009_review_approvals` **kreira**. Uz to, `review_item_changes` **nema nijednu analysis ni revision kolonu**, pa se korekcija ne može pripisati reviziji nijednim putem. Kolona `review_decision_id` je definisana kao obavezna, dok korekcije nastaju kroz `PATCH /analyses/{id}/facts/{factId}` i `PATCH /analyses/{id}/service-candidates/{candidateId}` — endpointe koji ne traže postojanje odluke. Tabela je append-only i `copilot_app` nema `UPDATE` grant (§18.1), pa se veza ne može ni naknadno upisati.
+- **Odluka:**
+
+  **Proizvodna pravila**
+
+  1. Korekcija izvučene činjenice ili service kandidata smije biti perzistirana **prije** i **bez** ijednog `review_decisions` reda.
+  2. `review_item_changes` predstavlja **nezavisan immutable correction event**.
+  3. Svaki `review_item_changes` red pripada **tačno jednoj** analysis reviziji kroz obavezan `analysis_run_id`.
+  4. Jedan `analysis_runs` red je jedna analysis revizija; **`analysis_run_id` je autoritativni identitet revizije**.
+  5. Kada se kreira review odluka, ona pokriva **svaki** `review_item_changes` red koji: pripada istom `practice_id`; pripada istom `analysis_run_id`; i **commitovan je i vidljiv** kada decision transakcija uspostavi svoju determinističku granicu pokrivenosti.
+  6. Korekcije već povezane sa **ranijom** review odlukom **takođe se povezuju** sa kasnijom odlukom za isti `analysis_run_id` kada su vidljive na kasnijoj granici.
+  7. Korekcija commitovana **nakon** granice pokrivenosti **nije** povezana sa tom odlukom i smije biti povezana sa kasnijom.
+  8. Klijent **ne šalje** `review_item_change` ID-eve u `POST /analyses/{id}/decisions`.
+  9. Asocijacija odluke i promjene se **izvodi serverski**.
+  10. Postojeći correction redovi se **nikada ne updateuju** radi dodavanja veze prema odluci.
+  11. Correction eventi i decision/change linkovi su **append-only**.
+  12. Brisanje **nikada** ne smije ukloniti correction ni decision-link audit dokaz.
+
+  **Uklanjanje direktne relacije**
+
+  13. `review_item_changes` **više ne sadrži** `review_decision_id`.
+  14. Tabela **ne smije** sadržavati ni nullable ni obavezan direktan `review_decision_id`.
+  15. **Naknadni `UPDATE` se ne koristi** za povezivanje korekcije sa odlukom.
+
+  Nullable direktna veza je odbijena jer: korekcije mogu prethoditi odlukama; `review_item_changes` je append-only; kolona bi zato u normalnom toku **trajno ostala `NULL`**; i implicirala bi asocijaciju koju sistem ne može održavati.
+
+  **Model `review_item_changes`**
+
+  16. Postojeća identitetska i correction-event polja ostaju nepromijenjena.
+  17. **Uklanja se** `review_decision_id`.
+  18. **Dodaje se** `analysis_run_id uuid NOT NULL`.
+  19. Constraints:
+
+```sql
+primary key (id)
+unique (practice_id, id)
+unique (practice_id, analysis_run_id, id)
+
+foreign key (practice_id, analysis_run_id)
+  references analysis_runs(practice_id, id)
+  on delete no action
+  on update no action
+```
+
+  20. Lifecycle i grants: **append-only**; `copilot_app` `SELECT` i `INSERT` prema prihvaćenom grant modelu; **bez `UPDATE` granta**; **bez `DELETE` granta**. `analysis_revision_number` se **ne dodaje** na ovu tabelu.
+
+  **Dopune `review_decisions`**
+
+  21. Sve postojeće kolone ostaju.
+  22. `analysis_revision_number` ostaje **immutable informacijski audit podatak**; D-046 ga **ne uklanja i ne preimenuje**.
+  23. Dodaju se:
+
+```sql
+unique (practice_id, analysis_run_id, id)
+
+foreign key (practice_id, analysis_run_id)
+  references analysis_runs(practice_id, id)
+  on delete no action
+  on update no action
+```
+
+  24. `review_decisions` ostaje **append-only**.
+
+  **D-046 ne sprovodi** database saglasnost između `review_decisions.analysis_revision_number` i `analysis_runs.revision_number`. To je **postojeće pitanje denormalizovanog snapshota**, izvan obuhvata D-046, može zahtijevati zasebnu buduću schema-governance odluku i **nije preduslov** za integritet decision/change linkova.
+
+  **Nova tabela `review_decision_change_links`**
+
+  25. Ime tabele je **prihvaćeno**: `review_decision_change_links`.
+  26. Kolone: `id uuid`; `practice_id uuid NOT NULL`; `analysis_run_id uuid NOT NULL`; `review_decision_id uuid NOT NULL`; `review_item_change_id uuid NOT NULL`; `created_at timestamptz NOT NULL`.
+  27. Constraints:
+
+```sql
+primary key (id)
+unique (practice_id, id)
+unique (practice_id, review_decision_id, review_item_change_id)
+
+foreign key (practice_id, analysis_run_id, review_decision_id)
+  references review_decisions(practice_id, analysis_run_id, id)
+  on delete no action
+  on update no action
+
+foreign key (practice_id, analysis_run_id, review_item_change_id)
+  references review_item_changes(practice_id, analysis_run_id, id)
+  on delete no action
+  on update no action
+```
+
+  28. Lifecycle: **append-only**; **bez `UPDATE` granta**; **bez `DELETE` granta**.
+  29. **Jedan `analysis_run_id` u link redu konzumiraju oba composite FK-a.** Zato sama baza sprječava: cross-practice linkove; **same-practice ali cross-analysis-run linkove**; cross-revision linkove; orphan decision linkove; orphan correction linkove.
+  30. Vrijednost `analysis_run_id` u link redu **ne može odstupiti** od nijednog roditelja — oba FK-a je vežu.
+
+  **Kardinalnost**
+
+  31. Jedna review odluka → **nula ili više** `review_item_changes`.
+  32. Jedan `review_item_change` → **nula ili više** review odluka.
+  33. Jedan par odluka/promjena → **najviše jedan** link red.
+
+  `unique (practice_id, review_item_change_id)` se **ne dodaje**, jer bi netačno ograničio korekciju na jednu odluku. Već povezane korekcije se **ne isključuju** iz kasnijih odluka.
+
+  **Deterministička granica pokrivenosti**
+
+  34. Obje transakcije — correction i review-decision — **prvo** zauzimaju isti revision lock:
+
+```sql
+select ...
+from analysis_runs
+where practice_id = :practice_id
+  and id = :analysis_run_id
+for update;
+```
+
+  35. `analysis_runs` row lock je **prvi zajednički domenski lock** koji zauzimaju obje vrste transakcija.
+  36. **Granica pokrivenosti nastaje u trenutku kada decision transakcija zauzme taj lock.**
+  37. Korekcija commitovana **prije** nego što odluka zauzme lock je vidljiva i **uključena**.
+  38. Correction transakcija koja dođe do iste revizije dok je decision lock držan **čeka**.
+  39. Korekcija commitovana **nakon** što odluka otpusti lock je **isključena** iz tekuće odluke i smije biti pokrivena kasnijom.
+  40. **D-029 optimistic locking** nad `extracted_facts` odnosno `service_candidates` redom ostaje **nepromijenjen**.
+  41. Zajednički revision lock **dopunjuje, a ne zamjenjuje** `version` / `If-Match` provjere.
+  42. Zaključava se **jedan resurs u jednoj dosljednoj prvoj poziciji**, pa lock-order ciklus nije moguć.
+  43. Rollback otpušta lock i **ne ostavlja** parcijalnu odluku, link ni audit stanje.
+
+  **Decision transakcija**
+
+  44. `POST /analyses/{id}/decisions` interno izvršava **jednu atomarnu transakciju**: autentifikacija i tenant context prema prihvaćenom authorization toku (D-033, `03` §3.7) → zaključavanje odabranog `analysis_runs` reda `FOR UPDATE` → validacija tekuće revizije i stanja → izbor **svih** `review_item_changes` redova sa istim `practice_id` i `analysis_run_id` → **bez** filtriranja već povezanih promjena → `INSERT` u `review_decisions` → `INSERT` jednog `review_decision_change_links` reda po odabranoj promjeni → upis obaveznog audit dokaza → atomarni `COMMIT`.
+  45. **Nula odabranih promjena je validno stanje** — odluka bez korekcija je legitimna.
+  46. **Ne dodaje se** polje za correction ID-eve u request payload.
+  47. **Ne dodaje se** nijedno novo polje u response payload.
+  48. Kasnija odluka smije ponovo povezati istu korekciju.
+  49. Duplirani linkovi za **istu** odluku su spriječeni prihvaćenim unique constraintom iz klauzule 27.
+  50. Neuspjeh **rollback-uje** odluku, sve linkove i audit upise.
+  51. Već prihvaćeno idempotency ponašanje za `POST /decisions` ostaje **nepromijenjeno**.
+  52. Korekcije za jednu analysis reviziju su **serijalizovane** naspram kreiranja odluke.
+
+- **Podjela odgovornosti sprovođenja:**
+
+| Pravilo | Sprovodi |
+|---|---|
+| ista ordinacija | **database constraint** — oba composite FK-a |
+| isti `analysis_run_id` | **database constraint** — zajednička kolona u oba trokolonska FK-a |
+| ista revizija | **database constraint** — revizija **jeste** `analysis_runs` red |
+| odluka postoji | **database constraint** — FK |
+| korekcija postoji | **database constraint** — FK |
+| nema dupliranog para | **database constraint** — unique |
+| nema orphan linka | **database constraint** — `NOT NULL` + FK |
+| zaštita roditelja | **database constraint** — `ON DELETE NO ACTION` |
+| **vidljivost korekcije na granici** | **transaction/lock redoslijed** — jedino pravilo koje nije izrazivo constraintom |
+| cross-user pristup | **RLS** i aplikacijska autorizacija |
+| endpoint permisije | aplikacijska autorizacija (`03` §3.7, `15`) |
+| tenant pristup | **RLS** i database constraint |
+| nema kasnije mutacije | **grants** — bez `UPDATE` |
+| nema brisanja | **grants** — bez `DELETE` |
+
+- **Razlog:** Trokolonski composite FK-ovi pretvaraju "ista ordinacija i ista revizija" iz aplikacijskog obećanja u **database garanciju**. Dvokolonski model bi zaustavio cross-practice linkove, ali bi unutar iste ordinacije i dalje dopuštao da odluka iz revizije A referencira korekciju iz revizije B. Nezavisni correction event uz immutable link tabelu je jedini model koji istovremeno poštuje append-only semantiku i proizvodno pravilo da korekcija smije prethoditi odluci.
+- **Alternative:**
+  1. **Nullable direktni `review_decision_id`** — odbijen jer bi u normalnom toku trajno ostao `NULL`; popunjavanje bi tražilo `UPDATE` koji ne postoji kao grant.
+  2. **Obavezan direktni `review_decision_id`** — odbijen jer bi zabranio korekciju prije odluke, protivno prihvaćenom proizvodnom pravilu.
+  3. **Bez FK-a, isključivo aplikacijska korelacija** — odbijena jer odbacuje besplatnu database zaštitu tenant i revision integriteta.
+  4. **Uklanjanje kolone bez link tabele** — odbijeno jer trajno gubi dokaz koje je korekcije odluka pokrila.
+  5. **`SERIALIZABLE` bez zajedničkog locka** — odbijen jer traži retry logiku na svakom putu, a repozitorij nema `SERIALIZABLE` konvenciju.
+- **Vlasništvo migracija:** Schema vlasništvo ostaje **`009_review_approvals`** i obuhvata: novi candidate key na `review_decisions`; composite FK `review_decisions` → `analysis_runs`; uklanjanje `review_decision_id` sa `review_item_changes`; dodavanje `analysis_run_id`; novi candidate key na `review_item_changes`; composite FK `review_item_changes` → `analysis_runs`; tabelu `review_decision_change_links`; njen primarni ključ; oba unique constrainta; oba trokolonska composite FK-a; i prihvaćene table grantove. **RLS vlasništvo ostaje `013_rls_policies`** i obuhvata `ENABLE ROW LEVEL SECURITY`, `FORCE ROW LEVEL SECURITY` i tenant politiku nad `review_decision_change_links` koja koristi postojeći predikat `practice_id = app.practice_id`. **RLS se ne premješta u paket `009`. Nijedan migration paket se ne dodaje niti renumeriše.**
+- **RLS i grants:** `review_decision_change_links` je **obična tenant tabela**. Inventar tenant tabela raste **sa 29 na 30**. RLS je `ENABLE` **i** `FORCE`. `copilot_app` dobija **isključivo `SELECT` i `INSERT`**; **bez `UPDATE`**; **bez `DELETE`**. `copilot_system` **ne dobija** nijedan automatski grant nad tenant tabelom (D-023). `PUBLIC` **ne dobija** nijedan grant. **Nijedan bootstrap izuzetak se ne primjenjuje** — tenant context mora već biti uspostavljen prije čitanja.
+- **Indeksi:** D-046 **ne uvodi nijedan spekulativni samostalni indeks**. Prihvaćeni unique constrainti već obezbjeđuju potrebne btree indekse za: ciljeve roditeljskih FK-ova; izbor korekcija po prefiksu `(practice_id, analysis_run_id)`; pretragu linkova po prefiksu `(practice_id, review_decision_id)`; i sprječavanje dupliranih linkova. Za v1 se **eksplicitno odbijaju**, dok mjereni query ne pokaže potrebu: `review_item_changes (practice_id, analysis_run_id, changed_at, id)` i `review_decision_change_links (practice_id, review_item_change_id)`. Vrijedi postojeće pravilo o zabrani spekulativnih indeksa (`02` §21).
+- **Posljedica za API:** **Nijedan javni endpoint se ne dodaje ni uklanja.** Nema izmjene request payloada. Nema izmjene response payloada. Nijedna permisija se ne dodaje, uklanja, preimenuje, dijeli ni spaja — **32 aktivne i 3 rezervisane ostaju nepromijenjene**. Nema izmjene HTTP statusa ni API error kodova. Nema izmjene state machine tranzicija. **D-029** optimistic-locking ugovor, **D-034** semantika lanca revizija, **D-036** izvođenje permisije i **D-037** export greške ostaju nepromijenjeni. **`docs/15` role-permission matrica je nepromijenjena.**
+- **Security/privacy uticaj:** Svaka korekcija je pripisiva **tačnoj ordinaciji i tačnoj analysis reviziji**. Svaka review odluka može dokazati **tačno koje** correction evente je pokrila. Ista immutable korekcija smije legitimno biti dokaz za **više** odluka. Pokrivenost odluke je **reproducibilna iz immutable link redova**, ne iz naknadne rekonstrukcije. Nijedna korekcija ni link se ne mijenja nakon inserta. Brisanje ne može kaskadno uništiti audit dokaz. Database constrainti sprječavaju **same-tenant cross-revision** pogrešno povezivanje. RLS ostaje nezavisan sloj tenant pristupa. Aplikacijska validacija **nije jedina zaštita** integriteta roditelja.
+- **Operativni nedostaci:** Zajednički revision lock uvodi **ograničenu kontenciju po analizi** — korekcije za istu reviziju serijalizuju se naspram kreiranja odluke. Vlasnik **prihvata** taj trošak: review rad je ljudskog tempa i vezan za jednu analizu, a lock kupuje **determinističku i auditabilnu granicu pokrivenosti**. Bez njega pravilo iz klauzule 5 nije implementabilno, jer bi korekcija mogla commitovati usred odluke bez definisanog odgovora o pokrivenosti.
+- **Implementacijske posljedice:** Correction endpointi zahtijevaju **internu** izmjenu — zauzimanje `analysis_runs` row locka na početku transakcije. **Javni ugovor se ne mijenja**: `If-Match`, `version`, payloadi, statusi i error kodovi ostaju identični. Decision transakcija već koristi `SELECT … FOR UPDATE` prema `14` §9, pa se obrazac proširuje, ne uvodi.
+- **Test dokaz:** Kasnija rekonsilijacija mora zahtijevati testove za:
+  - validan same-practice, same-run link;
+  - **odbijen cross-practice link**;
+  - **odbijen same-practice ali cross-analysis-run link — na database constraintu, ne u aplikaciji**;
+  - odbijenu nepostojeću odluku;
+  - odbijenu nepostojeću korekciju;
+  - odbijen duplirani par odluka/promjena;
+  - jednu odluku povezanu sa više korekcija;
+  - jednu korekciju povezanu sa više odluka;
+  - odluku sa nula korekcija;
+  - korekciju commitovanu prije granice — uključenu;
+  - konkurentnu korekciju koja **čeka** na zajedničkom `analysis_runs` locku;
+  - korekciju nakon granice — isključenu iz tekuće odluke;
+  - kasniju odluku koja tu korekciju smije uključiti;
+  - retry koji **ne duplira** linkove;
+  - potpun rollback bez parcijalne odluke, linkova ni audit dokaza;
+  - odbijen `UPDATE`;
+  - odbijen `DELETE`;
+  - brisanje bilo kojeg roditelja blokirano `NO ACTION`-om;
+  - odbijeno cross-tenant RLS čitanje;
+  - introspekciju constrainta i migration paketa;
+  - introspekciju vlasništva RLS paketa.
+- **Eksplicitna isključenja:** D-046 **ne uključuje**: FK rad za `extracted_facts.analysis_run_id`; FK rad za `service_candidates.analysis_run_id`; ispravku njihovog izostanka iz `02` §28.1; sprovođenje saglasnosti između `review_decisions.analysis_revision_number` i `analysis_runs.revision_number`; `analysis_revision_number` na `review_item_changes`; `analysis_revision_number` na `review_decision_change_links`; nove samostalne indekse; novi endpoint; novo payload polje; novu permisiju; novu aplikacijsku rolu; novu database rolu; novi migration paket; izmjenu `docs/15`; rješavanje D-OPEN-011; čišćenje navodnika u `04`. **Nedostajući `analysis_run` FK-ovi na `extracted_facts` i `service_candidates` su zasebno schema-governance pitanje. Saglasnost revision-number snapshota u `review_decisions` je zasebno schema-governance pitanje. Nijedno nije preduslov za D-046.**
+- **Posljedice za rješavanje kontradikcije:** Kasnija `02` rekonsilijacija mora: ukloniti direktnu relaciju `review_item_changes.review_decision_id`; dodati prihvaćeni `analysis_run_id` anchor; dodati `review_decision_change_links`; uskladiti §13.1; uskladiti §13.2; uskladiti §22.9; uskladiti §25.2; uskladiti §28.1; **ispraviti lažnu tvrdnju o phantom FK-u**; **ispraviti broj deklarisanih composite FK-ova**; ažurirati inventar tenant tabela **29 → 30**; ažurirati listu objekata paketa `009`; i ažurirati RLS pokrivenost paketa `013`. **Te izmjene se ne izvršavaju u ovom batchu.**
+- **Dokumenti za kasniju rekonsilijaciju:** redoslijed je **`02` → `04` → `05` → `07` → `08` → opciono `14` → `MANIFEST.md`**. `14` se uključuje samo ako vlasnik želi da sekvencijalni dijagram prikaže link upise i correction-side lock; §9 dijagram je i bez toga tačan, samo nepotpun. **`03` se ne usklađuje jer se javni API ugovor ne mijenja.** **`docs/15` nije zahvaćen.** **`MANIFEST.md` se osvježava tačno jednom, na kraju sekvence** — nikada nakon pojedinačnog međukoraka.
+- **Zavisnosti:** D-006, D-016, D-022, D-023, D-029, D-031, D-033, D-034, D-036, D-038.
+
+---
+
 # Otvorene odluke
 
 ## D-OPEN-001 — Produkcijski OIDC provider
