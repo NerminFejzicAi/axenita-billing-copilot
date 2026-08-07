@@ -402,6 +402,23 @@ Paket: `013_rls_policies`. Normativno: `02` §17.4; D-038, klauzule 22–23.
 - [ ] SECURITY INVOKER kompatibilnost je zadržana.
 - [ ] **D-OPEN-011 ostaje neriješen** — ova politika ga ne zatvara.
 
+## RLS za `review_decision_change_links`
+
+Paket: `013_rls_policies`. Normativno: `02` §13.2a, §18.1 i §22.13; D-046, klauzule 25–33.
+
+- [ ] `ENABLE ROW LEVEL SECURITY`.
+- [ ] `FORCE ROW LEVEL SECURITY`.
+- [ ] Standardna tenant politika `practice_id = app.practice_id`.
+- [ ] **Nijedan bootstrap izuzetak se ne primjenjuje** — tenant context mora već biti uspostavljen.
+- [ ] `copilot_app` ima **isključivo** `SELECT` i `INSERT`.
+- [ ] `copilot_app` **nema** `UPDATE` grant.
+- [ ] `copilot_app` **nema** `DELETE` grant.
+- [ ] `copilot_system` **nema** nijedan automatski grant (D-023).
+- [ ] `PUBLIC` **nema** nijedan grant.
+- [ ] Owner ostaje `copilot_migrator`.
+- [ ] Cross-tenant čitanje je **odbijeno**.
+- [ ] Vlasnik paketa je `013_rls_policies`; **ne uvodi se novi broj paketa**.
+
 ## Database grants
 
 Normativno: `02` §20.2.
@@ -926,8 +943,12 @@ Tests:
 
 Status: `NOT_STARTED`
 
+Vlasnik migration paketa: **`009_review_approvals`** (schema) i **`013_rls_policies`** (RLS).
+Ne uvodi se novi broj paketa.
+
 - [ ] review_decisions.
 - [ ] review_item_changes.
+- [ ] review_decision_change_links.
 - [ ] approvals.
 - [ ] correction endpoint.
 - [ ] correction reason.
@@ -944,10 +965,66 @@ Status: `NOT_STARTED`
 - [ ] approved edit fails.
 - [ ] revoke history preserved.
 
+## Schema — D-046
+
+Normativno: `02` §13.1, §13.2, §13.2a, §22.9 i §25.2.2; D-046, klauzule 13–33.
+
+- [ ] `review_item_changes.analysis_run_id` postoji i je `not null`.
+- [ ] `review_item_changes` **nema** kolonu `review_decision_id` — ni nullable ni obaveznu.
+- [ ] **Ne postoji** composite FK `review_item_changes` → `review_decisions`.
+- [ ] Composite FK `review_item_changes (practice_id, analysis_run_id)` → `analysis_runs (practice_id, id)`.
+- [ ] Composite FK `review_decisions (practice_id, analysis_run_id)` → `analysis_runs (practice_id, id)`.
+- [ ] Kandidat ključ `review_decisions unique (practice_id, analysis_run_id, id)`.
+- [ ] Kandidat ključ `review_item_changes unique (practice_id, analysis_run_id, id)`.
+- [ ] Tabela `review_decision_change_links` postoji.
+- [ ] Ima **tačno** kolone `id`, `practice_id`, `analysis_run_id`, `review_decision_id`, `review_item_change_id` i `created_at`, sve `not null`.
+- [ ] `primary key (id)`.
+- [ ] `unique (practice_id, id)`.
+- [ ] `unique (practice_id, review_decision_id, review_item_change_id)`.
+- [ ] Composite FK `(practice_id, analysis_run_id, review_decision_id)` → `review_decisions (practice_id, analysis_run_id, id)`.
+- [ ] Composite FK `(practice_id, analysis_run_id, review_item_change_id)` → `review_item_changes (practice_id, analysis_run_id, id)`.
+- [ ] **Oba** trokolonska FK-a navode `NO ACTION` i za `ON DELETE` **i** za `ON UPDATE`.
+- [ ] `unique (practice_id, review_item_change_id)` se **ne dodaje**.
+- [ ] Append-only grantovi: `SELECT` i `INSERT`, **bez** `UPDATE` i **bez** `DELETE`.
+- [ ] **Nijedan spekulativni samostalni indeks se ne kreira** (`02` §21).
+- [ ] Schema objekti pripadaju paketu `009_review_approvals`; RLS objekti paketu `013_rls_policies`.
+
+## Transakcija i pokrivenost — D-046
+
+Normativno: `02` §13.2a.1; `04` §12.3.1; D-046, klauzule 34–52.
+
+- [ ] Correction transakcija zauzima `analysis_runs … FOR UPDATE` **prva**.
+- [ ] Decision transakcija zauzima **isti** lock **prva**.
+- [ ] Granica pokrivenosti nastaje u trenutku kada decision transakcija zauzme taj lock.
+- [ ] Odluka bira **sve** `review_item_changes` redove sa istim `practice_id` i `analysis_run_id`.
+- [ ] Već povezane korekcije se **ne filtriraju**.
+- [ ] Korekcija commitovana prije granice je **uključena**.
+- [ ] Konkurentna correction transakcija **čeka**.
+- [ ] Korekcija commitovana nakon granice je **isključena** iz tekuće odluke.
+- [ ] Kasnija odluka smije povezati istu korekciju.
+- [ ] Odluka sa **nula** povezanih korekcija uspijeva.
+- [ ] Jedna korekcija smije biti povezana sa **više** odluka.
+- [ ] Odluka, linkovi i audit su **jedna atomarna transakcija**.
+- [ ] Neuspjeh rollback-uje sve — bez parcijalne odluke, linka ni audit reda.
+- [ ] Retry **ne duplira** linkove iste odluke.
+- [ ] Korekcija je perzistirana **prije i bez** ijedne odluke.
+- [ ] **Naknadni `UPDATE` se ne koristi** za povezivanje korekcije sa odlukom.
+- [ ] `POST /analyses/{id}/decisions` **ne prima** polje sa correction ID-evima.
+- [ ] Nema izmjene request ni response payloada.
+- [ ] D-029 `version` / `If-Match` ponašanje je **nepromijenjeno**.
+
+## Verifikacija inventara — D-046
+
+- [ ] Inventar tenant tabela je **tačno 30** (`02` §2.5 i §18.1).
+- [ ] Inventar deklarisanih composite FK-ova je **tačno 14** (`02` §28.1).
+- [ ] Nijedan novi endpoint, payload polje, permisija, rola, state tranzicija, API error kod ni migration paket nije uveden.
+
 Evidence:
 
 ```text
 Migration:
+RLS:
+Coverage boundary:
 Approval hash:
 Tests:
 ```

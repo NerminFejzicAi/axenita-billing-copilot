@@ -272,9 +272,14 @@ Pokušaji:
 - Encounter A → Patient B;
 - Candidate A → Analysis B;
 - Evidence A → Document B;
-- Export A → Approval B.
+- Export A → Approval B;
+- Link A → Decision B;
+- Link A → Change B;
+- Link A → korekcija iste ordinacije ali **drugog `analysis_run_id`**.
 
 Svaki mora pasti na database constraintu, ne samo application validationu.
+
+Posljednja tri pokušaja pokrivaju oba trokolonska D-046 FK-a; detaljna pokrivenost je u §24a.
 
 ---
 
@@ -578,6 +583,9 @@ Rule registry:
 - candidate edit after approval denied;
 - revoke;
 - second active approval denied.
+
+Pokrivenost review odluke i povezivanje korekcija testiraju se u **§24a** (D-046). Korekcija je
+nezavisan immutable event bez direktne veze prema odluci; ovaj odjeljak je **ne pretpostavlja**.
 
 ## 17.1 Permisije odluka (D-036)
 
@@ -1451,6 +1459,132 @@ administracijski put ne bude uveden (§24.3). **Takav put se ne izmišlja u test
 
 ---
 
+# 24a. D-046 — Immutable correction eventi i deterministička pokrivenost review odluka
+
+Normativno: D-046; `02` §13.1, §13.2, §13.2a, §13.2a.1, §18.1, §22.9, §22.13, §25.2.2 i §28.1;
+`04` §12.3.1; `05` Faze 4 i 10.
+
+Vlasništvo migracija: schema objekti u **`009_review_approvals`**, RLS objekti u
+**`013_rls_policies`**. Nijedan novi broj paketa se ne uvodi.
+
+`review_item_changes` je **nezavisan immutable correction event**. Nijedan test **ne smije**
+pretpostaviti direktnu kolonu `review_decision_id` ni relaciju
+`review_item_changes` → `review_decisions`; asocijacija postoji **isključivo** kroz
+`review_decision_change_links`.
+
+## 24a.1 Schema constrainti
+
+Nivo: integration. Introspekcija, ne aplikacijski poziv.
+
+- `review_item_changes` **nema kolonu `review_decision_id`** — ni nullable ni obaveznu;
+- **ne postoji** composite FK `review_item_changes` → `review_decisions`;
+- `review_item_changes.analysis_run_id` postoji i je `not null`;
+- composite FK `review_item_changes (practice_id, analysis_run_id)` →
+  `analysis_runs (practice_id, id)` postoji;
+- composite FK `review_decisions (practice_id, analysis_run_id)` →
+  `analysis_runs (practice_id, id)` postoji;
+- **oba roditeljska kandidat ključa postoje** —
+  `review_decisions unique (practice_id, analysis_run_id, id)` i
+  `review_item_changes unique (practice_id, analysis_run_id, id)`;
+- tabela `review_decision_change_links` postoji i ima **tačno** kolone `id`, `practice_id`,
+  `analysis_run_id`, `review_decision_id`, `review_item_change_id` i `created_at`, sve `not null`;
+- `primary key (id)`, `unique (practice_id, id)` i
+  `unique (practice_id, review_decision_id, review_item_change_id)` postoje;
+- **oba trokolonska composite FK-a postoje** — prema
+  `review_decisions (practice_id, analysis_run_id, id)` i prema
+  `review_item_changes (practice_id, analysis_run_id, id)`;
+- **svi D-046 FK-ovi navode `NO ACTION`** i za `ON DELETE` **i** za `ON UPDATE`;
+- `unique (practice_id, review_item_change_id)` **ne postoji** — korekcija nije ograničena na
+  jednu odluku;
+- **nijedan spekulativni samostalni indeks nije kreiran** (`02` §21).
+
+## 24a.2 Integritet linkova
+
+Nivo: integration. Svaki negativan slučaj mora pasti na **database constraintu**.
+
+- validan same-practice, same-analysis-run link **prolazi**;
+- **cross-practice link pada**;
+- **same-practice ali cross-analysis-run link pada na database constraintu, ne na aplikacijskoj
+  validaciji**;
+- link prema **nepostojećoj odluci** pada;
+- link prema **nepostojećoj korekciji** pada;
+- **duplirani par** odluka/promjena pada;
+- jedna odluka smije referencirati **više** korekcija;
+- jedna korekcija smije biti referencirana od **više** odluka;
+- **nula correction linkova je validno stanje** odluke;
+- `analysis_run_id` u link redu **ne može odstupiti** od nijednog roditelja — oba FK-a ga vežu.
+
+## 24a.3 Deterministička granica pokrivenosti
+
+Nivo: integration + concurrency. Testovi su determinističi i koriste kontrolisane transakcije,
+ne `sleep`.
+
+- korekcija commitovana **prije** nego što decision transakcija zauzme
+  `analysis_runs … FOR UPDATE` je **uključena**;
+- correction transakcija koja dođe do iste revizije dok je decision lock držan **čeka** i
+  nastavlja tek nakon otpuštanja;
+- korekcija commitovana **nakon** granice je **isključena** iz tekuće odluke;
+- **kasnija odluka za isti `analysis_run_id` je smije uključiti**;
+- korekcija **već povezana** sa ranijom odlukom se **ne filtrira** i pojavljuje se i u kasnijoj
+  odluci;
+- odluka bira **sve** redove sa istim `practice_id` i `analysis_run_id` — selekcija se **ne
+  sužava** postojećim linkovima;
+- retry i prihvaćeno idempotency ponašanje **ne dupliraju** linkove **iste** odluke;
+- obje vrste transakcija zauzimaju lock **prve**, u jednoj dosljednoj poziciji — lock-order
+  ciklus se ne može reprodukovati;
+- D-029 `version` / `If-Match` ponašanje nad `extracted_facts` i `service_candidates` je
+  **nepromijenjeno** — zajednički lock ga dopunjuje, ne zamjenjuje;
+- klijent **ne šalje** correction ID-eve; asocijacija je serverski izvedena i **nijedan request
+  ni response payload se ne mijenja**.
+
+## 24a.4 Atomarnost i rollback
+
+Nivo: integration + audit.
+
+- simulirani neuspjeh nakon `INSERT` odluke rollback-uje odluku, linkove i audit;
+- simulirani neuspjeh pri upisu linka rollback-uje odluku i audit;
+- simulirani neuspjeh pri upisu audit dokaza rollback-uje odluku i sve linkove;
+- **nijedan djelimičan ishod nije observabilan** — ni kroz API, ni direktnim upitom;
+- rollback otpušta zajednički lock i ne ostavlja upotrebljivo parcijalno stanje.
+
+## 24a.5 Lifecycle, grants i RLS
+
+Nivo: security + integration.
+
+- `UPDATE` nad `review_decision_change_links` je **odbijen**;
+- `DELETE` nad `review_decision_change_links` je **odbijen**;
+- `UPDATE` nad `review_item_changes` je **odbijen** — veza se nikada ne dopisuje naknadno;
+- brisanje bilo kojeg roditelja — `analysis_runs`, `review_decisions` ili
+  `review_item_changes` — je **blokirano** `NO ACTION`-om;
+- **cross-tenant RLS čitanje je odbijeno**;
+- `review_decision_change_links` ima `ENABLE ROW LEVEL SECURITY` **i**
+  `FORCE ROW LEVEL SECURITY`;
+- politika je standardni tenant predikat `practice_id = app.practice_id`, **bez bootstrap
+  izuzetka**;
+- `copilot_app` ima **isključivo** `SELECT` i `INSERT`;
+- `copilot_system` **nema** nijedan grant (D-023);
+- `PUBLIC` **nema** nijedan grant;
+- owner je `copilot_migrator`;
+- **širi grant od prihvaćenog modela obara test** — asercija je na tačan skup privilegija.
+
+## 24a.6 Introspekcija vlasništva i inventara
+
+Nivo: integration.
+
+- paket `009_review_approvals` posjeduje **schema** objekte iz `02` §22.9;
+- paket `013_rls_policies` posjeduje **RLS** objekte iz `02` §22.13;
+- **RLS nije u paketu `009`**;
+- inventar tenant tabela iz `02` §2.5 i §18.1 sadrži **tačno 30** tabela;
+- inventar deklarisanih composite FK-ova odgovara `02` §28.1 — **tačno četrnaest**;
+- broj aktivnih permisija ostaje **32**, rezervisanih **3**;
+- **nijedan migration paket nije dodan ni renumerisan**;
+- nijedan novi endpoint, payload polje, permisija, aplikacijska ili database rola, state
+  tranzicija, feature flag ni API error kod nije uveden.
+
+Ovaj odjeljak **ne dodjeljuje permisije rolama**; **javni API ugovor je nepromijenjen** (D-046).
+
+---
+
 # 25. Fixtures i izolacija
 
 ## 25.1 Obavezne dimenzije fixtura
@@ -1544,6 +1678,10 @@ očekivani status/kod, obaveznu audit asertaciju i da li blokira završetak faze
 | §24.17 autorizacija endpointa | e2e + security | Faza 4 | `013_rls_policies` | **da** |
 | §24.18 otkazivanje i arhiviranje — role | e2e + integration | Faza 5 | — | **da** |
 | §24.19 audit dokaz | integration + e2e | prema fazi vlasnika radnje | — | **da**; **BLOCKED** za role administration |
+| §24a.1–24a.2 D-046 schema i integritet linkova | integration | Faza 10 | `009_review_approvals` | **da** |
+| §24a.3–24a.4 D-046 pokrivenost i rollback | integration + e2e + audit | Faza 10 | `009_review_approvals` | **da** |
+| §24a.5 D-046 lifecycle, grants i RLS | security + integration | Faza 4 | `013_rls_policies` | **da** |
+| §24a.6 D-046 introspekcija vlasništva i inventara | integration | Faza 10 | `009_review_approvals` | **da** |
 
 Vlasništvo migration paketa preuzeto je iz `02` §22 i `04`. **Nijedan novi broj paketa se ne
 uvodi.**
@@ -1556,7 +1694,28 @@ Phase gate **mora pasti** kada:
 - D-034 concurrency ili constraint testovi padnu;
 - D-035 testovi atomarnog otkazivanja padnu;
 - D-036 authorization testovi padnu;
-- D-037 export precondition testovi padnu.
+- D-037 export precondition testovi padnu;
+- D-046 testovi integriteta linkova, granice pokrivenosti ili rollbacka padnu.
+
+Faza 4 ili Faza 10 **mora pasti** i kada, prema §24a:
+
+- `review_item_changes` nosi kolonu `review_decision_id` u bilo kojem obliku;
+- postoji composite FK `review_item_changes` → `review_decisions`;
+- `review_item_changes.analysis_run_id` nedostaje ili nije `not null`;
+- `review_decision_change_links` nedostaje ili je neispravno definisana;
+- bilo koji D-046 FK ne navodi `NO ACTION` za `ON DELETE` ili `ON UPDATE`;
+- same-practice ali cross-analysis-run link uspije;
+- duplirani par odluka/promjena uspije;
+- već povezana korekcija bude isključena iz kasnije odluke;
+- korekcija commitovana nakon granice uđe u tekuću odluku;
+- odluka sa nula korekcija bude odbijena;
+- `UPDATE` ili `DELETE` nad `review_decision_change_links` uspije;
+- korekcija bude povezana sa odlukom naknadnim `UPDATE`-om;
+- request ili response payload odluke dobije correction ID polje;
+- RLS nad `review_decision_change_links` nije `ENABLE` **i** `FORCE`;
+- vlasništvo pakete odstupi od `009_review_approvals` (schema) i `013_rls_policies` (RLS);
+- inventar tenant tabela nije **30**;
+- inventar deklarisanih composite FK-ova nije **14**.
 
 Faza 3 ili Faza 4 **mora pasti** i kada:
 

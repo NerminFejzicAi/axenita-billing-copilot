@@ -499,6 +499,8 @@ postojeća numeracija.
 - PracticeContext guard;
 - TenantDatabaseService;
 - RLS policy za postojeće tenant tabele;
+- `ENABLE` i `FORCE RLS` te standardna tenant politika `practice_id = app.practice_id` nad
+  `review_decision_change_links` — paket `013_rls_policies` (D-046; `02` §13.2a, §18.1, §22.13);
 - force RLS;
 - integration testovi;
 - negative testovi.
@@ -1150,8 +1152,10 @@ backend/10-review-approval
 
 - review_decisions;
 - review_item_changes;
+- review_decision_change_links;
 - analysis_approvals;
 - correction endpoints;
+- zajednički `analysis_runs` revision lock na correction i decision putu (D-046);
 - finding resolution;
 - approval policy;
 - immutable payload;
@@ -1171,7 +1175,88 @@ backend/10-review-approval
 9. immutable grant/trigger;
 10. revoke;
 11. audit;
-12. e2e concurrency test.
+12. e2e concurrency test;
+13. schema objekti D-046 u paketu `009_review_approvals` prema `02` §22.9;
+14. RLS nad `review_decision_change_links` u paketu `013_rls_policies` prema `02` §22.13;
+15. `analysis_runs FOR UPDATE` na **početku** correction transakcije;
+16. **isti** lock na početku decision transakcije;
+17. deterministička granica pokrivenosti;
+18. izbor **svih** correction eventa sa istim `practice_id` i `analysis_run_id`;
+19. `INSERT` jednog `review_decision_change_links` reda po odabranoj promjeni;
+20. audit dokaz u istoj transakciji;
+21. atomarni commit i potpun rollback;
+22. e2e test granice pokrivenosti i konkurentne korekcije.
+
+### 12.3.1 D-046 implementacijski model
+
+Normativno: D-046; `02` §13.1, §13.2, §13.2a, §13.2a.1, §18.1, §22.9, §22.13, §25.2.2 i §28.1.
+Ovo je implementacijsko sekvenciranje; schema definicije se **ne dupliraju** iz `02`.
+
+**Correction event**
+
+- `review_item_changes` je **nezavisan immutable correction event**; korekcija smije biti
+  perzistirana **prije** i **bez** ijednog `review_decisions` reda;
+- tabela **nema** kolonu `review_decision_id` — ni nullable ni obaveznu;
+- obavezan anchor je `analysis_run_id uuid NOT NULL` uz tenant-safe composite FK
+  `(practice_id, analysis_run_id)` → `analysis_runs(practice_id, id)`;
+- asocijacija odluke i promjene postoji **isključivo** kroz `review_decision_change_links`;
+- **naknadni `UPDATE` se nikada ne koristi** za povezivanje korekcije sa odlukom —
+  `copilot_app` nema `UPDATE` grant, a tabela je append-only;
+- `review_decisions` ostaje append-only i dobija `unique (practice_id, analysis_run_id, id)` i
+  composite FK prema `analysis_runs(practice_id, id)`;
+- svi D-046 FK-ovi koriste `ON DELETE NO ACTION` i `ON UPDATE NO ACTION`.
+
+**Deterministička granica pokrivenosti**
+
+Obje vrste transakcija — correction i review-decision — zauzimaju **prvi** isti revision lock:
+
+```sql
+select ...
+from analysis_runs
+where practice_id = :practice_id
+  and id = :analysis_run_id
+for update;
+```
+
+- granica pokrivenosti nastaje **u trenutku kada decision transakcija zauzme taj lock**;
+- korekcija commitovana **prije** granice je vidljiva i **uključena**;
+- correction transakcija koja dođe do iste revizije dok je decision lock držan **čeka**;
+- korekcija commitovana **nakon** granice je **isključena** iz tekuće odluke i smije biti
+  pokrivena kasnijom;
+- već povezana korekcija se **ne isključuje** iz kasnije odluke za isti `analysis_run_id`;
+- zaključava se **jedan resurs u jednoj dosljednoj prvoj poziciji**, pa lock-order ciklus nije
+  moguć;
+- **D-029** optimistic locking nad `extracted_facts` i `service_candidates` ostaje i zajednički
+  revision lock ga **dopunjuje, a ne zamjenjuje**.
+
+**Decision transakcija**
+
+`POST /analyses/{id}/decisions` je **jedna atomarna transakcija**:
+
+1. autentifikacija i tenant context (D-033; `03` §3.7);
+2. `analysis_runs … FOR UPDATE`;
+3. validacija tekuće revizije i stanja;
+4. izbor **svih** `review_item_changes` redova sa istim `practice_id` i `analysis_run_id`;
+5. **bez** filtriranja već povezanih promjena;
+6. `INSERT` u `review_decisions`;
+7. `INSERT` jednog `review_decision_change_links` reda po odabranoj promjeni;
+8. upis obaveznog audit dokaza;
+9. atomarni `COMMIT`.
+
+Neuspjeh **rollback-uje** odluku, sve linkove i audit upise; parcijalno stanje nije observabilno.
+**Nula odabranih promjena je validno stanje.** Duplirani linkovi za **istu** odluku su spriječeni
+prihvaćenim unique constraintom. Već prihvaćeno idempotency ponašanje ostaje nepromijenjeno.
+
+**Granice ugovora**
+
+- correction endpointi `PATCH /analyses/{id}/facts/{factId}` i
+  `PATCH /analyses/{id}/service-candidates/{candidateId}` mijenjaju se **isključivo interno** —
+  `If-Match`, `version`, payloadi, statusi i error kodovi ostaju identični;
+- klijent **ne šalje** `review_item_change` ID-eve; asocijacija je **serverski izvedena**;
+- **nema** novog polja u request ni response payloadu; **nema izmjene javnog API ugovora**;
+- vlasništvo migracija: schema u **`009_review_approvals`**, RLS u **`013_rls_policies`**;
+  **nijedan migration paket se ne dodaje niti renumeriše**;
+- **nijedan spekulativni samostalni indeks se ne kreira** (`02` §21).
 
 ## 12.4 Acceptance
 
@@ -1181,7 +1266,16 @@ backend/10-review-approval
 - approved payload immutable;
 - candidate modification after approval fail;
 - revoke ne briše history;
-- export readiness false after revoke.
+- export readiness false after revoke;
+- korekcija je perzistirana **prije i bez** ijedne review odluke;
+- odluka sa **nula** povezanih korekcija je validna;
+- korekcija već povezana sa ranijom odlukom **ponovo se povezuje** sa kasnijom odlukom za isti
+  `analysis_run_id`;
+- korekcija commitovana **nakon** granice pokrivenosti je isključena iz tekuće odluke i
+  prihvatljiva za kasniju;
+- konkurentna correction transakcija **čeka** na zajedničkom `analysis_runs` locku;
+- neuspjeh rollback-uje odluku, linkove i audit bez parcijalnog stanja;
+- request nema polje za correction ID-eve i nijedan payload se ne mijenja.
 
 ## 12.5 Commit
 

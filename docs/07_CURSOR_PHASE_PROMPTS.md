@@ -403,6 +403,20 @@ RLS za practice_membership_roles (paket 013_rls_policies; docs/02 §17.4):
 - politika ostaje SECURITY INVOKER kompatibilna;
 - D-OPEN-011 ostaje neriješen — ova politika ga ne zatvara.
 
+RLS za review_decision_change_links (paket 013_rls_policies; docs/02 §13.2a, §18.1, §22.13; D-046):
+- ENABLE ROW LEVEL SECURITY;
+- FORCE ROW LEVEL SECURITY;
+- standardna tenant politika practice_id = app.practice_id;
+- NEMA bootstrap izuzetka — tenant context mora već biti uspostavljen prije čitanja;
+- copilot_app dobija ISKLJUČIVO SELECT i INSERT;
+- copilot_app NEMA UPDATE grant;
+- copilot_app NEMA DELETE grant;
+- copilot_system NE DOBIJA nijedan automatski grant nad tom tenant tabelom;
+- PUBLIC NE DOBIJA nijedan grant;
+- owner ostaje copilot_migrator;
+- cross-tenant čitanje je odbijeno;
+- RLS se NE PREMJEŠTA u paket 009; schema objekti ostaju u 009_review_approvals (Faza 10).
+
 Effective-permission resolver (D-038; docs/03 §28.5):
 - unija ALLOW grantova svih tenant rola dodijeljenih odabranom AKTIVNOM membershipu;
 - unija je ograničena na jednu ordinaciju i jedan membership;
@@ -818,11 +832,18 @@ Spriječi duple findings na retryu.
 
 Implementiraj isključivo FAZU 10 — Review i approval.
 
+Normativna odluka za immutable correction evente i pokrivenost review odluka je D-046 iz
+docs/06_DECISION_LOG.md. Implementacija mora tačno pratiti docs/02_DATABASE_SCHEMA_V1.md
+§13.1, §13.2, §13.2a, §13.2a.1, §18.1, §22.9, §22.13, §25.2.2 i §28.1, te docs/04 §12.3.1.
+Ne izvodi nijedan schema objekat iz starije dokumentacije ni iz proznih primjera.
+
 Kreiraj:
 - review_decisions;
 - review_item_changes;
+- review_decision_change_links;
 - analysis_approvals;
 - fact/candidate corrections;
+- zajednički analysis_runs revision lock (correction i decision put);
 - finding resolution;
 - approval policy;
 - row lock;
@@ -831,13 +852,82 @@ Kreiraj:
 - immutability grants/triggers;
 - revocation.
 
+Schema D-046 (paket 009_review_approvals; nijedan novi broj paketa):
+- review_item_changes dobija analysis_run_id uuid NOT NULL;
+- composite FK review_item_changes (practice_id, analysis_run_id) → analysis_runs (practice_id, id);
+- review_item_changes unique (practice_id, analysis_run_id, id);
+- review_decisions unique (practice_id, analysis_run_id, id);
+- composite FK review_decisions (practice_id, analysis_run_id) → analysis_runs (practice_id, id);
+- review_decision_change_links sa kolonama id, practice_id, analysis_run_id, review_decision_id,
+  review_item_change_id, created_at — sve NOT NULL;
+- primary key (id); unique (practice_id, id);
+- unique (practice_id, review_decision_id, review_item_change_id);
+- composite FK (practice_id, analysis_run_id, review_decision_id)
+  → review_decisions (practice_id, analysis_run_id, id);
+- composite FK (practice_id, analysis_run_id, review_item_change_id)
+  → review_item_changes (practice_id, analysis_run_id, id);
+- SVI D-046 FK-ovi koriste ON DELETE NO ACTION i ON UPDATE NO ACTION;
+- grantovi za review_decision_change_links: SELECT i INSERT za copilot_app, bez UPDATE i bez DELETE;
+- RLS nad review_decision_change_links pripada paketu 013_rls_policies (Faza 4), ne ovom paketu.
+
+Transakcija i granica pokrivenosti (D-046, klauzule 34–52):
+- correction transakcija PRVO zauzima analysis_runs ... FOR UPDATE za (practice_id, analysis_run_id);
+- decision transakcija PRVO zauzima ISTI lock;
+- granica pokrivenosti nastaje kada decision transakcija zauzme taj lock;
+- POST /analyses/{id}/decisions je JEDNA atomarna transakcija ovim redoslijedom:
+  autorizacija i tenant context → analysis_runs FOR UPDATE → validacija →
+  izbor svih review_item_changes sa istim practice_id i analysis_run_id →
+  INSERT review_decisions → INSERT jednog review_decision_change_links reda po promjeni →
+  audit → COMMIT;
+- neuspjeh rollback-uje odluku, sve linkove i audit upise;
+- odluka sa nula povezanih korekcija je VALIDNO stanje;
+- korekcija smije biti perzistirana prije i bez ijedne odluke;
+- D-029 optimistic locking ostaje i zajednički lock ga DOPUNJUJE, ne zamjenjuje.
+
+ZABRANJENO — ne implementiraj ništa sa ove liste:
+- kolona review_item_changes.review_decision_id u bilo kojem obliku, nullable ni obavezna;
+- composite FK review_item_changes → review_decisions;
+- povezivanje korekcije sa odlukom kroz naknadni UPDATE;
+- UPDATE ili DELETE grant nad review_item_changes i review_decision_change_links;
+- unique (practice_id, review_item_change_id) na link tabeli;
+- filtriranje već povezanih korekcija pri izboru;
+- polje sa correction ID-evima u request payloadu;
+- bilo koje novo polje u response payloadu;
+- novi endpoint, permisija, aplikacijska ili database rola, state tranzicija, feature flag,
+  API error kod ili migration paket;
+- spekulativni samostalni indeksi — prihvaćeni unique constrainti su dovoljni (docs/02 §21).
+
 Testiraj:
 - open blocker;
 - stale revision;
 - concurrent double approval;
 - edit after approval;
 - revoke history;
-- approval payload immutability.
+- approval payload immutability;
+- validan same-practice i same-analysis-run link;
+- odbijen cross-practice link;
+- odbijen same-practice ali cross-analysis-run link — NA DATABASE CONSTRAINTU, ne u aplikaciji;
+- odbijenu nepostojeću odluku i nepostojeću korekciju;
+- odbijen duplirani par odluka/promjena;
+- jednu odluku sa više korekcija;
+- jednu korekciju povezanu sa više odluka;
+- odluku sa nula korekcija;
+- korekciju commitovanu prije granice — uključenu;
+- konkurentnu correction transakciju koja ČEKA na zajedničkom locku;
+- korekciju nakon granice — isključenu, uz kasniju odluku koja je smije uključiti;
+- retry koji NE DUPLIRA linkove iste odluke;
+- potpun rollback bez parcijalne odluke, linkova ni audit dokaza;
+- odbijen UPDATE i odbijen DELETE nad review_decision_change_links;
+- brisanje bilo kojeg roditelja blokirano NO ACTION-om;
+- odbijeno cross-tenant RLS čitanje.
+
+Tačna verifikacija na kraju faze:
+- inventar tenant tabela je tačno 30;
+- inventar deklarisanih composite FK-ova je tačno 14;
+- broj aktivnih permisija je 32, a rezervisanih 3;
+- schema objekti su u 009_review_approvals, RLS objekti u 013_rls_policies;
+- nijedan migration paket nije dodan ni renumerisan;
+- javni API ugovor je nepromijenjen.
 
 Export još ne implementiraj.
 ```
