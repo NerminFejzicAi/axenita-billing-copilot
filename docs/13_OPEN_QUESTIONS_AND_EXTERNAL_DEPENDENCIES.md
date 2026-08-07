@@ -202,7 +202,127 @@ Mora podržati data scrubbing i Swiss/privacy zahtjeve.
 
 ---
 
-# 16. External dependency readiness table
+# 16. D-OPEN-011 — Runtime access model za `users` i `practices`
+
+**Status:** OPEN / NERIJEŠENO
+
+- blokira implementacijski rad koji zavisi od generičkog runtime pristupa nad `users` ili `practices`;
+- mora biti riješen prije relevantnog dijela faze 3;
+- **bootstrap pristup kroz `practice_memberships` NE rješava opšti runtime pristup** nad `users` ni `practices`.
+
+## 16.1 Prihvaćeni kontekst
+
+Prihvaćeni model već definiše, i to nije predmet ovog pitanja:
+
+- bearer autentifikacija prije tenant bootstrapa;
+- identitet autentifikovanog korisnika uspostavljen iz pouzdanih auth podataka;
+- user-scoped `practice_memberships` bootstrap RLS;
+- `set_request_context(p_practice_id uuid)` kao SECURITY INVOKER;
+- transakcijski lokalni `app.user_id` i `app.practice_id`;
+- tenant rute i platform rute kao **odvojene** authorization klase;
+- **nema automatske unije** `platformRoles` i tenant membershipa.
+
+Neriješeno je **opšti runtime access model za `users` i `practices`**.
+
+## 16.2 Otvorena pitanja
+
+Pristup čitanju:
+
+1. Koje runtime role smiju `SELECT` nad `users`?
+2. Koje runtime role smiju `SELECT` nad `practices`?
+3. Koje kolone smije čitati koja klasa ruta?
+4. Smije li tenant korisnik čitati isključivo vlastiti `users` red?
+5. Smije li tenant korisnik čitati isključivo `practices` u kojima ima aktivan membership?
+6. Jesu li list/directory endpointi dozvoljeni, ili samo čitanje po ID-u?
+
+Pristup upisu:
+
+7. Koje runtime role smiju `INSERT`, `UPDATE` ili deaktivirati `users`?
+8. Koje runtime role smiju `INSERT`, `UPDATE`, deaktivirati ili arhivirati `practices`?
+
+Platform i system autorizacija:
+
+9. Kako se autorizuju platform/system rute?
+10. Jesu li `platformRoles` dovoljni za platform čitanja, ili je potrebna zasebna DB rola/kontekst?
+11. Koje servisne putanje smiju koristiti `copilot_system`?
+12. Jesu li usko ograničeni SECURITY DEFINER helperi dozvoljeni za platform operacije?
+13. Ako jesu, koji grants, fiksiran `search_path`, validacija ulaza i audit zahtjevi važe?
+
+Životni ciklus:
+
+14. Kako se tretiraju deaktivirani korisnici?
+15. Kako se tretiraju neaktivne ordinacije?
+16. Kako se tretiraju opozvani ili neaktivni membershipi?
+
+Audit i API:
+
+17. Koji audit dokaz je obavezan za čitanja i izmjene nad `users` i `practices`?
+18. Koje API permisije i endpointi zavise od ove odluke?
+
+## 16.3 Zabranjene pretpostavke dok je pitanje otvoreno
+
+- nema neograničenog `SELECT` nad `users`;
+- nema neograničenog `SELECT` nad `practices`;
+- nema generičkih runtime grantova prema `PUBLIC`;
+- nema tenant RLS politike koja izlaže sve korisnike;
+- nema tenant RLS politike koja izlaže sve ordinacije;
+- membership bootstrap pristup **nije** opšti `users`/`practices` pristup;
+- `platformRoles` se **ne** pretvaraju automatski u tenant pristup;
+- tenant membershipi i `platformRoles` se **ne** spajaju unijom;
+- **nijedan SECURITY DEFINER bypass se ne smije uvesti kao privremeno rješenje**;
+- nijedna implementacija ne smije tiho riješiti D-OPEN-011;
+- rad koji zavisi od generičkog `users`/`practices` pristupa **staje na phase gateu**.
+
+## 16.4 Šta prihvaćena odluka mora definisati
+
+- klase ruta;
+- aplikacijske role;
+- database role;
+- RLS politike;
+- grants;
+- column-level izloženost;
+- API endpointe;
+- API permisije;
+- tenant naspram platform razdvajanja;
+- system/service pristup;
+- SECURITY DEFINER politiku, ako je ima;
+- audit ponašanje;
+- vlasništvo migracije;
+- pozitivne testove;
+- negativne testove;
+- rollback i migracijsku strategiju.
+
+## 16.5 Zavisnosti
+
+- D-023 i D-033 u `06`;
+- `02` §17.3, §18.3 i §28.2 — tenant/RLS model;
+- `03` §3 — klasifikacija ruta;
+- `04` §5.2 i §6.2.2 — phase blocker;
+- `05` — `BLOCKED` checklist grupe u fazama 3 i 4;
+- `07` — phase gate u Fazi 3 i Fazi 4.
+
+## 16.6 Izlazni kriteriji
+
+D-OPEN-011 se smije zatvoriti tek kada prihvaćeni ADR definiše:
+
+- tačan runtime read pristup nad `users`;
+- tačan runtime write pristup nad `users`;
+- tačan runtime read pristup nad `practices`;
+- tačan runtime write pristup nad `practices`;
+- tenant authorization putanju;
+- platform authorization putanju;
+- service/system authorization putanju;
+- RLS i grant implementaciju;
+- obavezne API permisije;
+- audit ponašanje;
+- vlasništvo migration paketa;
+- vlasništvo pozitivnih i negativnih testova.
+
+Do tada implementacija ostaje blokirana svuda gdje je potreban generički `users`/`practices` pristup.
+
+---
+
+# 17. External dependency readiness table
 
 | Dependency | Mock | Contract | Credentials | Legal | Production |
 |---|---:|---:|---:|---:|---:|
@@ -215,7 +335,7 @@ Mora podržati data scrubbing i Swiss/privacy zahtjeve.
 
 ---
 
-# 17. Kako se zatvara pitanje
+# 18. Kako se zatvara pitanje
 
 Za svako pitanje:
 
