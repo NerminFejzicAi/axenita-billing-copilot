@@ -595,6 +595,7 @@ Rules/Review
 ├── finding_evidence
 ├── review_decisions
 ├── review_item_changes
+├── review_decision_change_links
 └── analysis_approvals
 
 Integration/System
@@ -748,9 +749,11 @@ Osobine constraint seta:
   membershipu (D-038, klauzula 5) i istovremeno je jedini indeks potreban za enumeraciju
   i provjeru rola (§21);
 - **`unique (practice_id, id)`** je bezuslovni tenant constraint iz §2.5;
-- referencijalne akcije nisu deklarisane — FK pada na PostgreSQL default `NO ACTION`, kao
-  i svi ostali composite FK-ovi u ovom dokumentu; otvoreno pitanje `ON DELETE`/`ON UPDATE`
-  iz §28.1 obuhvata i ovaj FK.
+- referencijalne akcije nisu deklarisane — FK pada na PostgreSQL default `NO ACTION`. Taj
+  obrazac važi za pre-existing composite FK-ove sa nedeklarisanim akcijama, a **ne** za sve
+  composite FK-ove u ovom dokumentu: D-046 composite FK-ovi `ON DELETE NO ACTION` i
+  `ON UPDATE NO ACTION` navode **eksplicitno**. §28.1 razdvaja te dvije grupe. Otvoreno
+  pitanje `ON DELETE`/`ON UPDATE` iz §28.1 obuhvata i ovaj FK.
 
 **Timestampovi.** `created_at` i `updated_at` prate obrazac §6.3, a **ne**
 `granted_by`/`granted_at`/`revoked_at` obrazac iz `platform_role_assignments` (§6.5). Taj
@@ -1952,6 +1955,8 @@ unique (practice_id, id)
 
 ## 13.1 `review_decisions`
 
+**Normativna odluka: D-046, klauzule 21–24.**
+
 | Kolona | Tip |
 |---|---|
 | id | uuid |
@@ -1964,21 +1969,62 @@ unique (practice_id, id)
 | analysis_revision_number | integer |
 | request_id | varchar(100) nullable |
 
-Constraint:
+Sve postojeće kolone ostaju; D-046 nijednu ne uklanja i ne preimenuje (klauzula 21).
+
+Constraints:
 
 ```sql
 unique (practice_id, id)
+unique (practice_id, analysis_run_id, id)
+
+foreign key (practice_id, analysis_run_id)
+  references analysis_runs(practice_id, id)
+  on delete no action
+  on update no action
 ```
 
-Append-only.
+Append-only (klauzula 24).
+
+`unique (practice_id, id)` ostaje bezuslovni tenant constraint iz §2.5 i **ne uklanja se**.
+`unique (practice_id, analysis_run_id, id)` je roditeljski kandidat ključ prvog trokolonskog
+composite FK-a iz §13.2a.
+
+Composite FK `(practice_id, analysis_run_id)` veže odluku za **tačno jedan** `analysis_runs`
+red. Jedan `analysis_runs` red **jeste** jedna analysis revizija, a `analysis_run_id` je
+**autoritativni identitet revizije** (D-046, klauzule 3–4). `analysis_runs` se ovom odlukom
+**ne redizajnira**: §10.2, §10.2.1 i D-034 semantika linearnog lanca revizija ostaju
+nepromijenjeni, `unique (practice_id, id)` ostaje tenant-safe referencirani kandidat ključ, i
+**tabela `analysis_revisions` se ne kreira**.
+
+Referencijalne akcije su **eksplicitno deklarisane** kao `NO ACTION`, pa brisanje roditeljske
+revizije ne može kaskadno ukloniti odluku. Ovaj FK zato **nije** obuhvaćen otvorenim pitanjem
+referencijalnih akcija iz §28.1.
+
+**`analysis_revision_number` ostaje immutable informacijski audit podatak** (klauzula 22).
+D-046:
+
+- ga **ne uklanja i ne preimenuje**;
+- **ne uvodi database sprovođenje** njegove jednakosti sa `analysis_runs.revision_number`.
+
+To postojeće pitanje denormalizovanog snapshota ostaje **izvan obuhvata D-046**, može
+zahtijevati zasebnu buduću schema-governance odluku i **nije preduslov** za integritet
+decision/change linkova iz §13.2a.
 
 ## 13.2 `review_item_changes`
+
+**Normativna odluka: D-046, klauzule 1–20.**
+
+`review_item_changes` je **nezavisan immutable correction event**. Korekcija smije biti
+perzistirana **prije** i **bez** ijednog `review_decisions` reda, jer nastaje kroz
+`PATCH /analyses/{id}/facts/{factId}` i
+`PATCH /analyses/{id}/service-candidates/{candidateId}` — endpointe koji ne traže postojanje
+odluke (klauzule 1–2).
 
 | Kolona | Tip |
 |---|---|
 | id | uuid |
 | practice_id | uuid |
-| review_decision_id | uuid |
+| analysis_run_id | uuid not null |
 | entity_type | varchar(50) |
 | entity_id | uuid |
 | field_name | varchar(100) |
@@ -1988,15 +2034,169 @@ Append-only.
 | changed_by | uuid |
 | changed_at | timestamptz |
 
-Constraint:
+Postojeća identitetska i correction-event polja ostaju nepromijenjena (klauzula 16).
+
+Constraints:
 
 ```sql
+primary key (id)
+
 unique (practice_id, id)
+unique (practice_id, analysis_run_id, id)
+
+foreign key (practice_id, analysis_run_id)
+  references analysis_runs(practice_id, id)
+  on delete no action
+  on update no action
 ```
 
-Append-only.
+Životni ciklus i grants (klauzula 20):
 
-Composite FK prema `review_decisions` nije deklarisan u v1 — vidi §28.1.
+- **append-only**;
+- `copilot_app` dobija `SELECT` i `INSERT` prema prihvaćenom table-grant modelu (§18.1,
+  §20.2);
+- **bez `UPDATE` granta**;
+- **bez `DELETE` granta**.
+
+**Kolona `review_decision_id` je uklonjena** (klauzule 13–14, 17). Tabela **ne smije**
+sadržavati ni nullable ni obavezan direktan `review_decision_id`:
+
+- korekcije smiju prethoditi odlukama, pa bi kolona u normalnom toku **trajno ostala `NULL`**;
+- tabela je append-only i `copilot_app` nema `UPDATE` grant, pa se veza ne bi mogla ni
+  naknadno upisati;
+- **naknadni `UPDATE` se ne koristi** za povezivanje korekcije sa odlukom (klauzula 15);
+- **nijedan postojeći correction red se nikada ne updatea** radi dodavanja veze prema odluci
+  (klauzula 10).
+
+Asocijaciju odluke i promjene umjesto toga nose immutable link redovi iz §13.2a.
+
+**Dodana kolona `analysis_run_id`** (klauzula 18) anchoruje svaki correction event na
+**tačno jednu** analysis reviziju. Composite FK `(practice_id, analysis_run_id)` to pretvara
+u database garanciju, a `unique (practice_id, analysis_run_id, id)` je roditeljski kandidat
+ključ drugog trokolonskog composite FK-a iz §13.2a.
+
+`analysis_revision_number` se na ovu tabelu **ne dodaje** (klauzula 20) — revizija **jeste**
+`analysis_runs` red, pa je `analysis_run_id` dovoljan i autoritativan.
+
+Referencijalne akcije su **eksplicitno deklarisane** kao `NO ACTION`, pa nijedno brisanje ne
+može kaskadno ukloniti correction dokaz. Ovaj FK zato **nije** obuhvaćen otvorenim pitanjem
+referencijalnih akcija iz §28.1.
+
+Izbor korekcija po prefiksu `(practice_id, analysis_run_id)` pokriva
+`unique (practice_id, analysis_run_id, id)`; zaseban indeks se **ne kreira** (§21).
+
+## 13.2a `review_decision_change_links`
+
+**Normativna odluka: D-046, klauzule 25–33.** Tabela je jedini izvor asocijacije review
+odluke i correction eventa. Ime tabele je prihvaćeno (klauzula 25).
+
+| Kolona | Tip |
+|---|---|
+| id | uuid PK |
+| practice_id | uuid not null |
+| analysis_run_id | uuid not null |
+| review_decision_id | uuid not null |
+| review_item_change_id | uuid not null |
+| created_at | timestamptz not null |
+
+`id` generiše aplikacija prije INSERT-a (§2.2). `practice_id` je `not null` prema §2.5.
+
+Constraints:
+
+```sql
+primary key (id)
+
+unique (practice_id, id)
+unique (practice_id, review_decision_id, review_item_change_id)
+
+foreign key (practice_id, analysis_run_id, review_decision_id)
+  references review_decisions(practice_id, analysis_run_id, id)
+  on delete no action
+  on update no action
+
+foreign key (practice_id, analysis_run_id, review_item_change_id)
+  references review_item_changes(practice_id, analysis_run_id, id)
+  on delete no action
+  on update no action
+```
+
+**Jedan `analysis_run_id` u link redu konzumiraju oba trokolonska composite FK-a**
+(klauzule 29–30). Vrijednost zato **ne može odstupiti** ni od jednog roditelja, pa sama baza
+sprovodi:
+
+| Pravilo | Sprovodi |
+|---|---|
+| ista ordinacija | oba composite FK-a |
+| isti `analysis_run_id` | zajednička kolona u oba trokolonska FK-a |
+| ista analysis revizija | revizija **jeste** `analysis_runs` red (§10.2) |
+| odluka postoji | FK prema `review_decisions` |
+| korekcija postoji | FK prema `review_item_changes` |
+| nema dupliranog para | `unique (practice_id, review_decision_id, review_item_change_id)` |
+| nema orphan linka | `not null` + oba FK-a |
+| zaštita roditelja | `on delete no action` |
+
+Dvokolonski model bi zaustavio cross-practice linkove, ali bi **unutar iste ordinacije** i
+dalje dopuštao da odluka iz revizije A referencira korekciju iz revizije B. Trokolonski model
+tu grešku čini strukturno nemogućom.
+
+Kardinalnost (klauzule 31–33):
+
+- jedna review odluka → **nula ili više** correction linkova;
+- jedan correction event → **nula ili više** review-decision linkova;
+- jedan par odluka/promjena → **najviše jedan** link red.
+
+`unique (practice_id, review_item_change_id)` se **ne dodaje** — netačno bi ograničio
+korekciju na jednu odluku. Već povezane korekcije se **ne isključuju** iz kasnijih odluka za
+isti `analysis_run_id`.
+
+Životni ciklus i grants (klauzula 28):
+
+- **append-only**;
+- `copilot_app` dobija **isključivo `SELECT` i `INSERT`**;
+- **bez `UPDATE` granta**;
+- **bez `DELETE` granta**;
+- `copilot_system` **ne dobija** nijedan automatski grant nad tenant tabelom (D-023);
+- `PUBLIC` **ne dobija** nijedan grant;
+- owner ostaje `copilot_migrator` (§3.5).
+
+Pretraga linkova po prefiksu `(practice_id, review_decision_id)` pokriva
+`unique (practice_id, review_decision_id, review_item_change_id)`; zaseban indeks se **ne
+kreira** (§21).
+
+RLS: §17.1 i §18.1. Grants: §20.2. Migration paketi: §22.9 (schema) i §22.13 (RLS).
+Testovi: §25.2.2.
+
+### 13.2a.1 Integritet pokrivenosti na nivou schema
+
+D-046 klauzule 34–43 definišu determinističku granicu pokrivenosti. Ovo je schema dokument i
+**ne duplira** cijeli transakcijski algoritam; normativne su ovdje samo schema-level
+posljedice:
+
+- svaki correction event je anchorovan na `analysis_run_id` (§13.2);
+- odluke i korekcije se povezuju **isključivo** kroz immutable link redove (§13.2a);
+- same-practice i same-analysis-run integritet je **database garancija** oba trokolonska
+  FK-a;
+- **vidljivost korekcije na granici pokrivenosti je jedino pravilo koje nije izrazivo
+  constraintom.** Sprovodi ga prihvaćena konvencija zajedničkog revision locka:
+
+```sql
+select ...
+from analysis_runs
+where practice_id = :practice_id
+  and id = :analysis_run_id
+for update;
+```
+
+- **obje** vrste transakcija — correction i review-decision — zauzimaju taj lock **prvi**, u
+  jednoj dosljednoj poziciji, pa lock-order ciklus nije moguć;
+- granica pokrivenosti nastaje u trenutku kada decision transakcija zauzme taj lock;
+- zajednički revision lock **dopunjuje, a ne zamjenjuje** D-029 `version` / `If-Match`
+  provjere nad `extracted_facts` i `service_candidates`;
+- **odluka sa nula povezanih korekcija je validno stanje.**
+
+Detaljno implementacijsko sekvenciranje pripada `04`; dokaz o konkurentnosti pripada `08`.
+**Javni API ugovor se ne mijenja** — nijedan endpoint, request payload ni response payload
+nije zahvaćen (D-046).
 
 ## 13.3 `analysis_approvals`
 
@@ -2740,6 +2940,7 @@ Legenda:
 | finding_evidence | da | da | — | — | da |
 | review_decisions | da | da | — | — | da |
 | review_item_changes | da | da | — | — | da |
+| review_decision_change_links | da | da | — | — | da |
 | analysis_approvals | da | da | revoke fields kontrolisano | — | da |
 | integration_connections | da | da | da | — | da |
 | external_resource_links | da | da | sync fields | — | da |
@@ -2763,10 +2964,20 @@ membershipe i nema INSERT, UPDATE ni DELETE.
 UPDATE je dozvoljen jer `PATCH /practices/{id}/settings` postoji; concurrency se štiti
 `version` kolonom i `If-Match` (D-029).
 
+`review_decision_change_links` je **obična tenant tabela** (D-046) i koristi **standardni
+tenant predikat** `practice_id = app.practice_id` iz §17.1, sa `ENABLE` **i**
+`FORCE ROW LEVEL SECURITY`. `copilot_app` dobija `SELECT` i `INSERT`; `UPDATE` i `DELETE` su
+odbijeni, u skladu sa append-only životnim ciklusom iz §13.2a. **Nijedan bootstrap izuzetak
+se ne primjenjuje** — za razliku od §17.3 i §17.4, tenant kontekst mora već biti uspostavljen
+prije čitanja, pa nema pre-context pristupa. `copilot_system` **nema nijedan grant** jer je
+tabela tenant tabela (D-023), a `PUBLIC` nema nijedan. **D-023 razdvajanje database rola
+ostaje nepromijenjeno**; runtime administracija aplikacijskih rola se ovdje ne definiše.
+
 "U ograničeno" se prvenstveno sprovodi kroz application service, permission i trigger; RLS štiti tenant, ali ne mora sam izraziti sve column-level poslovne zabrane.
 
-Matrica sadrži 29 tabela — tačno onoliko koliko ih nosi `unique (practice_id, id)` iz §2.5.
-Broj je porastao sa 28 na 29 uvođenjem `practice_membership_roles` (D-038, §6.3a).
+Matrica sadrži 30 tabela — tačno onoliko koliko ih nosi `unique (practice_id, id)` iz §2.5.
+Broj je porastao sa 29 na 30 uvođenjem `review_decision_change_links` (D-046, §13.2a); ranije
+je porastao sa 28 na 29 uvođenjem `practice_membership_roles` (D-038, §6.3a).
 `import_batches` i `webhook_receipts` nisu u matrici; vidi §18.4.
 
 ## 18.2 Non-tenant RLS
@@ -3157,6 +3368,23 @@ već stvaraju btree indekse koji pokrivaju svaki dokumentovani query put:
 - `unique (practice_id, id)` — pretraga vlasničkog membershipa u `EXISTS` predikatu
   politike §17.4 poklapa se sa `practice_memberships(practice_id, id)`.
 
+`review_decisions`, `review_item_changes` i `review_decision_change_links` **ne dobijaju
+nijedan dodatni indeks** (D-046). Prihvaćeni unique constrainti već stvaraju btree indekse
+koji pokrivaju svaki dokumentovani query put:
+
+- `review_decisions unique (practice_id, analysis_run_id, id)` — roditeljski kandidat ključ
+  prvog trokolonskog FK-a iz §13.2a;
+- `review_item_changes unique (practice_id, analysis_run_id, id)` — roditeljski kandidat
+  ključ drugog trokolonskog FK-a i **izbor korekcija iste ordinacije i iste analysis revizije
+  po prefiksu** `(practice_id, analysis_run_id)`;
+- `review_decision_change_links unique (practice_id, review_decision_id, review_item_change_id)`
+  — **pretraga linkova jedne odluke po prefiksu** `(practice_id, review_decision_id)` i
+  **sprječavanje dupliranog para** odluka/promjena.
+
+Za v1 se **eksplicitno odbijaju**, dok mjereni query ne pokaže potrebu:
+`review_item_changes (practice_id, analysis_run_id, changed_at, id)` i
+`review_decision_change_links (practice_id, review_item_change_id)`.
+
 Spekulativni indeksi bez dokumentovanog query puta se ne kreiraju.
 
 Indeksi se validiraju `EXPLAIN` planom na realističnim test podacima prije optimizacije.
@@ -3248,8 +3476,35 @@ composite FK prema `service_candidates` i `encounter_documents`.
 ## 22.9 `009_review_approvals`
 
 `review_decisions`, `review_item_changes`, `analysis_approvals`;
-`unique (practice_id, id)` na sve tri; composite FK
-`review_item_changes → review_decisions`.
+`unique (practice_id, id)` na sve tri.
+
+**D-046 u istom paketu — nijedan migration paket se ne dodaje niti renumeriše.** Paket
+posjeduje sve schema objekte D-046 rekonsilijacije:
+
+- `review_decisions`: `unique (practice_id, analysis_run_id, id)`; composite FK
+  `(practice_id, analysis_run_id)` → `analysis_runs(practice_id, id)` sa
+  `on delete no action` i `on update no action` (§13.1);
+- `review_item_changes`: **uklanjanje kolone `review_decision_id`**; dodavanje
+  `analysis_run_id uuid not null`; `unique (practice_id, analysis_run_id, id)`; composite FK
+  `(practice_id, analysis_run_id)` → `analysis_runs(practice_id, id)` sa
+  `on delete no action` i `on update no action` (§13.2);
+- `review_decision_change_links` (§13.2a): tabelu; `primary key (id)`;
+  `unique (practice_id, id)`;
+  `unique (practice_id, review_decision_id, review_item_change_id)`; **oba trokolonska
+  composite FK-a** — prema `review_decisions(practice_id, analysis_run_id, id)` i prema
+  `review_item_changes(practice_id, analysis_run_id, id)` — oba sa `on delete no action` i
+  `on update no action`;
+- prihvaćene table grantove: `SELECT` i `INSERT` za `copilot_app`, bez `UPDATE` i bez
+  `DELETE`; bez ijednog granta za `copilot_system` i `PUBLIC`.
+
+**Paket `009` ne kreira composite FK `review_item_changes` → `review_decisions`.** Ta
+relacija je uklonjena zajedno sa kolonom `review_decision_id` (D-046, klauzule 13–14, 17);
+raniji tekst koji je tvrdio da je paket kreira **bio je netačan** i nije opisivao nijedan
+postojeći schema objekat.
+
+**RLS objekti nisu u ovom paketu.** `ENABLE ROW LEVEL SECURITY`, `FORCE ROW LEVEL SECURITY`
+i tenant politika nad `review_decision_change_links` pripadaju paketu `013_rls_policies`
+(§22.13). **RLS se ne premješta u paket `009`.**
 
 ## 22.10 `010_integrations`
 
@@ -3268,12 +3523,14 @@ klauzula 1); `unique (practice_id, id)` na sve četiri §15 tabele.
 
 ## 22.12 `012_constraints_indexes`
 
-Verifikuje da svih 29 tenant tabela u obuhvatu nosi `unique (practice_id, id)` prema §2.5;
+Verifikuje da svih 30 tenant tabela u obuhvatu nosi `unique (practice_id, id)` prema §2.5;
 kreira indeks katalog iz §21, uključujući `platform_role_assignments_user_idx`.
 
 ## 22.13 `013_rls_policies`
 
-Tenant politike prema §17.1 i §18.1;
+Tenant politike prema §17.1 i §18.1 — **svih 30 tenant tabela** iz matrice §18.1;
+**`ENABLE ROW LEVEL SECURITY`, `FORCE ROW LEVEL SECURITY` i standardna tenant politika
+`practice_id = app.practice_id` za `review_decision_change_links`** (§13.2a, §18.1, D-046);
 **user-scoped RLS za `platform_role_assignments`** (§17.2);
 **bootstrap-safe user-scoped SELECT politika za `practice_memberships`** (§17.3);
 **bootstrap-readable SELECT politika za `practice_membership_roles`** (§17.4, D-038);
@@ -3404,6 +3661,55 @@ Immutability identiteta (§19.4):
 - UPDATE nad `parent_analysis_run_id` pada sa SQLSTATE `23514`;
 - UPDATE nad `revision_number` pada sa SQLSTATE `23514`;
 - UPDATE nad ostalim kolonama `analysis_runs` prolazi.
+
+### 25.2.2 Immutable correction eventi i pokrivenost odluka (D-046)
+
+Struktura schema:
+
+- `review_item_changes` **više ne sadrži kolonu `review_decision_id`**;
+- `review_item_changes` sadrži `analysis_run_id` sa `not null`;
+- composite FK `review_item_changes (practice_id, analysis_run_id)` →
+  `analysis_runs (practice_id, id)` postoji;
+- composite FK `review_decisions (practice_id, analysis_run_id)` →
+  `analysis_runs (practice_id, id)` postoji;
+- **oba roditeljska kandidat ključa postoje** —
+  `review_decisions unique (practice_id, analysis_run_id, id)` i
+  `review_item_changes unique (practice_id, analysis_run_id, id)`;
+- tabela `review_decision_change_links` postoji;
+- ima **tačno** kolone `id`, `practice_id`, `analysis_run_id`, `review_decision_id`,
+  `review_item_change_id` i `created_at`, sve `not null`, uz `primary key (id)`;
+- **oba trokolonska composite FK-a postoje**;
+- **oba navode `NO ACTION`** i za `ON DELETE` i za `ON UPDATE`.
+
+Integritet linkova:
+
+- validan same-practice, same-analysis-run link **prolazi**;
+- **cross-practice link pada**;
+- **same-practice ali cross-analysis-run link pada na database constraintu, ne na
+  aplikacijskoj validaciji**;
+- link prema **nepostojećoj odluci** pada;
+- link prema **nepostojećoj korekciji** pada;
+- **duplirani par** odluka/promjena pada;
+- jedna odluka smije referencirati **više** korekcija;
+- jedna korekcija smije biti referencirana od **više** odluka;
+- **nula correction linkova je validno stanje** odluke.
+
+Životni ciklus i pristup:
+
+- `UPDATE` nad `review_decision_change_links` je **odbijen**;
+- `DELETE` nad `review_decision_change_links` je **odbijen**;
+- brisanje bilo kojeg roditelja — `analysis_runs`, `review_decisions` ili
+  `review_item_changes` — je **blokirano** `NO ACTION`-om;
+- **cross-tenant RLS čitanje je odbijeno**;
+- `review_decision_change_links` ima `ENABLE ROW LEVEL SECURITY` **i**
+  `FORCE ROW LEVEL SECURITY`.
+
+Introspekcija vlasništva i inventara:
+
+- paket `009_review_approvals` posjeduje **schema** objekte iz §22.9;
+- paket `013_rls_policies` posjeduje **RLS** objekte iz §22.13;
+- inventar tenant tabela iz §2.5 i §18.1 sadrži **tačno 30** tabela;
+- inventar deklarisanih composite FK-ova odgovara §28.1 — **tačno četrnaest**.
 
 ## 25.3 Immutability
 
@@ -3574,6 +3880,12 @@ Isto važi za RLS politike, grants, trigger funkcije iz §19 i column-level priv
 - **jedan membership može nositi nula, jednu ili više tenant rola**;
 - **efektivne tenant permisije su unija dodijeljenih tenant rola istog membershipa**;
 - **aktivan membership sa nula rola ne autorizuje nijednu tenant operaciju**;
+- **`review_item_changes` nema kolonu `review_decision_id` i ima `analysis_run_id not null`
+  uz composite FK prema `analysis_runs(practice_id, id)`**;
+- **`review_decision_change_links` postoji sa oba trokolonska composite FK-a, koja
+  eksplicitno navode `ON DELETE NO ACTION` i `ON UPDATE NO ACTION`**;
+- **correction eventi i decision/change linkovi su append-only — bez `UPDATE` i bez `DELETE`
+  granta**;
 - composite FK testovi prolaze;
 - negativni privilege testovi iz §20.4 prolaze;
 - migration checksum nije ručno narušen;
@@ -3610,24 +3922,54 @@ implementaciji — svaka zahtijeva odluku prije nego što uđe u migraciju.
 
 ## 28.1 Nedeklarisane composite FK relacije
 
-Sljedećih osam relacija postoji kroz imena kolona, ali u v1 **nije** deklarisano kao
-composite FK:
+Tabela ispod **trenutno enumeriše sedam** relacija koje postoje kroz imena kolona, ali u v1
+**nisu** deklarisane kao composite FK. Broj **sedam je broj redova te tabele**, a **ne**
+tvrdnja da je to potpun globalni inventar svih nedeklarisanih relacija u ovom dokumentu —
+vidi "Obuhvat ove tabele" niže.
 
 | Source tabela | Source kolone | Target tabela | Rok — paket koji kreira source tabelu |
 |---|---|---|---|
 | `tariff_evaluation_items` | `(practice_id, tariff_evaluation_id)` | `tariff_evaluations` | `007_tariff_evaluation` |
 | `tariff_messages` | `(practice_id, tariff_evaluation_id)` | `tariff_evaluations` | `007_tariff_evaluation` |
 | `finding_evidence` | `(practice_id, rule_finding_id)` | `rule_findings` | `008_safety_findings` |
-| `review_item_changes` | `(practice_id, review_decision_id)` | `review_decisions` | `009_review_approvals` |
 | `external_resource_links` | `(practice_id, integration_connection_id)` | `integration_connections` | `010_integrations` |
 | `export_jobs` | `(practice_id, analysis_run_id)` | `analysis_runs` | `010_integrations` |
 | `export_jobs` | `(practice_id, approval_id)` | `analysis_approvals` | `010_integrations` |
 | `export_jobs` | `(practice_id, integration_connection_id)` | `integration_connections` | `010_integrations` |
 
+**Relacija `review_item_changes (practice_id, review_decision_id)` → `review_decisions` je
+uklonjena iz ove liste** (D-046, klauzule 13–14, 17). Kolona `review_decision_id` više ne
+postoji, pa relacija nema izvornu kolonu i ne može biti ni deklarisana ni odgođena.
+Asocijaciju odluke i promjene sada nosi **deklarisana** link tabela
+`review_decision_change_links` (§13.2a), čija su oba composite FK-a stvarno deklarisana i
+eksplicitno navode referencijalne akcije. Lista je time pala **sa osam na sedam** stavki.
+
+### Obuhvat ove tabele
+
+**Sedam je broj redova tabele iznad, a ne tvrdnja o globalnoj potpunosti.** Ovaj odjeljak
+**ne tvrdi** da je enumerisao svaku nedeklarisanu relaciju u ovom dokumentu.
+
+Poznato je da postoji i zaseban, još neriješen skup relacija nad kolonom `analysis_run_id`
+koje **nisu** deklarisane kao composite FK i **nisu** u tabeli iznad:
+
+- `extracted_facts.analysis_run_id` (§10.5);
+- `service_candidates.analysis_run_id` (§10.6);
+- `ai_extraction_runs.analysis_run_id` (§10.4);
+- `tariff_evaluations.analysis_run_id` (§11.1);
+- `rule_findings.analysis_run_id` (§12.3);
+- `analysis_approvals.analysis_run_id` (§13.3).
+
+Tih šest relacija čini **zasebnu, otvorenu stavku schema governance-a** i **ostaju izvan
+D-046**. D-046 ih niti deklariše, niti rješava, niti ih uvodi u tabelu iznad; njihov
+obuhvat, rok i referencijalne akcije nisu definisani u ovom odjeljku i moraju se odlučiti
+posebno.
+
 ### Rok
 
-**Svaka relacija mora biti riješena prije migration paketa koji prvi kreira njenu izvornu
-tabelu**, prema koloni "Rok" iznad. Najraniji rok je `007_tariff_evaluation`.
+**Svaka relacija iz sedmoredne tabele iznad mora biti riješena prije migration paketa koji
+prvi kreira njenu izvornu tabelu**, prema koloni "Rok" te tabele. Najraniji rok je
+`007_tariff_evaluation`. Rok za šest `analysis_run_id` relacija iz "Obuhvat ove tabele"
+**nije** ovdje definisan.
 
 Odgađanje samo do produkcijskog pilota **nije dovoljno**. Kada paket jednom kreira izvornu
 tabelu bez FK-a, naknadno dodavanje traži migraciju nad popunjenom tabelom i provjeru
@@ -3649,16 +3991,39 @@ Prije nego što se bilo koja od njih deklariše, za svaku se mora definisati:
 6. da li historijski/audit redovi moraju preživjeti brisanje roditelja.
 
 **`CASCADE` nikada nije default.** Tačka 6 je odlučujuća za append-only tabele
-(`review_item_changes`, `export_jobs`, `finding_evidence`, `tariff_messages`), gdje bi
-kaskadno brisanje uklonilo audit trag. Nijedna od šest stavki se ne rješava
-pretpostavkom — izostanak odluke znači da se relacija ne deklariše, ne da se bira default.
+(`export_jobs`, `finding_evidence`, `tariff_messages`), gdje bi kaskadno brisanje uklonilo
+audit trag. Nijedna od šest numerisanih tačaka iznad se ne rješava pretpostavkom — izostanak
+odluke znači da se relacija ne deklariše, ne da se bira default.
 
 Isto pitanje referencijalnih akcija je otvoreno i za **deset** već deklarisanih composite
 FK-ova u ovom dokumentu — §6.3a, §7.2, §7.3, §8.2 (dva), §10.2 (dva), §10.3 i §10.7 (dva),
-uključujući FK `(practice_id, membership_id)` iz §6.3a (D-038). Nijedan trenutno ne navodi
-`ON DELETE` ni `ON UPDATE`, pa svi
-padaju na PostgreSQL default `NO ACTION`. Odluka mora obuhvatiti i njih, **prije paketa
-`003_patient_encounter_documents`**, koji prvi kreira izvornu tabelu sa composite FK-om.
+uključujući FK `(practice_id, membership_id)` iz §6.3a (D-038). Nijedan od tih deset ne
+navodi `ON DELETE` ni `ON UPDATE`, pa svi padaju na PostgreSQL default `NO ACTION`. Odluka
+mora obuhvatiti i njih, **prije paketa `003_patient_encounter_documents`**, koji prvi kreira
+izvornu tabelu sa composite FK-om.
+
+### Ukupan inventar deklarisanih composite FK-ova
+
+Dokument deklariše **četrnaest** composite FK-ova:
+
+- **deset** navedenih u prethodnom pasusu, koja referencijalne akcije **ne navode** i padaju
+  na default `NO ACTION` — obuhvaćena su otvorenim pitanjem ovog odjeljka;
+- **četiri** iz D-046, koja `ON DELETE NO ACTION` i `ON UPDATE NO ACTION` navode
+  **eksplicitno**, pa **nisu** obuhvaćena tim otvorenim pitanjem:
+
+| Source tabela | Source kolone | Target tabela | Sekcija |
+|---|---|---|---|
+| `review_decisions` | `(practice_id, analysis_run_id)` | `analysis_runs` | §13.1 |
+| `review_item_changes` | `(practice_id, analysis_run_id)` | `analysis_runs` | §13.2 |
+| `review_decision_change_links` | `(practice_id, analysis_run_id, review_decision_id)` | `review_decisions` | §13.2a |
+| `review_decision_change_links` | `(practice_id, analysis_run_id, review_item_change_id)` | `review_item_changes` | §13.2a |
+
+Jednokolonski FK `tariff_release_artifacts.system_storage_object_id` →
+`system_storage_objects(id)` (§9.2) **nije** composite FK i ne ulazi ni u jedan od ova dva
+broja.
+
+Broj je mehanički provjerljiv iz normativnih constraint definicija ovog dokumenta i
+verifikuje se testom iz §25.2.2.
 
 ## 28.2 Access model za `users` i `practices`
 
