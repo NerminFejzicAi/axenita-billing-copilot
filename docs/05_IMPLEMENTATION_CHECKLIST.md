@@ -9,7 +9,7 @@
 
 | Polje | Vrijednost |
 |---|---|
-| Current phase | Faza 1 — `DONE` (next mandatory gate: Ecosystem Compatibility Audit) |
+| Current phase | Faza 1 — `DONE`; Ecosystem Compatibility Audit `DONE`; Faza 2 — `NOT_STARTED` |
 | Current branch | `main` |
 | Last completed phase | Faza 1 — Repository i lokalna infrastruktura |
 | Last commit | `4ca591a` (Phase 1 implementation), merged via `1fa4b19` |
@@ -139,6 +139,34 @@ Open issues:  readiness pokriva database/redis/objectStorage; `tariffEngine` iz 
               DB/queue klijent. Body-parser odbijanja se mapiraju na 400, ne 413 (03 §9).
               Bootstrap failure log imenuje samo varijable koje ne prolaze validaciju
               (deklarisana imena iz sheme), nikada vrijednosti ni constraint tekst.
+```
+
+---
+
+# 2a. Gate — Ecosystem Compatibility Audit
+
+Status: `DONE` — izvršen i prihvaćen nakon formalnog zatvaranja Faze 1.
+
+- [x] Audit izvršen kao read-only arhitektonska analiza.
+- [x] Eksterni arhitektonski review: `PASS`.
+- [x] `FIX_NOW REGISTER: EMPTY`.
+- [x] Zapis: `docs/ECOSYSTEM_COMPATIBILITY_AUDIT_2026-08-10.md`.
+
+Evidence:
+
+```text
+Auditirani HEAD: 6f74caccf4df633d89e25d3d5f94a3649bca04f4
+Zaključak:       Faza 2 smije početi pod trenutno zamrznutom arhitekturom, bez
+                 ecosystem-driven pre-refactoringa.
+FIX_NOW:         EMPTY — nijedno spajanje ne zadovoljava četvorodijelni prag.
+Arhitektura:     D-001 do D-046 nepromijenjene; nijedan novi ADR; 06_DECISION_LOG.md
+                 nepromijenjen.
+D-OPEN-011:      i dalje OTVOREN. Nije nalaz ovog audita i nije njime riješen; ostaje
+                 nezavisno obavezan prije Faze 3 (06, 02 §28.2, 13 §16).
+Odgođeno:        W1 encounter lifecycle i W3/D3 eksterni identitet — ponovni pregled prije
+                 implementacije Encountera; W2 finding_evidence prema roku iz 02 §28.1;
+                 D1/D2/D4/D5 prema zabilježenim trigerima.
+Napomena:        Audit ne odobrava implementaciju nijednog budućeg modula ni apstrakcije.
 ```
 
 ---
