@@ -1,0 +1,40 @@
+{
+  "name": "axenita-billing-copilot",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Auditabilni Axenita TARDOC Billing Safety Copilot — backend monorepo",
+  "license": "UNLICENSED",
+  "packageManager": "pnpm@11.17.0",
+  "engines": {
+    "node": "24.19.0",
+    "pnpm": "11.17.0"
+  },
+  "scripts": {
+    "verify:toolchain": "node scripts/verify-toolchain.mjs",
+    "dev:api": "pnpm --filter @axenita/api run dev",
+    "start:api": "pnpm --filter @axenita/api run start",
+    "build": "pnpm -r run build",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "pnpm -r run typecheck",
+    "test": "pnpm -r run test",
+    "test:e2e": "pnpm -r run test:e2e",
+    "compose:config": "docker compose config",
+    "compose:up": "docker compose up -d",
+    "compose:ps": "docker compose ps",
+    "compose:down": "docker compose down"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/node": "24.13.3",
+    "eslint": "10.8.1",
+    "eslint-config-prettier": "10.1.8",
+    "globals": "17.9.0",
+    "prettier": "3.9.6",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.66.0"
+  }
+}

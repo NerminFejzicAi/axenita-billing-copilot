@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "compilerOptions": {
+    "target": "ES2023",
+    "lib": ["ES2023"],
+
+    // D-021 (ACCEPTED): the backend is ESM with module/moduleResolution = NodeNext.
+    // Do not change without a superseding ADR (00 §16, 13 §2).
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "moduleDetection": "force",
+
+    // NestJS decorator support.
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+
+    // 00 §4.1 / 12 §4 — strict mode is mandatory and must stay enabled.
+    "strict": true,
+    "noImplicitOverride": true,
+    "noImplicitReturns": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": true,
+    "forceConsistentCasingInFileNames": true,
+
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "removeComments": false,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "pretty": true,
+    "types": ["node"]
+  }
+}

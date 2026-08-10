@@ -1,0 +1,110 @@
+import { describe, expect, it } from 'vitest';
+
+import { LogLevel, NodeEnvironment } from './environment.constants.js';
+import { EnvironmentValidationError, validateEnvironment } from './environment.schema.js';
+
+const VALID_ENVIRONMENT: Readonly<Record<string, string>> = {
+  NODE_ENV: 'test',
+  DATABASE_URL: 'postgresql://user:secret-password@localhost:5432/copilot',
+  REDIS_URL: 'redis://localhost:6379',
+  OBJECT_STORAGE_ENDPOINT: 'http://localhost:9000',
+};
+
+describe('validateEnvironment', () => {
+  it('given a minimal valid environment when validated then defaults are applied', () => {
+    const config = validateEnvironment({ ...VALID_ENVIRONMENT });
+
+    expect(config.NODE_ENV).toBe(NodeEnvironment.Test);
+    expect(config.API_PORT).toBe(3001);
+    expect(config.API_HOST).toBe('127.0.0.1');
+    expect(config.API_CORS_ALLOWED_ORIGINS).toBe('');
+    expect(config.API_BODY_LIMIT).toBe('1mb');
+    expect(config.LOG_LEVEL).toBe(LogLevel.Log);
+    expect(config.OBJECT_STORAGE_HEALTH_PATH).toBe('/minio/health/live');
+    expect(config.HEALTH_CHECK_TIMEOUT_MS).toBe(2000);
+  });
+
+  it('given numeric strings when validated then they are converted to numbers', () => {
+    const config = validateEnvironment({
+      ...VALID_ENVIRONMENT,
+      API_PORT: '4000',
+      HEALTH_CHECK_TIMEOUT_MS: '1500',
+    });
+
+    expect(config.API_PORT).toBe(4000);
+    expect(config.HEALTH_CHECK_TIMEOUT_MS).toBe(1500);
+  });
+
+  it('given an empty string when validated then the declared default is used', () => {
+    const config = validateEnvironment({ ...VALID_ENVIRONMENT, API_PORT: '' });
+
+    expect(config.API_PORT).toBe(3001);
+  });
+
+  it.each([
+    ['NODE_ENV', 'staging'],
+    ['API_PORT', '0'],
+    ['API_PORT', '70000'],
+    ['API_PORT', 'not-a-number'],
+    ['API_BODY_LIMIT', '1gigabyte'],
+    ['LOG_LEVEL', 'trace'],
+    ['DATABASE_URL', 'mysql://user:pw@localhost:3306/copilot'],
+    ['REDIS_URL', 'http://localhost:6379'],
+    ['OBJECT_STORAGE_ENDPOINT', 'localhost:9000'],
+    ['OBJECT_STORAGE_HEALTH_PATH', 'minio/health/live'],
+    ['HEALTH_CHECK_TIMEOUT_MS', '10'],
+    ['API_PROBLEM_TYPE_BASE_URL', 'not-a-url'],
+  ])('given an invalid %s when validated then bootstrap fails', (key, value) => {
+    expect(() => validateEnvironment({ ...VALID_ENVIRONMENT, [key]: value })).toThrow(
+      EnvironmentValidationError,
+    );
+  });
+
+  it.each(['DATABASE_URL', 'REDIS_URL', 'OBJECT_STORAGE_ENDPOINT'])(
+    'given a missing required %s when validated then bootstrap fails',
+    (key) => {
+      const incomplete: Record<string, string> = { ...VALID_ENVIRONMENT };
+      delete incomplete[key];
+
+      expect(() => validateEnvironment(incomplete)).toThrow(EnvironmentValidationError);
+    },
+  );
+
+  it('given an invalid connection string when validated then the error never echoes the value', () => {
+    const secret = 'super-secret-password';
+
+    let thrown: unknown;
+    try {
+      validateEnvironment({
+        ...VALID_ENVIRONMENT,
+        DATABASE_URL: `mysql://user:${secret}@localhost:3306/copilot`,
+      });
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(EnvironmentValidationError);
+    const message = (thrown as EnvironmentValidationError).message;
+    expect(message).toContain('DATABASE_URL');
+    expect(message).not.toContain(secret);
+    expect(message).not.toContain('mysql://');
+  });
+
+  it('given a migrator credential in the environment when validated then it is not exposed to the runtime', () => {
+    // 00 §6.1 and AGENTS.md §5.2: the runtime application must never be able to read the
+    // migrator connection string, even when it is present in the process environment.
+    const migratorUrl = 'postgresql://copilot_migrator:migrator-pw@localhost:5432/copilot';
+
+    const config = validateEnvironment({
+      ...VALID_ENVIRONMENT,
+      MIGRATION_DATABASE_URL: migratorUrl,
+      TEST_DATABASE_URL: 'postgresql://copilot_test:test-pw@localhost:5433/copilot_test',
+      SOME_UNRELATED_VARIABLE: 'value',
+    });
+
+    expect(config).not.toHaveProperty('MIGRATION_DATABASE_URL');
+    expect(config).not.toHaveProperty('TEST_DATABASE_URL');
+    expect(config).not.toHaveProperty('SOME_UNRELATED_VARIABLE');
+    expect(JSON.stringify(config)).not.toContain('migrator-pw');
+  });
+});

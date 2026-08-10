@@ -1,0 +1,147 @@
+# Local development infrastructure for the Axenita TARDOC Billing Safety Copilot.
+#
+# Scope (04 §3.3, phase 1): PostgreSQL 16, Redis 7 and MinIO with health checks and
+# named volumes. No application container, no business schema, no seed data.
+#
+# Images are pinned by exact tag AND immutable digest (README §5 "Tačne patch verzije moraju
+# biti zaključane u `package.json`, lockfileu i container image digestima tokom faze 1";
+# 00 §5.3 — `latest` is forbidden and the image must be digest locked).
+#
+# The tag stays next to the digest for human readability; the digest is what Docker resolves.
+# Each digest is the multi-arch registry index digest of the corresponding tag, resolved with
+# `docker buildx imagetools inspect <repository>:<tag>`.
+#
+# Changing an image version means: resolve the new digest, update both the tag and the digest,
+# and re-run the phase acceptance commands.
+#
+# Usage:
+#   docker compose config
+#   docker compose up -d postgres redis minio
+#   docker compose ps
+#   docker compose --profile test up -d
+#
+# `docker compose down -v` is forbidden without explicit owner approval (AGENTS.md §12)
+# because it destroys the named volumes below.
+
+name: ${COMPOSE_PROJECT_NAME:-axenita-copilot}
+
+services:
+  postgres:
+    image: postgres:16.14-alpine3.24@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777
+    container_name: copilot-postgres
+    restart: unless-stopped
+    environment:
+      # Container superuser is the migration/owner role (00 §6.1). The runtime role
+      # `copilot_app` (NOBYPASSRLS, not owner) is created by the phase 2 init SQL.
+      POSTGRES_DB: ${POSTGRES_DB:-copilot}
+      POSTGRES_USER: ${POSTGRES_USER:-copilot_migrator}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-local_dev_only_change_me}
+      POSTGRES_INITDB_ARGS: '--data-checksums'
+      TZ: UTC
+      PGTZ: UTC
+    ports:
+      - '${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      # Executed only when the data volume is empty (10 §6).
+      - ./infra/database/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'pg_isready -U "${POSTGRES_USER:-copilot_migrator}" -d "${POSTGRES_DB:-copilot}"',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  redis:
+    image: redis:7.4.10-alpine3.21@sha256:e7723ff73d963f5cc6d9c4643ea3d989527a402a319239054e9472a7fb9219a2
+    container_name: copilot-redis
+    restart: unless-stopped
+    # Redis is a queue/coordination dependency only. It is never a business source of
+    # truth and never receives medical content or secrets (00 §4.3, 09 §16).
+    command:
+      - redis-server
+      - --appendonly
+      - 'yes'
+      - --save
+      - '60'
+      - '1'
+    ports:
+      - '${REDIS_PORT:-6379}:6379'
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  minio:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
+    container_name: copilot-minio
+    restart: unless-stopped
+    command: ['server', '/data', '--console-address', ':9001']
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-copilot_local_dev}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-local_dev_only_change_me}
+      # Buckets stay private; no anonymous policy is configured (09 §17).
+      MINIO_BROWSER_REDIRECT_URL: http://localhost:${MINIO_CONSOLE_PORT:-9001}
+    ports:
+      - '${MINIO_API_PORT:-9000}:9000'
+      - '${MINIO_CONSOLE_PORT:-9001}:9001'
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ['CMD-SHELL', 'mc ready local']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  # ---------------------------------------------------------------------------
+  # Test profile (08 §3) — a separate PostgreSQL instance so that destructive
+  # integration tests never run against the development database.
+  # Started explicitly: docker compose --profile test up -d
+  # ---------------------------------------------------------------------------
+  postgres-test:
+    # Identical digest to the `postgres` service — the test instance must run the exact
+    # same image as development (08 §3).
+    image: postgres:16.14-alpine3.24@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777
+    container_name: copilot-postgres-test
+    profiles: ['test']
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_TEST_DB:-copilot_test}
+      POSTGRES_USER: ${POSTGRES_TEST_USER:-copilot_test}
+      POSTGRES_PASSWORD: ${POSTGRES_TEST_PASSWORD:-local_test_only_change_me}
+      POSTGRES_INITDB_ARGS: '--data-checksums'
+      TZ: UTC
+      PGTZ: UTC
+    ports:
+      - '${POSTGRES_TEST_PORT:-5433}:5432'
+    volumes:
+      - postgres-test-data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'pg_isready -U "${POSTGRES_TEST_USER:-copilot_test}" -d "${POSTGRES_TEST_DB:-copilot_test}"',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+volumes:
+  postgres-data:
+    name: copilot-postgres-data
+  postgres-test-data:
+    name: copilot-postgres-test-data
+  redis-data:
+    name: copilot-redis-data
+  minio-data:
+    name: copilot-minio-data

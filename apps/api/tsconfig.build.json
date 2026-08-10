@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./dist",
+    // Resolve `@axenita/contracts` through the workspace package `exports` field.
+    // `pnpm -r run build` builds packages in topological order, so the declaration
+    // output of the contracts package exists before this project is compiled.
+    "paths": {}
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist", "test", "**/*.spec.ts", "**/*.e2e-spec.ts"]
+}

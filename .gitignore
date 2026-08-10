@@ -18,6 +18,10 @@ build/
 coverage/
 .turbo/
 .vercel/
+*.tsbuildinfo
+.eslintcache
+.pnpm-store/
+.vitest/
 
 # Python
 __pycache__/
