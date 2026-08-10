@@ -91,20 +91,41 @@ describe('validateEnvironment', () => {
   });
 
   it('given a migrator credential in the environment when validated then it is not exposed to the runtime', () => {
-    // 00 §6.1 and AGENTS.md §5.2: the runtime application must never be able to read the
-    // migrator connection string, even when it is present in the process environment.
+    // 02 §3.4, D-023 clause 6 and AGENTS.md §5.2: the runtime application must never be able
+    // to read the migrator connection string, even when it is present in the process
+    // environment. The same holds for the platform credential, whose first consumer is
+    // phase 6, and for the test harness credentials.
     const migratorUrl = 'postgresql://copilot_migrator:migrator-pw@localhost:5432/copilot';
+    const systemUrl = 'postgresql://copilot_system:system-pw@localhost:5432/copilot';
 
     const config = validateEnvironment({
       ...VALID_ENVIRONMENT,
       MIGRATION_DATABASE_URL: migratorUrl,
-      TEST_DATABASE_URL: 'postgresql://copilot_test:test-pw@localhost:5433/copilot_test',
+      SYSTEM_DATABASE_URL: systemUrl,
+      TEST_DATABASE_URL: 'postgresql://copilot_app:test-pw@localhost:5433/copilot_test',
+      TEST_MIGRATION_DATABASE_URL:
+        'postgresql://copilot_migrator:test-pw@localhost:5433/copilot_test',
       SOME_UNRELATED_VARIABLE: 'value',
     });
 
     expect(config).not.toHaveProperty('MIGRATION_DATABASE_URL');
+    expect(config).not.toHaveProperty('SYSTEM_DATABASE_URL');
     expect(config).not.toHaveProperty('TEST_DATABASE_URL');
+    expect(config).not.toHaveProperty('TEST_MIGRATION_DATABASE_URL');
     expect(config).not.toHaveProperty('SOME_UNRELATED_VARIABLE');
-    expect(JSON.stringify(config)).not.toContain('migrator-pw');
+
+    const serialised = JSON.stringify(config);
+    expect(serialised).not.toContain('migrator-pw');
+    expect(serialised).not.toContain('system-pw');
+    expect(serialised).not.toContain('test-pw');
+    expect(serialised).not.toContain('copilot_migrator');
+  });
+
+  it('given the runtime schema when inspected then DATABASE_URL is the only database credential', () => {
+    // 02 §3.4 credential matrix: only `copilot_app` is a runtime credential for the API.
+    const config = validateEnvironment({ ...VALID_ENVIRONMENT });
+
+    const databaseKeys = Object.keys(config).filter((key) => key.includes('DATABASE'));
+    expect(databaseKeys).toStrictEqual(['DATABASE_URL']);
   });
 });

@@ -3,6 +3,7 @@ import {
   type AddressInfo,
   createServer as createTcpServer,
   type Server as TcpServer,
+  type Socket,
 } from 'node:net';
 
 /**
@@ -23,9 +24,35 @@ function port(server: TcpServer | HttpServer): number {
   return (server.address() as AddressInfo).port;
 }
 
+/**
+ * Sockets accepted by a stub, so teardown can drop them.
+ *
+ * `net.Server` has no `closeAllConnections` — that method exists only on `http.Server` —
+ * and `server.close()` waits for every open connection. A peer such as the PostgreSQL
+ * driver keeps its socket open waiting for a reply it will never get, so without this the
+ * suite would hang in teardown.
+ */
+const openSockets = new WeakMap<TcpServer, Set<Socket>>();
+
+/**
+ * A bare TCP listener that accepts a connection and then says nothing.
+ *
+ * It never completes a protocol handshake, which is the point: a client that only checks
+ * reachability sees `up`, while a client that actually speaks the protocol does not.
+ */
 function listenTcp(): Promise<TcpServer> {
   return new Promise((resolve) => {
-    const server = createTcpServer();
+    const sockets = new Set<Socket>();
+    const server = createTcpServer((socket) => {
+      sockets.add(socket);
+      socket.on('close', () => sockets.delete(socket));
+      socket.on('error', () => {
+        socket.destroy();
+      });
+    });
+
+    openSockets.set(server, sockets);
+
     server.listen(0, '127.0.0.1', () => {
       resolve(server);
     });
@@ -48,6 +75,14 @@ function listenObjectStorage(): Promise<HttpServer> {
 }
 
 function close(server: TcpServer | HttpServer): Promise<void> {
+  // Drop peers first: `close` only stops accepting and then waits for existing connections.
+  for (const socket of openSockets.get(server) ?? []) {
+    socket.destroy();
+  }
+  if ('closeAllConnections' in server) {
+    server.closeAllConnections();
+  }
+
   return new Promise((resolve) => {
     server.close(() => {
       resolve();

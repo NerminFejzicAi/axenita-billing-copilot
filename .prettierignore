@@ -11,3 +11,4 @@ pnpm-lock.yaml
 **/dist/
 **/coverage/
 **/*.tsbuildinfo
+apps/api/src/generated/

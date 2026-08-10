@@ -51,22 +51,37 @@ describe('AppConfigService', () => {
     ]);
   });
 
-  it('given connection strings when read then only host and port are exposed', () => {
+  it('given a redis connection string when read then only host and port are exposed', () => {
     const appConfig = appConfigFor();
 
-    expect(appConfig.databaseEndpoint).toStrictEqual({ host: 'db.internal', port: 5432 });
     expect(appConfig.redisEndpoint).toStrictEqual({ host: 'cache.internal', port: 6379 });
-    expect(JSON.stringify(appConfig.databaseEndpoint)).not.toContain('secret-password');
+    expect(JSON.stringify(appConfig.redisEndpoint)).not.toContain('secret-password');
   });
 
-  it('given connection strings without an explicit port when read then defaults apply', () => {
-    const appConfig = appConfigFor({
-      DATABASE_URL: 'postgresql://copilot_app:pw@db.internal/copilot',
-      REDIS_URL: 'redis://cache.internal',
-    });
+  it('given a redis connection string without an explicit port when read then the default applies', () => {
+    const appConfig = appConfigFor({ REDIS_URL: 'redis://cache.internal' });
 
-    expect(appConfig.databaseEndpoint.port).toBe(5432);
     expect(appConfig.redisEndpoint.port).toBe(6379);
+  });
+
+  it('given the runtime database credential when read then it is returned verbatim for the driver', () => {
+    // 02 §3.4 — the runtime client is built from DATABASE_URL (copilot_app) and nothing else.
+    const appConfig = appConfigFor();
+
+    expect(appConfig.databaseUrl).toBe(
+      'postgresql://copilot_app:secret-password@db.internal:5432/copilot',
+    );
+  });
+
+  it('given a migrator credential in the environment when read then the service exposes no accessor for it', () => {
+    // D-023 clause 6 / AGENTS.md §5.2 — the runtime must not be able to reach
+    // MIGRATION_DATABASE_URL. It is absent from the schema, so no accessor can exist.
+    const appConfig = appConfigFor();
+
+    expect(appConfig).not.toHaveProperty('migrationDatabaseUrl');
+    expect(Object.getOwnPropertyNames(Object.getPrototypeOf(appConfig))).not.toContain(
+      'migrationDatabaseUrl',
+    );
   });
 
   it('given an object storage endpoint when read then the health URL is composed', () => {

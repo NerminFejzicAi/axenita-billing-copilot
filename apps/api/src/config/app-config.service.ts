@@ -69,13 +69,17 @@ export class AppConfigService {
   }
 
   /**
-   * PostgreSQL endpoint for the readiness probe.
+   * Runtime PostgreSQL connection string — the `copilot_app` credential (02 §3.2, §3.4).
    *
-   * Only host and port are exposed. The credential part of the connection string never
-   * leaves this service (09 §11 — database URLs are forbidden log content).
+   * Consumed by `PrismaService` only, to build the driver adapter. It must never be logged,
+   * echoed in an error, or placed in a response body (09 §11).
+   *
+   * There is deliberately no accessor for `MIGRATION_DATABASE_URL`: that variable is not
+   * part of the runtime schema, so the migrator credential is unreachable from runtime code
+   * (D-023 clause 6, AGENTS.md §5.2).
    */
-  public get databaseEndpoint(): NetworkEndpoint {
-    return toEndpoint(this.get('DATABASE_URL'), 5432);
+  public get databaseUrl(): string {
+    return this.get('DATABASE_URL');
   }
 
   /** Redis endpoint for the readiness probe. Credentials are not exposed. */

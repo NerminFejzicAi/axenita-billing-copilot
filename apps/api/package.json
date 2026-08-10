@@ -10,13 +10,21 @@
     "node": "24.19.0"
   },
   "scripts": {
+    "postinstall": "prisma generate",
     "dev": "nest start --watch",
-    "build": "nest build -p tsconfig.build.json",
+    "build": "prisma generate && nest build -p tsconfig.build.json",
     "start": "node dist/main.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --config vitest.config.ts",
     "test:watch": "vitest --config vitest.config.ts",
-    "test:e2e": "vitest run --config vitest.e2e.config.ts"
+    "test:e2e": "vitest run --config vitest.e2e.config.ts",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "db:format": "prisma format",
+    "db:validate": "prisma validate",
+    "db:generate": "prisma generate",
+    "db:migrate:dev": "prisma migrate dev",
+    "db:migrate:deploy": "prisma migrate deploy",
+    "db:migrate:status": "prisma migrate status"
   },
   "dependencies": {
     "@axenita/contracts": "workspace:*",
@@ -24,9 +32,12 @@
     "@nestjs/config": "4.0.4",
     "@nestjs/core": "11.1.28",
     "@nestjs/platform-express": "11.1.28",
+    "@prisma/adapter-pg": "7.9.1",
+    "@prisma/client": "7.9.1",
     "class-transformer": "0.5.1",
     "class-validator": "0.15.1",
     "helmet": "8.3.0",
+    "pg": "8.23.0",
     "reflect-metadata": "0.2.2",
     "rxjs": "7.8.2"
   },
@@ -37,7 +48,9 @@
     "@swc/core": "1.15.47",
     "@types/express": "5.0.6",
     "@types/node": "24.13.3",
+    "@types/pg": "8.21.0",
     "@types/supertest": "7.2.1",
+    "prisma": "7.9.1",
     "supertest": "7.2.2",
     "typescript": "5.9.3",
     "unplugin-swc": "1.5.10",

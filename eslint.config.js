@@ -11,6 +11,8 @@ export default tseslint.config(
       '**/node_modules/**',
       'docs/**',
       'services/tariff-engine-java/**',
+      // Prisma generated client (02 §26). Regenerated, never hand-edited.
+      'apps/api/src/generated/**',
     ],
   },
 
@@ -76,6 +78,16 @@ export default tseslint.config(
   // Test sources may reach for process.env to build isolated environments.
   {
     files: ['**/*.spec.ts', '**/*.e2e-spec.ts', '**/test/**/*.ts'],
+    rules: {
+      'no-restricted-syntax': 'off',
+    },
+  },
+
+  // CLI tooling configuration executed outside the Nest runtime (Prisma, Vitest). These
+  // files exist precisely to read the raw environment before any application container is
+  // built, so the ConfigService restriction cannot apply to them (00 §8.4 governs runtime).
+  {
+    files: ['**/prisma.config.ts', '**/vitest.*.config.ts', '**/vitest.config.ts'],
     rules: {
       'no-restricted-syntax': 'off',
     },
