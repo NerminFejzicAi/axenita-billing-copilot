@@ -9,10 +9,10 @@
 
 | Polje | Vrijednost |
 |---|---|
-| Current phase | Faza 1 — `IN_PROGRESS` (implementacija završena, čeka read-only review) |
-| Current branch | `implementation/backend-v1` |
-| Last completed phase | — |
-| Last commit | `35aff83` (frozen v1 baseline; faza 1 nije commitovana) |
+| Current phase | Faza 1 — `DONE` (next mandatory gate: Ecosystem Compatibility Audit) |
+| Current branch | `main` |
+| Last completed phase | Faza 1 — Repository i lokalna infrastruktura |
+| Last commit | `4ca591a` (Phase 1 implementation), merged via `1fa4b19` |
 | Local environment owner | Nermin Fejzic |
 | Test DB | `copilot_test` @ `localhost:5433` (compose profil `test`) |
 | Documentation version | 1.0 |
@@ -46,7 +46,7 @@ docker version:  Docker 29.6.2, Docker Compose v5.3.1
 
 # 2. Faza 1 — Bootstrap
 
-Status: `IN_PROGRESS` — implementacija i sve provjere završene, čeka read-only review i commit.
+Status: `DONE`
 
 ## Repository
 
@@ -114,15 +114,26 @@ Dodatno izvršeno izvan minimalne liste:
 Evidence:
 
 ```text
-Branch:       implementation/backend-v1
-Commit:       nije commitovano (read-only review prije commita)
+Branch:       implementation/backend-v1 → merged u main
+Commit:       4ca591a962ef87f0b5f1f46650e786dba43e3db7 (Phase 1 implementation)
+Merge:        PR #2 MERGED; merge commit 1fa4b19e3c9dc3a91df2cd70537564e147b68d67
+              normal merge commit (bez squasha i bez rebasea); dva roditelja:
+              35aff836 (frozen baseline) + 4ca591a (Phase 1 implementation)
+Main:         lokalni main = origin/main = 1fa4b19; working tree čist
 Commands:     pnpm install --frozen-lockfile | pnpm lint | pnpm format:check | pnpm typecheck |
               pnpm test | pnpm test:e2e | pnpm build | pnpm verify:toolchain |
               docker compose config | docker compose up -d | docker compose ps |
               docker compose --profile test up -d
-Test result:  80 unit + 41 e2e = 121 testova, svi prolaze
+Gates:        svi Faza 1 gateovi prolaze
+Test result:  80/80 unit + 41/41 e2e = 121/121 testova, svi prolaze
+Scope:        Faza 1 ne sadrži nikakvu Faza 2+ funkcionalnost (bez Prisma/scheme, auth,
+              autorizacije/RLS, encounter domena, TARDOC/OAAT logike, AI, queueova,
+              Axenita integracije i frontenda)
 Review:       prvi read-only review — 2 blockera ispravljena (image digest pin;
-              structured allowlist logging bez raw exception sadržaja)
+              structured allowlist logging bez raw exception sadržaja); drugi read-only
+              review CLEAN; commit, post-commit i push verifikacija prošli
+Next gate:    Ecosystem Compatibility Audit — obavezan sljedeći korak prije Faze 2
+              (vodeći princip: "ecosystem-ready, not ecosystem-built")
 Open issues:  readiness pokriva database/redis/objectStorage; `tariffEngine` iz 03 §27 dolazi
               u fazi 8. Database/Redis provjera je trenutno TCP reachability jer faza 1 nema
               DB/queue klijent. Body-parser odbijanja se mapiraju na 400, ne 413 (03 §9).
