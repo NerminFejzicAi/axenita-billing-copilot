@@ -1,0 +1,10 @@
+packages:
+  - 'apps/*'
+  - 'packages/*'
+
+# pnpm blocks dependency lifecycle scripts by default. Only toolchain packages that
+# genuinely need a native build/verification step are allowed, and each one is listed
+# explicitly so that a new package cannot silently gain script execution rights.
+allowBuilds:
+  '@swc/core': true
+  esbuild: true

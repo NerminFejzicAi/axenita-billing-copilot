@@ -1,0 +1,18 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // No `rootDir` here on purpose: this configuration is used for `--noEmit` type
+    // checking and for the editor, and it resolves `@axenita/contracts` from source
+    // outside this project directory. `tsconfig.build.json` sets the emit `rootDir`.
+    "outDir": "./dist",
+    "baseUrl": ".",
+    // Type checking and the editor resolve the workspace contract package straight from
+    // source so that a fresh clone can run `pnpm typecheck` before anything is built.
+    // The build configuration clears these paths and resolves through package `exports`.
+    "paths": {
+      "@axenita/contracts": ["../../packages/contracts/src/index.ts"]
+    }
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts", "vitest.config.ts", "vitest.e2e.config.ts"],
+  "exclude": ["node_modules", "dist"]
+}

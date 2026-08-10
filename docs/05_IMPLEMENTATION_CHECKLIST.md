@@ -9,103 +9,125 @@
 
 | Polje | Vrijednost |
 |---|---|
-| Current phase | NOT_STARTED |
-| Current branch | |
-| Last completed phase | |
-| Last commit | |
-| Local environment owner | |
-| Test DB | |
+| Current phase | Faza 1 — `IN_PROGRESS` (implementacija završena, čeka read-only review) |
+| Current branch | `implementation/backend-v1` |
+| Last completed phase | — |
+| Last commit | `35aff83` (frozen v1 baseline; faza 1 nije commitovana) |
+| Local environment owner | Nermin Fejzic |
+| Test DB | `copilot_test` @ `localhost:5433` (compose profil `test`) |
 | Documentation version | 1.0 |
-| Last updated | |
+| Last updated | 2026-08-10 |
 
 ---
 
 # 1. Pre-flight
 
-- [ ] Dokumenti su kopirani u root projekta.
-- [ ] Cursor vidi `AGENTS.md`.
-- [ ] Pročitan `00_PROJECT_RULES.md`.
-- [ ] Pročitan `06_DECISION_LOG.md`.
-- [ ] Git repository postoji.
-- [ ] Working tree je čist.
-- [ ] Nema stvarnih secrets u fajlovima.
-- [ ] Docker radi.
-- [ ] Node/pnpm rade.
-- [ ] Project owner je potvrdio fazni pristup.
+- [x] Dokumenti su kopirani u root projekta.
+- [x] Cursor vidi `AGENTS.md`.
+- [x] Pročitan `00_PROJECT_RULES.md`.
+- [x] Pročitan `06_DECISION_LOG.md`.
+- [x] Git repository postoji.
+- [x] Working tree je čist.
+- [x] Nema stvarnih secrets u fajlovima.
+- [x] Docker radi.
+- [x] Node/pnpm rade.
+- [x] Project owner je potvrdio fazni pristup.
 
 Evidence:
 
 ```text
-git status:
-node --version:
-pnpm --version:
-docker version:
+git status:      clean prije faze 1; HEAD potomak frozen baselinea 35aff83
+node --version:  v24.19.0
+pnpm --version:  11.17.0
+docker version:  Docker 29.6.2, Docker Compose v5.3.1
 ```
 
 ---
 
 # 2. Faza 1 — Bootstrap
 
-Status: `NOT_STARTED`
+Status: `IN_PROGRESS` — implementacija i sve provjere završene, čeka read-only review i commit.
 
 ## Repository
 
-- [ ] Root `package.json`.
-- [ ] `pnpm-workspace.yaml`.
-- [ ] lockfile.
-- [ ] `.gitignore`.
-- [ ] `.editorconfig`.
-- [ ] Node version pin.
-- [ ] pnpm version pin.
-- [ ] `apps/api`.
-- [ ] `services/tariff-engine-java`.
-- [ ] `packages/contracts`.
-- [ ] `infra`.
-- [ ] `scripts`.
+- [x] Root `package.json`. — private ESM workspace root, `packageManager: pnpm@11.17.0`, `engines` pin.
+- [x] `pnpm-workspace.yaml`. — `apps/*`, `packages/*`, eksplicitni `allowBuilds`.
+- [x] lockfile. — `pnpm-lock.yaml`; `pnpm install --frozen-lockfile` prolazi.
+- [x] `.gitignore`. — dopunjen za `*.tsbuildinfo`, `.eslintcache`, `.pnpm-store/`, `.vitest/`.
+- [x] `.editorconfig`.
+- [x] Node version pin. — `.node-version` i `.nvmrc` = `24.19.0`, `engines.node` = `24.19.0`.
+- [x] pnpm version pin. — `packageManager` i `engines.pnpm` = `11.17.0`, `engine-strict=true`.
+- [x] `apps/api`. — NestJS 11 aplikacija.
+- [x] `services/tariff-engine-java`. — placeholder README, bez koda (D-OPEN-010).
+- [x] `packages/contracts`. — `@axenita/contracts`, samo `/api/v1` versioning površina.
+- [x] `infra`. — `infra/database/init` (prazan, vlasništvo faze 2).
+- [x] `scripts`. — `verify-toolchain.mjs`.
 
 ## API bootstrap
 
-- [ ] NestJS 11.
-- [ ] TypeScript strict.
-- [ ] ConfigModule.
-- [ ] env validation.
-- [ ] global `/api` prefix.
-- [ ] URI v1.
-- [ ] validation pipe.
-- [ ] Helmet.
-- [ ] CORS allowlist.
-- [ ] request ID.
-- [ ] Problem Details base.
-- [ ] live health.
-- [ ] ready health base.
+- [x] NestJS 11. — `@nestjs/common|core|platform-express` 11.1.28.
+- [x] TypeScript strict. — 5.9.3, `strict` + `noUncheckedIndexedAccess`, `noUnused*`, `noImplicitReturns`.
+- [x] ConfigModule. — `@nestjs/config` 4.0.4 kroz `AppConfigModule.forRoot()`.
+- [x] env validation. — `validateEnvironment`, fail-fast, poruka bez vrijednosti varijabli.
+- [x] global `/api` prefix. — `setGlobalPrefix(API_GLOBAL_PREFIX)`.
+- [x] URI v1. — `VersioningType.URI`, rute `/api/v1/...` (D-007).
+- [x] validation pipe. — whitelist, `forbidNonWhitelisted`, bez implicitne konverzije, 422.
+- [x] Helmet. — `helmet()` + body limit iz konfiguracije.
+- [x] CORS allowlist. — `API_CORS_ALLOWED_ORIGINS`, prazna lista = default deny.
+- [x] request ID. — `X-Request-ID` middleware + `AsyncLocalStorage` kontekst (03 §3.5).
+- [x] Problem Details base. — `application/problem+json`, centralni katalog od 34 koda (D-008).
+- [x] structured allowlist logging (09 §11). — `AllowlistedLogAttributes` ograničava atribute na dozvoljeni skup; nijedan `exception.stack` ni `exception.message` ne ulazi u log iz HTTP ni bootstrap putanje.
+- [x] live health. — `GET /api/v1/health/live` → `200 {"status":"up"}`.
+- [x] ready health base. — `GET /api/v1/health/ready`, strukturirani `checks`, `503` kod `degraded`.
 
 ## Docker
 
-- [ ] PostgreSQL 16.
-- [ ] Redis 7.
-- [ ] MinIO.
-- [ ] health checks.
-- [ ] named volumes.
-- [ ] no production secrets.
+- [x] PostgreSQL 16. — `postgres:16.14-alpine3.24@sha256:57c72fd2…07777`, potvrđeno `PostgreSQL 16.14`.
+- [x] Redis 7. — `redis:7.4.10-alpine3.21@sha256:e7723ff7…19a2`, potvrđeno `redis_version:7.4.10`.
+- [x] MinIO. — `minio/minio:RELEASE.2025-09-07T16-13-09Z@sha256:14cea493…936e`.
+- [x] image digest pin. — sve četiri servisne reference su tag + immutable digest (README §5); `postgres` i `postgres-test` dijele identičan digest.
+- [x] health checks. — `pg_isready`, `redis-cli ping`, `mc ready local`; sva 4 kontejnera `healthy` iz digest-pinovanih imagea.
+- [x] named volumes. — `copilot-postgres-data`, `copilot-redis-data`, `copilot-minio-data`, `copilot-postgres-test-data`.
+- [x] no production secrets. — samo eksplicitno označene lokalne dev vrijednosti.
 
 ## Verification
 
-- [ ] `pnpm lint`.
-- [ ] `pnpm typecheck`.
-- [ ] `pnpm test`.
-- [ ] `pnpm build`.
-- [ ] `docker compose config`.
-- [ ] `docker compose up -d`.
-- [ ] live health 200.
+- [x] `pnpm lint`. — 0 grešaka (`typescript-eslint` type-checked).
+- [x] `pnpm typecheck`. — oba paketa prolaze.
+- [x] `pnpm test`. — 80/80 unit testova.
+- [x] `pnpm build`. — `packages/contracts` + `apps/api` prolaze.
+- [x] `docker compose config`. — validan.
+- [x] `docker compose up -d`. — postgres/redis/minio + `--profile test` postgres-test.
+- [x] live health 200. — potvrđeno protiv pokrenutog stacka.
+
+Dodatno izvršeno izvan minimalne liste:
+
+- [x] `pnpm format:check` — sve formatirano.
+- [x] `pnpm test:e2e` — 41/41 API e2e testova.
+- [x] `pnpm install --frozen-lockfile` — prolazi.
+- [x] `pnpm verify:toolchain` — node 24.19.0, pnpm 11.17.0.
+- [x] readiness degraded put dokazan zaustavljanjem Redisa → `503` + `redis: down`.
+- [x] nevalidan environment obara bootstrap sa exit kodom 1; izlaz sadrži samo sanitizovanu
+      liniju bez vrijednosti, bez stacka i bez framework dumpa.
+- [x] running kontejneri potvrđeni protiv pinovanih digesta (`docker inspect .Image`).
 
 Evidence:
 
 ```text
-Branch:
-Commit:
-Commands:
-Test result:
-Open issues:
+Branch:       implementation/backend-v1
+Commit:       nije commitovano (read-only review prije commita)
+Commands:     pnpm install --frozen-lockfile | pnpm lint | pnpm format:check | pnpm typecheck |
+              pnpm test | pnpm test:e2e | pnpm build | pnpm verify:toolchain |
+              docker compose config | docker compose up -d | docker compose ps |
+              docker compose --profile test up -d
+Test result:  80 unit + 41 e2e = 121 testova, svi prolaze
+Review:       prvi read-only review — 2 blockera ispravljena (image digest pin;
+              structured allowlist logging bez raw exception sadržaja)
+Open issues:  readiness pokriva database/redis/objectStorage; `tariffEngine` iz 03 §27 dolazi
+              u fazi 8. Database/Redis provjera je trenutno TCP reachability jer faza 1 nema
+              DB/queue klijent. Body-parser odbijanja se mapiraju na 400, ne 413 (03 §9).
+              Bootstrap failure log imenuje samo varijable koje ne prolaze validaciju
+              (deklarisana imena iz sheme), nikada vrijednosti ni constraint tekst.
 ```
 
 ---
