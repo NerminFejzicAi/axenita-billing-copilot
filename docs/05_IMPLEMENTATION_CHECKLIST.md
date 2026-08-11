@@ -9,10 +9,10 @@
 
 | Polje | Vrijednost |
 |---|---|
-| Current phase | Faza 1 — `DONE`; Ecosystem Compatibility Audit `DONE`; Faza 2 — `IN_PROGRESS` (implementacija završena, čeka read-only review) |
-| Current branch | `implementation/database-foundation-v1` |
-| Last completed phase | Faza 1 — Repository i lokalna infrastruktura |
-| Last commit | `b427e9d` (ecosystem audit record merge) — Faza 2 još nije commitovana |
+| Current phase | Faza 1 — `DONE`; Ecosystem Compatibility Audit `DONE`; Faza 2 — `DONE` (next mandatory gate: D-OPEN-011 decision gate) |
+| Current branch | `main` |
+| Last completed phase | Faza 2 — Database Foundation |
+| Last commit | `c4b89d0` (Phase 2 implementation), merged via `dae9649` |
 | Local environment owner | Nermin Fejzic |
 | Test DB | `copilot_test` @ `localhost:5433` (compose profil `test`) |
 | Documentation version | 1.0 |
@@ -173,7 +173,7 @@ Napomena:        Audit ne odobrava implementaciju nijednog budućeg modula ni ap
 
 # 3. Faza 2 — Prisma i DB role
 
-Status: `IN_PROGRESS` — implementacija završena, čeka read-only review. Nije commitovano.
+Status: `DONE`
 
 - [x] Prisma 7 installed. — `prisma` i `@prisma/client` 7.9.1, driver adapter `@prisma/adapter-pg` 7.9.1 + `pg` 8.23.0 (D-004, D-021).
 - [x] `prisma.config.ts`. — `defineConfig` sa `schema`, `migrations.path` i `datasource.url` iz `MIGRATION_DATABASE_URL`; bez `MIGRATION_DATABASE_URL` odmah baca grešku.
@@ -202,6 +202,13 @@ Verification:
 Evidence:
 
 ```text
+Branch:       implementation/database-foundation-v1 → merged u main
+Commit:       c4b89d033dfbb5df84f66ae9df83db87776f4f3b (Phase 2 implementation)
+Merge:        PR #5 MERGED; merge commit dae9649a0d91e43a3a5d6f42c24f5eccb494e552
+              normal merge commit (bez squasha i bez rebasea); dva roditelja:
+              b427e9dc (ecosystem audit merge) + c4b89d03 (Phase 2 implementation)
+Main:         lokalni main = origin/main = dae9649; merge tree identičan c4b89d03 tree-u
+Diff:         41 fajl, +3108 / -146
 Server:       PostgreSQL 16.14 (postgres:16.14-alpine3.24, digest-pinned) — D-003
 Extensions:   samo plpgsql; paket 001 ne instalira nijednu ekstenziju (02 §22.1)
 Migration:    20260810213856_001_extensions_and_roles; applied_steps_count=1;
@@ -229,18 +236,47 @@ Commands:     pnpm install --frozen-lockfile | pnpm lint | pnpm format:check |
               pnpm typecheck | pnpm test | pnpm test:e2e | pnpm test:integration |
               pnpm build | pnpm verify:toolchain | docker compose config |
               pnpm db:validate | pnpm db:migrate:deploy | pnpm db:migrate:status
-Test result:  83/83 unit + 41/41 e2e + 45/45 integration = 169/169 testova, svi prolaze
+Test result:  83/83 unit + 41/41 e2e + 45/45 integration = 169/169 testova, svi prolaze;
+              nula padova, nula preskočenih
+Gates:        svi Faza 2 gateovi prolaze — lint, format:check, typecheck, test, test:e2e,
+              test:integration, build, verify:toolchain, docker compose config,
+              prisma migrate status; ponovni `migrate deploy` = no pending migrations
+Privileges:   razdvajanje privilegija provjereno uživo protiv stvarnog PostgreSQL-a
+              (atributi rola, vlasništvo, grantovi, DEFAULT PRIVILEGES, PUBLIC)
+Review:       finalni nezavisni read-only PR review: PASS — nula blockera; tri nalaza
+              klasifikovana kao NON-BLOCKING sa kasnijim gateom (NB-1/NB-2/NB-3)
 Scope:        bez modela u `schema.prisma` — Faza 2 ne uvodi nijednu domensku tabelu.
               Bez RLS, bez practices/users, bez auth, bez encountera, bez TARDOC-a,
               bez AI/queueova, bez Axenita integracije, bez frontenda.
+Governance:   06_DECISION_LOG.md nepromijenjen; D-001 do D-046 nepromijenjene; nijedan
+              novi ADR. Prihvaćena tumačenja: A2 — role kreira cluster bootstrap, a
+              migration paket 001 verifikuje role/ownership/privilege ugovor; B1 — Faza 2
+              "prazna baza" znači bootstrapovanu praznu bazu; C2 — sprega
+              `prisma generate` / `MIGRATION_DATABASE_URL` nije blokirajuća za trenutni
+              workflow.
 D-OPEN-011:   nije dodirnut niti riješen. Faza 2 nije naišla na tačku koja ga zahtijeva;
-              granica ostaje fail-closed. Ostaje obavezan prije Faze 3.
-Open issues:  Faza 1 compose je `copilot_migrator` činio cluster bootstrap superuserom, što
-              je u suprotnosti sa 02 §3.1 i obesmislilo bi svaki privilege test. Ispravljeno
-              na `POSTGRES_USER=postgres`; postojeći volume se ne može popraviti u mjestu
-              (dokazano: `session user cannot be renamed`, `bootstrap user must have the
-              SUPERUSER attribute`) — procedura u `infra/database/scripts/bootstrap-roles.md`.
-              `SYSTEM_DATABASE_URL` je dokumentovan ali nema konzumenta u Fazi 2.
+              granica ostaje fail-closed. OSTAJE OTVOREN i MORA BITI RIJEŠEN PRIJE FAZE 3.
+Open issues:  NB-1 — sprega `prisma generate` / `MIGRATION_DATABASE_URL`: `prisma.config.ts`
+              baca grešku bez te varijable, a `postinstall` i `build` pozivaju
+              `prisma generate`. Neblokirajuće za zamrznuti lokalni workflow (10 §3 postavlja
+              `.env` prije 10 §4); mora se riješiti prije prvog CI/container builda.
+              NB-2 — Faza 1 compose je `copilot_migrator` činio cluster bootstrap superuserom,
+              što je u suprotnosti sa 02 §3.1 i obesmislilo bi svaki privilege test.
+              Ispravljeno na `POSTGRES_USER=postgres`; postojeći volume se ne može popraviti
+              u mjestu (dokazano: `session user cannot be renamed`, `bootstrap user must have
+              the SUPERUSER attribute`) — procedura u
+              `infra/database/scripts/bootstrap-roles.md`. Operativno pitanje pri osvježavanju
+              okruženja.
+              NB-3 — ownership guard migracije 001 provjerava samo tabele (`pg_tables`);
+              kontinuirano privilege-regression pokrivanje pripada Fazi 4.
+              `SYSTEM_DATABASE_URL` je dokumentovan ali nema konzumenta u Fazi 2 (prvi
+              konzument je Faza 6).
+Closure:      PHASE 2 STATUS: FORMALLY CLOSED
+              PHASE 3 IMPLEMENTATION IS NOT AUTHORIZED YET
+              D-OPEN-011 MUST BE RESOLVED BEFORE PHASE 3
+Next gate:    D-OPEN-011 DECISION GATE — sljedeća governance aktivnost nije implementacija
+              Faze 3, nego odluka o runtime access modelu za `users` i `practices`
+              (06 D-OPEN-011, 02 §28.2, 13 §16).
 ```
 
 ---
