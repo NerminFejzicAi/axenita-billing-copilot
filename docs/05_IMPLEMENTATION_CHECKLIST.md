@@ -9,14 +9,14 @@
 
 | Polje | Vrijednost |
 |---|---|
-| Current phase | Faza 1 — `DONE`; Ecosystem Compatibility Audit `DONE`; Faza 2 — `NOT_STARTED` |
-| Current branch | `main` |
+| Current phase | Faza 1 — `DONE`; Ecosystem Compatibility Audit `DONE`; Faza 2 — `IN_PROGRESS` (implementacija završena, čeka read-only review) |
+| Current branch | `implementation/database-foundation-v1` |
 | Last completed phase | Faza 1 — Repository i lokalna infrastruktura |
-| Last commit | `4ca591a` (Phase 1 implementation), merged via `1fa4b19` |
+| Last commit | `b427e9d` (ecosystem audit record merge) — Faza 2 još nije commitovana |
 | Local environment owner | Nermin Fejzic |
 | Test DB | `copilot_test` @ `localhost:5433` (compose profil `test`) |
 | Documentation version | 1.0 |
-| Last updated | 2026-08-10 |
+| Last updated | 2026-08-11 |
 
 ---
 
@@ -173,39 +173,74 @@ Napomena:        Audit ne odobrava implementaciju nijednog budućeg modula ni ap
 
 # 3. Faza 2 — Prisma i DB role
 
-Status: `NOT_STARTED`
+Status: `IN_PROGRESS` — implementacija završena, čeka read-only review. Nije commitovano.
 
-- [ ] Prisma 7 installed.
-- [ ] `prisma.config.ts`.
-- [ ] generated client path.
-- [ ] module format consistent.
-- [ ] `DATABASE_URL`.
-- [ ] `MIGRATION_DATABASE_URL`.
-- [ ] `copilot_migrator`.
-- [ ] `copilot_app`.
-- [ ] `NOBYPASSRLS`.
-- [ ] runtime not owner.
-- [ ] PrismaService singleton.
-- [ ] DatabaseModule global.
-- [ ] migration scripts.
-- [ ] test database documented.
+- [x] Prisma 7 installed. — `prisma` i `@prisma/client` 7.9.1, driver adapter `@prisma/adapter-pg` 7.9.1 + `pg` 8.23.0 (D-004, D-021).
+- [x] `prisma.config.ts`. — `defineConfig` sa `schema`, `migrations.path` i `datasource.url` iz `MIGRATION_DATABASE_URL`; bez `MIGRATION_DATABASE_URL` odmah baca grešku.
+- [x] generated client path. — `generator client { provider = "prisma-client", output = "../src/generated/prisma" }`; putanja je u `.gitignore`, `.prettierignore` i ESLint ignores (02 §26 — generisano, nikad ručno mijenjano).
+- [x] module format consistent. — `moduleFormat = "esm"`, `runtime = "nodejs"`; svi importi su ESM sa `.js` ekstenzijom (D-021).
+- [x] `DATABASE_URL`. — jedini database credential u runtime shemi; `AppConfigService.databaseUrl`.
+- [x] `MIGRATION_DATABASE_URL`. — isključivo CLI/Prisma config; nije u runtime shemi i nema accessor u `AppConfigService`.
+- [x] `copilot_migrator`. — `NOSUPERUSER CREATEDB NOCREATEROLE INHERIT LOGIN NOBYPASSRLS`, vlasnik baze i `public` scheme (02 §3.1).
+- [x] `copilot_app`. — `NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT LOGIN NOBYPASSRLS` (02 §3.2).
+- [x] `NOBYPASSRLS`. — potvrđeno za sve tri role; `copilot_app` ne može sam sebi dodijeliti `BYPASSRLS` (SQLSTATE 42501).
+- [x] runtime not owner. — `copilot_app` nije vlasnik nijednog objekta; `has_schema_privilege('copilot_app','public','CREATE') = f`.
+- [x] PrismaService singleton. — `PrismaService extends PrismaClient`, `OnModuleInit`/`OnModuleDestroy` sa ograničenim `connect`/`disconnect`; jedna instanca po procesu.
+- [x] DatabaseModule global. — `@Global()`, izvozi samo `PrismaService`; `TenantDatabaseService`/RLS ostaju Faza 4.
+- [x] migration scripts. — `db:format`, `db:validate`, `db:generate`, `db:migrate:dev`, `db:migrate:deploy`, `db:migrate:status`; `postinstall` i `build` pokreću `prisma generate`.
+- [x] test database documented. — `TEST_DATABASE_URL`, `TEST_MIGRATION_DATABASE_URL`, `TEST_SYSTEM_DATABASE_URL` u `.env.example`; izolovana baza `copilot_test` @ `localhost:5433`.
 
 Verification:
 
-- [ ] `prisma format`.
-- [ ] `prisma validate`.
-- [ ] migration on empty DB.
-- [ ] runtime current_user test.
-- [ ] runtime CREATE TABLE denied.
-- [ ] owner query confirms migrator/owner.
+- [x] `prisma format`. — bez izmjena (idempotentno).
+- [x] `prisma validate`. — `The schema at prisma\schema.prisma is valid`.
+- [x] migration on empty DB. — `20260810213856_001_extensions_and_roles` primijenjena na praznu `copilot_test` iz `globalSetup`; ponovni `migrate deploy` je stabilan no-op.
+- [x] runtime current_user test. — integracijski testovi potvrđuju `current_user = copilot_app` na runtime konekciji.
+- [x] runtime CREATE TABLE denied. — SQLSTATE `42501` za `CREATE TABLE`, `CREATE SCHEMA`, `CREATE ROLE` i čitanje `_prisma_migrations`.
+- [x] owner query confirms migrator/owner. — vlasnik baze `copilot`, scheme `public` i `_prisma_migrations` je `copilot_migrator`.
 
 Evidence:
 
 ```text
-Migration:
-Owner:
-Runtime user:
-Test output:
+Server:       PostgreSQL 16.14 (postgres:16.14-alpine3.24, digest-pinned) — D-003
+Extensions:   samo plpgsql; paket 001 ne instalira nijednu ekstenziju (02 §22.1)
+Migration:    20260810213856_001_extensions_and_roles; applied_steps_count=1;
+              rolled_back_at=NULL; checksum 7ba61f9dea1a6ef7...; identična u
+              `copilot` i `copilot_test`; `prisma migrate status` => "Database schema
+              is up to date!"
+Roles:        rolname          | super | createdb | createrole | inherit | login | bypassrls
+              copilot_app      | f     | f        | f          | f       | t     | f
+              copilot_migrator | f     | t        | f          | t       | t     | f
+              copilot_system   | f     | f        | f          | f       | t     | f
+              nijedno članstvo između copilot rola (pg_auth_members = 0 redova)
+Owner:        database `copilot` owner = copilot_migrator
+              schema  `public`  owner = copilot_migrator
+              table   `_prisma_migrations` owner = copilot_migrator; relacl = NULL
+Runtime user: copilot_app — db_connect=t, db_create=f, public_usage=t, public_create=f
+              copilot_system — isto; nema nijedan table grant (Faza 6 je prvi konzument)
+PUBLIC:       CONNECT=f, USAGE=f, CREATE=f; `pg_default_acl` = 0 redova (bez DEFAULT
+              PRIVILEGES; grantovi po paketu, 02 §3.3)
+RLS:          0 tabela sa rowsecurity, 0 policy redova — Faza 4 scope, nije anticipiran
+Bootstrap:    role kreira cluster bootstrap superuser kroz `infra/database/init`
+              (04 §4.4 korak 4, 10 §6); migracija 001 ih VERIFIKUJE i pada glasno
+              (08 §5.1). `copilot_migrator` je NOCREATEROLE (02 §3.1) pa ne može
+              kreirati role — zato verifikacija, ne kreiranje, u migraciji.
+Commands:     pnpm install --frozen-lockfile | pnpm lint | pnpm format:check |
+              pnpm typecheck | pnpm test | pnpm test:e2e | pnpm test:integration |
+              pnpm build | pnpm verify:toolchain | docker compose config |
+              pnpm db:validate | pnpm db:migrate:deploy | pnpm db:migrate:status
+Test result:  83/83 unit + 41/41 e2e + 45/45 integration = 169/169 testova, svi prolaze
+Scope:        bez modela u `schema.prisma` — Faza 2 ne uvodi nijednu domensku tabelu.
+              Bez RLS, bez practices/users, bez auth, bez encountera, bez TARDOC-a,
+              bez AI/queueova, bez Axenita integracije, bez frontenda.
+D-OPEN-011:   nije dodirnut niti riješen. Faza 2 nije naišla na tačku koja ga zahtijeva;
+              granica ostaje fail-closed. Ostaje obavezan prije Faze 3.
+Open issues:  Faza 1 compose je `copilot_migrator` činio cluster bootstrap superuserom, što
+              je u suprotnosti sa 02 §3.1 i obesmislilo bi svaki privilege test. Ispravljeno
+              na `POSTGRES_USER=postgres`; postojeći volume se ne može popraviti u mjestu
+              (dokazano: `session user cannot be renamed`, `bootstrap user must have the
+              SUPERUSER attribute`) — procedura u `infra/database/scripts/bootstrap-roles.md`.
+              `SYSTEM_DATABASE_URL` je dokumentovan ali nema konzumenta u Fazi 2.
 ```
 
 ---

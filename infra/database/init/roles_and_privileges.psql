@@ -1,0 +1,104 @@
+-- =============================================================================
+-- Phase 2 — migration package 001_extensions_and_roles (02 §22.1)
+-- Database roles and cluster-level privileges.
+-- =============================================================================
+--
+-- WHY THIS LIVES HERE AND NOT IN A PRISMA MIGRATION
+--
+-- 02 §22.1 assigns role creation to package `001_extensions_and_roles`. Role creation
+-- cannot be executed by a Prisma migration:
+--
+--   1. `copilot_migrator` must exist BEFORE any migration runs, because the migration
+--      tooling connects as that role through MIGRATION_DATABASE_URL (02 §3.4);
+--   2. `copilot_migrator` is NOCREATEROLE (02 §3.1), so it cannot create the other roles;
+--   3. ALTER DATABASE/SCHEMA OWNER requires the bootstrap superuser.
+--
+-- Role creation is therefore performed by the cluster bootstrap superuser, which is what
+-- 04 §4.4 step 4 calls the "runtime role init SQL" and what 10 §6 calls the controlled
+-- bootstrap script. The Prisma migration for package 001 VERIFIES this state and fails
+-- loudly when it is missing, so the package still owns the contract (08 §5.1: the presence
+-- check must be explicit, not inferred from a successful migration).
+--
+-- This file is idempotent and is used by two paths:
+--   * automatically, by the PostgreSQL entrypoint on an empty data volume;
+--   * manually, by `infra/database/scripts/bootstrap-roles.md` on an existing volume.
+--
+-- No password literal appears in this file. Values arrive as psql variables.
+-- Required psql variables: migrator_password, app_password, system_password.
+-- =============================================================================
+
+\set ON_ERROR_STOP on
+
+-- -----------------------------------------------------------------------------
+-- 1. copilot_migrator — owner of schema objects, runs migrations (02 §3.1)
+--    login nosuperuser createdb nocreaterole inherit
+-- -----------------------------------------------------------------------------
+SELECT format('CREATE ROLE %I LOGIN', 'copilot_migrator')
+WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'copilot_migrator')
+\gexec
+
+ALTER ROLE copilot_migrator LOGIN NOSUPERUSER CREATEDB NOCREATEROLE INHERIT NOREPLICATION;
+
+SELECT format('ALTER ROLE %I PASSWORD %L', 'copilot_migrator', :'migrator_password')
+\gexec
+
+-- -----------------------------------------------------------------------------
+-- 2. copilot_app — runtime tenant queries, subject to RLS (02 §3.2)
+--    login nosuperuser nocreatedb nocreaterole noinherit nobypassrls
+-- -----------------------------------------------------------------------------
+SELECT format('CREATE ROLE %I LOGIN', 'copilot_app')
+WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'copilot_app')
+\gexec
+
+ALTER ROLE copilot_app
+  LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS NOREPLICATION;
+
+SELECT format('ALTER ROLE %I PASSWORD %L', 'copilot_app', :'app_password')
+\gexec
+
+-- -----------------------------------------------------------------------------
+-- 3. copilot_system — platform/tariff writes only, never tenant data (02 §3.3, D-023)
+--    login nosuperuser nocreatedb nocreaterole noinherit nobypassrls
+-- -----------------------------------------------------------------------------
+SELECT format('CREATE ROLE %I LOGIN', 'copilot_system')
+WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'copilot_system')
+\gexec
+
+ALTER ROLE copilot_system
+  LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS NOREPLICATION;
+
+SELECT format('ALTER ROLE %I PASSWORD %L', 'copilot_system', :'system_password')
+\gexec
+
+-- -----------------------------------------------------------------------------
+-- 4. Database ownership and least-privilege CONNECT (02 §3.5)
+--    Only the migrator owns schema objects. PUBLIC gets nothing.
+-- -----------------------------------------------------------------------------
+SELECT format('ALTER DATABASE %I OWNER TO %I', current_database(), 'copilot_migrator')
+\gexec
+
+SELECT format('REVOKE ALL ON DATABASE %I FROM PUBLIC', current_database())
+\gexec
+
+SELECT format(
+  'GRANT CONNECT ON DATABASE %I TO %I, %I, %I',
+  current_database(), 'copilot_migrator', 'copilot_app', 'copilot_system'
+)
+\gexec
+
+-- -----------------------------------------------------------------------------
+-- 5. Schema ownership and least-privilege USAGE
+--    Runtime roles may resolve objects but may never create them: this is what makes
+--    the "runtime CREATE TABLE denied" acceptance criterion true (05 Faza 2).
+-- -----------------------------------------------------------------------------
+ALTER SCHEMA public OWNER TO copilot_migrator;
+
+REVOKE ALL ON SCHEMA public FROM PUBLIC;
+
+GRANT USAGE, CREATE ON SCHEMA public TO copilot_migrator;
+GRANT USAGE ON SCHEMA public TO copilot_app;
+GRANT USAGE ON SCHEMA public TO copilot_system;
+
+-- No DEFAULT PRIVILEGES are configured on purpose. Every table grant is declared
+-- explicitly by the migration package that creates the table (02 §20), so a future table
+-- can never become readable by a runtime role merely by existing.

@@ -6,5 +6,8 @@ packages:
 # genuinely need a native build/verification step are allowed, and each one is listed
 # explicitly so that a new package cannot silently gain script execution rights.
 allowBuilds:
+  # Prisma resolves and verifies its engine binaries in a postinstall step (D-004).
+  '@prisma/engines': true
   '@swc/core': true
   esbuild: true
+  prisma: true

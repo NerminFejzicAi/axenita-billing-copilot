@@ -46,7 +46,7 @@ describe('GET /api/v1/health/live', () => {
   });
 });
 
-describe('GET /api/v1/health/ready — every dependency reachable', () => {
+describe('GET /api/v1/health/ready — socket-only dependencies', () => {
   let app: NestExpressApplication;
   let dependencies: StubbedDependencies;
 
@@ -60,13 +60,23 @@ describe('GET /api/v1/health/ready — every dependency reachable', () => {
     await dependencies.close();
   });
 
-  it('given every dependency up when readiness is requested then it answers 200 up', async () => {
+  /**
+   * Regression guard for the phase 2 probe upgrade.
+   *
+   * The stub is a plain TCP listener. It satisfied the phase 1 reachability probe, which is
+   * exactly the weakness that probe had. Since the database check now performs a real
+   * `select 1` through Prisma, a listening-but-not-PostgreSQL endpoint must report `down`.
+   *
+   * The fully healthy path needs a real PostgreSQL and therefore lives in the integration
+   * suite (08 §2.2), which keeps this end-to-end suite runnable without Docker.
+   */
+  it('given a listener that is not PostgreSQL when readiness is requested then database is down', async () => {
     const response = await request(app.getHttpServer()).get('/api/v1/health/ready');
 
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(503);
     expect(response.body).toStrictEqual({
-      status: 'up',
-      checks: { database: 'up', redis: 'up', objectStorage: 'up' },
+      status: 'degraded',
+      checks: { database: 'down', redis: 'up', objectStorage: 'up' },
     });
   });
 });
@@ -122,13 +132,16 @@ describe('GET /api/v1/health/ready — partial outage', () => {
     await dependencies.close();
   });
 
-  it('given one failing dependency when readiness is requested then only that check is down', async () => {
+  it('given one failing dependency when readiness is requested then it is reported individually', async () => {
     const response = await request(app.getHttpServer()).get('/api/v1/health/ready');
 
+    // `objectStorage` stays up while `redis` is pointed at a closed port, which proves the
+    // checks are independent. `database` is down because this suite runs without a real
+    // PostgreSQL — see the socket-only describe above.
     expect(response.status).toBe(503);
     expect(response.body).toStrictEqual({
       status: 'degraded',
-      checks: { database: 'up', redis: 'down', objectStorage: 'up' },
+      checks: { database: 'down', redis: 'down', objectStorage: 'up' },
     });
   });
 });

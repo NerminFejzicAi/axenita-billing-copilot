@@ -9,8 +9,13 @@
 *.tsx text eol=lf
 *.js text eol=lf
 *.jsx text eol=lf
+*.mjs text eol=lf
+*.cjs text eol=lf
 *.py text eol=lf
 *.sh text eol=lf
+# psql scripts are executed inside the Linux database container; a CRLF checkout would
+# carry the carriage return into `\gexec` arguments and into quoted identifiers.
+*.psql text eol=lf
 
 *.ps1 text eol=crlf
 *.bat text eol=crlf

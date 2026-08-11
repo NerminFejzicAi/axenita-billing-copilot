@@ -1,0 +1,31 @@
+// Prisma schema — Auditabilni Axenita TARDOC Billing Safety Copilot
+//
+// Normative sources: D-004 (Prisma 7 + custom SQL), `02_DATABASE_SCHEMA_V1.md` §26.
+//
+// Scope note (phase 2): this schema intentionally declares **no models**. Phase 2 owns
+// migration package `001_extensions_and_roles` only (§22.1) — database roles, ownership
+// and least-privilege grants. Business tables belong to packages `002` and later and are
+// created by their own phases (04 §5 onward). Declaring them early would pull phase 3+
+// scope forward.
+//
+// Rules that Prisma cannot express and that therefore live in migration SQL (§26):
+//   - RLS policies, grants, functions, triggers;
+//   - some composite foreign keys;
+//   - `NULLS NOT DISTINCT` (§26.2).
+// `prisma migrate diff` may report drift on those objects. That is expected and must not
+// be "fixed" by removing them (§26.2).
+//
+// Identifier rule (§2.2, §26.1): `@default(uuid())` is never used for business entities.
+// The application generates every UUID and supplies it in the `create` call, because the
+// canonical AAD of the encryption envelope (§2.7) contains `row_id`.
+
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "esm"
+  runtime      = "nodejs"
+}

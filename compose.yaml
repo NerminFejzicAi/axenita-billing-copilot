@@ -31,12 +31,18 @@ services:
     container_name: copilot-postgres
     restart: unless-stopped
     environment:
-      # Container superuser is the migration/owner role (00 §6.1). The runtime role
-      # `copilot_app` (NOBYPASSRLS, not owner) is created by the phase 2 init SQL.
+      # The container superuser is a dedicated bootstrap identity. It is NOT an application
+      # role: `copilot_migrator` must be NOSUPERUSER (02 §3.1) and therefore cannot be the
+      # cluster bootstrap role. The three application roles are created by the phase 2 init
+      # scripts below (02 §22.1, 04 §4.4 step 4).
       POSTGRES_DB: ${POSTGRES_DB:-copilot}
-      POSTGRES_USER: ${POSTGRES_USER:-copilot_migrator}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-local_dev_only_change_me}
       POSTGRES_INITDB_ARGS: '--data-checksums'
+      # Role passwords consumed by the init scripts. Local development placeholders only.
+      COPILOT_MIGRATOR_PASSWORD: ${COPILOT_MIGRATOR_PASSWORD:-local_dev_only_change_me}
+      COPILOT_APP_PASSWORD: ${COPILOT_APP_PASSWORD:-local_dev_only_change_me}
+      COPILOT_SYSTEM_PASSWORD: ${COPILOT_SYSTEM_PASSWORD:-local_dev_only_change_me}
       TZ: UTC
       PGTZ: UTC
     ports:
@@ -46,11 +52,7 @@ services:
       # Executed only when the data volume is empty (10 §6).
       - ./infra/database/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test:
-        [
-          'CMD-SHELL',
-          'pg_isready -U "${POSTGRES_USER:-copilot_migrator}" -d "${POSTGRES_DB:-copilot}"',
-        ]
+      test: ['CMD-SHELL', 'pg_isready -U "${POSTGRES_USER:-postgres}" -d "${POSTGRES_DB:-copilot}"']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -115,21 +117,28 @@ services:
     profiles: ['test']
     restart: unless-stopped
     environment:
+      # Same bootstrap model and same three application roles as the development instance,
+      # so that migration and privilege tests run against an identical role topology
+      # (08 §3, §5.1). Credentials are distinct from the development instance.
       POSTGRES_DB: ${POSTGRES_TEST_DB:-copilot_test}
-      POSTGRES_USER: ${POSTGRES_TEST_USER:-copilot_test}
+      POSTGRES_USER: ${POSTGRES_TEST_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_TEST_PASSWORD:-local_test_only_change_me}
       POSTGRES_INITDB_ARGS: '--data-checksums'
+      COPILOT_MIGRATOR_PASSWORD: ${COPILOT_TEST_MIGRATOR_PASSWORD:-local_test_only_change_me}
+      COPILOT_APP_PASSWORD: ${COPILOT_TEST_APP_PASSWORD:-local_test_only_change_me}
+      COPILOT_SYSTEM_PASSWORD: ${COPILOT_TEST_SYSTEM_PASSWORD:-local_test_only_change_me}
       TZ: UTC
       PGTZ: UTC
     ports:
       - '${POSTGRES_TEST_PORT:-5433}:5432'
     volumes:
       - postgres-test-data:/var/lib/postgresql/data
+      - ./infra/database/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test:
         [
           'CMD-SHELL',
-          'pg_isready -U "${POSTGRES_TEST_USER:-copilot_test}" -d "${POSTGRES_TEST_DB:-copilot_test}"',
+          'pg_isready -U "${POSTGRES_TEST_USER:-postgres}" -d "${POSTGRES_TEST_DB:-copilot_test}"',
         ]
       interval: 10s
       timeout: 5s
