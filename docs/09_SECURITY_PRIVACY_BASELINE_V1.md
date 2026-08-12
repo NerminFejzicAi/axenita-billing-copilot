@@ -157,6 +157,37 @@ Posebne permissions:
 
 System administrator ne dobija automatski medicinski read samo zato što održava infrastrukturu.
 
+## 6.1 Identity i practice access model (D-047)
+
+Normativno: D-047; `02` §16.2.1, §16.2.4, §17.5, §17.6, §20.2a.
+
+- `users` i `practices` nose `ENABLE` **i** `FORCE ROW LEVEL SECURITY`; nijedna nije neograničeno
+  runtime-čitljiva.
+- **Column-level data minimization.** `copilot_app` dobija `SELECT` isključivo na
+  `users(id, email, display_name, preferred_language, status)` i
+  `practices(id, code, name, default_language, timezone, status)`.
+- **Osjetljiva polja nemaju grant nijednoj runtime roli:** `practices.zsr_number` i
+  `practices.gln_number` (klasa B, §2), `practices.legal_name`, `users.auth_subject` i
+  `users.last_login_at`. Ne pojavljuju se ni u jednom API odgovoru u v1.
+- **Nijedan runtime upis** nad `users` ni `practices`; obje se pune migracijom i seedom.
+- `copilot_system` nema grant nad te dvije tabele; `PUBLIC` nema grant.
+- **Transakcijski lokalan identity kontekst.** `app.auth_subject`, `app.user_id` i
+  `app.practice_id` postavljaju se sa `set_config(..., true)` i ne preživljavaju transakciju, pa
+  pooled konekcija ne nasljeđuje identitet prethodnog requesta.
+- **Nijedna `SECURITY DEFINER` funkcija** nije uvedena za identity ni tenant bootstrap.
+- **Status gate.** Korisnik čiji `status` nije `ACTIVE` odbija se prije `set_user_context`;
+  ordinacija čija `status` nije `ACTIVE` odbija se prije nego `app.practice_id` postoji.
+- Pristup redu **drugog** korisnika je `DENY / NOT IMPLEMENTED` u v1; gate je
+  `BEFORE PHASE 5 CO-MEMBER DISPLAY NAME ACCESS` (`13` §19).
+
+**Granica koja se ne smije precijeniti.** RLS **ne autentifikuje** krajnjeg korisnika kada je
+dijeljeni `copilot_app` credential ukraden: držalac credentiala može sam postaviti `app.*`
+varijable kroz `set_config`. RLS štiti od aplikacijskih grešaka, zaboravljenih filtera i običnih
+cross-tenant bugova. Pri kompromitovanom credentialu **preživljavaju**: column-level `SELECT`
+ograničenje, nepostojanje write grantova, nepostojanje vlasništva, `NOBYPASSRLS` i nepostojanje
+DDL prava. Tačka sprovođenja autorizacije je API, ne baza (D-023 klauzula 13, D-033, D-047
+klauzula 20).
+
 ---
 
 # 7. Enkripcija
@@ -276,6 +307,16 @@ AI output:
 
 Structured allowlist logging.
 
+**Bootstrap i identity događaji (D-047, klauzula 19).** Rezolucija subjekta — uspjeh i neuspjeh —
+odbijanje po statusu korisnika, neuspjeh membershipa, odbijanje po statusu ordinacije i uspostava
+konteksta idu **isključivo u strukturirani operativni log**, nikada u `audit_events`. Razlog je
+strukturni: `audit_events.practice_id` je `NOT NULL` (D-023, klauzule 1–2), a u trenutku tih
+događaja tenant još ne postoji. Obično, neosjetljivo `practice.read` **ne zahtijeva** trajni audit
+red u v1; ako se ubuduće uvede osjetljiv practice DTO, trajni audit postaje dio tog ADR-a.
+
+**`auth_subject` se nikada ne logira** — ni u sirovom ni u skraćenom obliku. U logu se koristi
+interni `userId` (UUID).
+
 Dozvoljena polja:
 
 ```text
@@ -312,6 +353,8 @@ database URL
 encryption keys
 raw AI prompt/response
 raw Axenita response
+auth_subject
+ZSR / GLN
 ```
 
 Error adapter mora prevesti external error u safe code/message.
@@ -435,6 +478,13 @@ Kontrole: practice context, RLS, composite FK, 404, tests.
 ## T2 Compromised runtime DB credential
 
 Kontrole: RLS, least privilege, no owner, no BYPASSRLS, encryption.
+
+Uz D-047, za `users` i `practices` razlikovati dvije klase kontrola:
+
+- **preživljavaju krađu credentiala:** column-level `SELECT` (osjetljiva polja nedostupna),
+  nepostojanje write grantova, nepostojanje vlasništva, `NOBYPASSRLS`, nepostojanje DDL prava;
+- **ne preživljavaju:** RLS politike vezane za `app.*` varijable, jer ih držalac credentiala može
+  sam postaviti. Ne tvrditi jaču database garanciju identiteta (§6.1).
 
 ## T3 PHI in logs
 

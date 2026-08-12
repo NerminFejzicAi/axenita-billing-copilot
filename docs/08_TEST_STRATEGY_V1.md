@@ -785,20 +785,115 @@ Nivo: e2e + security.
 - tenant ruta se **ne** može autorizovati isključivo kroz `platformRoles`;
 - platform/system context se **ne** uspostavlja kroz `set_request_context`.
 
-## 21.5 BLOCKED — D-OPEN-011
+## 21.5 Access model za `users` i `practices` — test ugovor (D-047)
 
-Testovi generičkog runtime pristupa nad `users` i `practices` su **BLOKIRANI** dok
-D-OPEN-011 ne bude prihvaćen (`13` §16). Nisu izostavljeni — vode se kao blokirani.
+**Normativna odluka: D-047.** Ranije je ova sekcija vodila testove kao `BLOCKED — D-OPEN-011`.
+D-OPEN-011 je riješen 2026-08-12, pa su ti testovi sada **obavezan, izvršiv ugovor**, ne blokirana
+stavka.
 
-Do tada su obavezni ovi negativni guard testovi, koji su izvodivi već sada:
+Nivo: integration nad stvarnim PostgreSQL-om. Vlasništvo: paket `002_identity_and_practices`,
+**faza 3**, osim gdje je izričito navedena faza 4. Normativni izvor za očekivanja: `02` §17.5,
+§17.6, §20.2a i §25.1.1.
+
+### 21.5.1 Trajni guard testovi
+
+Ostaju obavezni i nakon D-047 — zabrana nije ukinuta, nego je sada tehnički sprovedena:
 
 - nema neograničenog `SELECT` nad `users`;
 - nema neograničenog `SELECT` nad `practices`;
 - nema generičkih runtime grantova prema `PUBLIC`;
 - membership-bootstrap pristup **ne izlaže** opšte `users`/`practices` redove.
 
-**Konačna access politika se ne izmišlja u testovima.** Test koji pretpostavi bilo koji
-konkretan model pristupa nad te dvije tabele je sam po sebi defekt.
+### 21.5.2 `users`
+
+Pozitivni:
+
+- validan verifikovan subjekt uz nepostavljen `app.user_id` vraća **tačno jedan** red;
+- vlastiti red je čitljiv nakon `set_user_context`.
+
+Negativni:
+
+- nepoznat subjekt → **nula** redova;
+- korisnik čiji `status` nije `ACTIVE` → `403 ACCESS_DENIED` prije `set_user_context`;
+- bez `app.auth_subject` i bez `app.user_id` → **nula** redova;
+- **neusklađeni konteksti** — `app.auth_subject` korisnika A uz `app.user_id` korisnika B →
+  **tačno jedan** red, i to red korisnika B. Regresijski test obaveznog guarda `app.user_id IS
+  NULL`; bez njega su dokazano vidljiva **dva** reda;
+- **zastarjeli** `app.auth_subject` nakon `set_user_context` ne mijenja vidljivost;
+- korisnik A ne čita red korisnika B;
+- `SELECT auth_subject`, `SELECT last_login_at`, `SELECT *` → **`42501`**;
+- `WHERE auth_subject = ...` → **`42501`**;
+- `INSERT`, `UPDATE`, `DELETE` → **`42501`**;
+- `set_auth_subject_context(null)` i `set_auth_subject_context('')` → **`42501`**;
+- pristup redu drugog korisnika (co-member `displayName`) → **nula** redova; potvrđuje da gate
+  `BEFORE PHASE 5 CO-MEMBER DISPLAY NAME ACCESS` nije tiho zaobiđen (`13` §19).
+
+### 21.5.3 `practices`
+
+Pozitivni:
+
+- prije `app.practice_id` vidljive su **sve** ordinacije vlastitog membership skupa;
+- ordinacija sa **neaktivnim** membershipom je vidljiva — zahtjev `GET /me` za `practiceName`;
+- nakon `app.practice_id` vidljiva je **tačno jedna** ordinacija.
+
+Negativni:
+
+- nakon `app.practice_id`, upit **bez `WHERE`** vraća **tačno jedan** red — zaštita od
+  zaboravljenog filtera;
+- nakon `app.practice_id`, eksplicitan `WHERE` za drugu ordinaciju u kojoj korisnik **jeste** član
+  → **nula** redova;
+- ordinacija bez membershipa → **nula** redova, sa i bez konteksta;
+- podmetnut `app.practice_id` za ordinaciju bez membershipa → **nula** redova;
+- bez `app.user_id` → **nula** redova;
+- ordinacija čiji `status` nije `ACTIVE` → `403 ACCESS_DENIED` uz rollback, **prije**
+  `set_request_context`;
+- `SELECT zsr_number`, `gln_number`, `legal_name` → **`42501`**;
+- `INSERT`, `UPDATE`, `DELETE` → **`42501`**;
+- `copilot_system` bilo kakav pristup `users` ili `practices` → pada.
+
+### 21.5.4 RESTRICTIVE politika — zaštita od budućeg proširenja
+
+- uz dodatu široku PERMISSIVE politiku (`using (true)`), post-context vidljivost **ostaje jedan
+  red**. Dokazano je da bi bez RESTRICTIVE moda ista situacija vratila **tri** reda, uključujući
+  ordinaciju bez ijednog membershipa. Ovaj test je regresijska zaštita moda politike, ne stila.
+
+### 21.5.5 Zavisnost od `practice_memberships`
+
+- ukidanje ili sužavanje `SELECT` granta nad `practice_memberships` obara politiku nad `practices`
+  sa **`42501`**. Test invarijante iz `02` §17.6 i §20.2a — sprječava tiho lomljenje politike
+  budućim sužavanjem granta.
+
+### 21.5.6 Međustanje faze 3 — očekivano, dokumentovano
+
+- u fazi 3 `practice_memberships` **nema** RLS, pa `copilot_app` na nivou baze vidi **generičke**
+  membership redove, uključujući tuđe. To je **očekivano zatečeno stanje** (`02` §20.2, `05` faza
+  3), a **ne** defekt i **ne** posljedica D-047. Test to eksplicitno tvrdi, da promjena ne bi
+  prošla nezapaženo;
+- **faza 4:** nakon `02` §17.3 isti upit vraća **isključivo** vlastite membership redove —
+  regresijski test koji dokazuje da je međustanje zatvoreno;
+- **faza 4:** politika nad `practices` daje **identičan** rezultat prije i nakon uvođenja §17.3 —
+  dokaz da faza 4 ne prepisuje politike faze 3.
+
+### 21.5.7 Životni ciklus konteksta (faza 4)
+
+- neuspjeh bootstrapa ne ostavlja upotrebljiv `app.practice_id`;
+- na kraju transakcije `app.auth_subject`, `app.user_id` i `app.practice_id` su obrisani;
+- pooled konekcija ne nasljeđuje kontekst prethodnog requesta.
+
+### 21.5.8 Kompromitovan credential
+
+Test mora **tvrditi prihvaćeno ograničenje**, ne izmišljati zaštitu:
+
+- držalac `copilot_app` credentiala može sam postaviti `app.*` varijable i time pročitati red
+  odgovarajućeg identiteta — test to **potvrđuje kao poznatu granicu**;
+- **nijedan test ne smije tvrditi** da dijeljeni runtime credential dokazuje identitet krajnjeg
+  korisnika;
+- isti test potvrđuje da column grantovi i dalje važe: `auth_subject`, `last_login_at`,
+  `zsr_number`, `gln_number` i `legal_name` ostaju nedostupni, a svi upisi padaju sa `42501`.
+
+**Konačna access politika se ne izmišlja u testovima.** Svaka asercija mora se pozivati na
+eksplicitnu klauzulu D-047 ili na `02` §17.5/§17.6/§20.2a. Test koji pretpostavi model pristupa
+izvan tih izvora je sam po sebi defekt.
 
 ---
 
@@ -1053,7 +1148,8 @@ Nivo: security/RLS integration. Normativno: `02` §17.4.
 - **nema SECURITY DEFINER bypassa**;
 - SECURITY INVOKER ponašanje je očuvano.
 
-D-OPEN-011 ostaje **neriješen** — ova politika ga ne zatvara (§24.12).
+Ova politika **nije** riješila D-OPEN-011 i ne smije se tako tumačiti; access model za `users` i
+`practices` zasebno je riješen odlukom **D-047** kroz `02` §17.5 i §17.6 (§21.5, §24.12).
 
 ## 24.5 Interakcija sa D-033 bootstrapom
 
@@ -1236,7 +1332,7 @@ Nivo: security + e2e.
 Sve ostale produkcijske dodjele dolaze iz prihvaćene matrice u `15` i testiraju se u
 §24.13–§24.16. **Nijedna dodjela izvan `15` se ne dodaje ni ne testira.**
 
-## 24.12 BLOCKED — D-OPEN-011 i role matrica
+## 24.12 Granice self-enumeracije i role matrica
 
 Autentifikovana self-enumeracija vlastitih membership rola:
 
@@ -1245,9 +1341,11 @@ Autentifikovana self-enumeracija vlastitih membership rola:
 - **nije** role administration;
 - **nije** cross-practice administracija;
 - **ne definiše** platform administraciju;
-- **ne rješava D-OPEN-011.**
+- **nije riješila D-OPEN-011** — to je učinio D-047, zasebnim politikama iz `02` §17.5 i §17.6.
+  Ta tvrdnja ostaje tačna i nakon rješavanja: access model nije nastao proširenjem ove
+  enumeracije.
 
-Guard testovi iz §21.5 ostaju obavezni i nepromijenjeni.
+Testovi iz **§21.5 ostaju obavezni** i sada su izvršiv ugovor, a ne blokirana stavka (D-047).
 
 Produkcijski role-to-permission testovi **više nisu blokirani** — D-039 do D-045 su prihvaćeni,
 a `15` je kreiran i ACCEPTED. Testiraju se u §24.13 do §24.19.
@@ -1285,7 +1383,9 @@ Test parsira implementacijsku matricu i `15` te dokazuje **jednakost u oba smjer
 - **tačno 32 reda**;
 - svaki red ima **jednu aktivnu permisiju**, **sedam** aplikacijskih role ćelija i **jedan**
   prihvaćeni ADR `Source`;
-- svaka ćelija je tačno jedno od: `ALLOW`, `DENY`, `CONDITIONAL`, `BLOCKED — D-OPEN-011`;
+- svaka ćelija je tačno jedno od: `ALLOW`, `DENY`, `CONDITIONAL`. Vrijednost
+  `BLOCKED — D-OPEN-011` je **povučena** odlukom D-047 i **nijedna ćelija je više ne smije
+  nositi** — njena pojava obara test (`15` §3.1);
 - **nema dupliranog reda**;
 - **nema reda koji nedostaje**;
 - **nema viška reda**;
@@ -1334,13 +1434,17 @@ Nivo: unit. Profili se **mehanički izvode** iz `15` i porede sa implementacijom
 
 Dodatno se imenom asertiraju:
 
-- `PRACTICE_ADMIN` ima **tačno sedam** `ALLOW`: `practice.settings.read`,
+- `PRACTICE_ADMIN` ima **tačno osam** `ALLOW`: `practice.read`, `practice.settings.read`,
   `practice.settings.manage`, `encounter.close`, `tariff.raw_result.read`, `audit.read`,
   `audit.export`, `integration.read`;
 - `AUDITOR` ima **tačno dva** `ALLOW`: `audit.read` i `audit.export`;
 - `READ_ONLY` ima **nula** `ALLOW` i **nula** `CONDITIONAL`;
 - `SYSTEM_ADMIN` ima **tačno jedan** `ALLOW`: `tariff.manage`, i to na platform obuhvatu;
-- svaka rola ima `practice.read` = `BLOCKED — D-OPEN-011`.
+- `practice.read` je `ALLOW` **isključivo** za `PRACTICE_ADMIN`, a `DENY` za ostalih šest rola
+  uključujući `SYSTEM_ADMIN` (D-047, klauzula 11);
+- `SYSTEM_ADMIN` bez tenant membershipa dobija `403` na `GET /practices/{practiceId}`; sa aktivnim
+  membershipom i `PRACTICE_ADMIN` tenant rolom dobija `200`, i to **isključivo** kroz tenant rolu;
+- odgovor `GET /practices/{practiceId}` **ne sadrži** `zsrNumber`, `glnNumber` ni `legalName`.
 
 ## 24.15 Dodjele sa najvećim rizikom, korekcije i review odluka
 
@@ -1654,7 +1758,7 @@ očekivani status/kod, obaveznu audit asertaciju i da li blokira završetak faze
 | Grupa | Nivo | Faza | Paket (`02` §22) | Blokira fazu |
 |---|---|---|---|---|
 | §21.1–21.4 D-033 bootstrap | security/integration/e2e | Faza 4 | `013_rls_policies` | **da** |
-| §21.5 D-OPEN-011 guard | security | Faza 3 | `002_identity_and_practices` | **da** za guard testove |
+| §21.5 `users`/`practices` access model (D-047) | security | Faza 3 (§21.5.6 i §21.5.7 dijelom Faza 4) | `002_identity_and_practices` | **da** |
 | §22.1 constraint | integration | Faza 7 | `005_ai_prompts_and_analysis` | **da** |
 | §22.2 concurrency | integration | Faza 7 | `005_ai_prompts_and_analysis` | **da** |
 | §22.1 immutability trigger | integration | Faza 7 | `014_immutability_triggers` | **da** |
@@ -1753,11 +1857,16 @@ Faza 3 ili Faza 4 **mora pasti** i kada, prema §24.13–§24.19:
 - podobnost za odobravanje i opoziv se razlikuje;
 - `encounter.close` izgubi bilo koju od tri prihvaćene role;
 - `GET /me` vrati singularni `role` ili netačan `permissions[]`;
-- rad zavisan od D-OPEN-011 bude implementiran;
+- bilo koji test iz §21.5 bude izostavljen, preskočen ili oslabljen;
+- bilo koja politika iz `02` §17.5 ili §17.6 nedostaje, ili je RESTRICTIVE politika zamijenjena
+  permissive varijantom;
+- bude uvedena treća `users` politika bez prihvaćenog ADR-a (`13` §19);
 - permisija endpointa ili podobnost role odstupi od `03` ili `15`.
 
-D-OPEN-011 testovi ostaju **vidljivo BLOCKED**, nikada tiho izostavljeni. Suite koji ih
-preskoči bez oznake tretira se kao neuspio gate.
+Testovi iz **§21.5 su obavezan izvršiv ugovor** (D-047) i **nikada se tiho ne izostavljaju**.
+Suite koji ih preskoči bez oznake tretira se kao neuspio gate. Test koji tvrdi da dijeljeni
+`copilot_app` credential dokazuje identitet krajnjeg korisnika je **sam po sebi defekt**
+(§21.5.8).
 
 Isto važi za testove role administration audita (§24.19) i za operacije klasifikovane kao
 `OUT OF V1` ili `REQUIRES NEW PERMISSION AND ADR` (§24.12).

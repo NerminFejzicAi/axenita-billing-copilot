@@ -277,19 +277,65 @@ Tabele practice_memberships i practice_membership_roles kreiraju se u ovoj fazi,
 bootstrap RLS politike pripadaju FAZI 4 i paketu 013_rls_policies (D-033, D-038).
 Ne postavljaj RLS na njih u ovoj fazi.
 
-D-OPEN-011 je OTVOREN — runtime access model za users i practices nije odlučen.
-Zato u ovoj fazi:
-- ne uvodi globalan neograničen read nad users ni practices;
-- GET /api/v1/me vraća isključivo identitet pozivaoca, njegove memberships i njegove
-  platformRoles, kao dva odvojena bloka prema docs/03 §10;
-- platformRoles se nikada ne prikazuju kao memberships niti se sa njima spajaju.
+D-OPEN-011 je RIJEŠEN odlukom D-047 (2026-08-12). Runtime access model za users i practices
+je odlučen i OBAVEZAN je dio ove faze. Normativno: docs/02 §16.2.1, §16.2.4, §17.5, §17.6,
+§20.2a, §22.2; docs/06 D-047.
+
+Implementiraj u paketu 002_identity_and_practices:
+- app_security schema ako ne postoji;
+- app_security.set_auth_subject_context(p_auth_subject text) — SECURITY INVOKER, fiksiran
+  search_path, 42501 na null/prazan ulaz, briše app.user_id i app.practice_id, postavlja
+  app.auth_subject transakcijski lokalno, EXECUTE samo copilot_app, PUBLIC revoked;
+- app_security.set_user_context(p_user_id uuid) — PREMJEŠTEN iz paketa 013 u paket 002.
+  Potpis, SECURITY INVOKER mod i tijelo ostaju TAČNO kako ih propisuje D-033; mijenja se
+  isključivo pripadnost paketu;
+- users: ENABLE + FORCE RLS, dvije PERMISSIVE SELECT politike:
+    bootstrap: app.user_id IS NULL AND auth_subject = app.auth_subject
+    self:      id = app.user_id
+  Uslov app.user_id IS NULL je OBAVEZAN — bez njega su dokazano vidljiva dva korisnička reda;
+- practices: ENABLE + FORCE RLS, DVIJE politike RAZLIČITOG MODA:
+    PERMISSIVE  practices_membership_select — EXISTS nad practice_memberships po app.user_id,
+                BEZ filtera na pm.active (GET /me mora prikazati practiceName i za neaktivan
+                membership);
+    RESTRICTIVE practices_context_narrow — app.practice_id IS NULL OR id = app.practice_id.
+  RESTRICTIVE mod je OBAVEZAN. Ne koristi jednu kombinovanu permissive politiku;
+- column-level grantovi za copilot_app:
+    users     (id, email, display_name, preferred_language, status)
+    practices (id, code, name, default_language, timezone, status)
+  NE grantuj: users.auth_subject, users.last_login_at, practices.legal_name,
+  practices.zsr_number, practices.gln_number, ni created_at/updated_at;
+- NEMA INSERT, UPDATE ni DELETE nad users i practices ni za jednu runtime rolu;
+- copilot_system ne dobija nijedan grant; PUBLIC ne dobija nijedan grant.
+
+Bootstrap upit nad users NE navodi auth_subject u WHERE klauzuli — politika sama filtrira.
+Aplikacijski SELECT ili WHERE nad auth_subject pada sa 42501; to je dokazano ponašanje.
+
+Redoslijed u jednoj interaktivnoj transakciji:
+verifikuj token -> set_auth_subject_context -> pročitaj users(id, status) -> ako nema reda
+401 INVALID_TOKEN, ako status != ACTIVE 403 ACCESS_DENIED -> set_user_context -> pročitaj
+status tražene ordinacije membership-scoped politikom -> nula redova ili status != ACTIVE
+daje 403 ACCESS_DENIED uz rollback.
+
+NE uvodi SECURITY DEFINER ni za jednu funkciju.
+NE mijenjaj tijelo set_request_context; ono ostaje u FAZI 4.
+NE premještaj §17.3 ni opštu tenant RLS u ovu fazu.
+
+I dalje NE UVODI globalan neograničen read nad users ni practices — zabrana nije ukinuta,
+nego je sada sprovedena kroz FORCE RLS i column-level grantove.
+
+GET /api/v1/me vraća isključivo identitet pozivaoca, njegove memberships i njegove
+platformRoles, kao dva odvojena bloka prema docs/03 §10. practiceName se čita kroz
+membership-scoped politiku iz docs/02 §17.6. platformRoles se nikada ne prikazuju kao
+memberships niti se sa njima spajaju.
 
 Self-enumeracija vlastitih membership rola NIJE generički pristup nad users, NIJE generički
-pristup nad practices, NIJE role administration, NIJE cross-practice administracija i NE
-RJEŠAVA D-OPEN-011.
+pristup nad practices, NIJE role administration i NIJE cross-practice administracija. Ta
+tvrdnja ostaje tačna i nakon D-047 — access model je riješen zasebnim politikama, ne
+proširenjem te enumeracije.
 
-Ne rješavaj D-OPEN-011 u ovoj fazi. Ako scope zahtijeva širi pristup nad users ili
-practices, zaustavi se i traži odluku.
+Pristup redu DRUGOG korisnika (responsiblePhysician.displayName, approvedBy.displayName) je
+DENY / NOT IMPLEMENTED u v1. NE kreiraj treću users politiku. Obavezan gate je
+BEFORE PHASE 5 CO-MEMBER DISPLAY NAME ACCESS (docs/13 §19).
 
 Dodaj unit/integration/e2e testove za active/inactive user i membership.
 
@@ -304,11 +350,21 @@ Dokaži testovima:
 Role-to-permission implementacija je ODBLOKIRANA: D-039 do D-045 su prihvaćeni, a docs/15
 je kreiran i ACCEPTED. Implementiraj prihvaćenu matricu.
 
-I dalje ostaje BLOCKED, bez izuzetka:
-- practice.read — BLOCKED — D-OPEN-011 za sve role;
-- generički runtime pristup nad users;
-- generički runtime pristup nad practices;
+RIJEŠENO odlukom D-047 — više NIJE blocked:
+- practice.read — PRACTICE_ADMIN ALLOW, ostalih šest rola DENY (docs/15 §5);
+- runtime pristup nad users — column-level SELECT uz FORCE RLS (docs/02 §17.5, §20.2a);
+- runtime pristup nad practices — column-level SELECT uz FORCE RLS i RESTRICTIVE narrowing
+  (docs/02 §17.6, §20.2a).
+
+GET /api/v1/practices/{practiceId} vraća isključivo:
+id, code, name, defaultLanguage, timezone, status.
+NE vraća zsrNumber, glnNumber ni legalName. Ne postoji lista ni direktorij ordinacija.
+SYSTEM_ADMIN dobija ovu permisiju samo ako isti korisnik nezavisno ima aktivan tenant
+membership i dodijeljenu PRACTICE_ADMIN tenant rolu.
+
+I dalje ostaje zabranjeno, bez izuzetka:
 - generički cross-practice pristup nad users i practices;
+- pristup redu drugog korisnika (co-member displayName) — gate iz docs/13 §19;
 - kreiranje, deaktivacija i administracija membershipa;
 - dodjela i uklanjanje rola.
 ```
@@ -330,10 +386,9 @@ docs/06_DECISION_LOG.md. Implementacija mora tačno pratiti docs/02_DATABASE_SCH
 docs/04 §6.4.1 i §6.4.2.
 
 Kreiraj:
-- app_security schema;
-- app_security.set_user_context(p_user_id uuid);
+- app_security schema — create schema if not exists; već postoji iz FAZE 3, paket 002;
 - app_security.set_request_context(p_practice_id uuid) — SECURITY INVOKER;
-- fixed search_path na obje funkcije;
+- fixed search_path na set_request_context;
 - execute grants za copilot_app;
 - ENABLE i FORCE RLS na practice_memberships;
 - user-scoped bootstrap self-select politiku na practice_memberships;
@@ -346,6 +401,13 @@ Kreiraj:
 - RLS pattern;
 - FORCE RLS;
 - A/B tenant integration test harness.
+
+NE kreiraj app_security.set_user_context(p_user_id uuid) u ovoj fazi. Ta funkcija je PREMJEŠTENA
+iz paketa 013 u paket 002 i već je kreirana u FAZI 3 (D-047, klauzula 17; docs/02 §16.2.2 i
+§22.2). Faza 4 je smije verifikovati i koristiti, ali je NE SMIJE ponovo kreirati, zamijeniti,
+premjestiti ni redefinisati. Potpis, SECURITY INVOKER mod i tijelo ostaju TAČNO kako ih propisuje
+D-033. Isto važi za app_security.set_auth_subject_context(p_auth_subject text) i za politike nad
+users i practices iz docs/02 §17.5 i §17.6 — sve je kreirano u FAZI 3 i u ovoj fazi se ne dira.
 
 Obavezni redoslijed autorizacije (D-033 i D-038; identičan docs/03 §3.7.1):
 1. autentifikuj bearer token — potpis, issuer, audience i istek;
@@ -384,8 +446,9 @@ Obavezna pravila:
   upotrebljiv tenant context u transakciji;
 - platform/system context je odvojen i NE izvodi se unijom tenant membershipa i
   platformRoles;
-- ne uvodi se globalan neograničen pristup nad users ni practices — to ostaje pod
-  D-OPEN-011, koji je i dalje otvoren.
+- ne uvodi se globalan neograničen pristup nad users ni practices; taj model je odlučen u
+  D-047 i njegove politike su već kreirane u FAZI 3 (paket 002). U ovoj fazi ih NE prepisuj
+  i NE oslabljuj — one se automatski pooštravaju čim app.practice_id počne postojati.
 
 RLS za practice_membership_roles (paket 013_rls_policies; docs/02 §17.4):
 - ENABLE ROW LEVEL SECURITY;
@@ -401,7 +464,8 @@ RLS za practice_membership_roles (paket 013_rls_policies; docs/02 §17.4):
 - trenutni runtime put je SELECT-only — bez INSERT, UPDATE i DELETE;
 - NEMA SECURITY DEFINER bypassa;
 - politika ostaje SECURITY INVOKER kompatibilna;
-- D-OPEN-011 ostaje neriješen — ova politika ga ne zatvara.
+- ova politika nije riješila D-OPEN-011 i ne smije se tako tumačiti; access model za users i
+  practices riješen je odlukom D-047 kroz docs/02 §17.5 i §17.6, već u FAZI 3.
 
 RLS za review_decision_change_links (paket 013_rls_policies; docs/02 §13.2a, §18.1, §22.13; D-046):
 - ENABLE ROW LEVEL SECURITY;
@@ -437,7 +501,8 @@ Dodatna pravila kompozicije:
 
 REPREZENTACIJA MATRICE (docs/15 je PRIHVAĆEN i normativan):
 - implementacija predstavlja tačno 32 prihvaćena reda iz docs/15;
-- svaka ćelija je tačno jedno od: ALLOW, DENY, CONDITIONAL, BLOCKED — D-OPEN-011;
+- svaka ćelija je tačno jedno od: ALLOW, DENY, CONDITIONAL. Vrijednost BLOCKED — D-OPEN-011
+  je povučena odlukom D-047 i nijedna ćelija je više ne smije nositi;
 - svaka aktivna permisija se pojavljuje tačno jednom;
 - svaki red ima svih sedam aplikacijskih role ćelija;
 - svaki Source se prati do prihvaćenog ADR-a;
@@ -498,13 +563,13 @@ zasebnu revocation rolu; novi endpoint.
 
 PROFILI ROLA:
 - AUDITOR — audit.read ALLOW; audit.export ALLOW; sve ostale aktivne permisije DENY;
-  practice.read BLOCKED; bez discovery/listing endpointa;
-- READ_ONLY — nula ALLOW; nula CONDITIONAL; practice.read BLOCKED; sve ostale DENY;
-- PRACTICE_ADMIN — practice.settings.read; practice.settings.manage; encounter.close;
-  tariff.raw_result.read; audit.read; audit.export; integration.read; bez kliničke ovlasti
-  osim ako je zasebno dodijeljena druga prihvaćena tenant rola;
+  practice.read DENY; bez discovery/listing endpointa;
+- READ_ONLY — nula ALLOW; nula CONDITIONAL; practice.read DENY; sve ostale DENY;
+- PRACTICE_ADMIN — practice.read; practice.settings.read; practice.settings.manage;
+  encounter.close; tariff.raw_result.read; audit.read; audit.export; integration.read; bez
+  kliničke ovlasti osim ako je zasebno dodijeljena druga prihvaćena tenant rola;
 - SYSTEM_ADMIN — tariff.manage isključivo na platform obuhvatu; bez tenant permisije kroz
-  platformRoles; bez practice.read; bez tariff.raw_result.read; tenant ruta zahtijeva aktivan
+  platformRoles; practice.read DENY; bez tariff.raw_result.read; tenant ruta zahtijeva aktivan
   tenant membership i prihvaćenu tenant rolu.
 
 ENDPOINT AUTHORIZATION GUARDS:
@@ -538,7 +603,9 @@ Vlasništvo faze i migration paketa:
 - practice_membership_roles RLS politika — Faza 4, paket 013_rls_policies (docs/02 §17.4);
 - effective-permission resolver — Faza 4, aplikacijski sloj, bez migration paketa;
 - set_request_context(p_practice_id uuid) — Faza 4, paket 013_rls_policies;
-- set_user_context(p_user_id uuid) — Faza 4, paket 013_rls_policies;
+- set_user_context(p_user_id uuid) — Faza 3, paket 002_identity_and_practices; PREMJEŠTEN iz
+  paketa 013 u paket 002 i već kreiran prije Faze 4, koja ga samo verifikuje i koristi
+  (D-047, klauzula 17);
 - transakcijski lokalne context varijable — Faza 4, paket 013_rls_policies;
 - negativni testovi za nevažeći ili neaktivan membership — Faza 4;
 - test da kontekst ne ostaje nakon završetka transakcije — Faza 4.
@@ -630,7 +697,9 @@ Faza se NE SMIJE označiti završenom dok sve ovo ne vrijedi:
 - podobnost za analysis.approve i analysis.approval.revoke je identična;
 - encounter.close ima sve tri prihvaćene role;
 - GET /me vraća roles[], nikada role;
-- rad zavisan od D-OPEN-011 nije implementiran;
+- politike iz docs/02 §17.5 i §17.6 postoje, nisu oslabljene, i RESTRICTIVE politika nije
+  zamijenjena permissive varijantom;
+- nije uvedena treća users politika za pristup redu drugog korisnika;
 - endpoint guardovi ne odstupaju od docs/03 ni od docs/15.
 
 GRANICE — ne implementiraj ništa sa ovih lista.
@@ -652,12 +721,15 @@ REQUIRES NEW PERMISSION AND ADR:
 - podjela analysis.export.read;
 - finija permisija za rješavanje findinga.
 
-practice.read ostaje BLOCKED — D-OPEN-011 za svaku aplikacijsku rolu. Ne pretvaraj BLOCKED u
-obični DENY ni u ALLOW.
+practice.read je riješen odlukom D-047: PRACTICE_ADMIN ALLOW, ostalih šest rola DENY.
+Ne odstupaj od docs/15 §5 ni u jednom smjeru.
 
 Self-enumeracija vlastitih membership rola NIJE generički pristup nad users, NIJE generički
-pristup nad practices, NIJE role administration, NIJE cross-practice administracija i NE
-RJEŠAVA D-OPEN-011.
+pristup nad practices, NIJE role administration i NIJE cross-practice administracija. Ta
+tvrdnja ostaje tačna i nakon D-047.
+
+Pristup redu DRUGOG korisnika ostaje DENY / NOT IMPLEMENTED u v1 — gate BEFORE PHASE 5
+CO-MEMBER DISPLAY NAME ACCESS (docs/13 §19). Ne kreiraj treću users politiku.
 
 Ako bilo koji RLS test ne prolazi, faza mora ostati BLOCKED i ne smiješ nastaviti.
 ```

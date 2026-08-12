@@ -309,14 +309,26 @@ Koraci 7 i 8 pripadaju **Fazi 4 i paketu `013_rls_policies`** prema već prihva�
 vlasništvu (`02` §22.13, §6.2.3 ovog dokumenta). Redoslijed rada ostaje isti; **nijedan
 broj paketa se ne dodaje niti renumeriše**.
 
-**Blocker — D-OPEN-011 je otvoren:**
+**D-047 — runtime access model za `users` i `practices` je riješen (2026-08-12):**
 
-- ne implementirati neograničen ni generički runtime pristup nad `users` i `practices`;
-- tačan runtime access model za te dvije tabele **nije riješen**;
-- implementacijski rad koji zavisi od tog modela **staje na phase gateu** dok odluka ne bude
-  prihvaćena;
-- bootstrap pristup kroz `practice_memberships` **ne rješava implicitno** opšti pristup nad
-  `users` ni `practices`.
+Raniji blocker `D-OPEN-011` **više ne važi**. Umjesto njega vrijede sljedeći obavezni zahtjevi,
+normativno definisani u `02` §16.2.1, §16.2.4, §17.5, §17.6, §20.2a i §22.2:
+
+- `users` i `practices` dobijaju `ENABLE` **i** `FORCE ROW LEVEL SECURITY` **u ovoj fazi**;
+- `users` dobija dvije **međusobno isključive** PERMISSIVE politike: bootstrap
+  (`app.user_id IS NULL AND auth_subject = app.auth_subject`) i self (`id = app.user_id`);
+- `practices` dobija PERMISSIVE membership politiku **i** **RESTRICTIVE** context narrowing
+  politiku; RESTRICTIVE mod je obavezan;
+- grantovi su **column-level**: `users` `(id, email, display_name, preferred_language, status)`;
+  `practices` `(id, code, name, default_language, timezone, status)`;
+- **nijedan** runtime `INSERT`, `UPDATE` ni `DELETE` nad te dvije tabele; `copilot_system` nema
+  grant; `PUBLIC` nema grant;
+- `auth_subject`, `last_login_at`, `zsr_number`, `gln_number` i `legal_name` **nemaju grant**;
+- **i dalje se ne implementira** neograničen ni generički runtime pristup nad `users` i
+  `practices` — zabrana nije ukinuta, nego je sada sprovedena kroz RLS i column grantove;
+- pristup redu **drugog** korisnika ostaje `DENY / NOT IMPLEMENTED` u v1; obavezan gate je
+  `BEFORE PHASE 5 CO-MEMBER DISPLAY NAME ACCESS` (D-047, klauzula 12);
+- platform i system put nad te dvije tabele **ne postoje** u v1 i padaju zatvoreno.
 
 Seed:
 
@@ -346,7 +358,12 @@ Seed:
 - inactive membership odbijen;
 - `/me` vraća `memberships` i `platformRoles` kao dva odvojena bloka;
 - `platformRoles` se ne pretvaraju u tenant membershipe;
-- nema neograničenog runtime reada nad `users` ni `practices` (D-OPEN-011);
+- nema neograničenog runtime reada nad `users` ni `practices` — sprovedeno kroz `FORCE RLS` i
+  column-level grantove (D-047; `02` §17.5, §17.6, §20.2a);
+- `users` i `practices` nose `ENABLE` + `FORCE RLS`, sa tačno onim politikama koje D-047 propisuje;
+- korisnik čiji `status` nije `ACTIVE` odbijen je prije `set_user_context`;
+- ordinacija čiji `status` nije `ACTIVE` odbijena je prije nego `app.practice_id` postoji;
+- negativni testovi iz `02` §25.1.1 i `08` §21.5 prolaze;
 - nema password tabele;
 - permission strings centralizovani.
 
@@ -390,8 +407,10 @@ compatibility endpoint ni istovremeno postojanje polja `role` i `roles`.
 role prije nego što je izabran ijedan tenant kontekst. Ta enumeracija: ograničena je na
 autentifikovanog korisnika; **nije** generički pristup nad `users`; **nije** generički
 pristup nad `practices`; **nije** role administration; **nije** cross-practice administracija;
-**ne autorizuje** nijednu tenant operaciju; i **ne rješava D-OPEN-011**. Implementacijski rad
-koji zavisi od generičkog `users`/`practices` pristupa ostaje blokiran.
+**ne autorizuje** nijednu tenant operaciju; i **nije riješila D-OPEN-011** — to je učinio D-047.
+Generički `users`/`practices` pristup i dalje **ne postoji**: `practiceName` se čita kroz
+membership-scoped politiku iz `02` §17.6, a vlastiti `users` red kroz self politiku iz `02` §17.5.
+Pristup redu **drugog** korisnika ostaje `DENY / NOT IMPLEMENTED` u v1.
 
 ## 5.5 Commit
 
@@ -463,22 +482,40 @@ Pojašnjenja (D-038, klauzule 20–21):
 - **`practice_membership_roles` nije dio provjere postojanja membershipa** — koraci 4–6
   čitaju isključivo `practice_memberships`, a role se evaluiraju tek nakon uspješnog
   bootstrapa (D-038, klauzule 20–21);
-- opšti runtime pristup nad `users` i `practices` ostaje **blokiran po D-OPEN-011**.
+- opšti runtime pristup nad `users` i `practices` **ne postoji** — sprovedeno kroz `FORCE RLS` i
+  column-level grantove već u fazi 3 (D-047; `02` §17.5, §17.6, §20.2a).
 
 ### 6.2.3 Vlasništvo faze i migration paketa
+
+**Ažurirano odlukom D-047, klauzule 16–17.**
 
 | Artefakt | Faza | Migration paket (`02` §22) |
 |---|---|---|
 | autentifikovani user context (auth subject → `users.id`) | Faza 3 | `002_identity_and_practices` |
+| `app.auth_subject` i `set_auth_subject_context(text)` (`02` §16.2.4) | **Faza 3** | **`002_identity_and_practices`** |
+| `set_user_context(p_user_id uuid)` — premješteno iz `013` | **Faza 3** | **`002_identity_and_practices`** |
+| `users` `ENABLE` + `FORCE RLS` i obje politike (`02` §17.5) | **Faza 3** | **`002_identity_and_practices`** |
+| `practices` `ENABLE` + `FORCE RLS`, PERMISSIVE + RESTRICTIVE politike (`02` §17.6) | **Faza 3** | **`002_identity_and_practices`** |
+| column-level grantovi nad `users` i `practices` (`02` §20.2a) | **Faza 3** | **`002_identity_and_practices`** |
+| odbijanje neaktivnog korisnika i ne-ACTIVE ordinacije | **Faza 3** | — (aplikacijski sloj) |
 | `practice_memberships` bootstrap RLS | Faza 4 | `013_rls_policies` |
 | `practice_membership_roles` bootstrap-readable RLS (`02` §17.4) | Faza 4 | `013_rls_policies` |
 | rezolucija efektivnih tenant permisija (§6.4.1) | Faza 4 | — (aplikacijski sloj) |
 | `set_request_context(p_practice_id uuid)` | Faza 4 | `013_rls_policies` |
-| `set_user_context(p_user_id uuid)` | Faza 4 | `013_rls_policies` |
 | transakcijski lokalne tenant varijable | Faza 4 | `013_rls_policies` |
 | redoslijed request middlewarea | Faza 3 auth guard → Faza 4 practice guard | — |
 | negativni membership testovi | Faza 4 | — |
 | testovi curenja konteksta na pooled konekciji | Faza 4 | — |
+
+Premještanje `set_user_context` iz paketa `013` u paket `002` je **isključivo izmjena vlasništva
+paketa**, ne sigurnosne semantike: potpis, `SECURITY INVOKER` mod i tijelo ostaju tačno kako ih
+D-033 klauzule 3–4 propisuju (D-047, klauzula 17). Razlog je što faza 3 već zahtijeva
+autentifikovan user context, a `02` §22.13 i raniji red ove tabele bili su u međusobnom
+neslaganju. **Nijedan novi broj paketa se ne uvodi**, i **§17.3 se ne premješta** u fazu 3.
+
+Politike nad `users` i `practices` napisane u paketu `002` su **konačne**; faza 4 ih ne prepisuje,
+nego samo počinje postavljati `app.practice_id`, čime se RESTRICTIVE politika iz `02` §17.6
+aktivira automatski.
 
 Brojevi migration paketa u `02` §22 su **redoslijed zavisnosti, ne brojevi faza**. Paket
 `013_rls_policies` već posjeduje ove objekte — ne uvodi se novi broj paketa i ne mijenja se
@@ -542,7 +579,8 @@ Politika nad `practice_membership_roles` mora:
 - **ne izlagati** dodjele rola drugog korisnika;
 - **ne dozvoljavati** izmjenu rola — politika je SELECT-only;
 - **ne zahtijevati SECURITY DEFINER** i ostati SECURITY INVOKER kompatibilna;
-- **ne rješavati D-OPEN-011.**
+- **ne biti tretirana kao rješenje D-OPEN-011** — taj model je zasebno riješen odlukom D-047 kroz
+  `02` §17.5 i §17.6, a ova politika ostaje ograničena na vlastite role redove.
 
 Normalna tenant autorizacija i dalje zahtijeva **aktivan, odabrani** membership.
 
@@ -582,7 +620,7 @@ Svaka ćelija podržava **tačno četiri** stanja:
 | `ALLOW` | rola doprinosi permisiju efektivnom skupu |
 | `DENY` | rola ne doprinosi grant; **nije negativni override** nad `ALLOW` druge dodijeljene role |
 | `CONDITIONAL` | doprinosi **samo** kada je rola dodijeljena, membership aktivan, prihvaćeni practice flag uključen i svi uslovi endpointa zadovoljeni |
-| `BLOCKED — D-OPEN-011` | ne doprinosi grant; implementacija **pada zatvoreno**; **ne smije** se tiho pretvoriti u obični `DENY` ni u `ALLOW` |
+| ~~`BLOCKED — D-OPEN-011`~~ | **povučena vrijednost** — nijedna ćelija matrice je više ne nosi. D-OPEN-011 je riješen odlukom D-047, a `practice.read` ima eksplicitne dodjele (`15` §5). Nova ćelija se **ne smije** označiti ovom vrijednošću |
 
 #### Mehanička validacija matrice
 
@@ -724,7 +762,12 @@ Obavezni D-033 testovi:
 - transakcijski lokalni kontekst nestaje na kraju transakcije;
 - pooled konekcija ne nasljeđuje kontekst prethodnog requesta;
 - `platformRoles` ne kreiraju tenant membership;
-- opšti runtime pristup nad `users` i `practices` ostaje blokiran do D-OPEN-011.
+- opšti runtime pristup nad `users` i `practices` **ne postoji** — negativni testovi iz `02`
+  §25.1.1 i `08` §21.5 to potvrđuju (D-047);
+- politika nad `practices` daje **identičan** rezultat prije i nakon uvođenja §17.3 — regresijski
+  test granice faze 3 prema fazi 4;
+- nakon §17.3 `copilot_app` više **ne vidi** generičke `practice_memberships` redove, čime se
+  zatvara međustanje faze 3 (D-047, klauzula 18).
 
 Obavezni D-038 fixture i testovi:
 
@@ -793,7 +836,8 @@ Faza nije završena dok:
 - injekcija role **pada**;
 - cross-practice curenje rola **pada**;
 - `GET /me` vraća `roles[]` i izvedene `permissions[]`;
-- rad zavisan od D-OPEN-011 ostaje **blokiran**.
+- `practice.read` je implementiran tačno prema `15` §5 — `PRACTICE_ADMIN` `ALLOW`, ostalih šest
+  `DENY` — i vraća projekciju **bez** `zsrNumber`, `glnNumber` i `legalName` (D-047, klauzula 11).
 
 Faza se **ne smije** označiti završenom dok:
 
@@ -801,14 +845,25 @@ Faza se **ne smije** označiti završenom dok:
 - bilo koja rezervisana permisija ima grant;
 - bilo koji grant izveden iz zastarjele proze ostaje u kodu;
 - je implementiran generički `users`/`practices` pristup;
+- je bilo koja politika iz `02` §17.5 ili §17.6 izostavljena, oslabljena ili zamijenjena
+  permissive varijantom;
+- je uvedena treća `users` politika za pristup redu drugog korisnika bez prihvaćenog ADR-a;
 - je uvedena nova permisija ili endpoint bez prihvaćenog ADR-a.
 
 ### 6.5.2 Granice — izvan v1 i buduće odluke
 
 Klasifikacija je prihvaćena u D-045 i **ćutanje se ne smije čitati kao dozvola**.
 
-**BLOCKED — D-OPEN-011:** `practice.read`; generički pristup nad `users`; generički pristup nad
-`practices`; generički cross-practice pristup nad `users`/`practices`.
+**RIJEŠENO ODLUKOM D-047 (2026-08-12)** — ranije `BLOCKED — D-OPEN-011`: `practice.read` ima
+eksplicitne dodjele (`15` §5); generički pristup nad `users` i nad `practices` **ne postoji**, jer
+obje tabele nose `FORCE RLS` uz column-level grantove (`02` §17.5, §17.6, §20.2a); generički
+cross-practice pristup je `DENY / NOT IMPLEMENTED`. Nijedna od te četiri stavke više nije blokirana
+niti otvorena.
+
+**DENY / NOT IMPLEMENTED U V1, uz imenovani gate:** pristup redu **drugog** korisnika
+(`responsiblePhysician.displayName`, `approvedBy.displayName`). Obavezan gate je
+`BEFORE PHASE 5 CO-MEMBER DISPLAY NAME ACCESS` (D-047, klauzula 12; `13` §19). Nijedan konzument
+faze 5 ne smije tiho dobiti generičku vidljivost nad `users`.
 
 **OUT OF V1:** kreiranje, deaktivacija i administracija membershipa; dodjela i uklanjanje rola;
 generička runtime administracija rola; cross-practice support pristup; otkazivanje export joba.
@@ -825,10 +880,12 @@ pristup sirovom tarifnom rezultatu; audit export; otkazivanje; te odbijene osjet
 gdje je već specificirano. **Audit dodjele i uklanjanja role ostaje BLOCKED** dok ne postoji
 prihvaćen mutation put; runtime role-administration endpoint se **ne izmišlja**.
 
-**D-OPEN-011 ostaje otvoren.** Autentifikovana self-enumeracija vlastitih membership rola
-**nije** generički pristup nad `users`, **nije** generički pristup nad `practices`, **nije**
-role administration, **nije** cross-practice administracija i **ne rješava D-OPEN-011**.
-Implementacijski rad koji zavisi od generičkog `users`/`practices` pristupa ostaje blokiran.
+**D-OPEN-011 je riješen odlukom D-047.** Autentifikovana self-enumeracija vlastitih membership
+rola i dalje **nije** generički pristup nad `users`, **nije** generički pristup nad `practices`,
+**nije** role administration i **nije** cross-practice administracija — ta tvrdnja ostaje tačna i
+nakon D-047, jer je access model riješen zasebnim politikama iz `02` §17.5 i §17.6, a ne
+proširenjem ove enumeracije. Generički `users`/`practices` pristup i dalje ne postoji ni u jednom
+obliku.
 
 ## 6.6 Commit
 

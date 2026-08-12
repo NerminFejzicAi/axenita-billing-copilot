@@ -9,14 +9,15 @@
 
 | Polje | Vrijednost |
 |---|---|
-| Current phase | Faza 1 — `DONE`; Ecosystem Compatibility Audit `DONE`; Faza 2 — `DONE` (next mandatory gate: D-OPEN-011 decision gate) |
-| Current branch | `main` |
+| Current phase | Faza 1 — `DONE`; Ecosystem Compatibility Audit `DONE`; Faza 2 — `DONE`; **D-OPEN-011 decision gate — `DONE` (D-047 prihvaćen 2026-08-12)**; **D-047 dokumentaciona rekonsilijacija — `IN_PROGRESS`, nije merged** |
+| Current branch | `docs/d-047-runtime-access-model` (rekonsilijacija); kanonski `main` = `d6b5efe` |
 | Last completed phase | Faza 2 — Database Foundation |
-| Last commit | `c4b89d0` (Phase 2 implementation), merged via `dae9649` |
+| Last commit | `c4b89d0` (Phase 2 implementation), merged via `dae9649`; dokumentarno zatvaranje `98910b3`, merged via `d6b5efe` |
 | Local environment owner | Nermin Fejzic |
 | Test DB | `copilot_test` @ `localhost:5433` (compose profil `test`) |
 | Documentation version | 1.0 |
-| Last updated | 2026-08-11 |
+| Last updated | 2026-08-12 |
+| **Faza 3** | **`NOT_STARTED` — `PHASE 3 IMPLEMENTATION IS NOT AUTHORIZED` do merge-a ove rekonsilijacije u kanonski `main`** |
 
 ---
 
@@ -279,11 +280,82 @@ Next gate:    D-OPEN-011 DECISION GATE — sljedeća governance aktivnost nije i
               (06 D-OPEN-011, 02 §28.2, 13 §16).
 ```
 
+*(Historijski zapis zatvaranja Faze 2, nepromijenjen. Tamo naveden „next gate" — D-OPEN-011
+decision gate — **izvršen je 2026-08-12** prihvatanjem odluke **D-047**; vidi §3a. Formulacije
+„D-OPEN-011 MUST BE RESOLVED BEFORE PHASE 3" i „ostaje OTVOREN" opisuju stanje prije tog datuma i
+**više ne opisuju tekuće stanje**. Faza 3 i dalje nije autorizovana — ne zbog D-OPEN-011, nego
+zato što rekonsilijacija iz §3a još nije merged.)*
+
+---
+
+# 3a. D-OPEN-011 decision gate — D-047
+
+Status: **odluka `ACCEPTED`; dokumentaciona rekonsilijacija `IN_PROGRESS` — nije commitovana ni
+merged**
+
+Ovo je governance korak između Faze 2 i Faze 3. **Nije implementacija** i ne označava nijednu
+stavku Faze 3 kao urađenu.
+
+## Odluka
+
+- [x] Vlasnik prihvatio **D-047 — Runtime access model za `users` i `practices`
+      (Bootstrap-Scoped RLS)**, 2026-08-12.
+- [x] D-047 zabilježen u `06_DECISION_LOG.md` sa statusom `ACCEPTED`.
+- [x] **D-OPEN-011** prebačen u status **`SUPERSEDED BY D-047`**; izvorni zapis zadržan
+      nepromijenjen radi audita.
+- [x] Prihvaćeni vlasnički izbori Q1–Q5 ugrađeni u odluku.
+- [x] Nijedan novi broj odluke izvan `D-047` nije uveden.
+- [x] Nijedna nova permisija, rola, endpoint, tabela ni migration paket nisu uvedeni.
+- [x] Katalog ostaje **32 aktivne + 3 rezervisane** permisije.
+
+## Empirijski dokaz (PostgreSQL 16.14, `copilot_test`)
+
+Probe su izvršene transakcijski i u cijelosti rollbackovane; nijedan probe objekat nije ostao.
+
+- [x] RLS politika smije referencirati `users.auth_subject` bez column granta pozivaocu.
+- [x] Aplikacijski `SELECT`/`WHERE` nad `auth_subject` pada sa `42501`.
+- [x] Politika sa podupitom nad **drugom** tabelom **zahtijeva** grant nad tom tabelom; bez njega
+      `42501`. Minimalno dovoljno: `SELECT (practice_id, user_id)`.
+- [x] Bez guarda `app.user_id IS NULL` neusklađeni konteksti izlažu **dva** korisnička reda; sa
+      guardom **jedan**.
+- [x] Kombinovana permissive `practices` politika pod budućom širokom permissive politikom vraća
+      **tri** reda; PERMISSIVE + RESTRICTIVE varijanta vraća **jedan**.
+- [x] `SET LOCAL` varijable ne preživljavaju `COMMIT` ni `ROLLBACK`.
+
+## Rekonsilijacija dokumentacije
+
+- [x] `06`, `02`, `03`, `04`, `05`, `07`, `08`, `09`, `13`, `14`, `15`, `MANIFEST.md`.
+- [x] Nijedan aplikacijski, testni, konfiguracioni ni infrastrukturni fajl nije dodirnut.
+- [ ] Nezavisan governance review — **pending**.
+- [ ] Commit, push, PR, normalni merge u `main` — **pending**.
+- [ ] Verifikacija kanonskog `main` nakon merge-a — **pending**.
+
+## Autorizacija
+
+```text
+D-047 STATUS:        ACCEPTED
+D-OPEN-011 STATUS:   SUPERSEDED BY D-047
+RECONCILIATION:      IN_PROGRESS — NOT COMMITTED, NOT MERGED
+PHASE 3 STATUS:      NOT_STARTED
+PHASE 3 IMPLEMENTATION IS NOT AUTHORIZED
+```
+
+Faza 3 postaje autorizovana **tek** kada su ispunjeni **svi** uslovi: D-047 zabilježen; svi
+autoritativni dokumenti usklađeni; nezavisan governance review prošao; rekonsilijacijski commit
+merged u kanonski `main`; kanonski `main` verifikovan; D-OPEN-011 formalno superseded. Do tada
+**nijedan** Faza 3 artefakt se ne kreira — bez Prisma modela, bez paketa `002`, bez koda i bez
+testova.
+
+Sljedeći korak nakon merge-a: **session handoff za Fazu 3**, ne implementacija iz ove sesije.
+
 ---
 
 # 4. Faza 3 — Identity/practices
 
 Status: `NOT_STARTED`
+
+**Autorizacija: `NOT AUTHORIZED` do merge-a D-047 rekonsilijacije (§3a).** Nijedan checkbox ispod
+nije označen i nijedan se ne smije označiti prije nego što Faza 3 stvarno počne.
 
 Normativno: D-033 i D-038; `02` §6.3, §6.3a, §22.2 i §23.2; `03` §10; `04` §5.2, §5.2.1 i §5.4.1.
 
@@ -400,15 +472,43 @@ Normativno: `03` §10.
 - [ ] **nema compatibility dual polja** `role` + `roles`.
 - [ ] membershipi ni role drugog korisnika **nikada** nisu izloženi.
 
-## BLOCKED — D-OPEN-011
+## Access model za `users` i `practices` — D-047
 
-- [ ] Nema neograničenog ni generičkog runtime pristupa nad `users` i `practices`.
+Normativno: D-047; `02` §16.2.1, §16.2.4, §17.5, §17.6, §20.2a, §22.2. Raniji
+`BLOCKED — D-OPEN-011` blok više ne važi; umjesto njega vrijede **obavezne verifikacione stavke**.
+
+- [ ] `app_security.set_auth_subject_context(text)` postoji — SECURITY INVOKER, fiksiran
+      `search_path`, `42501` na null/prazan ulaz, briše `app.user_id` i `app.practice_id`,
+      `EXECUTE` samo `copilot_app`, `PUBLIC` revoked.
+- [ ] `app_security.set_user_context(uuid)` je kreiran u paketu **`002`**, sa nepromijenjenim
+      potpisom, `SECURITY INVOKER` modom i tijelom iz D-033.
+- [ ] `users` ima `ENABLE` **i** `FORCE ROW LEVEL SECURITY`.
+- [ ] `users` ima **tačno dvije** PERMISSIVE `SELECT` politike.
+- [ ] Bootstrap politika sadrži obavezni uslov `app.user_id IS NULL`.
+- [ ] Self politika glasi `id = app.user_id`.
+- [ ] `practices` ima `ENABLE` **i** `FORCE ROW LEVEL SECURITY`.
+- [ ] `practices` ima PERMISSIVE membership politiku **bez** filtera na `pm.active`.
+- [ ] `practices` ima **RESTRICTIVE** `practices_context_narrow` politiku.
+- [ ] Column grant `users` = `(id, email, display_name, preferred_language, status)`.
+- [ ] Column grant `practices` = `(id, code, name, default_language, timezone, status)`.
+- [ ] `auth_subject`, `last_login_at`, `legal_name`, `zsr_number`, `gln_number`, `created_at` i
+      `updated_at` **nemaju** grant.
+- [ ] Nema `INSERT`, `UPDATE` ni `DELETE` nad `users` i `practices` ni za jednu runtime rolu.
+- [ ] `copilot_system` nema nijedan grant nad te dvije tabele; `PUBLIC` nema nijedan.
+- [ ] **Nijedna `SECURITY DEFINER` funkcija nije uvedena.**
+- [ ] Korisnik čiji `status` nije `ACTIVE` odbijen je **prije** `set_user_context`.
+- [ ] Ordinacija čiji `status` nije `ACTIVE` odbijena je **prije** `set_request_context`.
+- [ ] Cijeli bootstrap lanac izvršava se u **jednoj** interaktivnoj transakciji.
+- [ ] Nema neograničenog ni generičkog runtime pristupa nad `users` i `practices` — zabrana nije
+      ukinuta, nego je sprovedena kroz `FORCE RLS` i column grantove.
 - [ ] Phase gate pada ako je takav pristup tiho uveden.
 - [ ] Self-enumeracija vlastitih membership rola **nije** generički pristup nad `users`.
 - [ ] Self-enumeracija vlastitih membership rola **nije** generički pristup nad `practices`.
 - [ ] Self-enumeracija **nije** role administration.
 - [ ] Self-enumeracija **nije** cross-practice administracija.
-- [ ] Self-enumeracija **ne rješava D-OPEN-011** — status ostaje `BLOCKED`.
+- [ ] **Treća `users` politika nije kreirana** — pristup redu drugog korisnika ostaje
+      `DENY / NOT IMPLEMENTED`; gate `BEFORE PHASE 5 CO-MEMBER DISPLAY NAME ACCESS` (`13` §19).
+- [ ] Negativni testovi iz `02` §25.1.1 i `08` §21.5 prolaze.
 
 ## Role matrica — prihvaćena
 
@@ -448,7 +548,8 @@ Preduslovi su ispunjeni: vlasničke odluke su prihvaćene, **D-039 do D-045 su z
 ### Reprezentacija matrice
 
 - [ ] Implementacija predstavlja **tačno 32 reda** iz `15`.
-- [ ] Svaka ćelija je jedno od: `ALLOW`, `DENY`, `CONDITIONAL`, `BLOCKED — D-OPEN-011`.
+- [ ] Svaka ćelija je jedno od: `ALLOW`, `DENY`, `CONDITIONAL`. Vrijednost `BLOCKED — D-OPEN-011`
+      je **povučena** (D-047) i nijedna ćelija je više ne nosi.
 - [ ] Svaka aktivna permisija se pojavljuje **tačno jednom**.
 - [ ] Svaki red ima **svih sedam** aplikacijskih role ćelija.
 - [ ] Svaki `Source` se prati do **prihvaćenog ADR-a**.
@@ -532,7 +633,8 @@ Paket: `013_rls_policies`. Normativno: `02` §17.4; D-038, klauzule 22–23.
 - [ ] SELECT politika **ne dozvoljava** INSERT, UPDATE ni DELETE.
 - [ ] **Nema SECURITY DEFINER bypassa.**
 - [ ] SECURITY INVOKER kompatibilnost je zadržana.
-- [ ] **D-OPEN-011 ostaje neriješen** — ova politika ga ne zatvara.
+- [ ] Ova politika **nije** riješila D-OPEN-011 i ne tumači se tako; access model je riješen
+      odlukom **D-047** kroz `02` §17.5 i §17.6, već u Fazi 3.
 
 ## RLS za `review_decision_change_links`
 
@@ -623,13 +725,20 @@ Normativno: D-038, klauzule 7–11 i 16–18; `03` §28.5; `04` §6.4.1.
 - [ ] `integration.read` ostaje tenant-scoped i ograničen na `PRACTICE_ADMIN`.
 - [ ] **Database grant nikada ne zamjenjuje permisiju endpointa.**
 
-## BLOCKED — D-OPEN-011
+## Access model za `users` i `practices` u Fazi 4 — D-047
 
-- [ ] **BLOCKED** — generički runtime pristup nad `users` i `practices` se ne implementira dok D-OPEN-011 ne bude prihvaćen.
-- [ ] `practice_memberships` bootstrap pristup ne rješava opšti runtime pristup nad `users`.
-- [ ] `practice_memberships` bootstrap pristup ne rješava opšti runtime pristup nad `practices`.
+- [ ] Politike nad `users` i `practices` iz paketa `002` **nisu prepisane, oslabljene ni
+      zamijenjene** — Faza 4 ih ne dira.
+- [ ] RESTRICTIVE politika `practices_context_narrow` **nije** pretvorena u permissive.
+- [ ] Nakon uvođenja `app.practice_id`, vidljivost `practices` sužava se na **tačno jednu**
+      ordinaciju, i kada upit nema `WHERE` klauzulu.
+- [ ] Nakon §17.3, `copilot_app` **više ne vidi** generičke `practice_memberships` redove — time je
+      međustanje Faze 3 zatvoreno.
+- [ ] Politika nad `practices` daje **identičan** rezultat prije i nakon §17.3.
+- [ ] `practice_memberships` bootstrap pristup i dalje **nije** opšti runtime pristup nad `users`.
+- [ ] `practice_memberships` bootstrap pristup i dalje **nije** opšti runtime pristup nad `practices`.
 - [ ] Phase gate pada ako implementacija tiho uvede neograničen pristup nad bilo kojom od te dvije tabele.
-- [ ] Self-enumeracija vlastitih membership rola (§17.4) **ne rješava D-OPEN-011**.
+- [ ] Self-enumeracija vlastitih membership rola (§17.4) **nije** riješila D-OPEN-011 — to je učinio D-047.
 
 ## Role matrica — prihvaćene dodjele
 
@@ -701,18 +810,20 @@ Normativno: D-041; `03` §10 i §20; `15` §6.
 - [ ] `audit.read` `ALLOW`.
 - [ ] `audit.export` `ALLOW`.
 - [ ] Sve ostale aktivne permisije `DENY`.
-- [ ] `practice.read` ostaje `BLOCKED — D-OPEN-011`.
+- [ ] `practice.read` je **`DENY`** (D-047) — `AUDITOR` i dalje ima tačno dvije aktivne permisije.
 - [ ] **Nema discovery ni listing endpointa.**
 
 ### READ_ONLY
 
 - [ ] **Nula `ALLOW`.**
 - [ ] **Nula `CONDITIONAL`.**
-- [ ] `practice.read` ostaje `BLOCKED — D-OPEN-011`.
+- [ ] `practice.read` je **`DENY`** (D-047) — invarijanta nula `ALLOW` ostaje na snazi.
 - [ ] Sve ostale aktivne permisije `DENY`.
 
 ### PRACTICE_ADMIN
 
+- [ ] `practice.read` — **jedina rola koja ga dobija** (D-047); projekcija bez `zsrNumber`,
+      `glnNumber` i `legalName`.
 - [ ] `practice.settings.read`.
 - [ ] `practice.settings.manage`.
 - [ ] `encounter.close`.
@@ -786,7 +897,8 @@ Klasifikacija je prihvaćena u D-045. **Za ove stavke se ne otvaraju implementac
 - [ ] Context nestaje nakon završetka transakcije.
 - [ ] Pooled konekcija ne dobija context prethodnog requesta.
 - [ ] `platformRoles` ne kreiraju tenant membership.
-- [ ] Opšti runtime pristup nad `users`/`practices` ostaje blokiran do D-OPEN-011.
+- [ ] Opšti runtime pristup nad `users`/`practices` **ne postoji** — potvrđeno negativnim
+      testovima iz `08` §21.5 (D-047).
 - [ ] no-context default deny.
 - [ ] pooled connection leakage test.
 - [ ] inactive membership denied.
@@ -849,7 +961,8 @@ završenom. Nijedan checkbox se ne označava bez izvršene provjere.
 - [ ] neaktivan membership **ne autorizuje** nijednu tenant rutu;
 - [ ] duplirana i cross-practice dodjela role **padaju**;
 - [ ] injekcija role **nije moguća**;
-- [ ] generički `users`/`practices` pristup zavisan od D-OPEN-011 **nije implementiran** bez prihvaćene odluke;
+- [ ] generički `users`/`practices` pristup **nije implementiran**; politike i column grantovi iz
+      D-047 su prisutni tačno kako su propisani;
 - [ ] implementacijska matrica **ne odstupa** od `15`;
 - [ ] broj aktivnih permisija je **32**;
 - [ ] broj rezervisanih permisija je **3**;
@@ -1298,9 +1411,13 @@ Već usklađeno:
 
 Čeka kontrolisani batch:
 
-- [ ] `07_CURSOR_PHASE_PROMPTS.md`.
-- [ ] `08_TEST_STRATEGY_V1.md`.
-- [ ] `MANIFEST.md`.
+- [x] `07_CURSOR_PHASE_PROMPTS.md` — usklađen u D-047 batchu (2026-08-12).
+- [x] `08_TEST_STRATEGY_V1.md` — usklađen u D-047 batchu (2026-08-12).
+- [x] `MANIFEST.md` — osvježen u D-047 batchu (2026-08-12).
 
-Dok ta tri dokumenta ne budu usklađena, njihove `BLOCKED` oznake za produkcijske role grantove
-ostaju na snazi i **ne uklanjaju se iz ovog dokumenta**.
+Ranija napomena da `BLOCKED` oznake u ta tri dokumenta ostaju na snazi **više ne važi**: one su
+uklonjene upravo u D-047 batchu, zajedno sa `02`, `03`, `04`, `09`, `13`, `14` i `15`. Vrijednost
+`BLOCKED — D-OPEN-011` je povučena i nijedna matrica je više ne nosi (`15` §3.1).
+
+Ova sekvenca je time zatvorena. Napomena o statusu batcha: rekonsilijacija je izvršena na branchu
+`docs/d-047-runtime-access-model` i **još nije merged** u kanonski `main` (§3a).
