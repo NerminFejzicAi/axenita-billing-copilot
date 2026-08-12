@@ -540,6 +540,7 @@ MUST DECIDE BEFORE <faza>
 - **Amandman na:** D-023 klauzula 13.
 - **Supersedes:** Svaku raniju dokumentacijsku formulaciju koja opisuje `set_request_context` kao `SECURITY DEFINER` ili koja prima `p_user_id` — uključujući `02` §16.2 baseline tekst, `07` §180 i `14` §50.
 - **Zavisnosti:** D-005, D-006, D-023. D-OPEN-011 mora biti zatvoren prije implementacije faze 3 radi tačnog database puta za `users` i `practices`; D-033 i bez toga definiše prihvaćeni membership bootstrap model.
+- **Amandman (D-047, 2026-08-12) — isključivo vlasništvo paketa, bez izmjene sigurnosne semantike:** Klauzula 2 je ispunjena — tačan database put `auth_subject` → `users.id` definisan je u D-047, klauzulama 1–4, kao `set_auth_subject_context` uz bootstrap RLS politiku nad `users`, bez `SECURITY DEFINER`. Kreiranje funkcije `app_security.set_user_context` premješta se iz migration paketa `013_rls_policies` u paket **`002_identity_and_practices`**, jer faza 3 već zahtijeva autentifikovan user context, a `02` §22.13 i `04` §6.2.3 su po tom pitanju bili u međusobnom neslaganju (D-047, klauzula 17). **Nijedna klauzula 1–15 ove odluke se ne mijenja**; tijela, potpisi, `SECURITY INVOKER` mod, brisanje prije validacije, validacija aktivnog membershipa i ograničenja pozivaoca za `set_user_context` i `set_request_context` ostaju **identični**. `set_request_context` ostaje u paketu `013` i u fazi 4, zajedno sa `practice_memberships` politikom iz klauzula 5–6.
 
 ---
 
@@ -1071,6 +1072,7 @@ Nijedan red se ne pojavljuje dva puta i nijedan red ne nedostaje.
 - **Test dokaz:** `practice.read` nema nijednu rolu koja ga dobija; guard testovi iz `08` §21.5 ostaju obavezni; nijedna rezervisana permisija ne gate-uje aktivni endpoint; test da nijedna rola ne dobija membership ni role administration.
 - **Zavisnosti:** D-023, D-026, D-032, D-036, D-038, D-039, D-040, D-041, D-042, D-043, D-044, D-OPEN-011.
 - **Dokumenti za kasniju rekonsilijaciju:** `docs/15`; `03` §28.4; `13` §16.
+- **Amandman (D-047, 2026-08-12):** Klauzula 1 i red `practice.read` u klauzuli 2 su **iscrpljeni**. D-OPEN-011 je riješen odlukom D-047, pa `practice.read` više nije `BLOCKED`: `PRACTICE_ADMIN` **ALLOW**, ostalih šest rola **DENY** (D-047, klauzula 11). Iz tabele klasifikacije u klauzuli 2 iscrpljene su i tri preostale `BLOCKED — D-OPEN-011` stavke — generički runtime read/write nad `users`, isto nad `practices`, i generički cross-practice pristup — sve riješene klauzulama 3–6 i 13–14 odluke D-047. **Redovi `OUT OF V1`, `REQUIRES NEW PERMISSION AND ADR` i `RESERVED` ostaju nepromijenjeni i na snazi**, jednako kao sva negativna ograničenja iz ove odluke. Vlasništvo permisije `practice.read` u dokazu pokrivenosti (klauzula 4) prelazi sa D-045 na **D-047**; ukupan broj ostaje **32 aktivne + 3 rezervisane**. Disciplina eksplicitne klasifikacije koju D-045 uvodi ostaje obavezna za svako buduće neriješeno pitanje.
 
 ---
 
@@ -1273,6 +1275,337 @@ for update;
 
 ---
 
+# D-047 — Runtime access model za `users` i `practices` (Bootstrap-Scoped RLS)
+
+- **Status:** ACCEPTED
+- **Datum:** 2026-08-12
+- **Supersedes:** D-OPEN-011.
+- **Kontekst/problem:** D-OPEN-011 je ostavio runtime access model za `users` i `practices` neriješenim i blokirao fazu 3. Tri ograničenja se sijeku:
+  1. `users.auth_subject` se mora rezolvirati u `users.id` **prije** nego što `app.user_id` postoji, pa self-scoped politika vezana za `app.user_id` ne može bootstrapovati samu sebe (D-033, klauzula 2);
+  2. zamrznuti `GET /me` ugovor zahtijeva `memberships[].practiceName` (`03` §10, `04` §5.4.1, `05` §4, `08` §24) na **neutralnoj** ruti bez practice contexta, pa `practices` mora biti čitljiv **prije** nego `app.practice_id` postoji — model "practices je čitljiv samo uz `app.practice_id`" **ne zadovoljava zamrznuti ugovor**;
+  3. `practices.zsr_number` je osjetljiv poslovni podatak (`02` §6.1, `09` §2 klasa B), a nijedna od dvije tabele ne smije biti neograničeno runtime-čitljiva (`02` §18.3, §28.2; `13` §16.3).
+- **Metod:** Svako PostgreSQL ponašanje navedeno u ovoj odluci je **empirijski dokazano** na PostgreSQL 16.14 (identičan image digest kao razvojna instanca, D-003) kroz transakcijski ograničene probe u `copilot_test`, sa punim rollbackom i verifikacijom da nijedan probe objekat nije ostao. Nijedna klauzula nije uslovna ni pretpostavljena.
+
+## Odluka
+
+### 1. `app.auth_subject`
+
+Uvodi se transakcijski lokalna varijabla `app.auth_subject`. Postoji **isključivo** za identity bootstrap i ni za jednu drugu svrhu.
+
+### 2. `app_security.set_auth_subject_context`
+
+```sql
+create or replace function app_security.set_auth_subject_context(
+  p_auth_subject text
+)
+returns void
+language plpgsql
+security invoker
+set search_path = public, pg_temp
+as $$
+begin
+  if p_auth_subject is null or p_auth_subject = '' then
+    raise exception using
+      errcode = '42501',
+      message = 'Auth subject context requires a subject';
+  end if;
+
+  perform set_config('app.practice_id',  '', true);
+  perform set_config('app.user_id',      '', true);
+  perform set_config('app.auth_subject', p_auth_subject, true);
+end;
+$$;
+
+revoke all on function app_security.set_auth_subject_context(text) from public;
+grant execute on function app_security.set_auth_subject_context(text) to copilot_app;
+```
+
+Obavezne osobine: **SECURITY INVOKER**; fiksiran `search_path`; null/prazan ulaz odbijen sa SQLSTATE `42501`; briše `app.user_id`; briše `app.practice_id`; postavlja `app.auth_subject` transakcijski lokalno (`set_config(..., true)`); `PUBLIC` nema `EXECUTE`; `EXECUTE` isključivo `copilot_app`; vlasnik objekta je `copilot_migrator`.
+
+**Nijedna `SECURITY DEFINER` funkcija se ne uvodi.** Zabrana iz `02` §17.3, §17.4, `04` §6.2.2 i `14` §2.1 ostaje na snazi.
+
+### 3. `users` RLS
+
+`users` koristi `ENABLE ROW LEVEL SECURITY` **i** `FORCE ROW LEVEL SECURITY`, sa dvije **PERMISSIVE** `SELECT` politike.
+
+**Bootstrap politika** — `users_bootstrap_subject_select`:
+
+```sql
+nullif(current_setting('app.user_id', true), '') is null
+and auth_subject = nullif(current_setting('app.auth_subject', true), '')
+```
+
+**Guard `app.user_id IS NULL` je obavezan i normativan.** Razlog je empirijski: permissive politike se kombinuju kroz `OR`, a `set_user_context` ne briše `app.auth_subject`. Bez guarda je dokazano da neusklađeni `app.auth_subject` / `app.user_id` konteksti izlažu **dva** korisnička reda istovremeno; sa guardom je vidljiv **tačno jedan**.
+
+**Self politika** — `users_self_select`:
+
+```sql
+id = nullif(current_setting('app.user_id', true), '')::uuid
+```
+
+Politike su time **međusobno isključive po konstrukciji**: tačno jedna je aktivna u datom trenutku — bootstrap prije nego interni user context postoji, self nakon toga. Vidljivost nikada ne prelazi jedan red. Zastarjeli `app.auth_subject` nakon `set_user_context` dokazano nema nikakav efekat, pa se `set_user_context` **ne mijenja**.
+
+### 4. `users` grants
+
+`copilot_app` dobija `SELECT` isključivo na `(id, email, display_name, preferred_language, status)`.
+
+**Ne dobija** `SELECT` na: `auth_subject`, `last_login_at`, `created_at`, `updated_at`.
+
+Dokazano na PostgreSQL 16.14: **RLS politika smije referencirati `auth_subject` nad vlastitom tabelom bez da pozivalac ima column `SELECT` na `auth_subject`.** Istovremeno, aplikacijski `SELECT auth_subject` i `WHERE auth_subject = ...` padaju sa SQLSTATE `42501`. Politika je zato **jedini** put do te kolone, a aplikacija je ne može zaobići vlastitim filterom.
+
+Nijedna runtime rola ne dobija `INSERT`, `UPDATE` ni `DELETE` nad `users`.
+
+### 5. `practices` RLS
+
+`practices` koristi `ENABLE ROW LEVEL SECURITY` **i** `FORCE ROW LEVEL SECURITY`, sa **dvije politike različitog moda**. Jedna generička permissive politika **nije dovoljna** i ne smije se koristiti.
+
+**Membership politika** — `practices_membership_select`, **PERMISSIVE**:
+
+```sql
+exists (
+  select 1
+  from practice_memberships pm
+  where pm.practice_id = practices.id
+    and pm.user_id = nullif(current_setting('app.user_id', true), '')::uuid
+)
+```
+
+Politika **namjerno ne filtrira `pm.active`**. Razlog: zamrznuti `GET /me` zahtijeva da i neaktivni membershipi prikažu `practiceName` (`03` §10). Isti obrazac i isto obrazloženje već su prihvaćeni u §17.4 — RLS ovdje uređuje **vidljivost vlastitih redova**, ne autorizaciju.
+
+**Context narrowing** — `practices_context_narrow`, **RESTRICTIVE**:
+
+```sql
+nullif(current_setting('app.practice_id', true), '') is null
+or practices.id = nullif(current_setting('app.practice_id', true), '')::uuid
+```
+
+**RESTRICTIVE mod je obavezan i normativan.** Ponašanje:
+
+- prije `app.practice_id` — pozivalac vidi isključivo ordinacije iz vlastitog membership skupa;
+- nakon `app.practice_id` — vidljivost se sužava na **tačno tekuću ordinaciju**;
+- buduće permissive politike **ne mogu `OR`-om ukloniti** pravilo sužavanja.
+
+Empirijski dokaz koji čini ovaj mod normativnim: uz simuliranu buduću široku permissive politiku (`using (true)`), kombinovana permissive varijanta vraća **3 reda** — uključujući ordinaciju u kojoj korisnik **nema nijedan membership** — dok PERMISSIVE + RESTRICTIVE varijanta vraća **1 red**.
+
+### 6. `practices` grants
+
+`copilot_app` dobija `SELECT` isključivo na `(id, code, name, default_language, timezone, status)`.
+
+**Ne dobija** `SELECT` na: `legal_name`, `zsr_number`, `gln_number`, `created_at`, `updated_at`.
+
+Nijedna runtime rola ne dobija `INSERT`, `UPDATE` ni `DELETE` nad `practices`. `copilot_system` **nema nijedan grant** nad `users` ni nad `practices`. `PUBLIC` nema nijedan grant.
+
+Osjetljiva polja ostaju nedostupna **i pri kompromitovanom `copilot_app` credentialu**, jer column grants ne zavise od konteksta i preživljavaju podmetnut `app.*` GUC.
+
+### 7. Zavisnost politike od `practice_memberships` — dokazana invarijanta
+
+Dokazano na PostgreSQL 16.14: politika nad `practices` koja sadrži podupit nad `practice_memberships` **zahtijeva da pozivalac ima privilegije nad referenciranom tabelom/kolonama**. Bez granta upit pada sa SQLSTATE `42501`.
+
+Minimalno dovoljno: `SELECT` na `(practice_id, user_id)`.
+
+PostgreSQL je ovdje **asimetričan**, i ta asimetrija je normativna za sve buduće politike:
+
+| Referenca unutar RLS politike | Potreban grant pozivaocu |
+|---|---|
+| kolona **vlastite** tabele politike | **ne** |
+| **druga** tabela | **da** |
+
+Repozitorij već prihvata širi, table-level `SELECT` za `copilot_app` nad `practice_memberships` (`02` §20.2), pa **D-047 ne uvodi nijedan novi membership grant**. Zavisnost ipak postaje **eksplicitna invarijanta**: sužavanje ili ukidanje membership granta **ne smije tiho slomiti** politiku nad `practices`. Svaka takva izmjena mora prvo provjeriti ovu zavisnost.
+
+**Posljedica za fazu 3:** pošto `practice_memberships` dobija svoju user-scoped RLS tek u fazi 4 (§17.3, paket `013`), `copilot_app` u fazi 3 može čitati generičke membership redove na nivou baze. To je **zatečeno zamrznuto stanje faze 3** (`02` §20.2 i `05` faza 3), a **ne** posljedica D-047. Faza 4 ga zatvara.
+
+### 8. Transakcijska atomarnost
+
+Za **svaki** autentifikovani request sljedeći bootstrap lanac se izvršava unutar **jedne interaktivne PostgreSQL transakcije**:
+
+1. verifikovani token subjekt;
+2. `set_auth_subject_context`;
+3. `users` lookup;
+4. validacija `users.status`;
+5. `set_user_context`;
+6. `/me` bootstrap čitanja ili precheck tražene ordinacije;
+7. kada faza 4 postoji: `set_request_context`;
+8. tenant autorizacija i upit;
+9. `COMMIT` / `ROLLBACK`.
+
+Granica transakcije je **obavezna** jer: sav `app.*` kontekst je transakcijski lokalan; razdvajanje sekvence izgubilo bi pouzdan kontekst; transakcija je i dio TOCTOU kontrole. **Nijedan session-scoped identity ni practice kontekst se ne smije uvesti.**
+
+### 9. Status korisnika
+
+Rezolviran korisnik čiji `status` nije `ACTIVE` odbija se sa `403 ACCESS_DENIED` **prije** `set_user_context`. Identitet se smije rezolvirati isključivo da bi se dobio `status` potreban za tu odluku.
+
+Neaktivan korisnik ne smije: uspostaviti `app.user_id`; enumerisati membershipe; uspostaviti tenant kontekst.
+
+### 10. Status ordinacije
+
+Svaka tražena ordinacija čiji `status` nije `ACTIVE` odbija se sa `403 ACCESS_DENIED` uz `ROLLBACK`. Redoslijed je normativan:
+
+1. verifikovan korisnik;
+2. `set_user_context`;
+3. parsiranje traženog `practiceId`;
+4. membership-scoped čitanje `status` te tražene ordinacije;
+5. nula redova → `403 ACCESS_DENIED`;
+6. `status <> 'ACTIVE'` → `403 ACCESS_DENIED` + `ROLLBACK`;
+7. tek tada, kada faza 4 postoji, poziv `set_request_context`;
+8. tamo se **nezavisno** validira aktivan membership;
+9. tek tada `app.practice_id` postoji.
+
+Time **nijedna ne-ACTIVE ordinacija nikada ne dobija tenant kontekst**, a privilegovani prozor je nulte dužine. Korak 4 je izvodiv jer pre-context grana politike iz klauzule 5 dozvoljava čitanje tražene ordinacije po ID-u; dokazano.
+
+Korak 4 dokazuje **postojanje** membershipa (politika ne filtrira `active`), korak 8 dokazuje **aktivan** membership. Oba su potrebna; nijedan ne zamjenjuje drugi.
+
+**Tijelo `set_request_context` se ne mijenja.**
+
+### 11. `practice.read`
+
+| Rola | `practice.read` |
+|---|---|
+| `PRACTICE_ADMIN` | **ALLOW** |
+| `PHYSICIAN` | DENY |
+| `MPA` | DENY |
+| `BILLING_SPECIALIST` | DENY |
+| `AUDITOR` | DENY |
+| `READ_ONLY` | DENY |
+| `SYSTEM_ADMIN` | DENY |
+
+Status `BLOCKED — D-OPEN-011` nestaje.
+
+`practice.read` autorizuje **isključivo** čitanje neosjetljivog DTO-a **tekuće** tenant ordinacije. **Ne** autorizuje: listu ni direktorij ordinacija; prikaz `zsr_number`, `gln_number` ni `legal_name`; cross-practice ni platform pristup; bilo kakav upis nad `practices`; tenant pristup za `SYSTEM_ADMIN`.
+
+`SYSTEM_ADMIN` dobija tenant `practice.read` isključivo ako isti korisnik **nezavisno** ima aktivan tenant membership i dodijeljenu `PRACTICE_ADMIN` tenant rolu. Platform rola sama po sebi ne doprinosi ništa (D-023 klauzula 10, D-038 klauzule 13–14).
+
+Ostale role ne gube ništa: `/me` već vraća `practiceId` i `practiceName` za svaki membership. Dodjela je namjerno **minimum koji rješava blokadu** — proširenje je kasnije aditivan ADR, sužavanje bi bilo breaking izmjena.
+
+### 12. Co-member `displayName`
+
+Pristup redu **drugog** korisnika, koji kasnije traže `responsiblePhysician.displayName` (`03` §12, §15) i `approvedBy.displayName` (`03` §20), je u v1:
+
+**`DENY / NOT IMPLEMENTED`**
+
+Treća `users` politika se **ne** dodaje sada. Uvodi se imenovani obavezni gate:
+
+**`BEFORE PHASE 5 CO-MEMBER DISPLAY NAME ACCESS`**
+
+Buduća odluka mora obraditi dokazano PostgreSQL ograničenje da su **column grants vezani za rolu, ne za politiku**: svaki red koji politika propusti čitljiv je u **svim** grantovanim kolonama, pa bi co-member politika izložila i `email`, a ne samo `display_name`. Nijedan konzument faze 5 ne smije tiho dobiti generičku vidljivost nad `users`.
+
+### 13. Platform put
+
+**U v1 ne postoji platform read ni write put nad `users` ni nad `practices`.** `SYSTEM_ADMIN` sam po sebi ne smije čitati tenant `users` ni `practices`. Nijedan platform endpoint se ne uvodi.
+
+Buduća cross-practice platform administracija zahtijeva: eksplicitan produktni use case; novu permisiju; novi ADR; eksplicitan database put; eksplicitan audit model. Do tada put **pada zatvoreno**.
+
+### 14. System/service put
+
+`copilot_system` ne dobija grant nad `users` ni nad `practices`. Nijedan konzument u fazi 3 niti poznati zahtjev faze 6 ih ne traži (`02` §20.1, D-023 klauzula 5, D-024). Budući system konzument zahtijeva novi ADR.
+
+### 15. Runtime upisi u v1
+
+`users`: `INSERT` DENY; `UPDATE` DENY; `DELETE` DENY; deaktivacija DENY; promjena `auth_subject` DENY; `last_login_at` **NOT IMPLEMENTED**.
+
+`practices`: `INSERT` DENY; `UPDATE` DENY; `DELETE` DENY; deaktivacija/arhiviranje DENY; izmjena `zsr_number`/`gln_number` DENY.
+
+`practice_settings` ostaje **zasebna, već odlučena tabela i putanja** (D-028 klauzula 4, D-029, D-044) i **nije** izuzetak od zabrane upisa nad `practices`.
+
+Nijedan runtime write grant ne postoji nad te dvije tabele. Obje se pune isključivo migracijom i seedom (`02` §23), jednako kao `practice_memberships` (D-033 klauzula 13), `practice_membership_roles` (D-038 klauzula 24) i `platform_role_assignments` (D-023 klauzula 11). Posljedica koja se prihvata eksplicitno: `users.last_login_at` ostaje `NULL` kroz cijeli v1.
+
+### 16. Vlasništvo faza i migration paketa — sekvenciranje S1
+
+**Paket `002_identity_and_practices` — faza 3** dobija: `app_security` schemu ako već ne postoji (`create schema if not exists`); `set_auth_subject_context`; **`set_user_context` — premješten iz paketa `013`**; `users` column grant; `practices` column grant; `ENABLE` + `FORCE RLS` za `users`; `ENABLE` + `FORCE RLS` za `practices`; `users` bootstrap politiku; `users` self politiku; `practices` membership PERMISSIVE politiku; `practices` context RESTRICTIVE politiku.
+
+**Paket `013_rls_policies` — faza 4** zadržava: `set_request_context`; `practice_memberships` self-RLS (§17.3); `practice_membership_roles` RLS (§17.4); `platform_role_assignments` RLS (§17.2); sve preostale tenant politike; završni transakcijski tenant-isolation gate.
+
+**Nijedan novi broj paketa se ne uvodi.** §17.3 i opšta tenant RLS faze 4 **se ne premještaju** u fazu 3.
+
+Politike nad `users` i `practices` napisane u paketu `002` su **konačne**. Faza 4 ih ne prepisuje — ona samo počinje postavljati `app.practice_id`, čime se RESTRICTIVE grana aktivira **automatski**. Dokazano: identična politika daje identičan rezultat prije i nakon što `practice_memberships` dobije `FORCE RLS`.
+
+### 17. Rekonsilijacija sa D-033
+
+**Sigurnosna semantika D-033 se ne dira.** Nepromijenjeni ostaju: tijelo `set_user_context`; tijelo `set_request_context`; oba potpisa; `SECURITY INVOKER`; brisanje prije validacije; validacija aktivnog membershipa; ograničenja pozivaoca; klauzule 1–15.
+
+Mijenja se **isključivo vlasništvo paketa** za `set_user_context`: paket `013` → paket `002`. Razlog: faza 3 već zahtijeva autentifikovan user context, a zamrznuti dokumenti su po tom pitanju bili u **međusobnom neslaganju** — `02` §22.13 je funkciju dodjeljivao paketu `013`/fazi 4, dok je `04` §6.2.3 artefakt "autentifikovani user context (auth subject → `users.id`)" dodjeljivao paketu `002`/fazi 3, a D-033 klauzula 3 njenu **upotrebu** smješta u autentifikacijski put faze 3. Prema `README` §2, konflikt koji se ne može riješiti redoslijedom autoriteta rješava se novim unosom u Decision Log — što je ovdje i učinjeno.
+
+Ovo je **package/rollout rekonsilijacija, ne amandman na sigurnosnu semantiku.**
+
+### 18. Faza 3 kao međustanje
+
+**`PHASE 3 IS AN INTERMEDIATE NON-PILOT SECURITY STATE`**
+
+U fazi 3: `users` je već zaštićen RLS-om; `practices` je već zaštićen RLS-om; vidljivost `practices` je ograničena membershipom; konačno sužavanje kroz `app.practice_id` još ne postoji; `practice_memberships` još nema RLS faze 4; `copilot_app` zato može čitati generičke `practice_memberships` redove na nivou baze; tenant sužavanje za `GET /practices/{id}` je u fazi 3 **dodatno** sprovedeno aplikacijski.
+
+To stanje je prihvatljivo **isključivo** zato što na tom gateu ne postoje stvarni pilot korisnici ni podaci, i zato što je faza 4 obavezna prije faze 5.
+
+Zamrznuti gate ostaje na snazi: **`ALL RLS TESTS GREEN — required before phase 5`**. Nijedan pilot ni rad faze 5 ne smije se izvoditi nad sigurnosnim stanjem faze 3.
+
+### 19. Audit i logging
+
+Pre-tenant bootstrap i sigurnosni događaji **ne mogu** kreirati redove u `audit_events`, jer je `audit_events.practice_id` `NOT NULL` (D-023 klauzule 1–2) i `system_audit_events` se namjerno ne kreira. Za njih se koristi **strukturirani operativni log** (`09` §11): rezolucija subjekta — uspjeh i neuspjeh; odbijanje po statusu korisnika; neuspjeh membershipa; odbijanje po statusu ordinacije; uspostava konteksta.
+
+Nikada se ne logira: sirovi JWT; sirovi `auth_subject`; credentials; database URL; nepotrebni PII.
+
+Obično, neosjetljivo `practice.read` **ne zahtijeva** trajni audit red u v1 — vraća ni PHI ni klasu B. Ako se ubuduće uvede osjetljiv practice DTO, trajni audit postaje dio tog budućeg ADR-a.
+
+### 20. Granica pri kompromitovanom credentialu
+
+**RLS ne autentifikuje krajnjeg korisnika kada je dijeljeni `copilot_app` credential ukraden.** Držalac credentiala može sam postaviti `app.auth_subject`, `app.user_id` i `app.practice_id` kroz `set_config`; postojanje context funkcija nije privilegijska granica.
+
+RLS zato prvenstveno štiti od: aplikacijskih grešaka; zaboravljenih filtera; običnih cross-tenant bugova.
+
+Kontrole koje **preživljavaju** krađu `copilot_app` credentiala: column-level `SELECT` ograničenje; nepostojanje write grantova; nepostojanje vlasništva; `NOBYPASSRLS`; nepostojanje DDL prava.
+
+**Jača database identity garancija se ne tvrdi.** Ovo je dosljedno D-023 klauzuli 13 i D-033 (*Ograničenje*): tačka sprovođenja autorizacije je API, ne baza.
+
+### 21. Autorizacija faze 3
+
+Prihvatanje ove odluke od strane vlasnika autorizuje **isključivo**: `D-047 FORMALIZATION + CONTROLLED DOCUMENTATION RECONCILIATION`.
+
+Implementacija faze 3 ostaje **NIJE AUTORIZOVANA** dok se ne ispuni sve: D-047 zabilježen; svi autoritativni dokumenti usklađeni; nezavisan governance review prošao; rekonsilijacijski commit merged u kanonski `main`; kanonski `main` verifikovan; D-OPEN-011 formalno superseded od D-047.
+
+Tek nakon toga: `PHASE 3 IMPLEMENTATION: AUTHORIZED`. Do merge-a: **`PHASE 3 IMPLEMENTATION IS NOT AUTHORIZED`**.
+
+## Razlog
+
+Model rješava bootstrap ciklus **proširenjem već prihvaćenog bootstrap-safe RLS obrasca** (§17.3, §17.4) na jedan korak ranije u lancu, umjesto uvođenjem novog mehanizma. Ne uvodi database rolu, `SECURITY DEFINER` funkciju, tabelu, permisiju ni migration paket. Column grants su primarna kontrola jer su jedina koja preživljava krađu credentiala.
+
+## Alternative
+
+- **Neograničeni grants uz aplikacijsko filtriranje** — odbijeno: to je upravo neograničen `SELECT` koji `13` §16.3 zabranjuje.
+- **Čista RLS vezana samo za `app.user_id`** — odbijeno: self politika ne može bootstrapovati samu sebe; usvojena je kao druga polovina ovog modela.
+- **`SECURITY DEFINER` resolver** — odbijeno: uvodi konstrukciju koju je D-033 odbio za strukturno identičan problem; pod `FORCE RLS` bi i sama bila filtrirana, pa bi tražila dodatno slabljenje `02` §18/§27; stvara privilegovan callable sa proizvoljnim ulazom.
+- **Zasebna bootstrap database rola i konekcija** — odbijeno: stvarna ali marginalna dobit protiv ukradenog credentiala, uz četvrtu rolu (ADR-level izmjena D-005/D-023), drugi secret u runtime procesu i drugi pool; dobit nestaje čim `copilot_app` ionako mora čitati vlastiti red za `/me`.
+- **Zasebna struktura mapiranja identiteta** — odbijeno: duplira `auth_subject`, uvodi sinhronizaciju životnog ciklusa, bez privilegijskog razdvajanja.
+- **Bootstrap politika bez `app.user_id IS NULL` guarda** — odbijeno: dokazano izlaže dva reda.
+- **Jedna kombinovana permissive `practices` politika** — odbijeno: dokazano se urušava na 3 reda pod budućom širokom permissive politikom.
+- **Provjera statusa ordinacije nakon `set_request_context`** — odbijeno: ostavlja privilegovan prozor u kojem tenant kontekst postoji za ne-ACTIVE ordinaciju.
+- **`practice.read` = ALLOW za svih šest tenant rola** — odbijeno: srušilo bi zamrznute invarijante `READ_ONLY` = nula `ALLOW` i `AUDITOR` bez treće permisije, i dodijelilo polja koja nijedan workflow ne konzumira.
+
+## Posljedice
+
+- Faza 3 postaje implementabilna; `practice.read` postaje dodjeljiv; `BLOCKED` klasifikacija nestaje iz `15` §5 i §8.1.
+- Administracija identiteta ostaje u cijelosti izvan runtimea u v1; `users.last_login_at` nema upisivača.
+- Politika nad `practices` trajno zavisi od membership granta (klauzula 7).
+- Faza 3 je nepilotsko međustanje; faza 4 ostaje obavezan sigurnosni gate.
+- Katalog permisija ostaje **32 aktivne + 3 rezervisane**; nijedna permisija, rola, endpoint, tabela ni paket se ne uvodi.
+
+## Security/privacy uticaj
+
+Zatvara neriješenu granicu koja je blokirala fazu 3, uz striktnu minimizaciju kolona: `zsr_number`, `gln_number`, `legal_name`, `auth_subject` i `last_login_at` nisu dostupni nijednoj runtime roli. Jača kontrole T1 i T10 iz `09` §18 protiv aplikacijskih grešaka; eksplicitno **ne** jača ih protiv ukradenog dijeljenog credentiala.
+
+## Migration/rollout
+
+Artefakti i vlasništvo prema klauzuli 16. Redoslijed unutar paketa `002`: tabele → grants → `ENABLE`/`FORCE RLS` → politike → funkcije; `practices` politika se kreira nakon `practice_memberships`. Politike, `FORCE RLS`, column grants i funkcije se pišu u `--create-only` migration SQL-u prema D-004; `prisma migrate diff` može prijavljivati drift na njima, što je očekivano i ne ispravlja se (D-030).
+
+**Rollback:** `DROP POLICY` ×4; `DISABLE ROW LEVEL SECURITY` nad dvije tabele; `REVOKE` grantova; `DROP FUNCTION set_auth_subject_context`. Nedestruktivno, bez gubitka podataka — projekat nema produkcijske podatke (`02` §22.2) — i pada zatvoreno. Migracija je sigurna upravo zato što stvarni korisnici još ne postoje.
+
+## Test dokaz
+
+Puni pozitivni i negativni test ugovor je u `08` §21.5. Obavezni minimum: bootstrap sa validnim subjektom; nepoznat subjekt; neaktivan korisnik; **neusklađeni** `auth_subject`/`user_id` konteksti; **zastarjeli** `auth_subject`; bez konteksta; vlastiti red; tuđi red odbijen; `42501` za svaku negrantovanu kolonu; `42501` za svaki upis; pre-context vidljivost vlastitih membership ordinacija; post-context sužavanje na jednu ordinaciju; neaktivan membership vidljiv samo za `/me` ime; ordinacija bez membershipa; pogođen `practiceId`; zaštita RESTRICTIVE politike; osjetljive kolone `42501`; `copilot_system` odbijen; generička membership vidljivost faze 3 dokumentovana kao očekivano međustanje; zatvaranje te vidljivosti u fazi 4; brisanje konteksta na kraju transakcije; izolacija pooled konekcije. Test kompromitovanog credentiala mora **tvrditi prihvaćeno ograničenje**, nikada lažno tvrditi database autentifikaciju korisnika.
+
+## Zavisnosti
+
+D-002, D-005, D-006, D-023, D-024, D-028, D-029, D-033, D-038, D-044, D-045.
+
+---
+
 # Otvorene odluke
 
 ## D-OPEN-001 — Produkcijski OIDC provider
@@ -1343,7 +1676,21 @@ for update;
 
 ## D-OPEN-011 — Runtime access model za `users` i `practices`
 
-- **Status:** MUST DECIDE BEFORE PHASE 3
+- **Status:** SUPERSEDED BY D-047
+- **Riješeno:** 2026-08-12 odlukom **D-047 — Runtime access model za `users` i `practices` (Bootstrap-Scoped RLS)**.
+- **Napomena:** Izvorni problem, kontekst i ograničenja ispod se **zadržavaju nepromijenjeni** radi audita i historije. Ne opisuju više otvoreno pitanje. Svaki izlazni kriterij iz `13` §16.6 zatvoren je odgovarajućom klauzulom D-047; zabrane iz `13` §16.3 su ili sprovedene kao trajna pravila ili eksplicitno riješene:
+  - tačan database put `auth_subject` → `users.id` — D-047 klauzule 1–4;
+  - self-scoped pristup vlastitom `users` redu — D-047 klauzula 3;
+  - pristup `practices` — D-047 klauzule 5–6;
+  - grant naspram RLS politike naspram resolver funkcije — riješeno kao **grant + RLS**, bez resolver funkcije i bez `SECURITY DEFINER` (D-047 klauzula 2);
+  - negativni testovi i ograničenja pri kompromitaciji credentiala — D-047 klauzule 20 i *Test dokaz*.
+- **Ne bira se prećutno** (izvorna zabrana, i dalje na snazi kao trajno pravilo): `SECURITY DEFINER` nije uveden nijednom klauzulom D-047; neograničen `SELECT` nije dodijeljen; pristup bez RLS-a ne postoji — obje tabele nose `ENABLE` **i** `FORCE ROW LEVEL SECURITY`.
+
+---
+
+### Izvorni zapis (historijski, nepromijenjen)
+
+- **Izvorni status:** MUST DECIDE BEFORE PHASE 3
 - **Kontekst:**
   - `users.auth_subject` se mora rezolvirati u `users.id` **prije** nego što `app.user_id` postoji, pa ta rezolucija ne može zavisiti od user-scoped politike koja tek treba biti postavljena;
   - `practices` sadrži osjetljive identifikatore, uključujući ZSR broj (`02` §6.1);
@@ -1358,6 +1705,8 @@ for update;
 - **Ne bira se prećutno:** `SECURITY DEFINER`, neograničen `SELECT` ni pristup bez RLS-a. Nijedna od tih opcija nije prihvaćena ovim ADR-om — odluka ostaje eksplicitno otvorena.
 - **Vezano za:** D-033 (membership bootstrap koji ovu rezoluciju poziva), D-023, D-006.
 - **Potrebno do:** prije implementacije faze 3.
+
+*(Kraj historijskog zapisa. Sve gore navedeno opisuje stanje prije 2026-08-12 i zadržano je nepromijenjeno. Formulacije tipa "odluka ostaje eksplicitno otvorena" i "potrebno do: prije implementacije faze 3" odnose se na tada otvoreno pitanje i **više ne opisuju tekuće stanje** — D-047 je prihvaćen i mjerodavan.)*
 
 ---
 

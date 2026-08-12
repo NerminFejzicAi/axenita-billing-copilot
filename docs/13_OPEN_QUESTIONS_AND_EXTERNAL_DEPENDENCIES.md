@@ -202,13 +202,25 @@ Mora podržati data scrubbing i Swiss/privacy zahtjeve.
 
 ---
 
-# 16. D-OPEN-011 — Runtime access model za `users` i `practices`
+# 16. D-OPEN-011 — Runtime access model za `users` i `practices` — RIJEŠENO
 
-**Status:** OPEN / NERIJEŠENO
+**Status:** **RIJEŠENO / ZATVORENO 2026-08-12**
 
-- blokira implementacijski rad koji zavisi od generičkog runtime pristupa nad `users` ili `practices`;
-- mora biti riješen prije relevantnog dijela faze 3;
-- **bootstrap pristup kroz `practice_memberships` NE rješava opšti runtime pristup** nad `users` ni `practices`.
+Riješeno odlukom **D-047 — Runtime access model za `users` i `practices` (Bootstrap-Scoped RLS)**
+u `06`. D-OPEN-011 nosi status `SUPERSEDED BY D-047`.
+
+Normativni sadržaj sada živi u: `02` §16.2.1, §16.2.4, §17.5, §17.6, §18.2, §20.2a, §22.2, §25.1.1
+i §28.2; `03` §3.1, §3.7.1 i `GET /practices/{practiceId}`; `15` §5 i §8.1; `08` §21.5.
+
+- **više ne blokira** implementacijski rad — raniji phase gate je zatvoren;
+- pristup nad `users` i `practices` je ograničen kroz `ENABLE` + `FORCE RLS` i **column-level**
+  grantove, a ne kroz neograničeni `SELECT`;
+- **bootstrap pristup kroz `practice_memberships` i dalje NE predstavlja opšti runtime pristup**
+  nad `users` ni `practices` — ta tvrdnja ostaje tačna; access model je riješen zasebnim
+  politikama, ne proširenjem membership bootstrapa.
+
+Sekcije §16.1–§16.6 ispod zadržane su **nepromijenjene radi historije i sljedivosti**. One opisuju
+stanje prije 2026-08-12. Ispod svake je zabilježeno kako je D-047 zatvorio odgovarajuću stavku.
 
 ## 16.1 Prihvaćeni kontekst
 
@@ -320,6 +332,35 @@ D-OPEN-011 se smije zatvoriti tek kada prihvaćeni ADR definiše:
 
 Do tada implementacija ostaje blokirana svuda gdje je potreban generički `users`/`practices` pristup.
 
+## 16.7 Kako je D-047 zatvorio svaku stavku
+
+*(Dopuna 2026-08-12. Sekcije §16.1–§16.6 iznad su historijske i nepromijenjene.)*
+
+| Otvoreno pitanje iz §16.2 | Rješenje u D-047 |
+|---|---|
+| 1–3. koje role smiju `SELECT` nad `users`/`practices`, i koje kolone | isključivo `copilot_app`, **column-level**: `users` `(id, email, display_name, preferred_language, status)`; `practices` `(id, code, name, default_language, timezone, status)` — klauzule 4 i 6 |
+| 4. smije li tenant korisnik čitati isključivo vlastiti `users` red | **da** — klauzula 3; red drugog korisnika je `DENY / NOT IMPLEMENTED` (klauzula 12) |
+| 5. smije li čitati isključivo ordinacije vlastitog membershipa | **da** — klauzula 5; nakon tenant konteksta sužava se na tačno jednu |
+| 6. jesu li list/directory endpointi dozvoljeni | **ne** — takva ruta ne postoji i ne uvodi se (klauzula 11) |
+| 7–8. runtime `INSERT`/`UPDATE`/deaktivacija nad `users`/`practices` | **nijedna** — klauzula 15 |
+| 9–10. autorizacija platform ruta; jesu li `platformRoles` dovoljni | platform put nad te dvije tabele **ne postoji** u v1 — klauzula 13 |
+| 11. koje servisne putanje smiju koristiti `copilot_system` | **nijedna** nad `users`/`practices` — klauzula 14 |
+| 12–13. jesu li SECURITY DEFINER helperi dozvoljeni i pod kojim uslovima | **nijedan se ne uvodi**; pitanje otpada — klauzula 2 |
+| 14. deaktivirani korisnici | odbijeni prije `set_user_context` — klauzula 9 |
+| 15. neaktivne ordinacije | odbijene prije `set_request_context` — klauzula 10 |
+| 16. opozvani ili neaktivni membershipi | vidljivost da (`/me` ime), autorizacija ne — klauzule 5 i 10 |
+| 17. obavezan audit dokaz | strukturirani operativni log; trajni `audit_events` red nije moguć pre-tenant — klauzula 19 |
+| 18. koje API permisije i endpointi zavise | `practice.read` i `GET /practices/{practiceId}` — klauzula 11 |
+
+Zabrane iz **§16.3 nisu ukinute**. Sve ostaju na snazi kao trajna pravila i sada su sprovedene
+tehnički: nema neograničenog `SELECT` nad `users` ni `practices`; nema grantova prema `PUBLIC`;
+nema politike koja izlaže sve korisnike ni sve ordinacije; membership bootstrap i dalje nije opšti
+pristup; `platformRoles` se ne pretvaraju u tenant pristup i ne spajaju se unijom; **nijedan
+SECURITY DEFINER bypass nije uveden**.
+
+Izlazni kriteriji iz **§16.6** su ispunjeni u cijelosti — vidi `06` D-OPEN-011, sekciju o
+zatvaranju.
+
 ---
 
 # 17. External dependency readiness table
@@ -344,3 +385,54 @@ Za svako pitanje:
 3. ažurirati architecture/schema/API ako treba;
 4. definisati test;
 5. tek onda implementirati.
+
+---
+
+# 19. Co-member `displayName` pristup — obavezan gate prije faze 5
+
+**Status:** OPEN / ODGOĐENO uz imenovani gate
+**Naziv gatea:** `BEFORE PHASE 5 CO-MEMBER DISPLAY NAME ACCESS`
+**Izvor:** D-047, klauzula 12. Ovo pitanje **nije** dio D-OPEN-011 i nije njime bilo pokriveno;
+izdvojeno je i imenovano upravo da ne bi bilo otkriveno tek u implementaciji.
+
+## 19.1 Problem
+
+Tri zamrznuta API odgovora izlažu `displayName` **drugog** korisnika:
+
+- `responsiblePhysician.displayName` — `03` §12 `GET /encounters`;
+- `responsiblePhysician.displayName` — `03` §15 analysis workspace;
+- `approvedBy.displayName` — `03` §20 approval odgovor.
+
+Nijedan od njih nije u fazi 3. D-047 je pristup redu drugog korisnika ostavio kao
+**`DENY / NOT IMPLEMENTED` u v1**: `users` ima tačno dvije politike (`02` §17.5), obje vezane za
+identitet pozivaoca, i treća se **ne** kreira bez prihvaćene odluke.
+
+## 19.2 Kada gate mora biti zatvoren
+
+**Prije implementacije prve funkcionalnosti faze 5 koja treba tuđi `displayName`.** Do tada rad na
+tim odgovorima **staje na phase gateu**. Implementacija ne smije tiho dodati politiku, proširiti
+grant niti denormalizovati ime u drugu tabelu.
+
+## 19.3 Šta prihvaćena odluka mora definisati
+
+- tačan opseg politike — co-member iste ordinacije, ili uži kriterij;
+- da li politika zavisi od `app.practice_id`, `app.user_id`, ili oba;
+- **dokazano PostgreSQL ograničenje: column grantovi su vezani za rolu, ne za politiku.** Svaki
+  red koji politika propusti čitljiv je u **svim** grantovanim kolonama, pa bi co-member politika
+  izložila i `email`, ne samo `display_name`. Odluka mora eksplicitno prihvatiti tu posljedicu ili
+  je izbjeći drugim mehanizmom;
+- interakciju sa `practices_context_narrow` obrascem — da li je potrebna RESTRICTIVE politika i
+  nad `users`;
+- da li neaktivan membership co-membera i dalje izlaže ime;
+- audit ponašanje;
+- vlasništvo migration paketa — očekivano `013_rls_policies` ili kasniji;
+- pozitivne i negativne testove, uključujući test da korisnik izvan ordinacije ne vidi ime.
+
+## 19.4 Zabranjene pretpostavke dok je pitanje otvoreno
+
+- nema treće `users` politike;
+- nema proširenja `users` column granta;
+- nema denormalizacije `display_name` u tenant tabelu radi zaobilaženja gatea;
+- nijedan konzument faze 5 ne smije tiho dobiti generičku vidljivost nad `users`;
+- `BLOCKED` oznaka iz `15` §3.1 se **ne** koristi za ovu stavku — vrijednost je povučena; ovaj
+  gate se vodi ovdje i u D-047 klauzuli 12.

@@ -94,11 +94,17 @@ Permisija doprinosi **isključivo** kada su zadovoljena **sva četiri** uslova:
 3. membership je **aktivan**;
 4. svi uslovi specifični za endpoint su zadovoljeni.
 
-**`BLOCKED — D-OPEN-011`**
+**`BLOCKED — D-OPEN-011`** — *povučena vrijednost, historijska*
 
-- nijedna dodjela **nije prihvaćena**;
-- implementacija mora **pasti zatvoreno**;
-- **ne smije** se pretvoriti u `ALLOW` ni u obični `DENY` dok D-OPEN-011 ne bude riješen.
+- **Ne koristi se ni u jednoj ćeliji ove matrice.** D-OPEN-011 je 2026-08-12 riješen odlukom
+  **D-047**, a jedina permisija koja je nosila ovu vrijednost — `practice.read` — dobila je
+  eksplicitne dodjele (§5, §8.1).
+- Vrijednost se zadržava u ovoj sekciji isključivo radi razumijevanja historije. **Nova ćelija
+  se ne smije označiti ovom vrijednošću**; buduće neriješeno pitanje zahtijeva vlastiti ADR i
+  vlastitu eksplicitnu klasifikaciju.
+- Izvorna semantika je glasila: nijedna dodjela nije prihvaćena; implementacija mora pasti
+  zatvoreno; vrijednost se ne smije pretvoriti u `ALLOW` ni u obični `DENY` dok D-OPEN-011 ne
+  bude riješen.
 
 ## 3.2 Pravila kompozicije
 
@@ -183,7 +189,7 @@ Reprodukcija `03` §28.2. Rezervisane permisije:
 
 | Permission | PRACTICE_ADMIN | PHYSICIAN | MPA | BILLING_SPECIALIST | AUDITOR | READ_ONLY | SYSTEM_ADMIN | Source |
 |---|---|---|---|---|---|---|---|---|
-| `practice.read` | BLOCKED — D-OPEN-011 | BLOCKED — D-OPEN-011 | BLOCKED — D-OPEN-011 | BLOCKED — D-OPEN-011 | BLOCKED — D-OPEN-011 | BLOCKED — D-OPEN-011 | BLOCKED — D-OPEN-011 | D-045 |
+| `practice.read` | ALLOW | DENY | DENY | DENY | DENY | DENY | DENY | D-047 |
 | `practice.settings.read` | ALLOW | DENY | DENY | DENY | DENY | DENY | DENY | D-044 |
 | `practice.settings.manage` | ALLOW | DENY | DENY | DENY | DENY | DENY | DENY | D-044 |
 | `patient_reference.read` | DENY | ALLOW | ALLOW | ALLOW | DENY | DENY | DENY | D-039 |
@@ -265,24 +271,24 @@ Sažeci su **mehanički izvedeni** iz tabele u §5 i služe samo za čitljivost.
 
 ## 7.1 PRACTICE_ADMIN
 
-- ALLOW: **7**
+- ALLOW: **8**
 - CONDITIONAL: **0**
-- BLOCKED: **1**
+- BLOCKED: **0**
 - DENY: **24**
 
-ALLOW permisije: `practice.settings.read`, `practice.settings.manage`, `encounter.close`,
-`tariff.raw_result.read`, `audit.read`, `audit.export`, `integration.read`.
+ALLOW permisije: `practice.read`, `practice.settings.read`, `practice.settings.manage`,
+`encounter.close`, `tariff.raw_result.read`, `audit.read`, `audit.export`, `integration.read`.
 
-BLOCKED: `practice.read`.
-
-Rola je **isključivo administrativna** (D-044). Nema nijednu kliničku permisiju.
+Rola je **isključivo administrativna** (D-044, D-047). Nema nijednu kliničku permisiju.
+`practice.read` je administrativna permisija nad **tekućom** ordinacijom i ne izlaže
+`zsr_number`, `gln_number` ni `legal_name` (D-047, klauzule 6 i 11).
 
 ## 7.2 PHYSICIAN
 
 - ALLOW: **24**
 - CONDITIONAL: **0**
-- BLOCKED: **1**
-- DENY: **7**
+- BLOCKED: **0**
+- DENY: **8**
 
 ALLOW permisije: `patient_reference.read`, `patient_reference.create`, `encounter.read`,
 `encounter.create`, `encounter.update`, `encounter.cancel`, `encounter.close`,
@@ -292,25 +298,24 @@ ALLOW permisije: `patient_reference.read`, `patient_reference.create`, `encounte
 `analysis.approve`, `analysis.approval.revoke`, `analysis.export`, `analysis.export.read`,
 `tariff_evaluation.read`, `finding.resolve`.
 
-DENY permisije: `practice.settings.read`, `practice.settings.manage`, `tariff.raw_result.read`,
-`audit.read`, `audit.export`, `integration.read`, `tariff.manage`.
+DENY permisije: `practice.read`, `practice.settings.read`, `practice.settings.manage`,
+`tariff.raw_result.read`, `audit.read`, `audit.export`, `integration.read`, `tariff.manage`.
 
-BLOCKED: `practice.read`.
+`PHYSICIAN` ne gubi ništa time što nema `practice.read`: `GET /me` već vraća `practiceId` i
+`practiceName` za svaki membership (D-047, klauzula 11).
 
 ## 7.3 MPA
 
 - ALLOW: **11**
 - CONDITIONAL: **2**
-- BLOCKED: **1**
-- DENY: **18**
+- BLOCKED: **0**
+- DENY: **19**
 
 ALLOW permisije: `patient_reference.read`, `patient_reference.create`, `encounter.read`,
 `encounter.create`, `encounter.update`, `encounter.document.list`, `encounter.document.read`,
 `encounter.document.create`, `analysis.read`, `analysis.run`, `analysis.cancel`.
 
 CONDITIONAL permisije: `analysis.approve`, `analysis.approval.revoke`.
-
-BLOCKED: `practice.read`.
 
 `MPA` **nema** `analysis.review_decision`, jer bi ta grupna permisija nosila i terminalni `REJECT`
 (D-041).
@@ -319,8 +324,8 @@ BLOCKED: `practice.read`.
 
 - ALLOW: **10**
 - CONDITIONAL: **2**
-- BLOCKED: **1**
-- DENY: **19**
+- BLOCKED: **0**
+- DENY: **20**
 
 ALLOW permisije: `patient_reference.read`, `encounter.read`, `encounter.close`,
 `encounter.document.list`, `analysis.read`, `analysis.correct_service`, `analysis.review_decision`,
@@ -328,18 +333,17 @@ ALLOW permisije: `patient_reference.read`, `encounter.read`, `encounter.close`,
 
 CONDITIONAL permisije: `analysis.approve`, `analysis.approval.revoke`.
 
-BLOCKED: `practice.read`.
-
 ## 7.5 AUDITOR
 
 - ALLOW: **2**
 - CONDITIONAL: **0**
-- BLOCKED: **1**
-- DENY: **29**
+- BLOCKED: **0**
+- DENY: **30**
 
 ALLOW permisije: `audit.read`, `audit.export`.
 
-BLOCKED: `practice.read`.
+`AUDITOR` i dalje ima **tačno dvije** aktivne permisije; `practice.read` je `DENY`, pa rola ne
+dobija treću (D-047, klauzula 11).
 
 `AUDITOR` **ne pregleda** encountere, analize, dokumente ni tarifne rezultate. U v1 se analysis
 ID-evi dostavljaju **izvan sistema** (D-043).
@@ -348,41 +352,55 @@ ID-evi dostavljaju **izvan sistema** (D-043).
 
 - ALLOW: **0**
 - CONDITIONAL: **0**
-- BLOCKED: **1**
-- DENY: **31**
-
-BLOCKED: `practice.read`.
+- BLOCKED: **0**
+- DENY: **32**
 
 Enum vrijednost je **zadržana** u `02` §4.1, ali je rola u v1 **deny-all** (D-039). Ne dobija
-nijednu aktivnu permisiju.
+nijednu aktivnu permisiju. `practice.read` je `DENY`, pa invarijanta **nula `ALLOW` i nula
+`CONDITIONAL`** ostaje na snazi i nakon D-047.
 
 ## 7.7 SYSTEM_ADMIN
 
 - ALLOW: **1**
 - CONDITIONAL: **0**
-- BLOCKED: **1**
-- DENY: **30**
+- BLOCKED: **0**
+- DENY: **31**
 
 ALLOW permisije: `tariff.manage`.
 
-BLOCKED: `practice.read`.
-
 **Nijedna tenant permisija nije `ALLOW`.** Platform rola ne daje automatski tenant pristup; tenant
 rad zahtijeva zaseban aktivan membership i odgovarajuću tenant rolu (D-038, klauzule 13–14).
+`practice.read` je za `SYSTEM_ADMIN` **`DENY`**; tu permisiju dobija isključivo ako isti korisnik
+nezavisno ima aktivan tenant membership i dodijeljenu `PRACTICE_ADMIN` tenant rolu (D-047,
+klauzula 11).
 
 ---
 
 # 8. Granice
 
-## 8.1 BLOCKED — D-OPEN-011
+## 8.1 Riješeno odlukom D-047 — runtime access model za `users` i `practices`
 
-- `practice.read`;
-- generički runtime pristup nad `users`;
-- generički runtime pristup nad `practices`;
-- generički cross-practice pristup nad `users` i `practices`.
+Ranije je ova sekcija nosila naslov `BLOCKED — D-OPEN-011` i sadržavala četiri stavke. Sve četiri
+su **riješene** 2026-08-12 odlukom **D-047**:
 
-Implementacija mora **pasti zatvoreno**. Nijedna od ovih stavki se ne smije pretvoriti u `ALLOW` ni
-u obični `DENY` dok D-OPEN-011 ne bude prihvaćen (`13` §16).
+| Stavka | Prijašnje stanje | Stanje nakon D-047 |
+|---|---|---|
+| `practice.read` | BLOCKED — D-OPEN-011 | `PRACTICE_ADMIN` **ALLOW**, ostalih šest rola **DENY** (§5, D-047 klauzula 11) |
+| generički runtime pristup nad `users` | BLOCKED — D-OPEN-011 | **ne postoji** — `copilot_app` ima column-level `SELECT` na `(id, email, display_name, preferred_language, status)` uz `ENABLE` + `FORCE RLS` i dvije međusobno isključive politike (D-047 klauzule 3–4) |
+| generički runtime pristup nad `practices` | BLOCKED — D-OPEN-011 | **ne postoji** — column-level `SELECT` na `(id, code, name, default_language, timezone, status)` uz PERMISSIVE membership politiku i RESTRICTIVE context narrowing (D-047 klauzule 5–6) |
+| generički cross-practice pristup nad `users` i `practices` | BLOCKED — D-OPEN-011 | **DENY / NOT IMPLEMENTED**; platform i system put ne postoje u v1 (D-047 klauzule 13–14) |
+
+**Nijedna ćelija ove matrice više ne nosi vrijednost `BLOCKED`** (§3.1).
+
+Granice koje ostaju zatvorene i nakon D-047, i koje se **ne smiju** tiho proširiti:
+
+- pristup redu **drugog** korisnika (`responsiblePhysician.displayName`, `approvedBy.displayName`)
+  je `DENY / NOT IMPLEMENTED` u v1; obavezan gate je
+  **`BEFORE PHASE 5 CO-MEMBER DISPLAY NAME ACCESS`** (D-047, klauzula 12; `13` §19);
+- `zsr_number`, `gln_number` i `legal_name` nemaju grant nijednoj runtime roli;
+- nijedan runtime upis nad `users` ni `practices` ne postoji;
+- `copilot_system` nema grant nad te dvije tabele;
+- platform administracija nad `users`/`practices` zahtijeva novu permisiju **i** novi ADR (§8.3).
 
 ## 8.2 OUT OF V1
 
@@ -497,3 +515,9 @@ Sljedeći kontrolisani batchevi su obavezni i **nisu** izvršeni u ovom batchu:
 
 Do tada `05`, `07` i `08` zadržavaju `BLOCKED` oznake za produkcijske role grantove; njihovo
 uklanjanje pripada tim batchevima, ne ovom.
+
+**Dopuna (D-047, 2026-08-12).** `BLOCKED — D-OPEN-011` oznake u `05`, `07` i `08` uklonjene su u
+kontrolisanom rekonsilijacijskom batchu odluke **D-047**, zajedno sa `03`, `04`, `13`, `14`, ovim
+dokumentom i `MANIFEST.md`. Time je gornja stavka zatvorena za `practice.read` i za runtime
+pristup nad `users`/`practices`. Ostale stavke iz liste (`03` §10 i §18.3 formulacije) nisu bile
+predmet D-047 i **ostaju otvorene** za zaseban batch.

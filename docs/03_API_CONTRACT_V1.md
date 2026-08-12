@@ -78,8 +78,22 @@ Pravila:
 - context funkcije poziva samo `AuthService`, unutar kratke transakcije;
 - `app.user_id` je transakcijski lokalan i ne preživljava request.
 
-Tačan database put rezolucije `auth_subject` → `users.id` je otvoren u **D-OPEN-011** i
-nije definisan ovim dokumentom.
+Tačan database put rezolucije `auth_subject` → `users.id` definisan je odlukom **D-047**
+(`02` §16.2.1, §16.2.4, §17.5). Redoslijed je:
+
+1. verifikacija tokena (gore);
+2. `app_security.set_auth_subject_context(<verifikovani subjekt>)`;
+3. čitanje `users` kroz bootstrap politiku — upit **ne navodi** `auth_subject` u `WHERE`
+   klauzuli, jer ga politika sama filtrira i vraća najviše jedan red;
+4. nula redova → `401 INVALID_TOKEN`; `status <> 'ACTIVE'` → `403 ACCESS_DENIED`;
+5. `app_security.set_user_context(users.id)`.
+
+Cijeli lanac se izvršava u **jednoj interaktivnoj transakciji** (D-047, klauzula 8); sav
+`app.*` kontekst je transakcijski lokalan i ne preživljava request.
+
+`app.auth_subject` podliježe **istoj granici povjerenja** kao `app.user_id`: dolazi isključivo
+iz kriptografski verifikovanog JWT/OIDC subjekta i **nikada** iz bodyja, query parametra ni
+nepouzdanog headera.
 
 Mehanizam ograničava normalni query scope i aplikacijske greške, ali ne autentifikuje
 korisnika nezavisno nakon kompromitacije dijeljenog database credentiala. Tačka
@@ -162,32 +176,47 @@ MVP podržava `de-CH`; error code je stabilan bez obzira na lokalizovanu poruku.
 
 ## 3.7 Autorizacija tenant ruta
 
-**Normativna odluka: D-038, uz D-033.**
+**Normativna odluka: D-038, uz D-033 i D-047.**
 
 ### 3.7.1 Redoslijed
 
-Redoslijed je obavezan i nema preskakanja koraka:
+Redoslijed je obavezan i nema preskakanja koraka. Cijeli lanac se izvršava u **jednoj
+interaktivnoj transakciji** (D-047, klauzula 8):
 
 1. autentifikacija bearer tokena (§3.1);
-2. izvođenje pouzdanog `app.user_id` iz verifikovanog subjekta;
+2. izvođenje pouzdanog `app.user_id` iz verifikovanog subjekta — `set_auth_subject_context`,
+   čitanje `users`, provjera `users.status`, pa `set_user_context` (§3.1, D-047 klauzule 2–4 i 9);
 3. čitanje i validacija `X-Practice-ID` (§3.2);
-4. poziv SECURITY INVOKER funkcije `set_request_context(p_practice_id uuid)`;
-5. provjera **aktivnog** `practice_memberships` reda;
-6. uspostavljanje transakcijski lokalnog tenant konteksta;
-7. učitavanje dodijeljenih tenant rola za taj membership i tu ordinaciju;
-8. izvođenje efektivnih tenant permisija (§28.5);
-9. evaluacija permisije koju endpoint zahtijeva i svakog prihvaćenog uslovnog pravila;
-10. izvršenje komande pod tenant RLS-om.
+4. **membership-scoped čitanje `status` tražene ordinacije, prije promjene konteksta**
+   (D-047, klauzula 10): nula redova → `403 ACCESS_DENIED`; `status <> 'ACTIVE'` →
+   `403 ACCESS_DENIED` uz rollback;
+5. poziv SECURITY INVOKER funkcije `set_request_context(p_practice_id uuid)`;
+6. provjera **aktivnog** `practice_memberships` reda;
+7. uspostavljanje transakcijski lokalnog tenant konteksta;
+8. učitavanje dodijeljenih tenant rola za taj membership i tu ordinaciju;
+9. izvođenje efektivnih tenant permisija (§28.5);
+10. evaluacija permisije koju endpoint zahtijeva i svakog prihvaćenog uslovnog pravila;
+11. izvršenje komande pod tenant RLS-om.
 
 Pojašnjenja:
 
 - `set_request_context` **ne prima rolu**;
 - `set_request_context` **ne prima `user_id`**;
 - `set_request_context` **ne uspostavlja platform kontekst**;
+- **tijelo `set_request_context` se ne mijenja** — provjera statusa ordinacije iz koraka 4 je
+  aplikacijska i izvršava se **prije** poziva, pa `app.practice_id` nikada ne postoji za
+  ne-ACTIVE ordinaciju (D-047, klauzula 10);
+- korak 4 dokazuje **postojanje** membershipa, korak 6 dokazuje **aktivan** membership; oba su
+  potrebna i nijedan ne zamjenjuje drugi;
 - `practice_membership_roles` **nije potreban** za provjeru postojanja membershipa —
-  koraci 4–6 čitaju isključivo `practice_memberships` (D-038, klauzule 20–21);
-- role se evaluiraju **tek nakon** uspješnog bootstrapa, u koracima 7–9;
-- aktivan membership sa **nula** rola prolazi korake 1–6 i pada na koraku 9.
+  koraci 5–7 čitaju isključivo `practice_memberships` (D-038, klauzule 20–21);
+- role se evaluiraju **tek nakon** uspješnog bootstrapa, u koracima 8–10;
+- aktivan membership sa **nula** rola prolazi korake 1–7 i pada na koraku 10.
+
+**Vlasništvo faza (D-047, klauzula 16).** Koraci 1–4 pripadaju **fazi 3**; koraci 5–7 pripadaju
+**fazi 4** zajedno sa `set_request_context` i PracticeContext guardom. U fazi 3 `app.practice_id`
+još ne postoji, pa se sužavanje na traženu ordinaciju dodatno sprovodi aplikacijski. Faza 3 je
+**nepilotsko međustanje**; faza 4 ostaje obavezan sigurnosni gate prije faze 5.
 
 ### 3.7.2 Ponašanje pri greškama
 
@@ -195,6 +224,8 @@ Pojašnjenja:
 |---|---|
 | nema aktivnog membershipa za traženu ordinaciju | **`403 ACCESS_DENIED`**, tenant context se ne kreira |
 | neaktivan membership | **`403 ACCESS_DENIED`** pri uspostavljanju konteksta |
+| ordinacija čiji `status` nije `ACTIVE` | **`403 ACCESS_DENIED`** uz rollback, **prije** `set_request_context`; `app.practice_id` se nikada ne postavlja (D-047, klauzula 10) |
+| korisnik čiji `status` nije `ACTIVE` | **`403 ACCESS_DENIED`** prije `set_user_context`; membershipi se ne enumerišu (D-047, klauzula 9) |
 | aktivan membership sa nula rola | kontekst se uspostavlja; svaka permission-gated operacija vraća uobičajeni **`403 ACCESS_DENIED`** |
 | aktivan membership sa rolama, ali bez tražene permisije | **`403 ACCESS_DENIED`** |
 | tenant rola dodijeljena u drugoj ordinaciji | **ne doprinosi** autorizaciju; ishod je isti kao da rola ne postoji |
@@ -602,16 +633,64 @@ tenant role **prije** nego što je izabran ijedan tenant kontekst. Ta self-enume
 - **ne autorizuje** nijednu tenant operaciju;
 - **ne definiše** generički pristup nad `users` ni `practices`;
 - **nije** cross-practice ni platform pristup;
-- **ne rješava D-OPEN-011.**
+- **nije** riješila D-OPEN-011 — to je učinio D-047, zasebnom odlukom.
+
+**Database put (D-047).** `practiceName` po membershipu čita se kroz membership-scoped politiku
+nad `practices` (`02` §17.6), koja radi i **prije** nego `app.practice_id` postoji. Politika
+namjerno ne filtrira `pm.active`, pa neaktivan membership i dalje prikazuje ime ordinacije, u
+skladu sa pravilima vidljivosti iznad. Vlastiti `users` red čita se kroz self politiku
+(`02` §17.5). Nijedno od toga ne daje pristup redu drugog korisnika.
 
 ## GET `/practices/{practiceId}`
 
 Permission: `practice.read`.
 
-**`practice.read` je `BLOCKED — D-OPEN-011` za sve role, uključujući `SYSTEM_ADMIN`**
-(D-045; `15` §8.1). Nijedna dodjela nije prihvaćena; implementacija mora **pasti zatvoreno**.
-`BLOCKED` se **ne smije** tumačiti kao `DENY`-all, kao `SYSTEM_ADMIN`-only, kao
-`PRACTICE_ADMIN`-only ni kao budući implicitni platform pristup.
+**Normativna odluka: D-047, klauzula 11.** Ranija klasifikacija `BLOCKED — D-OPEN-011` više ne
+važi; D-OPEN-011 je riješen 2026-08-12.
+
+Podobne role (matrica u `15` §5): `PRACTICE_ADMIN` **ALLOW**; `PHYSICIAN`, `MPA`,
+`BILLING_SPECIALIST`, `AUDITOR`, `READ_ONLY` i `SYSTEM_ADMIN` **DENY**.
+
+`practice.read` autorizuje **isključivo** čitanje neosjetljivog DTO-a **tekuće** tenant
+ordinacije. `practiceId` iz putanje mora odgovarati uspostavljenom practice contextu.
+
+Response projekcija — tačno ova polja:
+
+```json
+{
+  "id": "practice-uuid",
+  "code": "PRX-1",
+  "name": "Praxis Muster",
+  "defaultLanguage": "de-CH",
+  "timezone": "Europe/Zurich",
+  "status": "ACTIVE"
+}
+```
+
+**`zsrNumber`, `glnNumber` i `legalName` se ne vraćaju.** Te kolone nemaju grant nijednoj runtime
+roli (`02` §20.2a), pa nisu dostupne ni na nivou baze. Osjetljivi/admin DTO **ne postoji** u v1;
+uvođenje bi zahtijevalo novu permisiju, novi ADR, prošireni grant i trajni audit red.
+
+Ova ruta **ne autorizuje**: listu ni direktorij ordinacija — takva ruta ne postoji; cross-practice
+ni platform pristup; bilo kakav upis nad `practices`; tenant pristup za `SYSTEM_ADMIN`.
+
+`SYSTEM_ADMIN` dobija ovu permisiju isključivo ako isti korisnik **nezavisno** ima aktivan tenant
+membership i dodijeljenu `PRACTICE_ADMIN` tenant rolu; platform rola sama po sebi ne doprinosi
+ništa (D-023 klauzula 10, D-038 klauzule 13–14).
+
+Negativni slučajevi:
+
+- nedostaje `X-Practice-ID` → `400 PRACTICE_CONTEXT_REQUIRED`;
+- `X-Practice-ID` nije validan UUID → `400 PRACTICE_CONTEXT_INVALID`;
+- korisnik nema membership u traženoj ordinaciji → `403 ACCESS_DENIED`;
+- membership postoji ali nije aktivan → `403 ACCESS_DENIED`;
+- **ordinacija nije `ACTIVE`** → `403 ACCESS_DENIED` uz rollback (D-047, klauzula 10);
+- `practiceId` iz putanje ≠ practice context → `403 ACCESS_DENIED`;
+- rola bez `practice.read` → `403 ACCESS_DENIED`;
+- nepostojeća ordinacija → `403 ACCESS_DENIED`, nerazlučivo od slučaja bez membershipa, čime se
+  sprječava enumeracija.
+
+Nijedan novi error kod se ne uvodi; katalog iz §8 je dovoljan.
 
 ## GET `/practices/{practiceId}/settings`
 
