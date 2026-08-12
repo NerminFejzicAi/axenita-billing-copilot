@@ -386,10 +386,9 @@ docs/06_DECISION_LOG.md. Implementacija mora tačno pratiti docs/02_DATABASE_SCH
 docs/04 §6.4.1 i §6.4.2.
 
 Kreiraj:
-- app_security schema;
-- app_security.set_user_context(p_user_id uuid);
+- app_security schema — create schema if not exists; već postoji iz FAZE 3, paket 002;
 - app_security.set_request_context(p_practice_id uuid) — SECURITY INVOKER;
-- fixed search_path na obje funkcije;
+- fixed search_path na set_request_context;
 - execute grants za copilot_app;
 - ENABLE i FORCE RLS na practice_memberships;
 - user-scoped bootstrap self-select politiku na practice_memberships;
@@ -402,6 +401,13 @@ Kreiraj:
 - RLS pattern;
 - FORCE RLS;
 - A/B tenant integration test harness.
+
+NE kreiraj app_security.set_user_context(p_user_id uuid) u ovoj fazi. Ta funkcija je PREMJEŠTENA
+iz paketa 013 u paket 002 i već je kreirana u FAZI 3 (D-047, klauzula 17; docs/02 §16.2.2 i
+§22.2). Faza 4 je smije verifikovati i koristiti, ali je NE SMIJE ponovo kreirati, zamijeniti,
+premjestiti ni redefinisati. Potpis, SECURITY INVOKER mod i tijelo ostaju TAČNO kako ih propisuje
+D-033. Isto važi za app_security.set_auth_subject_context(p_auth_subject text) i za politike nad
+users i practices iz docs/02 §17.5 i §17.6 — sve je kreirano u FAZI 3 i u ovoj fazi se ne dira.
 
 Obavezni redoslijed autorizacije (D-033 i D-038; identičan docs/03 §3.7.1):
 1. autentifikuj bearer token — potpis, issuer, audience i istek;
@@ -597,7 +603,9 @@ Vlasništvo faze i migration paketa:
 - practice_membership_roles RLS politika — Faza 4, paket 013_rls_policies (docs/02 §17.4);
 - effective-permission resolver — Faza 4, aplikacijski sloj, bez migration paketa;
 - set_request_context(p_practice_id uuid) — Faza 4, paket 013_rls_policies;
-- set_user_context(p_user_id uuid) — Faza 4, paket 013_rls_policies;
+- set_user_context(p_user_id uuid) — Faza 3, paket 002_identity_and_practices; PREMJEŠTEN iz
+  paketa 013 u paket 002 i već kreiran prije Faze 4, koja ga samo verifikuje i koristi
+  (D-047, klauzula 17);
 - transakcijski lokalne context varijable — Faza 4, paket 013_rls_policies;
 - negativni testovi za nevažeći ili neaktivan membership — Faza 4;
 - test da kontekst ne ostaje nakon završetka transakcije — Faza 4.
