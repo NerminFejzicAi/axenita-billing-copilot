@@ -312,9 +312,15 @@ Aplikacijski SELECT ili WHERE nad auth_subject pada sa 42501; to je dokazano pon
 
 Redoslijed u jednoj interaktivnoj transakciji:
 verifikuj token -> set_auth_subject_context -> pročitaj users(id, status) -> ako nema reda
-401 INVALID_TOKEN, ako status != ACTIVE 403 ACCESS_DENIED -> set_user_context -> pročitaj
+403 ACCESS_DENIED uz rollback, ako status != ACTIVE 403 ACCESS_DENIED uz rollback -> obje
+odbijenice nastupaju PRIJE set_user_context -> set_user_context -> pročitaj
 status tražene ordinacije membership-scoped politikom -> nula redova ili status != ACTIVE
 daje 403 ACCESS_DENIED uz rollback.
+
+401 INVALID_TOKEN je rezervisan ISKLJUČIVO za neuspjelu kriptografsku verifikaciju tokena.
+Validan token čiji verifikovani subjekt nema users red NIJE INVALID_TOKEN nego neuspjeh
+admisije -> 403 ACCESS_DENIED. Odgovor NE razlikuje nepoznat subjekt od ne-ACTIVE korisnika
+i ne otkriva membership ni tenant informaciju.
 
 NE uvodi SECURITY DEFINER ni za jednu funkciju.
 NE mijenjaj tijelo set_request_context; ono ostaje u FAZI 4.

@@ -85,8 +85,16 @@ Tačan database put rezolucije `auth_subject` → `users.id` definisan je odluko
 2. `app_security.set_auth_subject_context(<verifikovani subjekt>)`;
 3. čitanje `users` kroz bootstrap politiku — upit **ne navodi** `auth_subject` u `WHERE`
    klauzuli, jer ga politika sama filtrira i vraća najviše jedan red;
-4. nula redova → `401 INVALID_TOKEN`; `status <> 'ACTIVE'` → `403 ACCESS_DENIED`;
+4. nula redova → `403 ACCESS_DENIED` uz `ROLLBACK`; `status <> 'ACTIVE'` →
+   `403 ACCESS_DENIED` uz `ROLLBACK`. Obje odbijenice nastupaju **prije**
+   `set_user_context`, pa `app.user_id` nikada nije uspostavljen;
 5. `app_security.set_user_context(users.id)`.
+
+`401 INVALID_TOKEN` je rezervisan isključivo za neuspjelu verifikaciju tokena iz ove sekcije.
+Kriptografski **validan** token čiji verifikovani subjekt nema `users` red nije `INVALID_TOKEN`
+— to je neuspjeh admisije, pa je odgovor `403 ACCESS_DENIED`. Odgovor namjerno **ne razlikuje**
+nepoznat subjekt od poznatog ali ne-`ACTIVE` korisnika i ne otkriva nijednu lokalnu membership
+ni tenant informaciju.
 
 Cijeli lanac se izvršava u **jednoj interaktivnoj transakciji** (D-047, klauzula 8); sav
 `app.*` kontekst je transakcijski lokalan i ne preživljava request.
