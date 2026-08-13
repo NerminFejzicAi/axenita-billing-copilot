@@ -9,15 +9,15 @@
 
 | Polje | Vrijednost |
 |---|---|
-| Current phase | Faza 1 — `DONE`; Ecosystem Compatibility Audit `DONE`; Faza 2 — `DONE`; **D-OPEN-011 decision gate — `DONE` (D-047 prihvaćen 2026-08-12)**; **D-047 dokumentaciona rekonsilijacija — `IN_PROGRESS`, nije merged** |
-| Current branch | `docs/d-047-runtime-access-model` (rekonsilijacija); kanonski `main` = `d6b5efe` |
+| Current phase | Faza 1 — `DONE`; Ecosystem Compatibility Audit `DONE`; Faza 2 — `DONE`; **D-OPEN-011 decision gate — `DONE` (D-047 prihvaćen 2026-08-12)**; **D-047 dokumentaciona rekonsilijacija — `DONE`, merged u kanonski `main` (PR #7)** |
+| Current branch | kanonski `main` = `ec7d1008fcffc2437a66b890a0fef3761730f711` |
 | Last completed phase | Faza 2 — Database Foundation |
-| Last commit | `c4b89d0` (Phase 2 implementation), merged via `dae9649`; dokumentarno zatvaranje `98910b3`, merged via `d6b5efe` |
+| Last commit | `c4b89d0` (Phase 2 implementation), merged via `dae9649`; dokumentarno zatvaranje `98910b3`, merged via `d6b5efe`; D-047 rekonsilijacija `76dbc6d` + `dda7538`, merged via `ec7d100` (PR #7) |
 | Local environment owner | Nermin Fejzic |
 | Test DB | `copilot_test` @ `localhost:5433` (compose profil `test`) |
 | Documentation version | 1.0 |
-| Last updated | 2026-08-12 |
-| **Faza 3** | **`NOT_STARTED` — `PHASE 3 IMPLEMENTATION IS NOT AUTHORIZED` do merge-a ove rekonsilijacije u kanonski `main`** |
+| Last updated | 2026-08-13 |
+| **Faza 3** | **`PHASE 3 IMPLEMENTATION: AUTHORIZED` (od merge-a `ec7d100`) — a `PHASE 3 STATUS: NOT_STARTED`; autorizovana ≠ započeta** |
 
 ---
 
@@ -283,15 +283,16 @@ Next gate:    D-OPEN-011 DECISION GATE — sljedeća governance aktivnost nije i
 *(Historijski zapis zatvaranja Faze 2, nepromijenjen. Tamo naveden „next gate" — D-OPEN-011
 decision gate — **izvršen je 2026-08-12** prihvatanjem odluke **D-047**; vidi §3a. Formulacije
 „D-OPEN-011 MUST BE RESOLVED BEFORE PHASE 3" i „ostaje OTVOREN" opisuju stanje prije tog datuma i
-**više ne opisuju tekuće stanje**. Faza 3 i dalje nije autorizovana — ne zbog D-OPEN-011, nego
-zato što rekonsilijacija iz §3a još nije merged.)*
+**više ne opisuju tekuće stanje**. Rekonsilijacija iz §3a je u međuvremenu merged u kanonski
+`main` (`ec7d100`, PR #7), pa je i formulacija „PHASE 3 IMPLEMENTATION IS NOT AUTHORIZED YET"
+historijska: Faza 3 je od tog merge-a **autorizovana**, ali **nije započeta**.)*
 
 ---
 
 # 3a. D-OPEN-011 decision gate — D-047
 
-Status: **odluka `ACCEPTED`; dokumentaciona rekonsilijacija `IN_PROGRESS` — nije commitovana ni
-merged**
+Status: **odluka `ACCEPTED`; dokumentaciona rekonsilijacija `DONE` — commitovana, reviewovana i
+merged u kanonski `main` (PR #7, merge commit `ec7d100`)**
 
 Ovo je governance korak između Faze 2 i Faze 3. **Nije implementacija** i ne označava nijednu
 stavku Faze 3 kao urađenu.
@@ -326,27 +327,31 @@ Probe su izvršene transakcijski i u cijelosti rollbackovane; nijedan probe obje
 
 - [x] `06`, `02`, `03`, `04`, `05`, `07`, `08`, `09`, `13`, `14`, `15`, `MANIFEST.md`.
 - [x] Nijedan aplikacijski, testni, konfiguracioni ni infrastrukturni fajl nije dodirnut.
-- [ ] Nezavisan governance review — **pending**.
-- [ ] Commit, push, PR, normalni merge u `main` — **pending**.
-- [ ] Verifikacija kanonskog `main` nakon merge-a — **pending**.
+- [x] Nezavisan governance review — **PASS**; izvršena i ciljana/finalna review sekvenca.
+- [x] Commit, push, PR, normalni merge u `main` — **PR #7 MERGED**; rekonsilijacijski commitovi
+      `76dbc6d` i `dda7538`, merge commit `ec7d100`.
+- [x] Verifikacija kanonskog `main` nakon merge-a — **PASS**; `main` = `origin/main` =
+      `ec7d1008fcffc2437a66b890a0fef3761730f711`; MANIFEST integritet 19/19 bez odstupanja.
 
 ## Autorizacija
 
 ```text
 D-047 STATUS:        ACCEPTED
 D-OPEN-011 STATUS:   SUPERSEDED BY D-047
-RECONCILIATION:      IN_PROGRESS — NOT COMMITTED, NOT MERGED
+RECONCILIATION:      COMPLETE — COMMITTED, REVIEWED, MERGED (PR #7, ec7d100)
+CANONICAL MAIN:      ec7d1008fcffc2437a66b890a0fef3761730f711 — VERIFIED
+PHASE 3 IMPLEMENTATION: AUTHORIZED
 PHASE 3 STATUS:      NOT_STARTED
-PHASE 3 IMPLEMENTATION IS NOT AUTHORIZED
 ```
 
-Faza 3 postaje autorizovana **tek** kada su ispunjeni **svi** uslovi: D-047 zabilježen; svi
-autoritativni dokumenti usklađeni; nezavisan governance review prošao; rekonsilijacijski commit
-merged u kanonski `main`; kanonski `main` verifikovan; D-OPEN-011 formalno superseded. Do tada
-**nijedan** Faza 3 artefakt se ne kreira — bez Prisma modela, bez paketa `002`, bez koda i bez
-testova.
+Uslovi autorizacije su bili: D-047 zabilježen; svi autoritativni dokumenti usklađeni; nezavisan
+governance review prošao; rekonsilijacijski commit merged u kanonski `main`; kanonski `main`
+verifikovan; D-OPEN-011 formalno superseded. **Svi su ispunjeni**, pa je Faza 3 autorizovana.
 
-Sljedeći korak nakon merge-a: **session handoff za Fazu 3**, ne implementacija iz ove sesije.
+**`PHASE 3 AUTHORIZED` nije `PHASE 3 STARTED`.** Nijedan Faza 3 artefakt još ne postoji — nema
+Prisma modela, nema paketa `002`, nema koda, testova ni seeda — i nijedan checkbox u §4 nije
+označen. Autorizacija dozvoljava da implementacija počne u zasebnom, eksplicitnom promptu; ona je
+ne pokreće.
 
 ---
 
@@ -354,8 +359,10 @@ Sljedeći korak nakon merge-a: **session handoff za Fazu 3**, ne implementacija 
 
 Status: `NOT_STARTED`
 
-**Autorizacija: `NOT AUTHORIZED` do merge-a D-047 rekonsilijacije (§3a).** Nijedan checkbox ispod
-nije označen i nijedan se ne smije označiti prije nego što Faza 3 stvarno počne.
+**Autorizacija: `AUTHORIZED` od merge-a D-047 rekonsilijacije u kanonski `main` (§3a, `ec7d100`).**
+Autorizacija je **dozvola da implementacija počne**, a ne dokaz da je počela: status faze ostaje
+`NOT_STARTED`. Nijedan checkbox ispod nije označen i nijedan se ne smije označiti prije nego što
+Faza 3 stvarno počne i za svaku stavku postoji izvršena provjera ili konkretan dokaz.
 
 Normativno: D-033 i D-038; `02` §6.3, §6.3a, §22.2 i §23.2; `03` §10; `04` §5.2, §5.2.1 i §5.4.1.
 
@@ -1415,9 +1422,20 @@ Već usklađeno:
 - [x] `08_TEST_STRATEGY_V1.md` — usklađen u D-047 batchu (2026-08-12).
 - [x] `MANIFEST.md` — osvježen u D-047 batchu (2026-08-12).
 
-Ranija napomena da `BLOCKED` oznake u ta tri dokumenta ostaju na snazi **više ne važi**: one su
-uklonjene upravo u D-047 batchu, zajedno sa `02`, `03`, `04`, `09`, `13`, `14` i `15`. Vrijednost
-`BLOCKED — D-OPEN-011` je povučena i nijedna matrica je više ne nosi (`15` §3.1).
+Ranija napomena da `BLOCKED` oznake u ta tri dokumenta ostaju na snazi **više ne važi**: D-047
+batch je uskladio model permisija i **normativno povukao** vrijednost `BLOCKED — D-OPEN-011`,
+zajedno sa `02`, `03`, `04`, `09`, `13`, `14` i `15`; nijedna matrica je više ne nosi (`15` §3.1).
+
+**Ispravka evidencije (NB-1, 2026-08-13).** Uklanjanje nije bilo potpuno: u `08` §24.14 je nakon
+PR #7 **nenamjerno ostala** rezidualna kolona `BLOCKED` sa vrijednošću `1` po roli. D-047 batch je
+u toj sekciji ispravio samo prozne tvrdnje — „tačno sedam" → „tačno osam" `ALLOW` i zamjenu reda
+`practice.read` = `BLOCKED — D-OPEN-011` dodjelama iz D-047 klauzule 11 — dok je sama tabela
+ostala **bajt-identična** stanju prije D-047 (`d6b5efe` → `ec7d100`), pa je §24.14 protivrječio
+i vlastitoj prozi i §24.13. Ta rezidualna nesaglasnost test-oraclea otkrivena je pri Faza 3
+context restoreu i ispravljena u ovoj post-merge pre-implementacijskoj dokumentacionoj
+rekonsilijaciji, 2026-08-13. `15` ostaje produkcijski oracle permisija; ispravka je
+**usklađivanje evidencije i ne uvodi nijednu novu odluku o permisijama**.
 
 Ova sekvenca je time zatvorena. Napomena o statusu batcha: rekonsilijacija je izvršena na branchu
-`docs/d-047-runtime-access-model` i **još nije merged** u kanonski `main` (§3a).
+`docs/d-047-runtime-access-model` i **merged** u kanonski `main` kroz PR #7, merge commit
+`ec7d100` (§3a).
