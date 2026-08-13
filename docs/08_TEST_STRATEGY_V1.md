@@ -1420,17 +1420,26 @@ Inventar rola:
 
 Nivo: unit. Profili se **mehanički izvode** iz `15` i porede sa implementacijom.
 
-| Rola | ALLOW | CONDITIONAL | BLOCKED | DENY | Ukupno |
-|---|---:|---:|---:|---:|---:|
-| `PRACTICE_ADMIN` | 7 | 0 | 1 | 24 | 32 |
-| `PHYSICIAN` | 24 | 0 | 1 | 7 | 32 |
-| `MPA` | 11 | 2 | 1 | 18 | 32 |
-| `BILLING_SPECIALIST` | 10 | 2 | 1 | 19 | 32 |
-| `AUDITOR` | 2 | 0 | 1 | 29 | 32 |
-| `READ_ONLY` | 0 | 0 | 1 | 31 | 32 |
-| `SYSTEM_ADMIN` | 1 | 0 | 1 | 30 | 32 |
+| Rola | ALLOW | CONDITIONAL | DENY | Ukupno |
+|---|---:|---:|---:|---:|
+| `PRACTICE_ADMIN` | 8 | 0 | 24 | 32 |
+| `PHYSICIAN` | 24 | 0 | 8 | 32 |
+| `MPA` | 11 | 2 | 19 | 32 |
+| `BILLING_SPECIALIST` | 10 | 2 | 20 | 32 |
+| `AUDITOR` | 2 | 0 | 30 | 32 |
+| `READ_ONLY` | 0 | 0 | 32 | 32 |
+| `SYSTEM_ADMIN` | 1 | 0 | 31 | 32 |
 
 **Svaka kolona mora dati ukupno 32.**
+
+**Kolona `BLOCKED` — povučena, isključivo historijska napomena.** Ranija verzija ove tabele
+nosila je kolonu `BLOCKED` sa vrijednošću `1` za svaku rolu, iz vremena dok je `practice.read`
+bio `BLOCKED — D-OPEN-011`. Ta vrijednost je **povučena** odlukom **D-047** (`15` §3.1 i §8.1;
+`06` D-047, klauzula 11) i **nije važeći očekivani rezultat testa** — njena pojava **obara test**
+prema §24.13. Od 2026-08-12 `practice.read` je `ALLOW` za `PRACTICE_ADMIN` i `DENY` za ostalih
+šest rola, pa se taj red broji u `ALLOW` i `DENY` kolonama iznad. Brojevi u tabeli su
+**mehanički izvedeni iz `15` §5** i **ne uvode novi model permisija**; `15` ostaje produkcijski
+oracle.
 
 Dodatno se imenom asertiraju:
 
