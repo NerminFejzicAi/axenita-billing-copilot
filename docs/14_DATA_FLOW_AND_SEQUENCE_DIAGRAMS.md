@@ -61,7 +61,8 @@ sequenceDiagram
         alt unknown subject
             PG-->>Auth: 0 rows
             Auth->>PG: ROLLBACK
-            Auth-->>UI: 401 INVALID_TOKEN
+            Auth-->>UI: 403 ACCESS_DENIED
+            Note right of Auth: valid token, unprovisioned subject;<br/>app.user_id never set;<br/>not INVALID_TOKEN
         else users.status <> ACTIVE
             Auth->>PG: ROLLBACK
             Auth-->>UI: 403 ACCESS_DENIED
@@ -127,6 +128,9 @@ je već prisutna i aktivira se automatski čim faza 4 počne postavljati konteks
   `last_login_at`, `zsr_number`, `gln_number` i `legal_name` nemaju grant;
 - ordinacija čiji `status` nije `ACTIVE` odbija se **prije** nego `app.practice_id` postoji;
 - korisnik čiji `status` nije `ACTIVE` odbija se **prije** `set_user_context`;
+- verifikovan auth subjekt bez `users` reda odbija se sa `403 ACCESS_DENIED` uz `ROLLBACK`,
+  takođe **prije** `set_user_context`; `401 INVALID_TOKEN` ostaje rezervisan za neuspjelu
+  verifikaciju tokena, a odgovor **ne razlikuje** nepoznat subjekt od ne-`ACTIVE` korisnika;
 - **RLS ne autentifikuje korisnika** kada je dijeljeni `copilot_app` credential ukraden — držalac
   credentiala može sam postaviti `app.*` varijable; preživljavaju column grantovi, nepostojanje
   write grantova, nepostojanje vlasništva i `NOBYPASSRLS` (D-047, klauzula 20);

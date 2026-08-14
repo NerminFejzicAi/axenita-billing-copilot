@@ -290,7 +290,7 @@ Posljednja tri pokušaja pokrivaju oba trokolonska D-046 FK-a; detaljna pokriven
 - expired → 401;
 - wrong issuer → 401;
 - wrong audience → 401;
-- unknown subject → 401/403 prema policy;
+- unknown subject — validan token, nula `users` redova → 403;
 - inactive user → 403;
 - dev auth u production startupu → startup fail;
 - missing practice header → 400;
