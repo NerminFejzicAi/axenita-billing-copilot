@@ -39,6 +39,7 @@ import {
   type MembershipRow,
   type PlatformRoleRow,
   type PracticeRow,
+  type RequestedPracticeRow,
 } from './identity-database.port.js';
 
 /** The transaction client Prisma hands to an interactive transaction callback. */
@@ -92,6 +93,53 @@ class PrismaIdentityBootstrapSession implements IdentityBootstrapSession {
       where "user_id" = ${userId}::uuid
       order by "practice_id" asc
     `;
+  }
+
+  public async findMembershipInPractice(
+    userId: string,
+    practiceId: string,
+  ): Promise<MembershipRow | undefined> {
+    // BOTH predicates are load bearing and neither may be dropped. `practice_memberships` has
+    // no RLS in phase 3, so `user_id` is the only thing keeping another user's membership out,
+    // and `practice_id` is the application-layer narrowing to the REQUESTED practice that
+    // D-047 clause 18 assigns to this phase. `unique (practice_id, user_id)` bounds the result
+    // to one row.
+    const rows = await this.tx.$queryRaw<MembershipRow[]>`
+      select
+        "id",
+        "practice_id" as "practiceId",
+        "active"
+      from "practice_memberships"
+      where "user_id"     = ${userId}::uuid
+        and "practice_id" = ${practiceId}::uuid
+    `;
+
+    return rows[0];
+  }
+
+  public async findRequestedPractice(
+    practiceId: string,
+  ): Promise<RequestedPracticeRow | undefined> {
+    // Exactly the six granted columns of 02 §20.2a — the same six the accepted response
+    // projection contains. `legal_name`, `zsr_number`, `gln_number`, `created_at` and
+    // `updated_at` are absent here AND unreachable: naming one fails with SQLSTATE 42501.
+    // There is no `select *` and no widening path.
+    //
+    // The `02` §17.6 membership policy supplies the row filter: a practice the caller holds no
+    // membership in, and a practice that does not exist, are both zero rows here.
+    const rows = await this.tx.$queryRaw<RequestedPracticeRow[]>`
+      select
+        "id",
+        "code",
+        "name",
+        "default_language" as "defaultLanguage",
+        "timezone",
+        "status"::text     as "status"
+      from "practices"
+      where "id" = ${practiceId}::uuid
+    `;
+
+    return rows[0];
   }
 
   public async findMembershipRoles(

@@ -1,11 +1,13 @@
 /**
  * Unit contract of the authenticated bootstrap (`03` §3.1, §10; D-047 clauses 2–4 and 9).
  *
- * The database is replaced by a RECORDING session, not by a loose mock: it stores rows, applies
- * the same user scoping the real queries apply, and appends every call to an ordered log. That
- * makes the ORDER of the chain assertable, which is the property the accepted decisions actually
- * fix — a test that only checks the final HTTP status would pass even if `set_user_context` ran
- * before the status check.
+ * The database is replaced by the RECORDING session of
+ * `test/support/recording-identity-database.ts`, not by a loose mock: it stores rows, applies the
+ * same user scoping the real queries apply, and appends every call to an ordered log. That makes
+ * the ORDER of the chain assertable, which is the property the accepted decisions actually fix —
+ * a test that only checks the final HTTP status would pass even if `set_user_context` ran before
+ * the status check. The same recorder drives the `GET /practices/{practiceId}` unit spec, because
+ * both routes share one bootstrap implementation.
  *
  * Real PostgreSQL semantics — RLS policies, transaction local GUCs, request to request isolation
  * — are proven separately against a real database in `test/phase3-identity-*.security.ts`. This
@@ -15,17 +17,18 @@
 import { type MeResponseDto } from '@axenita/contracts';
 import { beforeEach, describe, expect, it } from 'vitest';
 
+import {
+  RecordingDatabase,
+  emptyWorld,
+  practiceRow,
+  type World,
+} from '../../../test/support/recording-identity-database.js';
 import { ApiException } from '../../common/errors/api-exception.js';
 import { IdentityInvariantError } from '../identity.errors.js';
 import {
   type BootstrapUserRow,
   type ConditionalSettingsRow,
-  type IdentityBootstrapSession,
   type IdentityDatabase,
-  type MembershipRoleRow,
-  type MembershipRow,
-  type PlatformRoleRow,
-  type PracticeRow,
 } from '../infrastructure/identity-database.port.js';
 import { IdentityBootstrapService } from './identity-bootstrap.service.js';
 
@@ -38,107 +41,6 @@ const OTHER_USER = '22222222-2222-4222-8222-222222222009';
 const MEMBERSHIP_A = '33333333-3333-4333-8333-333333333001';
 const MEMBERSHIP_B = '33333333-3333-4333-8333-333333333002';
 
-interface OwnedMembership extends MembershipRow {
-  readonly userId: string;
-}
-
-interface OwnedPlatformRole extends PlatformRoleRow {
-  readonly userId: string;
-}
-
-interface World {
-  /** Rows the bootstrap policy of `02` §17.5 would expose for the verified subject. */
-  bootstrapUsers: BootstrapUserRow[];
-  memberships: OwnedMembership[];
-  practices: PracticeRow[];
-  membershipRoles: MembershipRoleRow[];
-  settings: ConditionalSettingsRow[];
-  platformRoles: OwnedPlatformRole[];
-}
-
-/**
- * Records every session call and the arguments that matter, so a spec can assert the sequence.
- *
- * It also enforces one rule of its own: a session method called after the transaction callback
- * returned throws. That turns "the code kept a client and used it later" into a failure.
- */
-class RecordingDatabase implements IdentityDatabase {
-  public readonly calls: string[] = [];
-  public transactions = 0;
-  public committed = 0;
-  public rolledBack = 0;
-
-  public constructor(private readonly world: World) {}
-
-  public async runBootstrapTransaction<T>(
-    work: (session: IdentityBootstrapSession) => Promise<T>,
-  ): Promise<T> {
-    this.transactions += 1;
-    this.calls.push('BEGIN');
-
-    const session = this.createSession();
-
-    try {
-      const result = await work(session);
-      this.calls.push('COMMIT');
-      this.committed += 1;
-      return result;
-    } catch (error) {
-      this.calls.push('ROLLBACK');
-      this.rolledBack += 1;
-      throw error;
-    }
-  }
-
-  private createSession(): IdentityBootstrapSession {
-    const world = this.world;
-    const calls = this.calls;
-
-    return {
-      setAuthSubjectContext: async (authSubject: string): Promise<void> => {
-        calls.push(`set_auth_subject_context(${authSubject})`);
-        return Promise.resolve();
-      },
-      findUsersForVerifiedSubject: async (): Promise<readonly BootstrapUserRow[]> => {
-        calls.push('select users');
-        return Promise.resolve(world.bootstrapUsers);
-      },
-      setUserContext: async (userId: string): Promise<void> => {
-        calls.push(`set_user_context(${userId})`);
-        return Promise.resolve();
-      },
-      findMemberships: async (userId: string): Promise<readonly MembershipRow[]> => {
-        calls.push(`select memberships(${userId})`);
-        return Promise.resolve(world.memberships.filter((row) => row.userId === userId));
-      },
-      findPractices: async (practiceIds: readonly string[]): Promise<readonly PracticeRow[]> => {
-        calls.push(`select practices(${[...practiceIds].sort().join(',')})`);
-        return Promise.resolve(world.practices.filter((row) => practiceIds.includes(row.id)));
-      },
-      findMembershipRoles: async (
-        membershipIds: readonly string[],
-      ): Promise<readonly MembershipRoleRow[]> => {
-        calls.push(`select membership_roles(${[...membershipIds].sort().join(',')})`);
-        return Promise.resolve(
-          world.membershipRoles.filter((row) => membershipIds.includes(row.membershipId)),
-        );
-      },
-      findConditionalSettings: async (
-        practiceIds: readonly string[],
-      ): Promise<readonly ConditionalSettingsRow[]> => {
-        calls.push(`select practice_settings(${[...practiceIds].sort().join(',')})`);
-        return Promise.resolve(
-          world.settings.filter((row) => practiceIds.includes(row.practiceId)),
-        );
-      },
-      findCurrentPlatformRoles: async (userId: string): Promise<readonly PlatformRoleRow[]> => {
-        calls.push(`select platform_roles(${userId})`);
-        return Promise.resolve(world.platformRoles.filter((row) => row.userId === userId));
-      },
-    };
-  }
-}
-
 function activeUser(overrides: Partial<BootstrapUserRow> = {}): BootstrapUserRow {
   return {
     id: USER,
@@ -147,17 +49,6 @@ function activeUser(overrides: Partial<BootstrapUserRow> = {}): BootstrapUserRow
     preferredLanguage: 'de-CH',
     status: 'ACTIVE',
     ...overrides,
-  };
-}
-
-function emptyWorld(): World {
-  return {
-    bootstrapUsers: [],
-    memberships: [],
-    practices: [],
-    membershipRoles: [],
-    settings: [],
-    platformRoles: [],
   };
 }
 
@@ -313,7 +204,7 @@ describe('IdentityBootstrapService', () => {
         active: true,
         userId: USER,
       });
-      world.practices.push({ id: PRACTICE_A, name: 'Demo Praxis Zuerich' });
+      world.practices.push(practiceRow(PRACTICE_A, 'Demo Praxis Zuerich'));
 
       await service.loadCurrentIdentity(SUBJECT);
 
@@ -350,8 +241,8 @@ describe('IdentityBootstrapService', () => {
     beforeEach(() => {
       world.bootstrapUsers.push(activeUser());
       world.practices.push(
-        { id: PRACTICE_A, name: 'Demo Praxis Zuerich' },
-        { id: PRACTICE_B, name: 'Demo Praxis Nord' },
+        practiceRow(PRACTICE_A, 'Demo Praxis Zuerich'),
+        practiceRow(PRACTICE_B, 'Demo Praxis Nord'),
       );
       world.settings.push(
         settingsRow(PRACTICE_A, false, false),
@@ -531,8 +422,8 @@ describe('IdentityBootstrapService', () => {
     beforeEach(() => {
       world.bootstrapUsers.push(activeUser());
       world.practices.push(
-        { id: PRACTICE_A, name: 'Demo Praxis Zuerich' },
-        { id: PRACTICE_B, name: 'Demo Praxis Nord' },
+        practiceRow(PRACTICE_A, 'Demo Praxis Zuerich'),
+        practiceRow(PRACTICE_B, 'Demo Praxis Nord'),
       );
     });
 
@@ -665,7 +556,7 @@ describe('IdentityBootstrapService', () => {
   describe('platform roles', () => {
     beforeEach(() => {
       world.bootstrapUsers.push(activeUser());
-      world.practices.push({ id: PRACTICE_A, name: 'Demo Praxis Zuerich' });
+      world.practices.push(practiceRow(PRACTICE_A, 'Demo Praxis Zuerich'));
       world.settings.push(settingsRow(PRACTICE_A, true, true));
     });
 
@@ -733,7 +624,7 @@ describe('IdentityBootstrapService', () => {
   describe('response surface', () => {
     it('exposes no auth subject, no status and no internal assignment column', async () => {
       world.bootstrapUsers.push(activeUser());
-      world.practices.push({ id: PRACTICE_A, name: 'Demo Praxis Zuerich' });
+      world.practices.push(practiceRow(PRACTICE_A, 'Demo Praxis Zuerich'));
       world.settings.push(settingsRow(PRACTICE_A, true, true));
       world.memberships.push({
         id: MEMBERSHIP_A,

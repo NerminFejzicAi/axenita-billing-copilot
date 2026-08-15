@@ -58,6 +58,28 @@ export interface PracticeRow {
 }
 
 /**
+ * The practice `GET /practices/{practiceId}` renders, plus nothing beyond it.
+ *
+ * These are EXACTLY the six columns `copilot_app` is granted on `practices` (`02` §20.2a,
+ * D-047 clause 6) and exactly the six members of the accepted response projection
+ * (`03` §"GET `/practices/{practiceId}`"). `legal_name`, `zsr_number`, `gln_number`,
+ * `created_at` and `updated_at` have no grant at all, so they cannot be selected even by
+ * mistake — a statement that names one fails with SQLSTATE `42501`.
+ *
+ * `status` is read because the admission decision needs it: a practice whose status is not
+ * `ACTIVE` is rejected with a rollback (D-047 clause 10). It is also part of the accepted
+ * response, so it is the one column that is both an input and an output here.
+ */
+export interface RequestedPracticeRow {
+  readonly id: string;
+  readonly code: string;
+  readonly name: string;
+  readonly defaultLanguage: string;
+  readonly timezone: string;
+  readonly status: string;
+}
+
+/**
  * The three columns `copilot_app` may read from `practice_settings` in phase 3 (`02` §20.2b,
  * D-049 clause 3).
  *
@@ -124,6 +146,40 @@ export interface IdentityBootstrapSession {
    * relaxed into "read and filter afterwards".
    */
   findMemberships(userId: string): Promise<readonly MembershipRow[]>;
+
+  /**
+   * Reads ONE membership, bound to one user and one practice at the same time.
+   *
+   * This is the application-layer narrowing D-047 clause 18 assigns to phase 3 for
+   * `GET /practices/{practiceId}`: `practice_memberships` gets its own user-scoped policy only
+   * in phase 4 (`02` §17.3, package `013`), so the binding between the resolved current user and
+   * the REQUESTED practice has to be an explicit predicate of this statement. Reading a user's
+   * memberships and picking the matching one in memory would be a weaker, and therefore wrong,
+   * implementation of the same requirement.
+   *
+   * At most one row can match: `practice_memberships` carries `unique (practice_id, user_id)`
+   * (`02` §6.3), so `undefined` unambiguously means "this user has no membership in this
+   * practice".
+   */
+  findMembershipInPractice(userId: string, practiceId: string): Promise<MembershipRow | undefined>;
+
+  /**
+   * Reads the requested practice by id, through the `02` §17.6 membership policy.
+   *
+   * This is step 4 of `03` §3.7.1 and of D-047 clause 10 — the membership-scoped read of the
+   * requested practice's `status`, performed BEFORE any tenant context would be established.
+   * The policy is what makes it membership-scoped: it exposes a practice only when the caller
+   * holds a `practice_memberships` row in it, so a practice that does not exist and a practice
+   * the caller is not a member of both yield `undefined`. That indistinguishability is required
+   * (`03`, negative cases) and prevents enumeration.
+   *
+   * The policy deliberately does not filter `pm.active`, so an inactive membership still makes
+   * the row visible. Visibility is not authorisation: the active-membership and `practice.read`
+   * decisions are taken separately, by the caller of this method.
+   *
+   * At most one row can match, because `id` is the primary key.
+   */
+  findRequestedPractice(practiceId: string): Promise<RequestedPracticeRow | undefined>;
 
   /**
    * Reads the role assignments of the given memberships under the `02` §17.4 policy.

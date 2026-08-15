@@ -1,10 +1,15 @@
 /**
- * The four failures the phase 3 identity slice is allowed to produce.
+ * The six failures the phase 3 identity slice is allowed to produce.
  *
  * Normative sources: `03` §3.1 (`401 INVALID_TOKEN` is reserved exclusively for a failed token
  * verification; a cryptographically valid token whose verified subject has no `users` row is an
- * admission failure and therefore `403 ACCESS_DENIED`), `03` §8 (frozen error catalogue) and
- * `03` §9 (status usage). D-047 clauses 3–4 and `14` §2 fix the same two rejections.
+ * admission failure and therefore `403 ACCESS_DENIED`), `03` §3.2 (the two practice-context
+ * rejections), `03` §8 (frozen error catalogue) and `03` §9 (status usage). D-047 clauses 3–4,
+ * 10 and 11 and `14` §2 fix the same rejections.
+ *
+ * NO NEW ERROR CODE IS INTRODUCED. Every factory below names a code that already exists in the
+ * frozen catalogue of `03` §8; `GET /practices/{practiceId}` explicitly requires no addition to
+ * it ("Nijedan novi error kod se ne uvodi; katalog iz §8 je dovoljan").
  *
  * Every factory returns an {@link ApiException}, so the response is rendered by the single
  * Problem Details filter (D-008) and no endpoint can invent an error shape.
@@ -52,6 +57,34 @@ export function accessDenied(): ApiException {
     code: 'ACCESS_DENIED',
     status: HttpStatus.FORBIDDEN,
     detail: 'Access denied.',
+  });
+}
+
+/**
+ * A tenant route was called without `X-Practice-ID` (`03` §3.2, §3.4).
+ *
+ * `400`, because `03` §9 classifies `400` as the "header/query/request format" status. It is a
+ * malformed REQUEST, not an authorisation outcome, so it must not be reported as `403`.
+ */
+export function practiceContextRequired(): ApiException {
+  return new ApiException({
+    code: 'PRACTICE_CONTEXT_REQUIRED',
+    status: HttpStatus.BAD_REQUEST,
+    detail: 'A practice context header is required for this route.',
+  });
+}
+
+/**
+ * `X-Practice-ID` was present but is not a valid UUID (`03` §3.2).
+ *
+ * The detail names neither the rejected value nor the header's content, so a malformed header
+ * cannot be echoed back into a response body or a log line (`09` §11).
+ */
+export function practiceContextInvalid(): ApiException {
+  return new ApiException({
+    code: 'PRACTICE_CONTEXT_INVALID',
+    status: HttpStatus.BAD_REQUEST,
+    detail: 'The practice context header is not a valid identifier.',
   });
 }
 

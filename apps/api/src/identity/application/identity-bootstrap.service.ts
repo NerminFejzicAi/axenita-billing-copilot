@@ -5,6 +5,15 @@
  * contract), `03` §28.5 (permission derivation), `04` §5.4.1, D-023, D-038, D-047, D-049 and
  * D-051.
  *
+ * ONE BOOTSTRAP, SEVERAL ROUTES. `03` §3.1 and §3.7.1 steps 1–2 prescribe the SAME opening
+ * chain for every authenticated request, neutral or tenant scoped. It is therefore implemented
+ * exactly once, in {@link IdentityBootstrapService.runAuthenticatedSession}, and every route
+ * that needs an admitted current user enters through it — `GET /me` below, and
+ * `GET /practices/{practiceId}` through `PracticeReadService`. Nothing else may call
+ * `set_auth_subject_context`, read `users` for admission, judge `users.status` or call
+ * `set_user_context`; a second implementation of that chain is the one thing that could make
+ * two routes disagree about who the caller is.
+ *
  * THE ORDER IS THE CONTRACT. `03` §3.1 and D-047 clauses 2–4 and 9 do not merely require the
  * right HTTP status for a rejected request; they require the rejection to happen at a specific
  * POINT of the chain, so that `app.user_id` is never established for an unknown subject or a
@@ -69,8 +78,11 @@ const ACTIVE_USER_STATUS = 'ACTIVE';
  * Conditional flags of a practice that has no settings row at all.
  *
  * Fail closed: a missing configuration never enables a `CONDITIONAL` grant (D-041).
+ *
+ * Exported so that every route deriving permissions uses the SAME fallback. A second literal
+ * elsewhere could drift into an enabling default, which is precisely the failure D-041 forbids.
  */
-const DISABLED_CONDITIONAL_SETTINGS: ConditionalPermissionSettings = Object.freeze({
+export const DISABLED_CONDITIONAL_SETTINGS: ConditionalPermissionSettings = Object.freeze({
   allowMpaApproval: false,
   allowBillingSpecialistApproval: false,
 });
@@ -87,6 +99,29 @@ export class IdentityBootstrapService {
    *   (`02` §16.2a, D-047 clause 20).
    */
   public async loadCurrentIdentity(verifiedAuthSubject: string): Promise<MeResponseDto> {
+    return this.runAuthenticatedSession(verifiedAuthSubject, async (session, user) =>
+      this.projectIdentity(session, user),
+    );
+  }
+
+  /**
+   * Opens the one interactive transaction, admits the caller, establishes the user context, and
+   * hands both to `work` — steps 1 to 2 of `03` §3.7.1 and clauses 2–4, 8 and 9 of D-047.
+   *
+   * This is the ONLY entry point into an authenticated database session. `work` receives the
+   * same pinned session, inside the same transaction, with `app.user_id` already established;
+   * it cannot reach the database any other way and it cannot run before admission succeeded.
+   * Anything `work` throws propagates, which rolls the transaction back and discards every
+   * transaction-local `app.*` setting with it.
+   *
+   * @param verifiedAuthSubject the subject of an already verified bearer credential. It must
+   *   never originate from a request body, a query parameter or an untrusted header
+   *   (`02` §16.2a, D-047 clause 20).
+   */
+  public async runAuthenticatedSession<T>(
+    verifiedAuthSubject: string,
+    work: (session: IdentityBootstrapSession, user: BootstrapUserRow) => Promise<T>,
+  ): Promise<T> {
     return this.database.runBootstrapTransaction(async (session) => {
       const user = await this.admitUser(session, verifiedAuthSubject);
 
@@ -95,7 +130,7 @@ export class IdentityBootstrapService {
       // membership policy on `practices` does too.
       await session.setUserContext(user.id);
 
-      return this.projectIdentity(session, user);
+      return work(session, user);
     });
   }
 
@@ -216,8 +251,12 @@ export class IdentityBootstrapService {
  *
  * The order is the canonical vocabulary order of `15` §2.1, which is the only ordering the
  * accepted documents define for this enum.
+ *
+ * Exported so that `GET /practices/{practiceId}` derives the roles of the requested membership
+ * through this exact function. Reimplementing it would mean a second place where a stored role
+ * value is validated and ordered, and the two could disagree.
  */
-function tenantRolesOf(
+export function tenantRolesOf(
   membershipId: string,
   rows: readonly { readonly membershipId: string; readonly role: string }[],
 ): readonly TenantMembershipRole[] {

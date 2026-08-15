@@ -451,19 +451,35 @@ describe('GET /api/v1/me', () => {
     });
 
     it('registers no practice settings route in this phase (D-049)', async () => {
-      // The settings routes are normatively forbidden in phase 3, not merely unimplemented.
-      // `GET /practices/{practiceId}` is a phase 3 endpoint that this gate does not deliver; it
-      // is listed here so its absence is recorded rather than assumed.
+      // The settings routes are normatively forbidden in phase 3, not merely unimplemented. The
+      // practice route itself is a phase 3 endpoint and IS registered, so it is excluded here
+      // and owned by `phase3-practice-read.security.ts`; a list or directory of practices does
+      // not exist at all (D-047 clause 11).
       for (const path of [
         `/api/v1/practices/${PHASE_3_SEED_IDS.practiceDemo}/settings`,
-        `/api/v1/practices/${PHASE_3_SEED_IDS.practiceDemo}`,
+        '/api/v1/practices',
       ]) {
         const response = await request(app.getHttpServer())
           .get(path)
-          .set('Authorization', developmentBearer(PHASE_3_SEED_SUBJECTS.practiceAdmin));
+          .set('Authorization', developmentBearer(PHASE_3_SEED_SUBJECTS.practiceAdmin))
+          .set('X-Practice-ID', PHASE_3_SEED_IDS.practiceDemo);
 
         expect(response.status).toBe(404);
       }
+    });
+
+    it('keeps /me neutral now that a tenant route exists alongside it (03 §3.4)', async () => {
+      // The tenant route rejects a missing `X-Practice-ID` with 400; `/me` must be unaffected by
+      // the introduction of that rule, because it is neither tenant nor platform scoped.
+      const neutral = await me(PHASE_3_SEED_SUBJECTS.practiceAdmin);
+      expect(neutral.status).toBe(200);
+
+      const tenant = await request(app.getHttpServer())
+        .get(`/api/v1/practices/${PHASE_3_SEED_IDS.practiceDemo}`)
+        .set('Authorization', developmentBearer(PHASE_3_SEED_SUBJECTS.practiceAdmin));
+
+      expect(tenant.status).toBe(400);
+      expect(tenant.body).toMatchObject({ code: 'PRACTICE_CONTEXT_REQUIRED' });
     });
   });
 });
