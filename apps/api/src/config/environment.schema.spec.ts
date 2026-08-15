@@ -8,6 +8,9 @@ const VALID_ENVIRONMENT: Readonly<Record<string, string>> = {
   DATABASE_URL: 'postgresql://user:secret-password@localhost:5432/copilot',
   REDIS_URL: 'redis://localhost:6379',
   OBJECT_STORAGE_ENDPOINT: 'http://localhost:9000',
+  // Isolated development authentication (09 §5). Deliberately has no default, so it belongs
+  // to the minimal valid environment rather than to the optional overrides below.
+  DEV_AUTH_JWT_SECRET: 'test_only_development_auth_secret_value_32+',
 };
 
 describe('validateEnvironment', () => {
@@ -22,6 +25,39 @@ describe('validateEnvironment', () => {
     expect(config.LOG_LEVEL).toBe(LogLevel.Log);
     expect(config.OBJECT_STORAGE_HEALTH_PATH).toBe('/minio/health/live');
     expect(config.HEALTH_CHECK_TIMEOUT_MS).toBe(2000);
+    expect(config.DEV_AUTH_JWT_ISSUER).toBe('axenita-development');
+    expect(config.DEV_AUTH_JWT_AUDIENCE).toBe('axenita-api');
+  });
+
+  it('given a missing development auth secret when validated then bootstrap fails (09 §5)', () => {
+    // "nema default production secret": the variable has no declared default, so an unset
+    // value must stop the process instead of falling back to a well known string.
+    const incomplete: Record<string, string> = { ...VALID_ENVIRONMENT };
+    delete incomplete['DEV_AUTH_JWT_SECRET'];
+
+    expect(() => validateEnvironment(incomplete)).toThrow(EnvironmentValidationError);
+  });
+
+  it('given a too short development auth secret when validated then bootstrap fails', () => {
+    expect(() =>
+      validateEnvironment({ ...VALID_ENVIRONMENT, DEV_AUTH_JWT_SECRET: 'too-short' }),
+    ).toThrow(EnvironmentValidationError);
+  });
+
+  it('given an invalid development auth secret when validated then the value is never echoed', () => {
+    const secret = 'weak';
+
+    let thrown: unknown;
+    try {
+      validateEnvironment({ ...VALID_ENVIRONMENT, DEV_AUTH_JWT_SECRET: secret });
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(EnvironmentValidationError);
+    expect((thrown as EnvironmentValidationError).message).toContain('DEV_AUTH_JWT_SECRET');
+    expect((thrown as EnvironmentValidationError).variables).toContain('DEV_AUTH_JWT_SECRET');
+    expect((thrown as EnvironmentValidationError).message).not.toContain(`"${secret}"`);
   });
 
   it('given numeric strings when validated then they are converted to numbers', () => {

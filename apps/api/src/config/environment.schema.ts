@@ -7,6 +7,7 @@ import {
   Matches,
   Max,
   Min,
+  MinLength,
   validateSync,
   type ValidationError,
 } from 'class-validator';
@@ -93,6 +94,38 @@ export class EnvironmentVariables {
   @Min(100)
   @Max(30000)
   public readonly HEALTH_CHECK_TIMEOUT_MS: number = 2000;
+
+  /**
+   * Shared secret of the isolated development authentication mechanism (09 §5, 04 §5.2).
+   *
+   * DEVELOPMENT AND TEST ONLY. It has **no default**, exactly as 09 §5 requires ("nema default
+   * production secret"), so a process that does not configure it refuses to start instead of
+   * silently accepting tokens signed with a well known value. `DevelopmentAuthGuard`
+   * additionally refuses to be constructed under `NODE_ENV=production`, which turns the same
+   * mistake into a startup failure rather than a runtime one.
+   *
+   * The minimum length is a real constraint, not decoration: an HS256 secret shorter than the
+   * digest it protects weakens the signature. The value is never logged and never echoed in an
+   * error — only the variable name is (09 §9, §11).
+   */
+  @Expose()
+  @IsString()
+  @MinLength(32, {
+    message: 'DEV_AUTH_JWT_SECRET must be at least 32 characters and has no default (09 §5)',
+  })
+  public readonly DEV_AUTH_JWT_SECRET!: string;
+
+  /** Expected `iss` claim of a development token (03 §3.1 — issuer verification). */
+  @Expose()
+  @IsString()
+  @IsNotEmpty()
+  public readonly DEV_AUTH_JWT_ISSUER: string = 'axenita-development';
+
+  /** Expected `aud` claim of a development token (03 §3.1 — audience verification). */
+  @Expose()
+  @IsString()
+  @IsNotEmpty()
+  public readonly DEV_AUTH_JWT_AUDIENCE: string = 'axenita-api';
 }
 
 /**

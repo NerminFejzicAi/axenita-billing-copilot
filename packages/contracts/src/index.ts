@@ -4,8 +4,8 @@
  * Phase 1 published only the versioning surface of the HTTP API. Phase 3 adds the permission
  * catalogue and the application role vocabulary, because `GET /me` returns `roles[]` and
  * derived `permissions[]` per membership (`03` §10) and both are part of the HTTP contract.
- * Domain DTOs and the error catalogue are introduced by the phases that own the corresponding
- * endpoints.
+ * Phase 3 also owns the `GET /me` document itself, so its DTO is published here. The DTOs of
+ * later endpoints and the error catalogue are introduced by the phases that own them.
  *
  * The role-to-permission matrix is intentionally absent here: `03` §28.4 keeps the complete
  * matrix in `15_ROLE_PERMISSION_MATRIX_V1.md` so that two independently editable matrices
@@ -35,3 +35,5 @@ export {
   type PlatformRole,
   type TenantMembershipRole,
 } from './membership-roles.js';
+
+export { type MeMembershipDto, type MePlatformRoleDto, type MeResponseDto } from './me-contract.js';

@@ -11,6 +11,7 @@ function appConfigFor(overrides: Record<string, string> = {}): AppConfigService 
     DATABASE_URL: 'postgresql://copilot_app:secret-password@db.internal:5432/copilot',
     REDIS_URL: 'redis://cache.internal:6379',
     OBJECT_STORAGE_ENDPOINT: 'http://storage.internal:9000',
+    DEV_AUTH_JWT_SECRET: 'test_only_development_auth_secret_value_32+',
     ...overrides,
   });
 
@@ -96,5 +97,18 @@ describe('AppConfigService', () => {
     });
 
     expect(appConfig.problemTypeBaseUrl).toBe('https://api.example.ch/problems');
+  });
+
+  it('given the development auth configuration when read then the verifier policy is exposed', () => {
+    // 09 §5 / 03 §3.1 — the guard verifies signature, issuer and audience from validated
+    // configuration only, never from a token claim or a request header.
+    const appConfig = appConfigFor({
+      DEV_AUTH_JWT_ISSUER: 'axenita-local',
+      DEV_AUTH_JWT_AUDIENCE: 'axenita-local-api',
+    });
+
+    expect(appConfig.developmentAuthSecret).toBe('test_only_development_auth_secret_value_32+');
+    expect(appConfig.developmentAuthIssuer).toBe('axenita-local');
+    expect(appConfig.developmentAuthAudience).toBe('axenita-local-api');
   });
 });
