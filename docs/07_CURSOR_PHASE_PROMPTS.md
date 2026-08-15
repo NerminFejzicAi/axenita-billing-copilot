@@ -65,6 +65,10 @@ Prije pisanja koda prikaži plan:
 Implementiraj isključivo traženi scope.
 Ne prelazi u narednu fazu.
 Ne koristi prisma db push.
+Ne koristi prisma migrate dev --create-only kao mehanizam autorstva migracije; kanonski tok je
+prisma migrate diff -> ručna dopuna -> ljudski pregled -> validacija na praznoj bazi ->
+prisma migrate deploy (D-050; docs/02 §26.3, docs/10 §7).
+Ne oslabljuj nijedan guard migracije 001.
 Ne mijenjaj primijenjene migracije.
 Ne resetuj bazu ili volume bez eksplicitne dozvole.
 Ne zaobilazi TenantDatabaseService za tenant podatke.
@@ -169,10 +173,11 @@ Ne koristi runtime credential za migracije.
 
 Implementiraj isključivo FAZU 3 — Identity i practice domena.
 
-Normativne odluke: D-033 i D-038. Prati docs/02 §6.3, §6.3a, §22.2 i §23.2;
-docs/03 §10; docs/04 §5.2, §5.2.1 i §5.4.1; docs/05 Faza 3.
+Normativne odluke: D-033, D-038, D-047, D-048, D-049, D-050 i D-051. Prati docs/02 §6.3, §6.3a,
+§17.0, §17.2, §17.4, §20.2b, §22.2, §23.2, §23.4 i §26.3; docs/03 §5.1 i §10;
+docs/04 §5.2, §5.2.1 i §5.4.1; docs/05 Faza 3.
 
-Vlasnik migration paketa za sve schema objekte ove faze je 002_identity_and_practices.
+Vlasnik migration paketa za sve schema i RLS objekte ove faze je 002_identity_and_practices.
 Ne uvodi novi broj paketa.
 
 Kreiraj:
@@ -180,13 +185,16 @@ Kreiraj:
 - users;
 - practice_memberships;
 - practice_membership_roles;
-- practice_settings;
+- practice_settings — SAMO schema i trokolonski SELECT grant, bez ijedne rute;
+- platform_role_assignments;
 - migration/grants;
 - idempotentan development seed;
 - effective-permission resolver interface;
 - kontrolisani dev auth;
 - GET /api/v1/me;
-- osnovni practice read/settings endpoint prema contractu.
+- GET /api/v1/practices/{practiceId} prema contractu.
+
+NE kreiraj settings rute u ovoj fazi — ni GET ni PATCH, ni kao stub (D-049).
 
 practice_memberships (D-038):
 - tačno jedan red po ordinaciji i korisniku;
@@ -273,9 +281,39 @@ Seed se ne oslanja na singularnu role kolonu.
 Ne implementiraj patient/encounter/RLS poslovne tabele iz naredne faze.
 Dev auth mora biti nemoguće uključiti u production bez eksplicitne konfiguracije i startup zaštite.
 
-Tabele practice_memberships i practice_membership_roles kreiraju se u ovoj fazi, ali njihove
-bootstrap RLS politike pripadaju FAZI 4 i paketu 013_rls_policies (D-033, D-038).
-Ne postavljaj RLS na njih u ovoj fazi.
+Tabela practice_memberships kreira se u ovoj fazi, ali njena bootstrap RLS politika (docs/02
+§17.3) pripada FAZI 4 i paketu 013_rls_policies (D-033). Ne postavljaj RLS na nju u ovoj fazi.
+
+AŽURIRANO ODLUKOM D-051 (2026-08-14): practice_membership_roles i platform_role_assignments
+DOBIJAJU svoju RLS UPRAVO U OVOJ FAZI, u paketu 002_identity_and_practices. Ranija uputa da one
+pripadaju FAZI 4 više NE VAŽI.
+
+Implementiraj u paketu 002_identity_and_practices (docs/02 §17.2, §17.4, §22.2):
+- platform_role_assignments: ENABLE + FORCE ROW LEVEL SECURITY;
+    platform_role_assignments_self_select   -> user_id = app.user_id, to copilot_app
+    platform_role_assignments_system_select -> using (true), to copilot_system
+- practice_membership_roles: ENABLE + FORCE ROW LEVEL SECURITY;
+    practice_membership_roles_self_select   -> EXISTS nad practice_memberships uz
+                                               pm.user_id = app.user_id, to copilot_app
+
+IMENA POLITIKA I TIJELA POLITIKA SE NE MIJENJAJU. Premješteno je isključivo vlasništvo paketa.
+
+Obavezno:
+- self politika nad platform_role_assignments zavisi ISKLJUČIVO od app.user_id;
+- NE koristi app.practice_id, set_request_context, PracticeContextGuard ni TenantDatabaseService;
+- politika §17.4 radi BEZ §17.3 RLS-a, ali ZAHTIJEVA postojeći SELECT grant nad
+  practice_memberships — sužavanje tog granta obara politiku sa 42501;
+- copilot_system zadržava SELECT + USING (true) nad platform_role_assignments;
+- copilot_system NEMA nijedan pristup practice_membership_roles;
+- PUBLIC nema pristup nijednoj od te dvije tabele;
+- copilot_app NEMA neograničen SELECT nad platform_role_assignments — invarijanta D-023,
+  klauzule 11, važi OD OVE FAZE;
+- bez postavljenog app.user_id obje tabele vraćaju nula redova;
+- NEMA SECURITY DEFINER bypassa;
+- platformRoles[] u GET /me sadrži ISKLJUČIVO dodjele sa revoked_at IS NULL;
+- NE kreiraj revoke endpoint, revoke permisiju ni ijedan write grant.
+
+NE premještaj docs/02 §17.3 u ovu fazu.
 
 D-OPEN-011 je RIJEŠEN odlukom D-047 (2026-08-12). Runtime access model za users i practices
 je odlučen i OBAVEZAN je dio ove faze. Normativno: docs/02 §16.2.1, §16.2.4, §17.5, §17.6,
@@ -368,11 +406,91 @@ NE vraća zsrNumber, glnNumber ni legalName. Ne postoji lista ni direktorij ordi
 SYSTEM_ADMIN dobija ovu permisiju samo ako isti korisnik nezavisno ima aktivan tenant
 membership i dodijeljenu PRACTICE_ADMIN tenant rolu.
 
+D-049 — practice_settings u ovoj fazi (docs/02 §6.4 i §20.2b; docs/03 §5.1 i §10):
+
+Kreiraj KOMPLETNU prihvaćenu practice_settings schemu — version, check (version >= 1),
+updated_by, sva konfiguraciona polja i OBA approval flaga.
+
+copilot_app dobija TAČNO:
+  grant select (practice_id, allow_mpa_approval, allow_billing_specialist_approval)
+    on practice_settings to copilot_app;
+
+NEMA table-level SELECT. NE grantuj: id, version, updated_at, updated_by, configuration,
+retention_policy_code, billing_review_required, require_reason_for_manual_change, ai_enabled,
+axenita_export_enabled.
+
+NEMA INSERT, UPDATE ni DELETE granta. copilot_system i PUBLIC ne dobijaju nijedan grant.
+NE kreiraj nijednu RLS politiku nad practice_settings u ovoj fazi — one pripadaju paketu 013.
+
+NE registruj GET /api/v1/practices/{practiceId}/settings.
+NE registruj PATCH /api/v1/practices/{practiceId}/settings.
+Raniji fazni dio D-028 klauzule 4 je POVUČEN; kompletan settings runtime put je FAZA 4.
+
+Ta tri stupca su tačno ono što GET /me treba za uslovne permisije analysis.approve i
+analysis.approval.revoke (D-041, D-044). Semantika permisija se NE MIJENJA: practice.settings.read
+i practice.settings.manage ostaju PRACTICE_ADMIN only, docs/15 je nepromijenjen.
+
+Izloženost PHASE 3 INTERMEDIATE NON-PILOT CONDITIONAL-SETTINGS READ EXPOSURE je prihvaćena samo za
+ovo nepilotsko međustanje: bez RLS-a faze 4, držalac dijeljenog copilot_app credentiala može
+enumerisati te tri kolone za svaki red. Dokumentuj je i testiraj eksplicitno; NE umanjuj je.
+
+D-048 — maintenance protokol pri seedu (docs/02 §23.4):
+
+Seed ove faze upisuje u tabele koje već nose FORCE ROW LEVEL SECURITY. Allowlist faze 3 je TAČNO:
+users, practices, practice_membership_roles, platform_role_assignments.
+practice_memberships i practice_settings NISU na allowlisti.
+
+Svaki takav upis ide isključivo kroz jednu EKSPLICITNU transakciju:
+  BEGIN
+    -> provjeri da je tabela na allowlisti
+    -> ALTER TABLE <table> NO FORCE ROW LEVEL SECURITY
+    -> assert relrowsecurity = true, relforcerowsecurity = false
+    -> isključivo pouzdani seed/migration DML
+    -> ALTER TABLE <table> FORCE ROW LEVEL SECURITY
+    -> assert relrowsecurity = true, relforcerowsecurity = true
+  COMMIT
+
+ZABRANJENO:
+- autocommit;
+- ALTER TABLE ... DISABLE ROW LEVEL SECURITY;
+- BYPASSRLS;
+- SECURITY DEFINER;
+- superuser seed credential;
+- trajna copilot_migrator RLS politika;
+- nepovezani sigurnosni DDL unutar prozora;
+- bilo kakva dohvatljivost ovog mehanizma iz request/runtime aplikacijskih putanja.
+
+Neuspjela restore asercija MORA podići izuzetak i prekinuti transakciju. Prekinut ili neuspio seed
+NE SMIJE ostaviti FORCE isključenim. Dodaj trajne regresijske testove steady-state stanja
+relrowsecurity = true i relforcerowsecurity = true, nakon migracije i nakon seeda.
+
+D-050 — autorstvo migracije (docs/02 §26.3; docs/10 §7):
+
+NE koristi prisma migrate dev --create-only. Njegova shadow baza je strukturno nespojiva sa
+namjernim guardovima migracije 001. NE oslabljuj nijedan guard migracije 001.
+
+Kanonski tok:
+1. ispravno bootstrapovana tekuća kanonska migration baza je izvorno stanje;
+2. npx prisma migrate diff --from-config-datasource --to-schema=prisma/schema.prisma --script
+     -o prisma/migrations/<timestamp>_002_identity_and_practices/migration.sql
+3. ručno dopuni custom SQL: constrainti, grants, revokes, RLS, politike, funkcije, asercije,
+   komentari;
+4. ljudski pregled kompletnog generisanog I ručno napisanog SQL-a;
+5. validacija kompletnog lanca na jednokratnoj, ispravno bootstrapovanoj praznoj bazi;
+6. primjena kroz prisma migrate deploy;
+7. mehanička verifikacija scheme, vlasništva, privilegija i sigurnosnih objekata.
+
+migrate diff izlaz je KANDIDAT, ne istina. prisma db push ostaje zabranjen. Primijenjene migracije
+ostaju immutable. --from-empty nije izvor inkrementalnog autorstva. --from-migrations je
+neprikladan jer zahtijeva shadow bazu.
+
 I dalje ostaje zabranjeno, bez izuzetka:
 - generički cross-practice pristup nad users i practices;
 - pristup redu drugog korisnika (co-member displayName) — gate iz docs/13 §19;
 - kreiranje, deaktivacija i administracija membershipa;
-- dodjela i uklanjanje rola.
+- dodjela i uklanjanje rola;
+- registrovanje bilo koje settings rute u ovoj fazi;
+- bilo kakav write grant nad practice_settings u ovoj fazi.
 ```
 
 ---
@@ -398,8 +516,13 @@ Kreiraj:
 - execute grants za copilot_app;
 - ENABLE i FORCE RLS na practice_memberships;
 - user-scoped bootstrap self-select politiku na practice_memberships;
-- ENABLE i FORCE RLS na practice_membership_roles;
-- bootstrap-readable self-enumeration SELECT politiku na practice_membership_roles;
+- ENABLE i FORCE RLS na practice_settings;
+- standardnu tenant politiku practice_id = app.practice_id na practice_settings;
+- proširen SELECT i OGRANIČEN UPDATE grant na practice_settings — grant i politika se uvode
+  ZAJEDNO, u istom paketu;
+- GET /api/v1/practices/{practiceId}/settings;
+- PATCH /api/v1/practices/{practiceId}/settings, sa ETag, If-Match,
+  428 PRECONDITION_REQUIRED, 409 VERSION_CONFLICT i atomičnim inkrementom version;
 - effective-permission resolver;
 - PracticeContext guard;
 - X-Practice-ID validaciju kroz membership provjeru;
@@ -456,22 +579,38 @@ Obavezna pravila:
   D-047 i njegove politike su već kreirane u FAZI 3 (paket 002). U ovoj fazi ih NE prepisuj
   i NE oslabljuj — one se automatski pooštravaju čim app.practice_id počne postojati.
 
-RLS za practice_membership_roles (paket 013_rls_policies; docs/02 §17.4):
+RLS za practice_membership_roles i platform_role_assignments — NIJE U OVOJ FAZI:
+
+AŽURIRANO ODLUKOM D-051 (2026-08-14). docs/02 §17.2 i §17.4 su PREMJEŠTENI u paket
+002_identity_and_practices i FAZU 3. Ovaj paket ih NE SMIJE kreirati, rekreirati, zamijeniti ni
+prepisati. Faza 4 ih smije verifikovati i koristiti.
+
+Provjeri, ne kreiraj:
+- obje tabele već nose ENABLE + FORCE ROW LEVEL SECURITY iz paketa 002;
+- politike platform_role_assignments_self_select, platform_role_assignments_system_select i
+  practice_membership_roles_self_select postoje, nepromijenjenih imena i tijela;
+- paket 013_rls_policies ne sadrži nijedan CREATE POLICY, ENABLE ni FORCE ROW LEVEL SECURITY za
+  te dvije tabele — introspekcija vlasništva;
+- ove politike nisu riješile D-OPEN-011 i ne smiju se tako tumačiti; access model za users i
+  practices riješen je odlukom D-047 kroz docs/02 §17.5 i §17.6, već u FAZI 3.
+
+RLS i runtime put za practice_settings (paket 013_rls_policies; docs/02 §6.4, §18.1, §20.2b,
+§22.13; docs/03 §5 i §10; D-049):
 - ENABLE ROW LEVEL SECURITY;
 - FORCE ROW LEVEL SECURITY;
-- SELECT politika za self-enumeraciju autentifikovanog korisnika;
-- korisnik se izvodi iz pouzdanog app.user_id;
-- politika se spaja kroz vlastite practice_memberships redove tog korisnika;
-- politika NE SMIJE zavisiti od app.practice_id, jer GET /me enumeriše prije tenant konteksta;
-- vlasniku smiju biti vidljive trenutne role neaktivnih membershipa;
-- neaktivan membership i dalje NE AUTORIZUJE nijedan tenant pristup;
-- role redovi drugog korisnika su odbijeni;
-- cross-practice curenje je odbijeno;
-- trenutni runtime put je SELECT-only — bez INSERT, UPDATE i DELETE;
-- NEMA SECURITY DEFINER bypassa;
-- politika ostaje SECURITY INVOKER kompatibilna;
-- ova politika nije riješila D-OPEN-011 i ne smije se tako tumačiti; access model za users i
-  practices riješen je odlukom D-047 kroz docs/02 §17.5 i §17.6, već u FAZI 3.
+- standardna tenant politika practice_id = app.practice_id;
+- proširena čitljiva površina koju settings endpoint zahtijeva;
+- OGRANIČEN UPDATE grant, uveden ZAJEDNO sa politikom koja ga ograničava;
+- UPDATE grant bez pripadajuće tenant politike obara phase gate;
+- GET i PATCH /api/v1/practices/{practiceId}/settings;
+- ETag na oba odgovora; If-Match obavezan na PATCH;
+- 428 PRECONDITION_REQUIRED bez If-Match; 409 VERSION_CONFLICT na stale If-Match;
+- version se inkrementira atomično;
+- practice.settings.read i practice.settings.manage ostaju PRACTICE_ADMIN only (D-044,
+  nepromijenjeno; docs/15);
+- copilot_system NE DOBIJA nijedan grant; PUBLIC NE DOBIJA nijedan grant;
+- regresijski test dokazuje da je izloženost PHASE 3 INTERMEDIATE NON-PILOT
+  CONDITIONAL-SETTINGS READ EXPOSURE zatvorena — copilot_app više ne vidi redove izvan tenanta.
 
 RLS za review_decision_change_links (paket 013_rls_policies; docs/02 §13.2a, §18.1, §22.13; D-046):
 - ENABLE ROW LEVEL SECURITY;
@@ -604,11 +743,18 @@ Obavezno:
 - database grant ne zamjenjuje permisiju endpointa;
 - PUBLIC ne dobija nijedan grant.
 
-Vlasništvo faze i migration paketa:
-- membership bootstrap RLS politika — Faza 4, paket 013_rls_policies (docs/02 §22.13);
-- practice_membership_roles RLS politika — Faza 4, paket 013_rls_policies (docs/02 §17.4);
-- effective-permission resolver — Faza 4, aplikacijski sloj, bez migration paketa;
+Vlasništvo faze i migration paketa (docs/02 §17.0):
+- membership bootstrap RLS politika, docs/02 §17.3 — Faza 4, paket 013_rls_policies (docs/02 §22.13);
+- practice_membership_roles RLS politika, docs/02 §17.4 — Faza 3, paket 002_identity_and_practices;
+  PREMJEŠTENA iz paketa 013 odlukom D-051; Faza 4 je samo verifikuje;
+- platform_role_assignments RLS politike, docs/02 §17.2 — Faza 3, paket
+  002_identity_and_practices; PREMJEŠTENE iz paketa 013 odlukom D-051; Faza 4 ih samo verifikuje;
+- practice_settings ENABLE + FORCE RLS, tenant politika, prošireni SELECT, ograničen UPDATE i obje
+  settings rute — Faza 4, paket 013_rls_policies (D-049);
+- generalizovani tenant endpoint authorization/enforcement pipeline — Faza 4, aplikacijski sloj,
+  bez migration paketa;
 - set_request_context(p_practice_id uuid) — Faza 4, paket 013_rls_policies;
+- uspostava app.practice_id, PracticeContextGuard, TenantDatabaseService — Faza 4;
 - set_user_context(p_user_id uuid) — Faza 3, paket 002_identity_and_practices; PREMJEŠTEN iz
   paketa 013 u paket 002 i već kreiran prije Faze 4, koja ga samo verifikuje i koristi
   (D-047, klauzula 17);
@@ -617,8 +763,9 @@ Vlasništvo faze i migration paketa:
 - test da kontekst ne ostaje nakon završetka transakcije — Faza 4.
 
 Tabele practice_memberships i practice_membership_roles kreiraju se u Fazi 3 i paketu
-002_identity_and_practices; njihove bootstrap RLS politike u Fazi 4 i paketu 013_rls_policies.
-Ne premještaj kreiranje RLS-a u paket 002.
+002_identity_and_practices. Bootstrap RLS politika za practice_memberships (docs/02 §17.3) je u
+Fazi 4 i paketu 013_rls_policies; RLS za practice_membership_roles (docs/02 §17.4) je u Fazi 3 i
+paketu 002 (D-051). Ne premještaj docs/02 §17.3 u paket 002.
 Brojevi migration paketa u docs/02 §22 su redoslijed zavisnosti, NE brojevi faza. Paket
 013_rls_policies se primjenjuje inkrementalno kako tenant tabele nastaju. Ne mijenjaj
 numeraciju migration paketa i ne uvodi novi broj paketa.

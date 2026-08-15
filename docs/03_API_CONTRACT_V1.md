@@ -334,6 +334,13 @@ Svaki od šest ima `version integer not null default 1` i `check (version >= 1)`
 Integration connection zadržava dokumentovan `If-Match` iako je write endpoint DEFERRED,
 kako bi ugovor bio potpun kada endpoint postane aktivan.
 
+**Vlasništvo faze za `practice settings` (D-049).** `PATCH /practices/{practiceId}/settings` — a
+time i njegov optimistic-locking runtime ugovor i testovi — pripada **fazi 4**, ne fazi 3. Tvrdnja
+D-028 klauzule 4 da „optimistic locking počinje u fazi 3, jer puni settings PATCH pripada fazi 3"
+je **povučena**. **Schema odluka D-029 ostaje nepromijenjena**: `version` i `check (version >= 1)`
+na `practice_settings` i dalje nastaju u paketu `002_identity_and_practices`, faza 3. Za preostalih
+pet resursa iz ove tabele ništa se ne mijenja.
+
 ## 5.2 Protokol
 
 Mutable resurs vraća:
@@ -594,6 +601,12 @@ Pravila (D-023):
   skupa permisija; unija se ne izvodi automatski;
 - `SYSTEM_ADMIN` bez aktivnog membershipa ne dobija pristup nijednoj tenant ruti.
 
+**Semantika tekućih dodjela (D-051, klauzula 3).** `platformRoles[]` predstavlja **tekuće,
+neopozvane** dodjele platform rola: doprinose isključivo `platform_role_assignments` redovi gdje je
+`revoked_at IS NULL`. Opozvana dodjela se **ne** vraća. Ovo je pojašnjenje čitanja — **revoke
+administracijski endpoint, permisija ni write grant se ovim ne uvode**, a `15` ostaje
+nepromijenjen.
+
 ### Breaking izmjena ugovora (D-038)
 
 `memberships[].role` → `memberships[].roles`
@@ -700,7 +713,37 @@ Negativni slučajevi:
 
 Nijedan novi error kod se ne uvodi; katalog iz §8 je dovoljan.
 
+## Settings rute — vlasništvo faze (D-049)
+
+**Normativna odluka: D-049.** Obje settings rute pripadaju **fazi 4** i paketu `013_rls_policies`.
+
+Raniji fazni dio **D-028, klauzule 4** — tvrdnja da puni `PATCH /practices/{practiceId}/settings`
+pripada fazi 3 — je **POVUČEN**. Klauzule 1–3 D-028 ostaju nepromijenjene: `428
+PRECONDITION_REQUIRED` za nedostajući `If-Match`, `409 REQUEST_ALREADY_IN_PROGRESS` za idempotency
+u toku, `425` se ne koristi, `428` ostaje u tabeli §9.
+
+U **fazi 3**:
+
+```text
+NEMA GET   /api/v1/practices/{practiceId}/settings
+NEMA PATCH /api/v1/practices/{practiceId}/settings
+```
+
+Faza 3 ne registruje nijednu settings rutu i nema nijedan upisni grant nad `practice_settings`.
+`copilot_app` u fazi 3 ima **isključivo** `SELECT (practice_id, allow_mpa_approval,
+allow_billing_specialist_approval)` — tačno onoliko koliko `GET /me` treba za uslovne permisije
+(`02` §20.2b). Ta izloženost je imenovana i prihvaćena kao
+**`PHASE 3 INTERMEDIATE NON-PILOT CONDITIONAL-SETTINGS READ EXPOSURE`** (D-049, klauzula 3).
+
+**Semantika permisija se ne mijenja** (D-044): `practice.settings.read` i
+`practice.settings.manage` ostaju isključivo `PRACTICE_ADMIN`; `15` ostaje nepromijenjen. Mijenja
+se **isključivo faza implementacije endpointa**.
+
+Ugovor obje rute ispod ostaje **zamrznut i normativan** za svoju implementaciju u fazi 4.
+
 ## GET `/practices/{practiceId}/settings`
+
+**Faza 4** (D-049).
 
 Permission: `practice.settings.read`.
 
@@ -711,7 +754,9 @@ Vraća `ETag` za optimistic locking (§5.2).
 
 ## PATCH `/practices/{practiceId}/settings`
 
-Puni PATCH je u **aktivnom v1 scopeu** (D-028, klauzula 4).
+**Faza 4** (D-049). Puni PATCH ostaje u **aktivnom v1 scopeu**; njegov **fazni** dio iz D-028,
+klauzule 4, je povučen i sada pripada fazi 4 zajedno sa `practice_settings` tenant RLS-om,
+ograničenim `UPDATE` grantom i tenant enforcement pipelineom.
 
 Permission: `practice.settings.manage`.
 

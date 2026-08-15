@@ -148,25 +148,63 @@ pnpm db:generate
 pnpm db:migrate:status
 ```
 
-Development migration:
+## 7.1 Kanonski tok autorstva migracije (D-050)
+
+**Normativno: D-050; `02` §26.3.** `prisma migrate dev --create-only` **nije** kanonski mehanizam
+autorstva za ovaj repozitorij: kreira i zahtijeva shadow bazu čije je podrazumijevano vlasništvo i
+privilegije nad `public` schemom strukturno nespojivo sa namjernim guardovima migracije `001`.
+
+**Nijedan guard migracije `001` se ne smije oslabiti** da bi shadow baza radila.
+
+Korak 1 — izvorno stanje je **ispravno bootstrapovana tekuća kanonska migration baza**:
 
 ```powershell
-pnpm db:migrate:dev -- --name <migration_name>
+pnpm db:migrate:status
 ```
 
-Custom SQL flow:
+Korak 2 — generisati inkrementalni SQL kandidat:
 
 ```powershell
-pnpm exec prisma migrate dev --create-only --name <name>
-# pregledati migration.sql
-pnpm exec prisma migrate dev
+npx prisma migrate diff `
+  --from-config-datasource `
+  --to-schema=prisma/schema.prisma `
+  --script `
+  -o prisma/migrations/<timestamp>_<package>/migration.sql
 ```
+
+Korak 3 — ručno dopuniti custom SQL koji Prisma ne izražava: constrainti, grants, revokes, RLS,
+politike, funkcije, sigurnosne asercije, komentari.
+
+Korak 4 — **ljudski pregled** kompletnog generisanog **i** ručno napisanog SQL-a.
+
+Korak 5 — validirati kompletan lanac na **jednokratnoj, ispravno bootstrapovanoj praznoj bazi**.
+
+Korak 6 — primijeniti:
+
+```powershell
+pnpm db:migrate:deploy
+```
+
+Korak 7 — mehanički verifikovati schemu, vlasništvo, privilegije i sigurnosne objekte
+(`08` §5, §5.1).
+
+Normativno:
+
+- izlaz `migrate diff` je **kandidat, ne istina**;
+- primijenjene migracije ostaju **immutable**;
+- `prisma migrate deploy` ostaje kanonski put primjene i deploymenta;
+- `--from-empty` **nije** normalni izvor inkrementalnog autorstva;
+- `--from-migrations` je neprikladan jer zahtijeva shadow bazu.
 
 Zabranjeno:
 
 ```text
 prisma db push
+prisma migrate dev --create-only   # kao mehanizam autorstva (D-050)
 ```
+
+Skripta `db:migrate:dev` iz `package.json` **nije** kanonski put autorstva. Njeno usklađivanje je
+implementacijski zadatak i ne izvodi se dokumentacionom izmjenom.
 
 ---
 
@@ -185,6 +223,27 @@ select code, name from practices;
 select auth_subject, display_name from users;
 select practice_id, user_id, role, active from practice_memberships;
 ```
+
+**`FORCE RLS` maintenance (D-048; `02` §23.4).** Seed upisuje i u tabele koje već nose
+`FORCE ROW LEVEL SECURITY`, gdje i vlasnik tabele podliježe politikama. Takav upis ide isključivo
+kroz jednu eksplicitnu transakciju: `BEGIN` → provjera allowliste → `NO FORCE` → asercija →
+pouzdani DML → `FORCE` → asercija → `COMMIT`. Allowlist faze 3 je `users`, `practices`,
+`practice_membership_roles`, `platform_role_assignments`.
+
+**`ALTER TABLE ... DISABLE ROW LEVEL SECURITY`, `BYPASSRLS`, `SECURITY DEFINER` i superuser seed
+credential su zabranjeni.** Provjera steady statea nakon seeda:
+
+```sql
+select c.relname, c.relrowsecurity, c.relforcerowsecurity
+from pg_class c
+join pg_namespace n on n.oid = c.relnamespace
+where n.nspname = 'public'
+  and c.relname in (
+    'users','practices','practice_membership_roles','platform_role_assignments'
+  );
+```
+
+Obje zastavice moraju biti `true` za sve četiri tabele.
 
 ---
 
@@ -272,7 +331,9 @@ pnpm db:migrate:deploy   # samo ako lokalni branch ima nove već kreirane migrac
 pnpm dev:api
 ```
 
-Za vlastitu novu schema promjenu koristiti `migrate dev`, ne deploy.
+Za vlastitu novu schema promjenu koristiti **kanonski tok autorstva iz §7.1** (D-050):
+`prisma migrate diff` → ručna dopuna → ljudski pregled → validacija na jednokratnoj praznoj bazi →
+`prisma migrate deploy`. **`prisma migrate dev --create-only` se ne koristi.**
 
 ---
 

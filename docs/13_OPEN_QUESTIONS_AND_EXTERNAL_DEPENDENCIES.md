@@ -436,3 +436,48 @@ grant niti denormalizovati ime u drugu tabelu.
 - nijedan konzument faze 5 ne smije tiho dobiti generičku vidljivost nad `users`;
 - `BLOCKED` oznaka iz `15` §3.1 se **ne** koristi za ovu stavku — vrijednost je povučena; ovaj
   gate se vodi ovdje i u D-047 klauzuli 12.
+
+---
+
+# 20. Prihvaćene izloženosti međustanja faze 3 — obavezno zatvaranje u fazi 4
+
+**Status:** PRIHVAĆENO, VREMENSKI OGRANIČENO
+**Izvor:** D-047 klauzula 18; **D-049 klauzula 3**
+
+Ovo **nisu otvorena pitanja** — obje izloženosti su prihvaćene odlukom. Vode se ovdje jer imaju
+**obavezan izlazni gate** i ne smiju tiho preživjeti fazu 4.
+
+## 20.1 Izloženosti
+
+| Ime | Šta je izloženo | Izvor | Zatvara |
+|---|---|---|---|
+| `PHASE 3 IS AN INTERMEDIATE NON-PILOT SECURITY STATE` | `copilot_app` na nivou baze vidi **generičke** `practice_memberships` redove, jer §17.3 RLS još ne postoji | D-047, klauzula 18 | `02` §17.3, paket `013`, faza 4 |
+| `PHASE 3 INTERMEDIATE NON-PILOT CONDITIONAL-SETTINGS READ EXPOSURE` | `copilot_app` može čitati `practice_id`, `allow_mpa_approval` i `allow_billing_specialist_approval` **za svaki** `practice_settings` red, te utvrditi broj i postojanje redova | D-049, klauzula 3 | `practice_settings` `ENABLE` + `FORCE RLS` i tenant politika, paket `013`, faza 4 |
+
+## 20.2 Zašto su prihvaćene
+
+Isti i jedini razlog za obje: **na tom gateu ne postoje stvarni pilot korisnici ni podaci**, a faza
+4 je obavezna prije faze 5. Zamrznuti gate `ALL RLS TESTS GREEN — required before phase 5` ostaje
+na snazi.
+
+Za `practice_settings` postoji i drugi razlog: alternativa — funkcionalan settings endpoint u fazi
+3 — tražila bi `UPDATE` grant nad tabelom bez ijedne tenant politike koja taj write ograničava. To
+je **veći** rizik od trokolonskog reada, pa je D-049 izabrao manji.
+
+## 20.3 Zabranjene pretpostavke
+
+- **nijedna od dvije izloženosti se ne smije umanjivati** ni opisivati kao teorijska;
+- nijedan test ne smije tvrditi da su zatvorene u fazi 3 (`08` §21.5.6, §21.7.4);
+- `practice_settings` **ne dobija** table-level `SELECT` ni ijedan upisni grant u fazi 3;
+- nijedna settings ruta se **ne registruje** u fazi 3;
+- **nijedan pilot ni rad faze 5** se ne izvodi nad sigurnosnim stanjem faze 3.
+
+## 20.4 Izlazni kriteriji
+
+Obje se smatraju zatvorenim tek kada, u fazi 4:
+
+- `02` §17.3 postoji i regresijski test dokazuje da `copilot_app` više ne vidi generičke
+  `practice_memberships` redove (`08` §21.5.6);
+- `practice_settings` nosi `ENABLE` + `FORCE RLS` i tenant politiku, a regresijski test dokazuje da
+  `copilot_app` više ne vidi redove izvan tekućeg tenanta (`08` §21.7.5);
+- `practice_settings` `UPDATE` grant postoji **isključivo zajedno** sa politikom koja ga ograničava.

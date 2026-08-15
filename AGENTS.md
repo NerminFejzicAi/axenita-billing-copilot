@@ -94,11 +94,25 @@ Ne počinji izmjenu dok plan nije logički konzistentan sa dokumentacijom.
 
 ## 5.1 Migracije
 
+Normativna odluka za autorstvo migracija je **D-050** (`docs/02` §26.3, `docs/10` §7.1).
+
 - Nikada ne koristi `prisma db push`.
-- Development: `prisma migrate dev`.
-- Staging/production: `prisma migrate deploy`.
-- Koristi `--create-only` kada migracija zahtijeva ručni SQL.
-- Pregledaj generisani SQL prije izvršenja.
+- **`prisma migrate dev --create-only` nije kanonski mehanizam autorstva** — zahtijeva shadow bazu
+  strukturno nespojivu sa namjernim guardovima migracije `001`.
+- **Nikada ne oslabljuj guard migracije `001`** da bi shadow baza radila.
+- Kanonski tok autorstva:
+  1. ispravno bootstrapovana tekuća kanonska migration baza je izvorno stanje;
+  2. `prisma migrate diff --from-config-datasource --to-schema=prisma/schema.prisma --script -o
+     prisma/migrations/<timestamp>_<package>/migration.sql`;
+  3. ručno dopuni custom SQL — constrainti, grants, revokes, RLS, politike, funkcije, asercije,
+     komentari;
+  4. ljudski pregled kompletnog generisanog **i** ručno napisanog SQL-a;
+  5. validacija kompletnog lanca na jednokratnoj, ispravno bootstrapovanoj praznoj bazi;
+  6. primjena kroz `prisma migrate deploy`;
+  7. mehanička verifikacija scheme, vlasništva, privilegija i sigurnosnih objekata.
+- Izlaz `migrate diff` je **kandidat, ne istina**.
+- `--from-empty` nije izvor inkrementalnog autorstva; `--from-migrations` zahtijeva shadow bazu.
+- Primjena u svim okruženjima ide kroz `prisma migrate deploy`.
 - Nikada ne mijenjaj migraciju koja je već primijenjena na zajedničkom okruženju.
 - Ne briši migration history.
 - Ne izvršavaj `migrate reset` bez eksplicitnog odobrenja korisnika.
@@ -119,6 +133,12 @@ Ne počinji izmjenu dok plan nije logički konzistentan sa dokumentacijom.
 - Cross-tenant relacije moraju koristiti composite foreign key.
 - Sve tenant tabele imaju `ENABLE ROW LEVEL SECURITY`.
 - Kritične tenant tabele imaju `FORCE ROW LEVEL SECURITY`.
+- Pod `FORCE ROW LEVEL SECURITY` i vlasnik tabele podliježe politikama. Pouzdani seed/migration DML
+  ide **isključivo** kroz maintenance protokol iz `docs/02` §23.4 (D-048): jedna eksplicitna
+  transakcija, `NO FORCE` → asercija → DML → `FORCE` → asercija → `COMMIT`.
+- Zabranjeno: `ALTER TABLE ... DISABLE ROW LEVEL SECURITY`, `BYPASSRLS`, `SECURITY DEFINER`,
+  superuser seed credential, trajna `copilot_migrator` RLS politika.
+- Write grant i RLS politika koja ga ograničava uvode se **zajedno**, u istom migration paketu.
 - Tenant business servis ne pristupa direktno globalnom PrismaServiceu.
 - Koristi `TenantDatabaseService.run(practiceId, userId, callback)`.
 - RLS request context se postavlja unutar iste interactive transakcije.
@@ -335,7 +355,12 @@ git push --force
 docker compose down -v
 ```
 
-Ako je neka od ovih komandi stvarno potrebna u lokalnom developmentu, prvo objasni:
+Dodatno, **`prisma migrate dev --create-only` se ne koristi kao mehanizam autorstva migracija**
+(D-050, §5.1). Nije na listi iznad jer ne uništava podatke, nego zato što zahtijeva shadow bazu
+nespojivu sa guardovima migracije `001`; kanonski tok je `migrate diff` → ručna dopuna → pregled →
+validacija na praznoj bazi → `migrate deploy`.
+
+Ako je neka od komandi iz liste iznad stvarno potrebna u lokalnom developmentu, prvo objasni:
 
 - zašto;
 - koji podaci se gube;
