@@ -9,15 +9,15 @@
 
 | Polje | Vrijednost |
 |---|---|
-| Current phase | Faza 1 — `DONE`; Ecosystem Compatibility Audit `DONE`; Faza 2 — `DONE`; **D-OPEN-011 decision gate — `DONE` (D-047 prihvaćen 2026-08-12)**; **D-047 dokumentaciona rekonsilijacija — `DONE`, merged u kanonski `main` (PR #7)**; **Faza 3 — `IN_PROGRESS`, trenutno `BLOCKED` (§3b)** |
-| Current branch | implementacijski branch `backend/03-identity-practices`; posljednji kanonski `main` = `5d38ba8fe4ee230f602f0cc7ac324b9eb4fadffc` |
+| Current phase | Faza 1 — `DONE`; Ecosystem Compatibility Audit `DONE`; Faza 2 — `DONE`; **D-OPEN-011 decision gate — `DONE` (D-047 prihvaćen 2026-08-12)**; **D-047 dokumentaciona rekonsilijacija — `DONE`, merged u kanonski `main` (PR #7)**; **D-048–D-051 governance gate — `DONE`, merged u kanonski `main` (PR #10)**; **Faza 3 — `IN_PROGRESS`, governance bloker `RESOLVED` (§3b)** |
+| Current branch | implementacijski branch `backend/03-identity-practices`; posljednji kanonski `main` = `65e2552e13520ead86092f75ca3cc75d206b9f35` |
 | Last completed phase | Faza 2 — Database Foundation |
-| Last commit | `c4b89d0` (Phase 2 implementation), merged via `dae9649`; dokumentarno zatvaranje `98910b3`, merged via `d6b5efe`; D-047 rekonsilijacija `76dbc6d` + `dda7538`, merged via `ec7d100` (PR #7); dokumentaciona usklađivanja merged via `2befadc` i `5d38ba8` (PR #8, PR #9). **Faza 3 nema nijedan commit** |
+| Last commit | `c4b89d0` (Phase 2 implementation), merged via `dae9649`; dokumentarno zatvaranje `98910b3`, merged via `d6b5efe`; D-047 rekonsilijacija `76dbc6d` + `dda7538`, merged via `ec7d100` (PR #7); dokumentaciona usklađivanja merged via `2befadc` i `5d38ba8` (PR #8, PR #9); D-048–D-051 rekonsilijacija `b2a99ce`, merged via `65e2552` (PR #10). **Faza 3 nema nijedan commit** |
 | Local environment owner | Nermin Fejzic |
 | Test DB | `copilot_test` @ `localhost:5433` (compose profil `test`) |
 | Documentation version | 1.0 |
-| Last updated | 2026-08-14 |
-| **Faza 3** | **`PHASE 3 IMPLEMENTATION: AUTHORIZED` (od merge-a `ec7d100`); `PHASE 3 STATUS: IN_PROGRESS — BLOCKED`**. Implementacija je započeta na branchu `backend/03-identity-practices` i **zaustavljena na governance blokeru** D-048–D-051 (§3b). Ništa nije commitovano ni pushovano; **nijedna implementacijska stavka §4 nije označena** |
+| Last updated | 2026-08-15 |
+| **Faza 3** | **`PHASE 3 IMPLEMENTATION: AUTHORIZED` (od merge-a `ec7d100`); `PHASE 3 STATUS: IN_PROGRESS — READY TO RESUME`**. Implementacija je započeta na branchu `backend/03-identity-practices` i bila zaustavljena na governance blokeru D-048–D-051; taj bloker je **`RESOLVED`** merge-om PR #10 (`65e2552`, 2026-08-15T00:50:43Z) — vidi §3b. Ništa iz Faze 3 nije commitovano ni pushovano; **nijedna implementacijska stavka §4 nije označena**; implementacijski worktree **još nije sinhronizovan** sa novim kanonskim `main` |
 
 ---
 
@@ -342,13 +342,14 @@ RECONCILIATION:      COMPLETE — COMMITTED, REVIEWED, MERGED (PR #7, ec7d100)
 CANONICAL MAIN:      ec7d1008fcffc2437a66b890a0fef3761730f711 — VERIFIED
 PHASE 3 IMPLEMENTATION: AUTHORIZED
 PHASE 3 STATUS:      NOT_STARTED   # historijski, na dan 2026-08-13
-                                   # SUPERSEDED -> vidi §3b: IN_PROGRESS — BLOCKED
+                                   # SUPERSEDED -> vidi §3b: IN_PROGRESS — READY TO RESUME
 ```
 
 **Ovaj blok je historijski zapis stanja na dan zatvaranja D-047 gatea.** Red
 `PHASE 3 STATUS: NOT_STARTED` **više ne odražava stvarno stanje**; tekući status je
-`IN_PROGRESS — BLOCKED` i vodi se u §3b i §4. Red `PHASE 3 IMPLEMENTATION: AUTHORIZED` ostaje na
-snazi.
+`IN_PROGRESS — READY TO RESUME` i vodi se u §3b i §4. *(Međustanje `IN_PROGRESS — BLOCKED`, koje je
+važilo od 2026-08-14 do merge-a PR #10, takođe je historijsko.)* Red
+`PHASE 3 IMPLEMENTATION: AUTHORIZED` ostaje na snazi.
 
 Uslovi autorizacije su bili: D-047 zabilježen; svi autoritativni dokumenti usklađeni; nezavisan
 governance review prošao; rekonsilijacijski commit merged u kanonski `main`; kanonski `main`
@@ -363,8 +364,8 @@ nakon tog trenutka vidi §3b i §4.)*
 
 # 3b. Governance gate — D-048, D-049, D-050, D-051
 
-Status: **odluke `ACCEPTED` (2026-08-14); dokumentaciona rekonsilijacija u toku — `IN_PROGRESS`,
-nije commitovana, nije reviewovana, nije merged**
+Status: **odluke `ACCEPTED` (2026-08-14); dokumentaciona rekonsilijacija `DONE` — commitovana,
+reviewovana i merged u kanonski `main` (PR #10, merge commit `65e2552`)**
 
 Ovo je governance korak **unutar** Faze 3. **Nije implementacija** i ne označava nijednu stavku
 Faze 3 kao urađenu.
@@ -404,49 +405,65 @@ kada su se pojavila četiri governance pitanja koja dokumentacija nije rješaval
 
 - [x] `AGENTS.md`, `00`, `02`, `03`, `04`, `05`, `06`, `07`, `08`, `10`, `11`, `13`, `MANIFEST.md`.
 - [x] Nijedan aplikacijski, testni, konfiguracioni, Prisma ni migracijski fajl nije dodirnut.
-- [ ] Nezavisan governance review.
-- [ ] Commit, push, PR, normalni merge u `main`.
-- [ ] Verifikacija kanonskog `main` nakon merge-a.
+- [x] Nezavisan governance review — **PASS** (PR #10).
+- [x] Commit, push, PR, normalni merge u `main` — **PR #10 MERGED** (2026-08-15T00:50:43Z);
+      rekonsilijacijski commit `b2a99ce`, merge commit `65e2552`.
+- [x] Verifikacija kanonskog `main` nakon merge-a — **PASS**; `main` = `origin/main` =
+      `65e2552e13520ead86092f75ca3cc75d206b9f35`; MANIFEST integritet 19/19 bez odstupanja.
 
 ## Stanje implementacije Faze 3
 
 - [x] Branch `backend/03-identity-practices` postoji.
 - [x] Prisma schema i migracija `002` **djelimično** autorisane lokalno.
-- [x] Implementacija **zaustavljena** na governance blokeru.
+- [x] Implementacija **zaustavljena** na governance blokeru. *(Historijski; bloker je od merge-a
+      PR #10 `RESOLVED`.)*
 - [x] **Ništa nije commitovano ni pushovano.**
 - [x] **Nijedna tvrdnja o završetku Faze 3 ne postoji.**
 - [ ] Faza 3 nastavljena nakon merge-a ove rekonsilijacije.
 
+Stavka „Faza 3 nastavljena" **ostaje neoznačena**: governance bloker jeste zatvoren, ali
+implementacijski worktree još **nije sinhronizovan** sa novim kanonskim `main` i implementacija
+**nije stvarno nastavljena**. Zatvaranje blokera znači isključivo `READY TO RESUME`, a ne
+`RESUMED`, ne `COMPLETE` i ne autorizaciju Faze 4.
+
 ## Status
 
 ```text
-D-048 STATUS:        ACCEPTED
-D-049 STATUS:        ACCEPTED
-D-050 STATUS:        ACCEPTED
-D-051 STATUS:        ACCEPTED
+D-048 STATUS:        ACCEPTED / CANONICAL
+D-049 STATUS:        ACCEPTED / CANONICAL
+D-050 STATUS:        ACCEPTED / CANONICAL
+D-051 STATUS:        ACCEPTED / CANONICAL
 D-028 klauzula 4:    fazni dio POVUČEN (D-049)
-RECONCILIATION:      IN_PROGRESS — NOT COMMITTED, NOT REVIEWED, NOT MERGED
+RECONCILIATION:      COMPLETE — COMMITTED, REVIEWED, MERGED (PR #10, 65e2552)
+MERGED AT:           2026-08-15T00:50:43Z
+CANONICAL MAIN:      65e2552e13520ead86092f75ca3cc75d206b9f35 — VERIFIED
+GOVERNANCE BLOCKER:  RESOLVED
 PHASE 3 IMPLEMENTATION: AUTHORIZED
-PHASE 3 STATUS:      IN_PROGRESS — BLOCKED
+PHASE 3 STATUS:      IN_PROGRESS — READY TO RESUME
+PHASE 3 COMPLETION:  NOT COMPLETE
+PHASE 4:             NOT AUTHORIZED, NOT STARTED
 ```
 
 **Lokalni neizvršeni rad nije dokaz.** Nijedan checkbox u §4 se ne smije označiti zbog postojanja
-necommitovanog lokalnog rada; za svaku stavku i dalje mora postojati izvršena provjera ili
-konkretan dokaz.
+necommitovanog lokalnog rada niti zbog zatvaranja governance blokera; za svaku stavku i dalje mora
+postojati izvršena provjera ili konkretan dokaz.
 
 ---
 
 # 4. Faza 3 — Identity/practices
 
-Status: `IN_PROGRESS — BLOCKED`
+Status: `IN_PROGRESS — READY TO RESUME`
 
 **Autorizacija: `AUTHORIZED` od merge-a D-047 rekonsilijacije u kanonski `main` (§3a, `ec7d100`).**
-Implementacija je **započeta** na branchu `backend/03-identity-practices` i **zaustavljena na
-governance blokeru** D-048–D-051 (§3b). Rad je lokalan i **necommitovan**.
+Implementacija je **započeta** na branchu `backend/03-identity-practices` i bila **zaustavljena na
+governance blokeru** D-048–D-051 (§3b); taj bloker je **`RESOLVED`** merge-om PR #10 (`65e2552`,
+2026-08-15T00:50:43Z). Rad je i dalje lokalan i **necommitovan**.
 
 **Nijedan checkbox ispod nije označen.** Postojanje lokalnog necommitovanog rada **nije dokaz** i
 ne opravdava označavanje nijedne stavke; svaka i dalje zahtijeva izvršenu provjeru ili konkretan
-dokaz. Nastavak implementacije čeka merge rekonsilijacije iz §3b.
+dokaz. Zatvaranje governance blokera **ne označava nijednu stavku** — ono samo znači da
+implementacija **smije biti nastavljena**; preduslov za nastavak je sinhronizacija implementacijskog
+worktreea sa kanonskim `main` `65e2552`. Faza 3 **nije završena**.
 
 Normativno: D-033, D-038, D-047, **D-048**, **D-049**, **D-050** i **D-051**; `02` §6.3, §6.3a,
 §17.0, §17.2, §17.4, §20.2b, §22.2, §23.2, §23.4 i §26.3; `03` §10; `04` §5.2, §5.2.1 i §5.4.1.
