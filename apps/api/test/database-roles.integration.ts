@@ -173,15 +173,42 @@ describe('database roles — no blanket privileges (02 §3.5, §20)', () => {
     expect(result.rows[0]?.count).toBe('0');
   });
 
-  it('given copilot_system when inspected then it holds no table grant at all', async () => {
+  it('given copilot_system when inspected then it holds exactly the platform_role_assignments read grant', async () => {
     // D-023: platform administration is separated from access to medical data. Phase 2
-    // creates no tenant table yet, so the correct assertion today is "no grants at all";
-    // the per-table matrix of 02 §20.2 is enforced by the packages that create the tables.
-    const result = await migrator.query<{ count: string }>(
-      `select count(*)::text as count from information_schema.role_table_grants
-        where grantee = 'copilot_system'`,
+    // created no tenant table, so the assertion then was "no grants at all". Package 002
+    // grants the single privilege the platform role is entitled to under the 02 §20.2
+    // matrix, and this spec keeps its security-negative purpose by naming that grant
+    // exactly: any additional table, or any write privilege, fails here.
+    const result = await migrator.query<{
+      table_schema: string;
+      table_name: string;
+      privilege_type: string;
+    }>(
+      `select table_schema, table_name, privilege_type
+         from information_schema.role_table_grants
+        where grantee = 'copilot_system'
+        order by table_schema, table_name, privilege_type`,
     );
 
-    expect(result.rows[0]?.count).toBe('0');
+    expect(result.rows).toStrictEqual([
+      { table_schema: 'public', table_name: 'platform_role_assignments', privilege_type: 'SELECT' },
+    ]);
+  });
+
+  it('given copilot_system when inspected then it holds no column grant outside platform_role_assignments', async () => {
+    // A table-level grant is not the only way in: 02 §20.2 gives copilot_app column-level
+    // SELECT on users, practices and practice_settings, so a stray column grant to the
+    // platform role would be invisible to the table-grant spec above and would breach
+    // D-023 all the same.
+    const result = await migrator.query<{ table_name: string; privilege_type: string }>(
+      `select distinct table_name, privilege_type
+         from information_schema.role_column_grants
+        where grantee = 'copilot_system'
+        order by table_name, privilege_type`,
+    );
+
+    expect(result.rows).toStrictEqual([
+      { table_name: 'platform_role_assignments', privilege_type: 'SELECT' },
+    ]);
   });
 });

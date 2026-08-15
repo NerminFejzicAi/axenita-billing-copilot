@@ -16,9 +16,13 @@
   "include": [
     "src/**/*.ts",
     "test/**/*.ts",
+    // The phase 3 seed is TypeScript executed by Node's type stripping (02 §23.2). It is
+    // type checked and linted here, and excluded from the emit by `tsconfig.build.json`.
+    "prisma/**/*.ts",
     "vitest.config.ts",
     "vitest.e2e.config.ts",
     "vitest.integration.config.ts",
+    "vitest.security.config.ts",
     "prisma.config.ts"
   ],
   "exclude": ["node_modules", "dist"]

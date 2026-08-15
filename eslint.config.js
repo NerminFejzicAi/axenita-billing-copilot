@@ -87,7 +87,12 @@ export default tseslint.config(
   // files exist precisely to read the raw environment before any application container is
   // built, so the ConfigService restriction cannot apply to them (00 §8.4 governs runtime).
   {
-    files: ['**/prisma.config.ts', '**/vitest.*.config.ts', '**/vitest.config.ts'],
+    files: [
+      '**/prisma.config.ts',
+      '**/prisma/seed.ts',
+      '**/vitest.*.config.ts',
+      '**/vitest.config.ts',
+    ],
     rules: {
       'no-restricted-syntax': 'off',
     },
