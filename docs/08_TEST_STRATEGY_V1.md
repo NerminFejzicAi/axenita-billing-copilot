@@ -169,6 +169,26 @@ from pg_tables
 where tablename = 'encounters';
 ```
 
+Steady-state `FORCE RLS` se provjerava iz `pg_class`, jer `pg_tables.rowsecurity` ne izlaže
+`FORCE` atribut (D-048; `02` §23.4, §25.1.2):
+
+```sql
+select c.relname, c.relrowsecurity, c.relforcerowsecurity
+from pg_class c
+join pg_namespace n on n.oid = c.relnamespace
+where n.nspname = 'public'
+  and c.relname in (
+    'users','practices','practice_membership_roles','platform_role_assignments'
+  );
+```
+
+**Autorstvo migracije (D-050; `02` §26.3).** Kandidat SQL se generiše kroz
+`prisma migrate diff --from-config-datasource --to-schema=... --script -o ...`, ručno se dopunjuje,
+prolazi ljudski pregled, pa tek onda ulazi u korak 2 iznad. **`prisma migrate dev --create-only`
+se ne koristi** — njegova shadow baza je strukturno nespojiva sa guardovima migracije `001`.
+`prisma db push` ostaje zabranjen. **Nijedan guard migracije `001` se ne smije oslabiti**; test
+koji to učini radi bi "prošao" je sam po sebi defekt.
+
 ## 5.1 Database role verifikacija (D-023)
 
 Vlasnik migracije: **`001_extensions_and_roles`** (`02` §22.1). Ne uvodi se novi paket.
@@ -336,6 +356,13 @@ extracted_facts
 service_candidates
 rule_findings
 ```
+
+**Vlasništvo faze za `practice_settings` (D-049).** Ovaj runtime ugovor — `ETag`, `If-Match`,
+`428`, `409 VERSION_CONFLICT` i atomičan inkrement `version` — testira se u **fazi 4**, zajedno sa
+`GET`/`PATCH /practices/{practiceId}/settings` i tenant RLS-om te tabele. Ranija tvrdnja iz D-028,
+klauzule 4, da optimistic locking počinje u fazi 3, je **povučena**. **Schema dio D-029 se ne
+mijenja**: `version` i `check (version >= 1)` nastaju u paketu `002_identity_and_practices`, faza 3,
+i tamo se i verifikuju introspekcijom (`02` §27). Za preostalih pet resursa ništa se ne mijenja.
 
 ---
 
@@ -897,6 +924,139 @@ izvan tih izvora je sam po sebi defekt.
 
 ---
 
+# 21.6 D-048 i D-051 — `FORCE RLS` steady state i user-scoped RLS u fazi 3
+
+**Normativne odluke: D-048 i D-051.** Nivo: security/RLS integration nad stvarnim PostgreSQL-om.
+**Vlasništvo: paket `002_identity_and_practices`, faza 3.** Normativni izvor za očekivanja:
+`02` §17.0, §17.2, §17.4, §20.4, §23.4, §25.1.2 i §25.1.4.
+
+## 21.6.1 Steady-state `FORCE RLS` (D-048)
+
+Za **svaku** tabelu sa allowliste faze 3 — `users`, `practices`, `practice_membership_roles`,
+`platform_role_assignments`:
+
+- `relrowsecurity = true` **nakon migracije**;
+- `relforcerowsecurity = true` **nakon migracije**;
+- `relrowsecurity = true` **nakon seeda**;
+- `relforcerowsecurity = true` **nakon seeda**.
+
+Ovo je **trajni regresijski test**, ne jednokratna provjera.
+
+## 21.6.2 Maintenance prozor (D-048)
+
+- protokol se izvršava u **jednoj eksplicitnoj transakciji**; autocommit varijanta je odbijena;
+- unutar prozora vrijedi `relrowsecurity = true` i `relforcerowsecurity = false`;
+- pouzdani seed DML unutar prozora **uspijeva**;
+- isti DML **bez** prozora, nad tabelom sa `FORCE RLS`, **pada** — dokaz da prozor rješava stvaran
+  problem, a ne pretpostavljen;
+- neuspjela restore asercija **podiže izuzetak i abortira transakciju**;
+- **prekinut ili neuspio seed ne ostavlja `FORCE` isključenim** — nakon rollbacka obje zastavice su
+  ponovo `true`. Ovo je obavezan test, ne opcioni;
+- pokušaj nad tabelom **izvan allowliste** je odbijen **prije** bilo kakvog `ALTER TABLE`-a;
+- `ALTER TABLE ... DISABLE ROW LEVEL SECURITY` se **ne pojavljuje** ni u jednoj forward migraciji
+  ni seed skripti — statička provjera izvora; rollback skripte su izuzete (`02` §23.4.5);
+- unutar prozora se ne izvršava **nijedan nepovezani sigurnosni DDL**;
+- **nijedna rola nema `BYPASSRLS`**;
+- **nijedna `SECURITY DEFINER` funkcija ne postoji**;
+- **nijedan superuser seed credential** nije konfigurisan;
+- **nijedna trajna `copilot_migrator` RLS politika** ne postoji;
+- mehanizam **nije dohvatljiv** iz request/runtime aplikacijskog koda — statička provjera.
+
+## 21.6.3 `platform_role_assignments` §17.2 u fazi 3 (D-051)
+
+- tabela nosi `ENABLE` **i** `FORCE RLS` **već nakon paketa `002`**;
+- politike `platform_role_assignments_self_select` i `platform_role_assignments_system_select`
+  postoje, **nepromijenjenih imena i tijela**;
+- `copilot_app` vidi **isključivo vlastite** redove;
+- korisnik A **ne čita** platform rolu korisnika B;
+- bez postavljenog `app.user_id` tabela vraća **nula** redova;
+- politika **ne koristi** `app.practice_id` — postavljanje ili nepostavljanje `app.practice_id` ne
+  mijenja rezultat;
+- `copilot_system` vidi **sve** redove;
+- `PUBLIC` nema nijedan pristup;
+- `copilot_app` nema `INSERT`, `UPDATE` ni `DELETE`;
+- **invarijanta D-023, klauzule 11, važi od faze 3** — regresijski test;
+- `platformRoles[]` u `GET /me` sadrži **isključivo** redove sa `revoked_at IS NULL`; opozvana
+  dodjela se **ne** vraća;
+- **nijedan revoke endpoint, permisija ni write grant ne postoji** — negativna provjera.
+
+## 21.6.4 `practice_membership_roles` §17.4 u fazi 3 (D-051)
+
+- tabela nosi `ENABLE` **i** `FORCE RLS` **već nakon paketa `002`**;
+- politika `practice_membership_roles_self_select` postoji, **nepromijenjenog imena i tijela**;
+- politika **radi prije** nego `practice_memberships` dobije §17.3 RLS — ovo je ključna asercija
+  D-051, klauzule 4;
+- ista politika daje **identičan** rezultat i **nakon** što faza 4 uvede §17.3 — regresijski test
+  granice faze 3 prema fazi 4;
+- podupirući `SELECT` grant nad `practice_memberships` je **obavezan**; njegovo ukidanje obara
+  politiku sa **`42501`**;
+- puni funkcionalni ugovor politike ostaje u §24.4, ali sa **vlasništvom faze 3**.
+
+## 21.6.5 Introspekcija vlasništva paketa (D-051, klauzula 6)
+
+- paket `013_rls_policies` **ne sadrži nijedan** `CREATE POLICY`, `ENABLE ROW LEVEL SECURITY` ni
+  `FORCE ROW LEVEL SECURITY` za `platform_role_assignments` i `practice_membership_roles`;
+- politike nakon primjene paketa `013` su **bajtovno iste** kao nakon paketa `002` — dokaz da faza
+  4 ne prepisuje.
+
+---
+
+# 21.7 D-049 — minimalna čitljiva površina `practice_settings` u fazi 3
+
+**Normativna odluka: D-049.** Nivo: security/integration. **Vlasništvo: paket
+`002_identity_and_practices`, faza 3**, osim gdje je izričito navedena faza 4. Normativni izvor:
+`02` §6.4, §20.2b i §25.1.3; `03` §5.1 i §10.
+
+## 21.7.1 Dozvoljena površina
+
+- `SELECT (practice_id, allow_mpa_approval, allow_billing_specialist_approval)` **prolazi**;
+- uslovne permisije u `GET /me` tačne su za **sva četiri** kombinacije oba flaga;
+- `MPA` sa `allow_mpa_approval = true` dobija `analysis.approve`; sa `false` ne dobija;
+- `BILLING_SPECIALIST` sa `allow_billing_specialist_approval = true` dobija `analysis.approve`;
+  sa `false` ne dobija;
+- flag **sam po sebi** ne daje permisiju bez podobne dodijeljene role;
+- neaktivan membership je odbijen i kada je flag uključen.
+
+## 21.7.2 Zabranjena površina
+
+- `SELECT *` → **`42501`**;
+- `SELECT id`, `version`, `updated_at`, `updated_by`, `configuration`, `retention_policy_code`,
+  `billing_review_required`, `require_reason_for_manual_change`, `ai_enabled`,
+  `axenita_export_enabled` → **`42501`**, svaka zasebno;
+- nedozvoljena kolona **isključivo u `WHERE` predikatu** → **`42501`**;
+- nedozvoljena kolona **isključivo u `ORDER BY`** → **`42501`**;
+- `INSERT`, `UPDATE`, `DELETE` → **`42501`**;
+- `copilot_system` bilo kakav pristup → **pada**;
+- `PUBLIC` nema nijedan grant.
+
+## 21.7.3 Odsustvo ruta u fazi 3
+
+- `GET /api/v1/practices/{practiceId}/settings` **nije registrovan** — provjera rute, ne odgovora;
+- `PATCH /api/v1/practices/{practiceId}/settings` **nije registrovan**;
+- OpenAPI izlaz faze 3 **ne sadrži** nijednu settings operaciju;
+- nijedna RLS politika nad `practice_settings` ne postoji nakon paketa `002`.
+
+## 21.7.4 Imenovana izloženost
+
+Test **eksplicitno tvrdi** postojanje izloženosti
+**`PHASE 3 INTERMEDIATE NON-PILOT CONDITIONAL-SETTINGS READ EXPOSURE`**:
+
+- `copilot_app` može pročitati te tri kolone **za svaki** `practice_settings` red, i utvrditi broj
+  redova;
+- test to **potvrđuje kao prihvaćeno međustanje**, jednako kao §21.5.6, da promjena ne bi prošla
+  nezapaženo;
+- **nijedan test ne smije tvrditi** da je ta izloženost zatvorena u fazi 3.
+
+## 21.7.5 Zatvaranje u fazi 4
+
+- nakon `02` §22.13, `copilot_app` vidi **isključivo** `practice_settings` red tekućeg tenanta —
+  regresijski test koji dokazuje da je izloženost zatvorena;
+- `UPDATE` grant postoji **isključivo zajedno** sa tenant politikom koja ga ograničava; grant bez
+  politike **obara phase gate**;
+- optimistic-locking ugovor iz §10 se izvršava **u fazi 4**.
+
+---
+
 # 22. D-034 — Linearni lanac analysis revizija
 
 Normativno: D-034; `02` §10.2.1 i §19.4; `03` §15.3.
@@ -1030,8 +1190,10 @@ Ovaj dokument **ne dodjeljuje permisije konkretnim rolama**.
 Normativno: D-038; `02` §6.3, §6.3a, §17.4, §20.2, §22.2 i §25.10; `03` §3.7, §10 i §28.5;
 `04` §5.2 i §6.4.1; `05` Faze 3 i 4.
 
-Vlasništvo migracija ostaje nepromijenjeno: schema objekti u **`002_identity_and_practices`**,
-RLS politike u **`013_rls_policies`**. Nijedan novi broj paketa se ne uvodi.
+Vlasništvo migracija: schema objekti u **`002_identity_and_practices`**. **Ažurirano odlukom
+D-051 (2026-08-14):** RLS politika nad `practice_membership_roles` (`02` §17.4) je **takođe u
+paketu `002_identity_and_practices` i Fazi 3**, a ne u `013_rls_policies`. `02` §17.3 ostaje u
+`013_rls_policies` i Fazi 4. Nijedan novi broj paketa se ne uvodi.
 
 **Normativni test oracle: `15_ROLE_PERMISSION_MATRIX_V1.md`.**
 
@@ -1129,6 +1291,11 @@ Izvodivo već sada, na schema/domain nivou:
 ## 24.4 RLS self-enumeracija
 
 Nivo: security/RLS integration. Normativno: `02` §17.4.
+
+**Vlasništvo faze: Faza 3, paket `002_identity_and_practices`** (D-051, klauzula 1; `02` §17.0).
+Ranije je ova grupa bila u Fazi 4 i paketu `013_rls_policies`; premješteno je isključivo
+vlasništvo, a sve asercije ispod ostaju **nepromijenjene**. Politika **ne zahtijeva** §17.3 da bi
+radila (§21.6.4).
 
 - RLS je **enabled** na `practice_membership_roles`;
 - RLS je **forced**;
@@ -1768,6 +1935,11 @@ očekivani status/kod, obaveznu audit asertaciju i da li blokira završetak faze
 |---|---|---|---|---|
 | §21.1–21.4 D-033 bootstrap | security/integration/e2e | Faza 4 | `013_rls_policies` | **da** |
 | §21.5 `users`/`practices` access model (D-047) | security | Faza 3 (§21.5.6 i §21.5.7 dijelom Faza 4) | `002_identity_and_practices` | **da** |
+| §21.6.1–21.6.2 `FORCE RLS` steady state i maintenance prozor (D-048) | security/integration | Faza 3 | `002_identity_and_practices` | **da** |
+| §21.6.3–21.6.5 §17.2 i §17.4 u fazi 3 (D-051) | security/integration | Faza 3 (§21.6.4 regresija dijelom Faza 4) | `002_identity_and_practices` | **da** |
+| §21.7.1–21.7.4 minimalna površina `practice_settings` (D-049) | security/integration | Faza 3 | `002_identity_and_practices` | **da** |
+| §21.7.5 zatvaranje izloženosti i `UPDATE` grant (D-049) | security/integration | Faza 4 | `013_rls_policies` | **da** |
+| §10 optimistic locking — `practice_settings` (D-049) | contract + e2e | **Faza 4** | `013_rls_policies` | **da** |
 | §22.1 constraint | integration | Faza 7 | `005_ai_prompts_and_analysis` | **da** |
 | §22.2 concurrency | integration | Faza 7 | `005_ai_prompts_and_analysis` | **da** |
 | §22.1 immutability trigger | integration | Faza 7 | `014_immutability_triggers` | **da** |
@@ -1781,7 +1953,8 @@ očekivani status/kod, obaveznu audit asertaciju i da li blokira završetak faze
 | §24.1 D-038 schema constrainti | integration | Faza 3 | `002_identity_and_practices` | **da** |
 | §24.2 D-038 životni ciklus | integration | Faza 3 | `002_identity_and_practices` | **da** |
 | §24.3 D-038 audit | schema/domain | Faza 3 | `002_identity_and_practices` | **BLOCKED** za administracijski put |
-| §24.4–24.6 D-038 RLS, bootstrap i redoslijed | security/integration/e2e | Faza 4 | `013_rls_policies` | **da** |
+| §24.4 D-038 RLS self-enumeracija — **premješteno odlukom D-051** | security/RLS integration | **Faza 3** | **`002_identity_and_practices`** | **da** |
+| §24.5–24.6 D-038 bootstrap i redoslijed | security/integration/e2e | Faza 4 | `013_rls_policies` | **da** |
 | §24.7 D-038 `GET /me` ugovor | contract + e2e | Faza 3 | `002_identity_and_practices` | **da** |
 | §24.8–24.11 D-038 kompozicija, uslovi, injekcija i klase rola | unit/integration/security/e2e | Faza 4 | `013_rls_policies` | **da** |
 | §24.13 konformnost produkcijske matrice | unit + contract | Faza 3 | `002_identity_and_practices` | **da** |
@@ -1798,6 +1971,17 @@ očekivani status/kod, obaveznu audit asertaciju i da li blokira završetak faze
 
 Vlasništvo migration paketa preuzeto je iz `02` §22 i `04`. **Nijedan novi broj paketa se ne
 uvodi.**
+
+**Premještanja vlasništva, ne brisanja (D-049, D-051).** Nijedna test grupa nije uklonjena ni
+oslabljena ovom rekonsilijacijom. Eksplicitno premješteno:
+
+| Test grupa | Ranije | Sada |
+|---|---|---|
+| §24.4 RLS self-enumeracija (`practice_membership_roles`) | Faza 4 / `013_rls_policies` | **Faza 3 / `002_identity_and_practices`** |
+| §17.2 asercije nad `platform_role_assignments` (`02` §20.4) | Faza 4 / `013_rls_policies` | **Faza 3 / `002_identity_and_practices`** |
+| §10 optimistic locking — `practice_settings` | Faza 3 (D-028 klauzula 4) | **Faza 4 / `013_rls_policies`** |
+
+Novo dodano, bez ijednog brisanja: §21.6 (D-048, D-051) i §21.7 (D-049).
 
 ## 26.2 Uslovi pada phase gatea
 
@@ -1872,6 +2056,33 @@ Faza 3 ili Faza 4 **mora pasti** i kada, prema §24.13–§24.19:
 - bude uvedena treća `users` politika bez prihvaćenog ADR-a (`13` §19);
 - permisija endpointa ili podobnost role odstupi od `03` ili `15`.
 
+Faza 3 ili Faza 4 **mora pasti** i kada, prema §21.6 i §21.7 (D-048, D-049, D-051):
+
+- bilo koja tabela sa allowliste faze 3 nema `relrowsecurity = true` ili
+  `relforcerowsecurity = true` nakon migracije ili nakon seeda;
+- seed upisuje u `FORCE RLS` tabelu **izvan** protokola iz `02` §23.4;
+- `ALTER TABLE ... DISABLE ROW LEVEL SECURITY` se pojavi u forward migraciji ili seedu;
+- prekinut ili neuspio seed ostavi `FORCE` isključenim;
+- bude uvedena `BYPASSRLS` rola, `SECURITY DEFINER` funkcija, superuser seed credential ili trajna
+  `copilot_migrator` RLS politika;
+- maintenance mehanizam postane dohvatljiv iz request/runtime putanje;
+- allowlist bude proširen bez prihvaćene odluke ili eksplicitne klauzule paketa;
+- `platform_role_assignments` ili `practice_membership_roles` nemaju `ENABLE` + `FORCE RLS` nakon
+  paketa `002`;
+- ime ili tijelo bilo koje politike iz `02` §17.2 ili §17.4 bude promijenjeno;
+- paket `013_rls_policies` rekreira, zamijeni ili prepiše te politike;
+- politika §17.4 prestane raditi bez §17.3, ili dâ različit rezultat prije i nakon §17.3;
+- `platformRoles[]` uključi dodjelu sa `revoked_at IS NOT NULL`;
+- `practice_settings` u fazi 3 dobije table-level `SELECT` ili bilo koji upisni grant;
+- bilo koja settings ruta bude registrovana u fazi 3;
+- nedozvoljena `practice_settings` kolona bude čitljiva, uključujući upotrebu samo u `WHERE` ili
+  `ORDER BY`;
+- `practice_settings` `UPDATE` grant u fazi 4 postoji **bez** pripadajuće tenant RLS politike;
+- izloženost `PHASE 3 INTERMEDIATE NON-PILOT CONDITIONAL-SETTINGS READ EXPOSURE` bude
+  neopravdano tvrđena kao zatvorena u fazi 3, ili ne bude zatvorena u fazi 4;
+- migracija bude autorisana kroz `prisma migrate dev --create-only` ili `prisma db push`, ili
+  bilo koji guard migracije `001` bude oslabljen (D-050).
+
 Testovi iz **§21.5 su obavezan izvršiv ugovor** (D-047) i **nikada se tiho ne izostavljaju**.
 Suite koji ih preskoči bez oznake tretira se kao neuspio gate. Test koji tvrdi da dijeljeni
 `copilot_app` credential dokazuje identitet krajnjeg korisnika je **sam po sebi defekt**
@@ -1879,6 +2090,11 @@ Suite koji ih preskoči bez oznake tretira se kao neuspio gate. Test koji tvrdi 
 
 Isto važi za testove role administration audita (§24.19) i za operacije klasifikovane kao
 `OUT OF V1` ili `REQUIRES NEW PERMISSION AND ADR` (§24.12).
+
+Testovi iz **§21.6 i §21.7 su takođe obavezan izvršiv ugovor** (D-048, D-049, D-051) i nikada se
+tiho ne izostavljaju. Test koji tvrdi da je izloženost
+`PHASE 3 INTERMEDIATE NON-PILOT CONDITIONAL-SETTINGS READ EXPOSURE` zatvorena u fazi 3 je **sam po
+sebi defekt** (§21.7.4).
 
 ## 26.3 Status rekonsilijacije role-permission modela
 

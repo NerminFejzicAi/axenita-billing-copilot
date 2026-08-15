@@ -249,11 +249,16 @@ Nove role se uvode samo kroz Decision Log.
 ## 6.2 Migracije
 
 - Svaka schema promjena je migracija.
-- Development koristi `migrate dev`.
-- Staging/production koristi `migrate deploy`.
+- **Autorstvo migracije prati kanonski tok iz D-050** (`02` §26.3, `10` §7.1): `prisma migrate
+  diff` kao kandidat → ručna dopuna custom SQL-a → ljudski pregled → validacija na jednokratnoj
+  praznoj bazi → primjena.
+- `prisma migrate dev --create-only` **nije** kanonski mehanizam autorstva; njegova shadow baza je
+  strukturno nespojiva sa guardovima migracije `001`.
+- **Nijedan guard migracije `001` se ne smije oslabiti** radi Prisma shadow baze.
+- Development, staging i production primjenjuju kroz `migrate deploy`.
 - `db push` je zabranjen.
 - Primijenjena migracija se ne mijenja.
-- Custom SQL se dodaje u `--create-only` migraciju.
+- Custom SQL se ručno dopunjuje u `migration.sql` fajlu paketa.
 - Svaka migracija mora imati test na praznoj bazi.
 - Destruktivna migracija mora imati poseban rollout plan.
 - Rename se radi expand/migrate/contract pristupom.
@@ -296,6 +301,11 @@ Kritične tabele:
 ```sql
 force row level security
 ```
+
+Pod `force row level security` i **vlasnik tabele** podliježe politikama, pa pouzdani seed/migration
+DML ide isključivo kroz maintenance protokol iz `02` §23.4 (D-048): jedna eksplicitna transakcija,
+`no force` → asercija → DML → `force` → asercija → `commit`. **`disable row level security`,
+`BYPASSRLS`, `SECURITY DEFINER` i superuser seed credential su zabranjeni.**
 
 Bez postavljenog contexta politika je default-deny.
 

@@ -9,15 +9,15 @@
 
 | Polje | Vrijednost |
 |---|---|
-| Current phase | Faza 1 — `DONE`; Ecosystem Compatibility Audit `DONE`; Faza 2 — `DONE`; **D-OPEN-011 decision gate — `DONE` (D-047 prihvaćen 2026-08-12)**; **D-047 dokumentaciona rekonsilijacija — `DONE`, merged u kanonski `main` (PR #7)** |
-| Current branch | kanonski `main` = `ec7d1008fcffc2437a66b890a0fef3761730f711` |
+| Current phase | Faza 1 — `DONE`; Ecosystem Compatibility Audit `DONE`; Faza 2 — `DONE`; **D-OPEN-011 decision gate — `DONE` (D-047 prihvaćen 2026-08-12)**; **D-047 dokumentaciona rekonsilijacija — `DONE`, merged u kanonski `main` (PR #7)**; **Faza 3 — `IN_PROGRESS`, trenutno `BLOCKED` (§3b)** |
+| Current branch | implementacijski branch `backend/03-identity-practices`; posljednji kanonski `main` = `5d38ba8fe4ee230f602f0cc7ac324b9eb4fadffc` |
 | Last completed phase | Faza 2 — Database Foundation |
-| Last commit | `c4b89d0` (Phase 2 implementation), merged via `dae9649`; dokumentarno zatvaranje `98910b3`, merged via `d6b5efe`; D-047 rekonsilijacija `76dbc6d` + `dda7538`, merged via `ec7d100` (PR #7) |
+| Last commit | `c4b89d0` (Phase 2 implementation), merged via `dae9649`; dokumentarno zatvaranje `98910b3`, merged via `d6b5efe`; D-047 rekonsilijacija `76dbc6d` + `dda7538`, merged via `ec7d100` (PR #7); dokumentaciona usklađivanja merged via `2befadc` i `5d38ba8` (PR #8, PR #9). **Faza 3 nema nijedan commit** |
 | Local environment owner | Nermin Fejzic |
 | Test DB | `copilot_test` @ `localhost:5433` (compose profil `test`) |
 | Documentation version | 1.0 |
-| Last updated | 2026-08-13 |
-| **Faza 3** | **`PHASE 3 IMPLEMENTATION: AUTHORIZED` (od merge-a `ec7d100`) — a `PHASE 3 STATUS: NOT_STARTED`; autorizovana ≠ započeta** |
+| Last updated | 2026-08-14 |
+| **Faza 3** | **`PHASE 3 IMPLEMENTATION: AUTHORIZED` (od merge-a `ec7d100`); `PHASE 3 STATUS: IN_PROGRESS — BLOCKED`**. Implementacija je započeta na branchu `backend/03-identity-practices` i **zaustavljena na governance blokeru** D-048–D-051 (§3b). Ništa nije commitovano ni pushovano; **nijedna implementacijska stavka §4 nije označena** |
 
 ---
 
@@ -341,30 +341,115 @@ D-OPEN-011 STATUS:   SUPERSEDED BY D-047
 RECONCILIATION:      COMPLETE — COMMITTED, REVIEWED, MERGED (PR #7, ec7d100)
 CANONICAL MAIN:      ec7d1008fcffc2437a66b890a0fef3761730f711 — VERIFIED
 PHASE 3 IMPLEMENTATION: AUTHORIZED
-PHASE 3 STATUS:      NOT_STARTED
+PHASE 3 STATUS:      NOT_STARTED   # historijski, na dan 2026-08-13
+                                   # SUPERSEDED -> vidi §3b: IN_PROGRESS — BLOCKED
 ```
+
+**Ovaj blok je historijski zapis stanja na dan zatvaranja D-047 gatea.** Red
+`PHASE 3 STATUS: NOT_STARTED` **više ne odražava stvarno stanje**; tekući status je
+`IN_PROGRESS — BLOCKED` i vodi se u §3b i §4. Red `PHASE 3 IMPLEMENTATION: AUTHORIZED` ostaje na
+snazi.
 
 Uslovi autorizacije su bili: D-047 zabilježen; svi autoritativni dokumenti usklađeni; nezavisan
 governance review prošao; rekonsilijacijski commit merged u kanonski `main`; kanonski `main`
 verifikovan; D-OPEN-011 formalno superseded. **Svi su ispunjeni**, pa je Faza 3 autorizovana.
 
-**`PHASE 3 AUTHORIZED` nije `PHASE 3 STARTED`.** Nijedan Faza 3 artefakt još ne postoji — nema
-Prisma modela, nema paketa `002`, nema koda, testova ni seeda — i nijedan checkbox u §4 nije
-označen. Autorizacija dozvoljava da implementacija počne u zasebnom, eksplicitnom promptu; ona je
-ne pokreće.
+**`PHASE 3 AUTHORIZED` nije `PHASE 3 STARTED`.** U trenutku pisanja §3a nijedan Faza 3 artefakt
+nije postojao, i nijedan checkbox u §4 nije bio označen. Autorizacija dozvoljava da implementacija
+počne u zasebnom, eksplicitnom promptu; ona je ne pokreće. *(Za stvarno stanje implementacije
+nakon tog trenutka vidi §3b i §4.)*
+
+---
+
+# 3b. Governance gate — D-048, D-049, D-050, D-051
+
+Status: **odluke `ACCEPTED` (2026-08-14); dokumentaciona rekonsilijacija u toku — `IN_PROGRESS`,
+nije commitovana, nije reviewovana, nije merged**
+
+Ovo je governance korak **unutar** Faze 3. **Nije implementacija** i ne označava nijednu stavku
+Faze 3 kao urađenu.
+
+## Zašto postoji
+
+Implementacija Faze 3 je **započeta** na branchu `backend/03-identity-practices` i **zaustavljena**
+kada su se pojavila četiri governance pitanja koja dokumentacija nije rješavala:
+
+1. tabela pod `FORCE ROW LEVEL SECURITY` odbija i pouzdani seed DML vlasnika tabele → **D-048**;
+2. `practice_settings` runtime put nije izvodiv u fazi bez tenant RLS-a, a `GET /me` ipak treba dva
+   uslovna flaga → **D-049**;
+3. `prisma migrate dev --create-only` zahtijeva shadow bazu nespojivu sa guardovima migracije
+   `001` → **D-050**;
+4. `02` §17.2 i §17.4 su bili u fazi 4, iako `GET /me` faze 3 te tabele stvarno čita → **D-051**.
+
+## Odluke
+
+- [x] Vlasnik prihvatio **D-048 — Protokol održavanja `FORCE RLS` pri pouzdanom seedu i
+      migraciji**, 2026-08-14.
+- [x] Vlasnik prihvatio **D-049 — Vlasništvo faza za `practice_settings` i minimalno čitanje u
+      fazi 3**, 2026-08-14.
+- [x] Vlasnik prihvatio **D-050 — Kanonski workflow autorstva Prisma migracija**, 2026-08-14.
+- [x] Vlasnik prihvatio **D-051 — Premještanje user-scoped RLS-a u paket `002` i fazu 3**,
+      2026-08-14.
+- [x] Sve četiri zabilježene u `06_DECISION_LOG.md` kao **četiri zasebne** odluke sa statusom
+      `ACCEPTED`; nijedna nije spojena sa drugom.
+- [x] D-048 zabilježen kao **amandman na D-047, klauzulu 15**.
+- [x] D-049 zabilježen kao **supersede/amandman faznog dijela D-028, klauzule 4**.
+- [x] D-051 zabilježen kao **amandman na D-047, klauzule 16 i 18**.
+- [x] Historijski tekst D-023, D-028, D-029 i D-047 **nije prepisan**; dodane su isključivo
+      eksplicitne amandmanske reference izvan immutable tijela.
+- [x] Nijedna nova permisija, rola, endpoint, tabela ni migration paket nisu uvedeni.
+- [x] Katalog ostaje **32 aktivne + 3 rezervisane** permisije; `15` ostaje nepromijenjen.
+
+## Rekonsilijacija dokumentacije
+
+- [x] `AGENTS.md`, `00`, `02`, `03`, `04`, `05`, `06`, `07`, `08`, `10`, `11`, `13`, `MANIFEST.md`.
+- [x] Nijedan aplikacijski, testni, konfiguracioni, Prisma ni migracijski fajl nije dodirnut.
+- [ ] Nezavisan governance review.
+- [ ] Commit, push, PR, normalni merge u `main`.
+- [ ] Verifikacija kanonskog `main` nakon merge-a.
+
+## Stanje implementacije Faze 3
+
+- [x] Branch `backend/03-identity-practices` postoji.
+- [x] Prisma schema i migracija `002` **djelimično** autorisane lokalno.
+- [x] Implementacija **zaustavljena** na governance blokeru.
+- [x] **Ništa nije commitovano ni pushovano.**
+- [x] **Nijedna tvrdnja o završetku Faze 3 ne postoji.**
+- [ ] Faza 3 nastavljena nakon merge-a ove rekonsilijacije.
+
+## Status
+
+```text
+D-048 STATUS:        ACCEPTED
+D-049 STATUS:        ACCEPTED
+D-050 STATUS:        ACCEPTED
+D-051 STATUS:        ACCEPTED
+D-028 klauzula 4:    fazni dio POVUČEN (D-049)
+RECONCILIATION:      IN_PROGRESS — NOT COMMITTED, NOT REVIEWED, NOT MERGED
+PHASE 3 IMPLEMENTATION: AUTHORIZED
+PHASE 3 STATUS:      IN_PROGRESS — BLOCKED
+```
+
+**Lokalni neizvršeni rad nije dokaz.** Nijedan checkbox u §4 se ne smije označiti zbog postojanja
+necommitovanog lokalnog rada; za svaku stavku i dalje mora postojati izvršena provjera ili
+konkretan dokaz.
 
 ---
 
 # 4. Faza 3 — Identity/practices
 
-Status: `NOT_STARTED`
+Status: `IN_PROGRESS — BLOCKED`
 
 **Autorizacija: `AUTHORIZED` od merge-a D-047 rekonsilijacije u kanonski `main` (§3a, `ec7d100`).**
-Autorizacija je **dozvola da implementacija počne**, a ne dokaz da je počela: status faze ostaje
-`NOT_STARTED`. Nijedan checkbox ispod nije označen i nijedan se ne smije označiti prije nego što
-Faza 3 stvarno počne i za svaku stavku postoji izvršena provjera ili konkretan dokaz.
+Implementacija je **započeta** na branchu `backend/03-identity-practices` i **zaustavljena na
+governance blokeru** D-048–D-051 (§3b). Rad je lokalan i **necommitovan**.
 
-Normativno: D-033 i D-038; `02` §6.3, §6.3a, §22.2 i §23.2; `03` §10; `04` §5.2, §5.2.1 i §5.4.1.
+**Nijedan checkbox ispod nije označen.** Postojanje lokalnog necommitovanog rada **nije dokaz** i
+ne opravdava označavanje nijedne stavke; svaka i dalje zahtijeva izvršenu provjeru ili konkretan
+dokaz. Nastavak implementacije čeka merge rekonsilijacije iz §3b.
+
+Normativno: D-033, D-038, D-047, **D-048**, **D-049**, **D-050** i **D-051**; `02` §6.3, §6.3a,
+§17.0, §17.2, §17.4, §20.2b, §22.2, §23.2, §23.4 i §26.3; `03` §10; `04` §5.2, §5.2.1 i §5.4.1.
 
 Vlasnik migration paketa za sve schema stavke ove faze: **`002_identity_and_practices`**. Ne uvodi
 se novi broj paketa.
@@ -443,8 +528,9 @@ Normativno: D-038, klauzule 25–33; `02` §6.3a.
 - [ ] **eksplicitni `practice_membership_roles` redovi za svaki seed membership.**
 - [ ] **najmanje jedan aktivan membership sa nula dodijeljenih rola** za negativne testove.
 - [ ] seed se **ne oslanja** na singularnu `role` kolonu.
-- [ ] settings.
+- [ ] practice settings red, uz oba approval flaga na `false`.
 - [ ] seed idempotent.
+- [ ] **svaki upis u tabelu sa `FORCE RLS` ide kroz maintenance protokol iz `02` §23.4** (D-048).
 
 ## API
 
@@ -452,7 +538,10 @@ Normativno: D-038, klauzule 25–33; `02` §6.3a.
 - [ ] user resolution.
 - [ ] `/me` vraća `memberships` i `platformRoles` kao dva odvojena bloka.
 - [ ] `platformRoles` se ne pretvaraju u tenant membershipe.
-- [ ] `practice_memberships` bez RLS-a u ovoj fazi — bootstrap politika pripada Fazi 4 (D-033).
+- [ ] `practice_memberships` bez RLS-a u ovoj fazi — bootstrap politika pripada Fazi 4 (D-033;
+      `02` §17.3). **`practice_membership_roles` i `platform_role_assignments`, međutim, dobijaju
+      svoju RLS već u ovoj fazi** (D-051; `02` §17.2, §17.4).
+- [ ] **Nijedna settings ruta nije registrovana u ovoj fazi** (D-049).
 - [ ] **effective-permission resolver postoji** i konzumira **prihvaćenu** matricu iz `15`; **ne hard-koduje** nijedan grant izvan nje (`04` §5.3, aktivnost 6).
 - [ ] inactive user test.
 - [ ] inactive membership test.
@@ -516,6 +605,99 @@ Normativno: D-047; `02` §16.2.1, §16.2.4, §17.5, §17.6, §20.2a, §22.2. Ran
 - [ ] **Treća `users` politika nije kreirana** — pristup redu drugog korisnika ostaje
       `DENY / NOT IMPLEMENTED`; gate `BEFORE PHASE 5 CO-MEMBER DISPLAY NAME ACCESS` (`13` §19).
 - [ ] Negativni testovi iz `02` §25.1.1 i `08` §21.5 prolaze.
+
+## RLS za `platform_role_assignments` i `practice_membership_roles` — D-051
+
+Paket: **`002_identity_and_practices`**, Faza 3. Normativno: `02` §17.0, §17.2, §17.4, §22.2;
+D-051, klauzule 1–6; D-023, klauzula 11.
+
+- [ ] `platform_role_assignments` ima `ENABLE ROW LEVEL SECURITY`.
+- [ ] `platform_role_assignments` ima `FORCE ROW LEVEL SECURITY`.
+- [ ] Politika `platform_role_assignments_self_select` postoji, **nepromijenjenog imena i tijela**.
+- [ ] Politika `platform_role_assignments_system_select` postoji, **nepromijenjenog imena i tijela**.
+- [ ] Self politika zavisi **isključivo** od `app.user_id`; **ne koristi** `app.practice_id`,
+      `set_request_context`, `PracticeContextGuard` ni `TenantDatabaseService`.
+- [ ] `copilot_system` ima `SELECT` + `USING (true)`; `PUBLIC` nema pristup.
+- [ ] **`copilot_app` NEMA neograničen `SELECT` nad `platform_role_assignments`** — invarijanta
+      D-023, klauzule 11, važi **od ove faze**.
+- [ ] `practice_membership_roles` ima `ENABLE ROW LEVEL SECURITY`.
+- [ ] `practice_membership_roles` ima `FORCE ROW LEVEL SECURITY`.
+- [ ] Politika `practice_membership_roles_self_select` postoji, **nepromijenjenog imena i tijela**.
+- [ ] Politika koristi `EXISTS` nad `practice_memberships` uz `pm.user_id = app.user_id`.
+- [ ] Politika radi **bez** §17.3 RLS-a nad `practice_memberships`.
+- [ ] Podupirući `SELECT` grant nad `practice_memberships` postoji; njegovo ukidanje obara politiku
+      sa `42501`.
+- [ ] Bez postavljenog `app.user_id` obje tabele vraćaju **nula** redova.
+- [ ] `copilot_system` **nema nijedan** pristup `practice_membership_roles`.
+- [ ] **Nijedna od tih politika nije kreirana u paketu `013`** — paket `002` je konačni vlasnik.
+- [ ] `platformRoles[]` u `GET /me` sadrži isključivo dodjele sa `revoked_at IS NULL`.
+- [ ] **Nijedan revoke endpoint, permisija ni write grant nije uveden.**
+- [ ] `02` §17.3 **nije** premješten u ovu fazu.
+
+## `practice_settings` u Fazi 3 — D-049
+
+Normativno: `02` §6.4, §20.2b; `03` §5.1 i §10; D-049, klauzule 1–4 i 7.
+
+- [ ] Paket `002` kreira **kompletnu** prihvaćenu `practice_settings` schemu.
+- [ ] `version` i `check (version >= 1)` postoje (D-029, nepromijenjeno).
+- [ ] `updated_by` postoji.
+- [ ] **Oba** approval flaga postoje, sa defaultom `false`.
+- [ ] `copilot_app` ima **tačno** `SELECT (practice_id, allow_mpa_approval,
+      allow_billing_specialist_approval)`.
+- [ ] **Nema table-level `SELECT`** nad `practice_settings`.
+- [ ] `SELECT *` pada sa `42501`.
+- [ ] Svaka nedozvoljena kolona pada sa `42501`, **i kada se koristi samo u `WHERE`**.
+- [ ] Svaka nedozvoljena kolona pada sa `42501`, **i kada se koristi samo u `ORDER BY`**.
+- [ ] `INSERT`, `UPDATE` i `DELETE` padaju sa `42501`.
+- [ ] `copilot_system` nema nijedan grant; `PUBLIC` nema nijedan grant.
+- [ ] **`GET /api/v1/practices/{practiceId}/settings` NIJE registrovan.**
+- [ ] **`PATCH /api/v1/practices/{practiceId}/settings` NIJE registrovan.**
+- [ ] **Nijedna RLS politika nad `practice_settings`** nije kreirana u paketu `002`.
+- [ ] Uslovne permisije u `GET /me` tačne su za **oba** stanja **oba** flaga.
+- [ ] Izloženost `PHASE 3 INTERMEDIATE NON-PILOT CONDITIONAL-SETTINGS READ EXPOSURE` je
+      **eksplicitno dokumentovana i testom potvrđena**, ne umanjena.
+
+## `FORCE RLS` maintenance protokol — D-048
+
+Normativno: `02` §20.4, §23.4 i §25.1.2; D-048, klauzule 1–6.
+
+- [ ] Allowlist faze 3 je **tačno**: `users`, `practices`, `practice_membership_roles`,
+      `platform_role_assignments`.
+- [ ] `practice_memberships` i `practice_settings` **nisu** na allowlisti.
+- [ ] Seed DML nad allowlistanom tabelom ide **isključivo** kroz protokol iz `02` §23.4.
+- [ ] Protokol se izvršava u **jednoj eksplicitnoj transakciji**; autocommit nije korišten.
+- [ ] Koristi se `NO FORCE ROW LEVEL SECURITY`, **nikada** `DISABLE ROW LEVEL SECURITY`.
+- [ ] RLS ostaje `ENABLED` kroz cijeli prozor.
+- [ ] Asercija prije DML-a: `relrowsecurity = true`, `relforcerowsecurity = false`.
+- [ ] Asercija prije `COMMIT`-a: `relrowsecurity = true`, `relforcerowsecurity = true`.
+- [ ] Neuspjela restore asercija **podiže izuzetak i abortira transakciju**.
+- [ ] **Prekinut ili neuspio seed ne ostavlja `FORCE` isključenim** — dokazano testom.
+- [ ] Unutar prozora se ne izvršava nijedan nepovezani sigurnosni DDL.
+- [ ] Nijedna rola nema `BYPASSRLS`.
+- [ ] Nijedna `SECURITY DEFINER` funkcija nije uvedena.
+- [ ] Nijedan superuser seed credential nije uveden.
+- [ ] Nijedna trajna `copilot_migrator` RLS politika nije kreirana.
+- [ ] Mehanizam **nije dohvatljiv** iz request/runtime aplikacijskih putanja.
+- [ ] Steady-state `relrowsecurity = true` i `relforcerowsecurity = true` provjereni **nakon
+      migracije i nakon seeda**, kao trajni regresijski test.
+
+## Autorstvo migracije — D-050
+
+Normativno: `02` §26.3; `10` §7; D-050, klauzule 1–4.
+
+- [ ] Migracija `002` autorisana je kroz `prisma migrate diff --from-config-datasource
+      --to-schema=prisma/schema.prisma --script -o ...`.
+- [ ] **`prisma migrate dev --create-only` nije korišten.**
+- [ ] **`prisma db push` nije korišten.**
+- [ ] Custom SQL — constrainti, grants, revokes, RLS, politike, funkcije, asercije, komentari — je
+      ručno dopunjen.
+- [ ] Kompletan generisani **i** ručno napisani SQL je prošao ljudski pregled.
+- [ ] Kompletan migration lanac validiran je na **jednokratnoj, ispravno bootstrapovanoj praznoj
+      bazi**.
+- [ ] Primjena je izvršena kroz `prisma migrate deploy`.
+- [ ] Schema, vlasništvo, privilegije i sigurnosni objekti su **mehanički verifikovani**.
+- [ ] **Nijedan guard migracije `001` nije oslabljen.**
+- [ ] Očekivani `migrate diff` drift iz `02` §26.2 nije "ispravljen".
 
 ## Role matrica — prihvaćena
 
@@ -581,11 +763,16 @@ GET /me response sample:
 
 Status: `NOT_STARTED`
 
-Normativno: D-033 i D-038; `02` §16.2, §17.3, §17.4, §20.2 i §22.13; `03` §3.7 i §28.5;
-`04` §6.2, §6.4.1 i §6.4.2; `07` Faza 4.
+Normativno: D-033, D-038, **D-049** i **D-051**; `02` §16.2, §17.0, §17.3, §18.1, §20.2, §20.2b i
+§22.13; `03` §3.7, §5, §10 i §28.5; `04` §6.2, §6.4.1 i §6.4.2; `07` Faza 4.
 
-Vlasnik migration paketa za sve RLS stavke ove faze: **`013_rls_policies`**. Schema objekti ostaju
-u `002_identity_and_practices` (Faza 3). Ne uvodi se novi broj paketa.
+Vlasnik migration paketa za preostale RLS stavke ove faze: **`013_rls_policies`**. Schema objekti
+ostaju u `002_identity_and_practices` (Faza 3). Ne uvodi se novi broj paketa.
+
+**Sužen obuhvat nakon D-051.** `02` §17.2 i §17.4 **više nisu u ovoj fazi** — konačni su u paketu
+`002` i Fazi 3. Ova faza zadržava `02` §17.3, `practice_settings` RLS i runtime put (D-049),
+`set_request_context`, uspostavu `app.practice_id`, `PracticeContextGuard`, `TenantDatabaseService`
+i preostale tenant tabele (`02` §17.0).
 
 ## Schema i funkcije
 
@@ -623,25 +810,43 @@ u `002_identity_and_practices` (Faza 3). Ne uvodi se novi broj paketa.
 - [ ] **Aktivan membership sa nula rola SMIJE uspostaviti tenant context.**
 - [ ] Takav membership dobija **`403`** na svakoj permission-gated tenant ruti.
 
-## RLS za `practice_membership_roles`
+## RLS za `practice_membership_roles` i `platform_role_assignments` — premješteno u Fazu 3
 
-Paket: `013_rls_policies`. Normativno: `02` §17.4; D-038, klauzule 22–23.
+**Ažurirano odlukom D-051 (2026-08-14).** Ovi artefakti **više ne pripadaju ovoj fazi**. Paket
+`002_identity_and_practices` i Faza 3 su njihov **konačni vlasnik** (`02` §17.0, §17.2, §17.4,
+§22.2; §4 ovog dokumenta). Puna verifikaciona lista je u §4.
+
+- [ ] Paket `013_rls_policies` **ne sadrži nijedan** `CREATE POLICY`, `ENABLE ROW LEVEL SECURITY`
+      ni `FORCE ROW LEVEL SECURITY` za `practice_membership_roles` i `platform_role_assignments`.
+- [ ] Politike iz `02` §17.2 i §17.4 **nisu prepisane, oslabljene ni zamijenjene** u ovoj fazi.
+- [ ] Faza 4 ih smije **verifikovati i koristiti**, ali ne rekreirati.
+- [ ] Ove politike **nisu** riješile D-OPEN-011 i ne tumače se tako; access model je riješen
+      odlukom **D-047** kroz `02` §17.5 i §17.6, već u Fazi 3.
+
+## RLS i runtime put za `practice_settings` — D-049
+
+Paket: `013_rls_policies`. Normativno: `02` §6.4, §18.1, §20.2b i §22.13; `03` §5 i §10;
+D-049, klauzula 5.
 
 - [ ] `ENABLE ROW LEVEL SECURITY`.
 - [ ] `FORCE ROW LEVEL SECURITY`.
-- [ ] SELECT politika za self-enumeraciju autentifikovanog korisnika postoji.
-- [ ] Politika radi **prije** nego `app.practice_id` postoji.
-- [ ] Politika izvodi identitet korisnika iz pouzdanog `app.user_id`.
-- [ ] Politika se spaja kroz vlastite `practice_memberships` redove tog korisnika.
-- [ ] Politika smije vlasniku izložiti **trenutne role neaktivnih membershipa**.
-- [ ] Neaktivan membership i dalje **ne autorizuje** nijednu tenant operaciju.
-- [ ] Role redovi drugog korisnika su **odbijeni**.
-- [ ] Cross-practice curenje je **odbijeno**.
-- [ ] SELECT politika **ne dozvoljava** INSERT, UPDATE ni DELETE.
-- [ ] **Nema SECURITY DEFINER bypassa.**
-- [ ] SECURITY INVOKER kompatibilnost je zadržana.
-- [ ] Ova politika **nije** riješila D-OPEN-011 i ne tumači se tako; access model je riješen
-      odlukom **D-047** kroz `02` §17.5 i §17.6, već u Fazi 3.
+- [ ] Standardna tenant politika `practice_id = app.practice_id`.
+- [ ] Proširena čitljiva površina koju settings endpoint zahtijeva.
+- [ ] **Ograničen `UPDATE` grant — uveden zajedno sa politikom koja ga ograničava.**
+- [ ] **Phase gate pada ako `UPDATE` grant postoji bez pripadajuće tenant politike.**
+- [ ] `GET /api/v1/practices/{practiceId}/settings` registrovan.
+- [ ] `PATCH /api/v1/practices/{practiceId}/settings` registrovan.
+- [ ] `ETag` vraćen na oba odgovora.
+- [ ] `If-Match` obavezan na `PATCH`.
+- [ ] `428 PRECONDITION_REQUIRED` bez `If-Match`.
+- [ ] `409 VERSION_CONFLICT` na stale `If-Match`.
+- [ ] `version` se inkrementira **atomično**.
+- [ ] `practice.settings.read` i `practice.settings.manage` ostaju **`PRACTICE_ADMIN` only**
+      (D-044, nepromijenjeno; `15`).
+- [ ] Izloženost `PHASE 3 INTERMEDIATE NON-PILOT CONDITIONAL-SETTINGS READ EXPOSURE` je
+      **zatvorena** — regresijski test dokazuje da `copilot_app` više ne vidi redove izvan tekućeg
+      tenanta.
+- [ ] `copilot_system` **nema** nijedan grant; `PUBLIC` **nema** nijedan grant.
 
 ## RLS za `review_decision_change_links`
 

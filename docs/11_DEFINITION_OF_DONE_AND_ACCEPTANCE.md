@@ -26,8 +26,10 @@ Ovaj dokument definiše kada se zadatak, faza, milestone ili pilot može smatrat
 
 # 2. DoD za database migraciju
 
-- `--create-only` SQL pregledan;
-- radi na praznoj DB;
+- migracija autorisana kanonskim tokom iz D-050 (`02` §26.3, `10` §7.1) — `migrate diff` kandidat,
+  ručna dopuna, **ljudski pregled kompletnog SQL-a**; bez `migrate dev --create-only` i bez
+  slabljenja guardova migracije `001`;
+- radi na jednokratnoj, ispravno bootstrapovanoj praznoj DB;
 - radi kroz `migrate deploy`;
 - backward/rollout razmatran;
 - constraints postoje;
@@ -35,6 +37,8 @@ Ovaj dokument definiše kada se zadatak, faza, milestone ili pilot može smatrat
 - grants minimalni;
 - RLS policy dodana;
 - FORCE RLS gdje treba;
+- steady-state `relrowsecurity = true` i `relforcerowsecurity = true` provjereni nakon migracije i
+  nakon seeda; svaki seed upis u `FORCE RLS` tabelu ide kroz protokol iz `02` §23.4 (D-048);
 - runtime nije owner;
 - composite FK;
 - testovi;
@@ -255,6 +259,10 @@ Pored core MVP:
 - RLS nije testiran runtime rolom;
 - Cursor kaže "implemented" bez command outputa;
 - migracija je samo `db push`;
+- migracija je autorisana kroz `migrate dev --create-only` ili je oslabljen guard migracije `001`;
+- seed je upisao u `FORCE RLS` tabelu izvan protokola iz `02` §23.4, ili je ostavio `FORCE`
+  isključenim;
+- write grant je uveden bez RLS politike koja ga ograničava;
 - endpoint nema permission;
 - queue payload ima tekst;
 - approval nema snapshot/hash;
