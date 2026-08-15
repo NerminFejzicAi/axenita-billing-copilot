@@ -26,7 +26,7 @@
     "db:format": "pnpm --filter @axenita/api run db:format",
     "db:validate": "pnpm --filter @axenita/api run db:validate",
     "db:generate": "pnpm --filter @axenita/api run db:generate",
-    "db:migrate:dev": "pnpm --filter @axenita/api run db:migrate:dev",
+    "db:migrate:diff": "pnpm --filter @axenita/api run db:migrate:diff",
     "db:migrate:deploy": "pnpm --filter @axenita/api run db:migrate:deploy",
     "db:migrate:status": "pnpm --filter @axenita/api run db:migrate:status",
     "compose:config": "docker compose config",

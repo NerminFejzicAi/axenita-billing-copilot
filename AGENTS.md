@@ -104,6 +104,11 @@ Normativna odluka za autorstvo migracija je **D-050** (`docs/02` §26.3, `docs/1
   1. ispravno bootstrapovana tekuća kanonska migration baza je izvorno stanje;
   2. `prisma migrate diff --from-config-datasource --to-schema=prisma/schema.prisma --script -o
      prisma/migrations/<timestamp>_<package>/migration.sql`;
+     repozitorijska skripta za isti korak, iz root-a:
+     `pnpm db:migrate:diff -o prisma/migrations/<timestamp>_<package>/migration.sql`
+     (iz `apps/api`: `pnpm run db:migrate:diff -o ...`).
+     **Ne umeći `--` prije `-o`** — pnpm 11 prosljeđuje literalni separator Prismi, koja onda može
+     tiho ignorisati izlaznu opciju: SQL ode na stdout, fajl se ne kreira, exit kod ostaje `0`;
   3. ručno dopuni custom SQL — constrainti, grants, revokes, RLS, politike, funkcije, asercije,
      komentari;
   4. ljudski pregled kompletnog generisanog **i** ručno napisanog SQL-a;

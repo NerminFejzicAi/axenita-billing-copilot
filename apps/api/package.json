@@ -22,7 +22,7 @@
     "db:format": "prisma format",
     "db:validate": "prisma validate",
     "db:generate": "prisma generate",
-    "db:migrate:dev": "prisma migrate dev",
+    "db:migrate:diff": "prisma migrate diff --from-config-datasource --to-schema=prisma/schema.prisma --script",
     "db:migrate:deploy": "prisma migrate deploy",
     "db:migrate:status": "prisma migrate status"
   },
