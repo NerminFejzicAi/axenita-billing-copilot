@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 
 import { IdentityBootstrapService } from './application/identity-bootstrap.service.js';
 import { PracticeReadService } from './application/practice-read.service.js';
+import { TenantRequestPipeline } from './application/tenant-request.pipeline.js';
 import { DevelopmentAuthGuard } from './authentication/development-auth.guard.js';
 import { MeController } from './controllers/me.controller.js';
 import { PracticesController } from './controllers/practices.controller.js';
@@ -24,14 +25,23 @@ import { PrismaIdentityDatabase } from './infrastructure/prisma-identity.databas
  * which is what makes the authenticated bootstrap chain of `03` §3.7.1 steps 1–2 impossible to
  * duplicate: there is exactly one implementation of it and both routes go through it.
  *
+ * `TenantRequestPipeline` is the tenant half of the same chain — steps 3 to 10, including
+ * `set_request_context`. It is a plain provider and deliberately NOT a `CanActivate`: a Nest
+ * guard runs before the controller and therefore before the interactive transaction exists, so
+ * it could neither respect the mandatory order of `03` §3.7.1 nor establish a transaction-local
+ * `app.practice_id` at all. It holds no database client, and its only entry point requires a
+ * session that exists exclusively inside an already-admitted authenticated transaction.
+ *
  * The database port is bound here, so the application services depend on the interface and
- * never on Prisma.
+ * never on Prisma. There is exactly one binding: one `PrismaService`, one `copilot_app` client
+ * and one transactional session abstraction serve both routes.
  */
 @Module({
   controllers: [MeController, PracticesController],
   providers: [
     DevelopmentAuthGuard,
     IdentityBootstrapService,
+    TenantRequestPipeline,
     PracticeReadService,
     { provide: IDENTITY_DATABASE, useClass: PrismaIdentityDatabase },
   ],

@@ -10,14 +10,18 @@
  * scoped to the transaction, so a read on any other connection would see no context at all and
  * would return zero rows rather than leaking data.
  *
- * `set_request_context` (02 §16.2.3) is exposed here as ONE session method, because package
- * `013_rls_policies` put `practice_settings` behind the §17.1 tenant policy and the conditional
- * flags of `GET /me` are unreadable without an established `app.practice_id` (D-053). The
- * function call is the ONLY way this file touches that GUC: there is no
- * `set_config('app.practice_id', ...)` anywhere, so the clear-before-validate ordering and the
- * ACTIVE-membership check of D-033 clauses 10-12 cannot be bypassed. `PracticeContextGuard` and
- * `TenantDatabaseService` remain absent — they are general tenant-endpoint infrastructure
- * (02 §22.13, D-047 clause 16) and `/me` needs none of it.
+ * `set_request_context` (02 §16.2.3) is exposed here as ONE session method — the single accepted
+ * method for establishing `app.practice_id`, shared by the internal `/me` adaptation of D-053 and
+ * by the tenant request pipeline of `GET /practices/{practiceId}`. The function call is the ONLY
+ * way this file touches that GUC: there is no `set_config('app.practice_id', ...)` anywhere, so
+ * the clear-before-validate ordering and the ACTIVE-membership check of D-033 clauses 10-12
+ * cannot be bypassed. No second session method for that GUC exists and none may be added.
+ *
+ * No `TenantDatabaseService` class accompanies it. The property that name stands for (D-006,
+ * 01 §6.2) — every tenant statement on one pinned connection inside one interactive transaction
+ * with an established request context — is what this file already IS. A second facade would own
+ * no client, open no transaction and hold no connection of its own, so it would add a name and
+ * no control.
  *
  * All SQL is written by hand rather than through the Prisma model delegates, for two reasons
  * that are not stylistic:
@@ -36,6 +40,7 @@ import { Prisma } from '../../generated/prisma/client.js';
 
 import { PrismaService } from '../../database/prisma.service.js';
 import {
+  TenantContextRejectedError,
   type BootstrapUserRow,
   type ConditionalSettingsRow,
   type IdentityBootstrapSession,
@@ -49,6 +54,60 @@ import {
 
 /** The transaction client Prisma hands to an interactive transaction callback. */
 type TransactionClient = Prisma.TransactionClient;
+
+/**
+ * `insufficient_privilege` — the SQLSTATE `app_security.set_request_context` raises for every
+ * one of its three refusals (`02` §16.2.3, D-033 clauses 9–11).
+ */
+const INSUFFICIENT_PRIVILEGE = '42501';
+
+/**
+ * Whether a driver error is a PostgreSQL `insufficient_privilege` failure.
+ *
+ * WHY THE SHAPE IS NOT ASSUMED. The same SQLSTATE reaches this process in more than one shape:
+ * `pg` reports it as `error.code`, and Prisma wraps a failed raw statement in
+ * `PrismaClientKnownRequestError` with its own `code` (`P2010`) and the server's SQLSTATE in
+ * `meta.code`. Pinning one of those would make the translation silently stop working on a
+ * driver upgrade — and a translation that stops working here fails OPEN, turning a refused
+ * tenant context into an internal error instead of the accepted `403`. The check therefore
+ * accepts either structured position, walks a bounded `cause` chain, and finally falls back to
+ * the rendered message.
+ *
+ * The message fallback is deliberately allowed to be generous. It is applied to the error of
+ * ONE statement only — see the single call site — and every false positive it could produce
+ * fails CLOSED, into the same refusal the caller would otherwise have produced anyway.
+ */
+function isInsufficientPrivilege(error: unknown): boolean {
+  let current: unknown = error;
+
+  for (let depth = 0; depth < 5; depth += 1) {
+    if (typeof current !== 'object' || current === null) {
+      break;
+    }
+
+    const candidate = current as {
+      readonly code?: unknown;
+      readonly meta?: { readonly code?: unknown };
+      readonly cause?: unknown;
+    };
+
+    if (candidate.code === INSUFFICIENT_PRIVILEGE) {
+      return true;
+    }
+
+    if (
+      typeof candidate.meta === 'object' &&
+      candidate.meta !== null &&
+      candidate.meta.code === INSUFFICIENT_PRIVILEGE
+    ) {
+      return true;
+    }
+
+    current = candidate.cause;
+  }
+
+  return error instanceof Error && error.message.includes(INSUFFICIENT_PRIVILEGE);
+}
 
 /**
  * A session bound to exactly one transaction client.
@@ -94,7 +153,25 @@ class PrismaIdentityBootstrapSession implements IdentityBootstrapSession {
     // The parameter is bound, never interpolated — the tagged template produces `$1` — and it
     // is cast to `uuid`, so a value that is not a UUID fails in the database rather than
     // widening the statement.
-    await this.tx.$executeRaw`select app_security.set_request_context(${practiceId}::uuid)`;
+    try {
+      await this.tx.$executeRaw`select app_security.set_request_context(${practiceId}::uuid)`;
+    } catch (error) {
+      // THE NARROWEST POSSIBLE TRANSLATION: one statement, one SQLSTATE, one replacement type.
+      // It is scoped to this method and not to the transaction, the session or the client, so
+      // an `insufficient_privilege` raised by ANY other statement — a revoked column grant on
+      // `practices`, say — still propagates unchanged and still becomes an internal failure.
+      // Turning those into a tenant `403` would quietly present a broken deployment as a
+      // routine refusal (`02` §20.2a, §20.2b).
+      //
+      // The driver error is dropped rather than attached as a `cause`: it carries the server's
+      // message and the statement text, and neither may travel any further (`09` §11). What
+      // the caller needs is the fact of the refusal, and that is the whole of the new error.
+      if (isInsufficientPrivilege(error)) {
+        throw new TenantContextRejectedError();
+      }
+
+      throw error;
+    }
   }
 
   public async findMemberships(userId: string): Promise<readonly MembershipRow[]> {

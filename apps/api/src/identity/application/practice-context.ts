@@ -1,28 +1,25 @@
 /**
- * Application-layer practice context for phase 3.
+ * Header-level practice context — the parsing and matching half of `03` §3.7.1 step 3.
  *
  * Normative sources: `03` §3.2 (the `X-Practice-ID` contract), §3.4 (route classification),
  * §3.7.1 step 3 (WHERE in the chain the header is read and validated), the accepted
- * `GET /practices/{practiceId}` contract, and D-047 clause 18.
+ * `GET /practices/{practiceId}` contract, and D-047 clauses 10 and 18.
  *
  * WHAT THIS IS NOT
  *
- * This module establishes NO database practice context. `app.practice_id`,
- * `app_security.set_request_context`, `PracticeContextGuard` and `TenantDatabaseService` appear
- * nowhere in it (D-047 clauses 10 and 16, `02` §16.2.3, §22.13). D-047 clause 18 names the
- * phase 3 state explicitly: the tenant narrowing for `GET /practices/{id}` is performed
- * ADDITIONALLY at the application layer, and that is exactly — and only — what this module does.
- *
- * `set_request_context` DOES exist from package `013_rls_policies` onward, and the identity
- * bootstrap calls it internally for `GET /me` (D-053). That is a different route and a different
- * mechanism: it derives its practice ids from resolved membership rows, never from the header
- * this module validates. `PracticeContextGuard` and `TenantDatabaseService` remain unbuilt.
+ * This module establishes no database practice context of its own. `app.practice_id` and
+ * `app_security.set_request_context` appear nowhere in it, and no value it returns is trusted
+ * by anything: it decides only whether the header is WELL FORMED and whether it NAMES THE SAME
+ * practice as the path. Whether that practice exists, is `ACTIVE`, is one the caller belongs
+ * to, and may become the tenant context is decided afterwards, in that order, by
+ * `TenantRequestPipeline` (`02` §16.2.3, D-047 clause 10).
  *
  * It is also not a guard. `03` §3.7.1 fixes the order of the chain and forbids skipping steps:
  * the bearer token is verified first (step 1), the current user is resolved and admitted second
- * (step 2), and only then is `X-Practice-ID` read and validated (step 3). A guard would run
- * before step 2 and would answer a caller whose identity has not been admitted yet, which is
- * why the validation lives in the application service instead.
+ * (step 2), and only then is `X-Practice-ID` read and validated (step 3). A `CanActivate` would
+ * run before step 2 and would answer a caller whose identity has not been admitted yet, which
+ * is why these functions are called from inside the authenticated transaction instead — see the
+ * `PracticeContextGuard` note in `tenant-request.pipeline.ts`.
  */
 
 import { practiceContextInvalid, practiceContextRequired } from '../identity.errors.js';
