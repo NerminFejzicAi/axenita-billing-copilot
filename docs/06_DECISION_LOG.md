@@ -1956,6 +1956,17 @@ registrovana u fazi 3; uslovne permisije u `GET /me` tačne za oba stanja oba fl
 
 D-009, D-028, D-029, D-038, D-041, D-044, D-047, D-051.
 
+- **Amandman (D-053, 2026-08-16) — isključivo prebrojavanje površine faze 4:** Formulacije
+  „proširena čitljiva površina koju settings endpoint zahtijeva" i „ograničen `UPDATE` grant" iz
+  klauzule 5 čitaju se od sada kroz D-053, dijelove A i B: `SELECT` je **tačno devet** imenovanih
+  kolona, `UPDATE` je **tačno devet** imenovanih kolona, `updated_by` ostaje izvan obje površine,
+  a `GET`/`PATCH` vraćaju jednu zamrznutu osmopoljnu reprezentaciju sa `version` isključivo u
+  `ETag`-u. **Klauzule 1–4, 6 i 7 se ne mijenjaju**; trokolonska površina faze 3 ostaje
+  **nepromijenjena** i postaje strogi podskup, bez ijednog opozvanog granta. Pravilo „grant i
+  politika koja ga ograničava se uvode zajedno" ostaje **nepromijenjeno**. Dodatno, D-053 dio D
+  rekonsiliše `GET /me` uslovni read sa tenant RLS-om te tabele, **bez ijednog slabljenja**
+  politike. Vidi D-053.
+
 ---
 
 # D-050 — Kanonski workflow autorstva Prisma migracija
@@ -2426,6 +2437,458 @@ Minimum za fazu 10: sve tvrdnje `08` §24a.5 prolaze nakon što paket `009` krei
 ## Zavisnosti
 
 D-023, D-029, D-033, D-038, D-046, D-047, D-048, D-049, D-050, D-051.
+
+---
+
+# D-053 — Zamrznut settings ugovor, tačna `practice_settings` runtime površina, redoslijed autorizacije i adaptacija `GET /me` u fazi 4
+
+- **Status:** ACCEPTED
+- **Datum:** 2026-08-16
+- **Amandman na:** **D-049, klauzula 5** — isključivo u dijelu u kojem stoji neodređena
+  formulacija „proširena čitljiva površina koju settings endpoint zahtijeva" i „ograničen `UPDATE`
+  grant"; obje se ovom odlukom **zamjenjuju tačnim, prebrojivim listama kolona**. **D-047,
+  klauzula 10** se ne mijenja, nego se **restituira** u tri izvedena dokumenta koja su je
+  ispustila. **D-041, D-044 i D-049, klauzula 3** ostaju nepromijenjeni u dijelu koji definiše
+  uslovne permisije. Amandman obuhvata i svu izvedenu dokumentaciju o settings ugovoru,
+  `practice_settings` grantovima, redoslijedu autorizacije i `GET /me` runtime putu.
+- **Kontekst/problem:** Tri blokera i jedna dodatna regresija otkriveni su na gateu P4-1, prije
+  autorizacije implementacije faze 4.
+
+  **OD-1 — settings reprezentacija nije kanonizovana.** `02` §6.4, §18.1 i §22.13, `04` §6.3, `05`
+  Faza 4 i `07` Faza 4 zahtijevaju „proširenu čitljivu površinu koju settings endpoint zahtijeva",
+  ali **nijedan kanonski izvor ne navodi koje su to kolone**, niti kako izgleda tijelo odgovora
+  `GET`/`PATCH /practices/{practiceId}/settings`. `03` §10 navodi polja **zahtjeva** `PATCH`-a, ali
+  ne i **odgovora**. Implementator faze 4 bi morao izmisliti i grant i reprezentaciju, a `02`
+  §20.2b izričito zabranjuje table-level `SELECT`.
+
+  **OD-2 — write površina nije razriješena.** Ista formulacija „ograničen `UPDATE` grant" ne
+  odgovara na tri pitanja bez kojih optimistic locking iz D-029 nije izvodiv: smije li `copilot_app`
+  pisati `version`, `updated_at` i `updated_by`. Bez `UPDATE (version)` atomičan inkrement iz `03`
+  §5.2 nije moguć bez trigera, `SECURITY DEFINER` funkcije ili izmjene paketa `014`.
+
+  **OD-3 — zastarjeli redoslijed autorizacije.** `04` §6.2.1, `05` „Redoslijed autorizacije",
+  `07` Faza 4 i `08` §24.6 ponavljaju **desetokoračni** redoslijed koji **izostavlja**
+  membership-scoped čitanje `status`-a tražene ordinacije prije `set_request_context`. Taj korak je
+  obavezan po **D-047, klauzuli 10**, i autoritativni **jedanaestokoračni** redoslijed već stoji u
+  `03` §3.7.1 i u dijagramu `14` §2. Izvedeni dokumenti su zaostali za autoritativnim.
+
+  **OD-4 — regresija `GET /me` nakon `practice_settings` RLS-a.** Mehanički provjereno nad
+  zatečenim kodom faze 3: `GET /me` izvodi uslovne permisije čitanjem `allow_mpa_approval` i
+  `allow_billing_specialist_approval`, a taj se read izvršava **bez ikakvog tenant konteksta** —
+  `/me` je neutralna ruta, ne traži `X-Practice-ID` i nikada ne poziva `set_request_context`.
+  Tenant politika koju faza 4 uvodi glasi
+
+  ```sql
+  practice_id = nullif(current_setting('app.practice_id', true), '')::uuid
+  ```
+
+  i uz nepostavljen `app.practice_id` daje `practice_id = NULL`, dakle **nula redova za svaki
+  membership**. Resolver uslovnih permisija pada **fail-closed** na oba flaga `false`, pa bi
+  `MPA` i `BILLING_SPECIALIST` **tiho izgubili** `analysis.approve` i `analysis.approval.revoke`
+  i u ordinaciji koja ih je izričito uključila. Regresija ne baca grešku — mijenja **sadržaj**
+  zamrznutog odgovora `03` §10.
+
+## Odluka
+
+# Dio A — Settings reprezentacija i tačna `SELECT` površina
+
+### A.1 Jedna reprezentacija za obje rute
+
+`GET /api/v1/practices/{practiceId}/settings` i **uspješan**
+`PATCH /api/v1/practices/{practiceId}/settings` vraćaju **istu** reprezentaciju resursa, tačno
+ovih **osam** polja i nijedno drugo:
+
+```json
+{
+  "practiceId": "<uuid>",
+  "billingReviewRequired": true,
+  "allowMpaApproval": false,
+  "allowBillingSpecialistApproval": false,
+  "requireReasonForManualChange": true,
+  "aiEnabled": true,
+  "axenitaExportEnabled": true,
+  "retentionPolicyCode": null
+}
+```
+
+`retentionPolicyCode` je `string|null`; preostalih šest polja su `boolean`; `practiceId` je `uuid`.
+
+### A.2 `version` se ne duplira u tijelo
+
+Obje rute vraćaju:
+
+```http
+ETag: "<version>"
+```
+
+Vrijednost je **integer** `practice_settings.version` iz `02` §6.4. **`version` se ne pojavljuje
+kao polje JSON tijela** — ni u `GET` odgovoru, ni u `PATCH` odgovoru, ni u `PATCH` zahtjevu.
+Postoji **tačno jedan** kanal za tekuću verziju resursa, i to je `ETag`.
+
+### A.3 Tačna `SELECT` površina faze 4
+
+`copilot_app` `SELECT` površina nad `practice_settings` u fazi 4 je **tačno devet** kolona:
+
+```sql
+grant select (
+  practice_id,
+  billing_review_required,
+  allow_mpa_approval,
+  allow_billing_specialist_approval,
+  require_reason_for_manual_change,
+  ai_enabled,
+  axenita_export_enabled,
+  retention_policy_code,
+  version
+) on practice_settings to copilot_app;
+```
+
+Osam kolona pokriva reprezentaciju iz A.1, deveta (`version`) `ETag` iz A.2.
+
+### A.4 Kolone koje ostaju nečitljive
+
+`copilot_app` **ne dobija `SELECT`** ni nad jednom drugom kolonom te tabele, imenovano:
+
+```text
+id            (ako postoji u kanonskoj schemi)
+configuration
+updated_at
+updated_by
+```
+
+**Nema table-level `SELECT`.** Interna metadata se **ne izlaže samo zato što postoji u tabeli**.
+Nedozvoljena kolona pada sa `42501` **i kada se koristi isključivo u `WHERE` predikatu ili u
+`ORDER BY`** (`02` §20.2b).
+
+### A.5 Odnos prema fazi 3
+
+Trokolonska površina faze 3 iz D-049, klauzule 2 — `practice_id`, `allow_mpa_approval`,
+`allow_billing_specialist_approval` — je **strogi podskup** ove devetokolonske. Faza 4 je
+**proširuje**; **nijedan postojeći grant se ne opoziva** i nijedan konzument faze 3 se ne lomi.
+
+# Dio B — Tačna `UPDATE` površina i optimistic locking
+
+### B.1 Tačna `UPDATE` površina faze 4
+
+`copilot_app` `UPDATE` površina nad `practice_settings` je **tačno devet** kolona:
+
+```sql
+grant update (
+  billing_review_required,
+  allow_mpa_approval,
+  allow_billing_specialist_approval,
+  require_reason_for_manual_change,
+  ai_enabled,
+  axenita_export_enabled,
+  retention_policy_code,
+  version,
+  updated_at
+) on practice_settings to copilot_app;
+```
+
+Sedam su poslovne postavke, dvije su concurrency/maintenance metadata.
+
+### B.2 Kolone koje ostaju bez `UPDATE`-a
+
+`copilot_app` **ne smije dobiti `UPDATE`** ni nad jednom drugom kolonom, imenovano:
+
+```text
+practice_id
+id            (ako postoji u kanonskoj schemi)
+configuration
+updated_by
+```
+
+**Nema table-level `UPDATE`.** `UPDATE` grant se, prema D-049, klauzuli 5, uvodi **zajedno** sa
+tenant politikom koja ga ograničava; grant bez politike **obara phase gate**.
+
+### B.3 `updated_by` ostaje netaknut
+
+Settings endpoint faze 4 **ne piše** `updated_by`. Ta kolona se **ne tretira kao autoritativno
+audit polje**. Odgovornost za akterstvo i promjenu ostaje u kanonskom audit modelu.
+
+**Ne uvodi se nijedan novi triger za tu svrhu.** Vlasništvo paketa `014_immutability_triggers`
+ostaje **nepromijenjeno**.
+
+### B.4 Mehanika optimističkog update-a
+
+- `PATCH` nosi **obavezan** `If-Match` (`03` §5.2); nedostajući `If-Match` → **`428
+  PRECONDITION_REQUIRED`**;
+- **očekivana verzija se izvodi isključivo iz `If-Match`**;
+- izvršava se **jedan atomičan SQL `UPDATE`** koji:
+  - postavlja **samo poslana** poslovna polja;
+  - postavlja `version = version + 1`;
+  - postavlja `updated_at` na **tekuće vrijeme baze**;
+  - ima predikat `practice_id = <uspostavljeni tenant> and version = <očekivana verzija>`;
+- **nula pogođenih redova zbog zastarjele očekivane verzije → `409 VERSION_CONFLICT`**;
+- uspjeh vraća reprezentaciju iz A.1 i **novi** `ETag` iz A.2.
+
+Ne postoji prozor u kojem je resurs izmijenjen a `version` nepromijenjen (`03` §5.2).
+
+### B.5 Runtime `UPDATE (version)` je prihvaćen minimum
+
+Runtime privilegija `UPDATE (version)` je **prihvaćena kao minimalan mehanizam** koji postojeća
+optimistic-locking arhitektura (D-029, D-009, `03` §5.2) zahtijeva. **Ne uvodi se**:
+
+- triger nad `version`;
+- `SECURITY DEFINER`;
+- privilegovana helper funkcija;
+- izmjena paketa `014_immutability_triggers`;
+- novi migration paket;
+- API polje za proizvoljnu verziju.
+
+### B.6 Ono što pozivalac nikada ne šalje
+
+- **`version`** se ne prihvata u tijelu zahtjeva — dolazi **isključivo** iz `If-Match`;
+- **`updated_at`** se ne prihvata — postavlja ga server/baza;
+- **`updated_by`** se ne prihvata.
+
+# Dio C — Autoritativni redoslijed autorizacije
+
+### C.1 Nijedna nova sigurnosna semantika
+
+Ovaj dio **ne uvodi** nijednu novu sigurnosnu semantiku i **ne mijenja** nijedno implementacijsko
+ponašanje. On **rekonsiliše zastarjele restatemente** sa već prihvaćenim izvorom.
+
+### C.2 Autoritativni izvor
+
+Autoritativan je **jedanaestokoračni** redoslijed poslije D-047 iz `03` §3.7.1, identičan
+dijagramu `14` §2.
+
+### C.3 Obavezan korak prije `set_request_context`
+
+Prije poziva `set_request_context` **mora** postojati **membership-scoped čitanje `status`-a
+tražene ordinacije** (D-047, klauzula 10):
+
+- **nula vidljivih redova → `403 ACCESS_DENIED`**;
+- **`status <> 'ACTIVE'` → `403 ACCESS_DENIED` uz rollback**;
+- **`app.practice_id` se ne uspostavlja dok taj korak ne uspije.**
+
+Provjera je **aplikacijska**; tijelo `set_request_context` se **ne mijenja** (`02` §16.2.3).
+
+### C.4 Obuhvat rekonsilijacije
+
+Svaki zastarjeli desetokoračni restatement faze 4 se rekonsiliše: `04` §6.2.1, `05` „Redoslijed
+autorizacije", `07` Faza 4 i `08` §24.6. **Nijedan drugi korak se ne uklanja** i nijedno
+implementacijsko ponašanje se ne mijenja.
+
+# Dio D — Adaptacija `GET /me` nakon `practice_settings` RLS-a
+
+### D.1 Stroga tenant RLS ostaje nepromijenjena
+
+Politika nad `practice_settings` ostaje **doslovno** standardni tenant predikat iz `02` §17.1:
+
+```sql
+practice_id = nullif(current_setting('app.practice_id', true), '')::uuid
+```
+
+**Ne uvodi se bootstrap izuzetak, membership-wide grana ni ijedno drugo slabljenje.** Rješenje
+regresije OD-4 je **isključivo** adaptacija aplikacijskog puta.
+
+### D.2 `GET /me` ostaje neutralna ruta
+
+Zamrznuti ugovor iz `03` §10 ostaje **nepromijenjen**:
+
+- ruta je **autentifikovana i neutralna**;
+- `X-Practice-ID` **nije potreban i ne uvodi se**;
+- **nema klijentski odabranog tenanta**;
+- neaktivni membershipi ostaju **vidljivi**, sa `permissions = []`;
+- `platformRoles` ostaje **odvojen blok**;
+- `permissions` ostaje **membership-scoped**.
+
+### D.3 Porijeklo identifikatora ordinacije
+
+Svaki `practice_id` upotrijebljen za ovu internu operaciju dolazi **isključivo iz već razriješenih
+membership redova za `app.user_id`**. **Nijedna vrijednost iz tijela, query parametra, headera ni
+putanje ne učestvuje.**
+
+### D.4 Neaktivan membership ne dobija kontekst
+
+Neaktivan membership **ne zahtijeva** tenant kontekst — `permissions` mu je `[]` po `15` §3.2,
+bez obzira na role i flagove. Za njega se `set_request_context` **ne poziva**. To je i tehnički
+obavezno: funkcija validira `pm.active = true` i za neaktivan membership podiže `42501`
+(`02` §16.2.3).
+
+### D.5 Kontekst po membershipu, kroz prihvaćeni put
+
+Za **aktivan** membership čije izvođenje efektivnih permisija stvarno zahtijeva uslovne postavke,
+server uspostavlja **transakcijski lokalni** `app.practice_id` **za taj membership**, kroz
+**prihvaćeni `set_request_context` put** (`02` §16.2.3), i **tek onda** čita `practice_settings`.
+
+### D.6 Čitanje pod istom strogom RLS-om
+
+Taj read se izvršava **pod istom strogom tenant RLS-om** iz D.1. Ne postoji drugi put do te
+tabele.
+
+### D.7 Zabrana cross-practice doprinosa
+
+Postavke ordinacije A **nikada** ne doprinose permisijama ordinacije B. Obrada više membershipa
+**nikada** ne unijira postavke ni role preko ordinacija.
+
+### D.8 Obavezan redoslijed čitanja
+
+**Svako čitanje koje nije uređeno tenant predikatom mora se završiti prije prvog
+`set_request_context` poziva u toj transakciji.** To su čitanja `users` (§17.5), `practices`
+(§17.6), `practice_memberships` (§17.3), `practice_membership_roles` (§17.4) i
+`platform_role_assignments` (§17.2).
+
+Razlog je **RESTRICTIVE** politika `practices_context_narrow` iz `02` §17.6: čim `app.practice_id`
+postoji, `practices` vraća **tačno jednu** ordinaciju. Čitanje `practiceName` za više membershipa
+nakon uspostavljenog konteksta bilo bi **tiha regresija** `03` §10.
+
+### D.9 Izolacija između membershipa i nakon transakcije
+
+**Ne uvodi se nijedan novi mehanizam čišćenja konteksta.** Postojeći su dovoljni i kanonski:
+
+- **između membershipa** — `set_request_context` po D-033, klauzuli 10, **briše `app.practice_id`
+  prije validacije** i postavlja ga tek nakon uspjeha (`02` §16.2.3), pa uzastopni pozivi ne mogu
+  akumulirati niti pomiješati kontekst;
+- **nakon transakcije** — `app.*` su transakcijski lokalne i gase se sa krajem transakcije;
+  pooled konekcija ne nasljeđuje kontekst (`02` §16.2, `14` §2).
+
+**Ne uvodi se `SECURITY DEFINER`, `BYPASSRLS`, superuser put ni ijedna zaobilaznica.**
+
+### D.10 Provjera statusa ordinacije se na `/me` ne uvodi
+
+Korak iz **dijela C** je vezan za **klijentski poslan `X-Practice-ID`** na tenant ruti i tu ostaje
+obavezan. Na `/me` **ne postoji** klijentski odabran tenant, `/me` **ne autorizuje nijednu tenant
+operaciju**, a identifikatori dolaze isključivo iz vlastitih membership redova (D.3). Uvođenje te
+provjere na `/me` **promijenilo bi** zamrznuti odgovor `03` §10 za aktivan membership u
+ne-`ACTIVE` ordinaciji, što D.2 zabranjuje. **Dio C i dio D se time ne kose.**
+
+### D.11 Zabrana slabljenja
+
+`practice_settings` RLS se **ne slabi** da bi se sačuvao `/me`.
+
+### D.12 Obavezan regresijski dokaz
+
+Regresijski test faze 4 mora dokazati:
+
+- da **iste kanonske `GET /me` fixture daju iste `memberships[].permissions` prije i nakon**
+  uvođenja `practice_settings` RLS-a;
+- da uslovno ponašanje `MPA` i `BILLING_SPECIALIST` ostaje **tačno za oba stanja oba flaga**;
+- da neaktivan membership ostaje `permissions = []`;
+- da multi-practice membership koristi postavke **svoje** ordinacije, nezavisno;
+- da **nijedan tenant kontekst ne curi** nakon transakcije;
+- da **nijedan klijentski poslan practice identifikator** ne učestvuje u neutralnom `/me`;
+- da `practiceName` za **svaki** membership ostaje prisutan, čime se dokazuje redoslijed iz D.8.
+
+### D.13 Ova odluka ništa ne implementira
+
+Ova odluka **evidencira ugovor i vlasništvo**. Aplikacijski kod, testovi, `seed.ts`, Prisma schema
+i migracije se **ovom odlukom ne mijenjaju**. Implementacija pripada implementacijskom gateu faze
+4.
+
+## Razlog
+
+**Dio A i B.** „Proširena površina" nije izvršiv zahtjev. Dok se ne prebroji, implementator faze 4
+bira između izmišljanja granta i table-level `SELECT`-a koji `02` §20.2b zabranjuje, a
+introspekcijski test nema šta da tvrdi. Devet čitljivih i devet upisnih kolona je **najmanji skup
+koji zamrznuti ugovor `03` §5.2 i §10 zaista traži** — osam za reprezentaciju, `version` za `ETag`
+i atomičan inkrement, `updated_at` za maintenance vrijeme. `updated_by` ostaje izvan te površine
+jer bi ga runtime write pretvorio u prividno audit polje bez ijedne garancije koju kanonski audit
+model daje. Alternative za inkrement `version`-a — triger, `SECURITY DEFINER` ili izmjena paketa
+`014` — sve uvode konstrukcije koje su D-033 i D-047 već odbili, radi jedne kolone koju API
+pozivalac ionako ne može poslati (B.6).
+
+**Dio C.** Autoritativni izvor je već ispravan. Zastarjeli restatement u izvedenom dokumentu je
+**operativno opasniji od nedostajuće dokumentacije**, jer implementator faze 4 čita `04`, `05` i
+`07`, a ne `03`. Isti obrazac restitucije koji je D-052 primijenio na fazu izvršenja.
+
+**Dio D.** Regresija je stvarna i **tiha** — fail-closed put ne baca grešku, nego izostavlja
+permisiju. Slabljenje RLS-a bilo bi razmjena trajne sigurnosne garancije za jedan aplikacijski
+problem koji ima čisto aplikacijsko rješenje: identifikatori su ionako već razriješeni iz
+vlastitih membership redova, a `set_request_context` već nosi tačno onu semantiku brisanja i
+validacije koju izolacija po membershipu traži.
+
+## Alternative
+
+- **Bootstrap/membership-wide izuzetak u `practice_settings` politici** — odbijeno: vratio bi
+  izloženost koju D-049, klauzula 3, imenuje i koju faza 4 postoji da zatvori, i to trajno.
+- **`X-Practice-ID` na `/me`** — odbijeno: mijenja zamršeni zamrznuti ugovor `03` §10 i pretvara
+  neutralnu rutu u tenant rutu.
+- **`SECURITY DEFINER` čitač postavki za `/me`** — odbijeno: D-047, klauzula 2, drži model bez
+  ijedne takve funkcije.
+- **Denormalizacija oba flaga u `practices`** — odbijeno: već odbijeno u D-049; duplira izvor
+  istine za sigurnosnu konfiguraciju.
+- **Ukloniti uslovne permisije iz `/me`** — odbijeno: `permissions[]` je dio zamrznutog ugovora.
+- **Triger koji inkrementira `version`** — odbijeno: skriva concurrency semantiku u paket `014`,
+  čije vlasništvo ova odluka izričito ne dira.
+- **Runtime write nad `updated_by`** — odbijeno: prividno audit polje bez garancija kanonskog
+  audit modela.
+- **Table-level `SELECT`/`UPDATE` „radi jednostavnosti"** — odbijeno: `02` §20.2b i §18.1 to
+  zabranjuju, a izložilo bi `configuration` i internu metadatu.
+- **Novi migration paket za settings runtime put** — odbijeno: `02` §22 brojevi su redoslijed
+  zavisnosti; nova numeracija je zabranjena isto kao u D-052, klauzuli A.6.
+
+## Posljedice
+
+- `02` §20.2b dobija **imenovanu devetokolonsku `SELECT` i devetokolonsku `UPDATE` površinu faze
+  4**; formulacija „proširena čitljiva površina" prestaje biti neodređena.
+- `02` §18.1, §22.13 i §25.1.3 dobijaju eksplicitnu referencu na te dvije liste.
+- `03` §10 dobija **zamrznutu reprezentaciju odgovora** obje settings rute i eksplicitno pravilo
+  da `version` postoji samo kao `ETag`.
+- `03` §10 `GET /me` dobija odjeljak o adaptaciji faze 4.
+- `04` §6.2.1, `05`, `07` i `08` §24.6 prelaze na **jedanaest** koraka.
+- `04` §6.3, `05` Faza 4, `07` Faza 4 i `08` dobijaju tačne liste kolona i `/me` regresijski
+  ugovor.
+- `14` dobija napomenu o internom, per-membership kontekstu na neutralnoj ruti.
+- **Nijedan endpoint, permisija, rola, error kod ni migration paket se ne uvodi**, i nijedan se ne
+  renumeriše. `15` ostaje nepromijenjen.
+
+## Security/privacy uticaj
+
+**Strogo pozitivan.**
+
+Dio A i B **sužavaju** ono što je ranije bilo neodređeno: umjesto „proširene površine" koju bi
+implementator mogao razriješiti kao table-level grant, kanon sada imenuje **tačno devet** čitljivih
+i **tačno devet** upisnih kolona. `configuration`, `updated_by`, `updated_at` (za čitanje) i `id`
+ostaju nedohvatljivi runtime roli. `practice_id` ostaje bez `UPDATE`-a, pa runtime ne može
+premjestiti settings red u drugu ordinaciju.
+
+Dio C vraća **obavezan sigurnosni korak** u tri dokumenta iz kojih je ispao. Bez njega bi
+implementator faze 4 mogao uspostaviti `app.practice_id` za ordinaciju koja nije `ACTIVE`.
+
+Dio D **čuva strogu RLS**. Bez njega bi pritisak da `/me` proradi vodio prema bootstrap izuzetku
+nad `practice_settings` — trajnoj rupi. Umjesto toga se mijenja aplikacijski put, koji ionako
+nikada ne prima practice identifikator od klijenta. Prijelaz na per-membership kontekst je
+**pooštrenje**: read koji je u fazi 3 bio potpuno neograničen postaje ograničen tenant politikom,
+jedan membership po jedan.
+
+## Migration/rollout
+
+Bez izmjene redoslijeda. Paket `013_rls_policies` u fazi 4 uvodi `ENABLE` + `FORCE RLS`, tenant
+politiku, **devetokolonski `SELECT`** i **devetokolonski `UPDATE`** — **zajedno**, u istoj
+migraciji (D-049, klauzula 5). Trokolonski grant faze 3 je podskup i **ne opoziva se**. **Nijedan
+novi broj paketa se ne uvodi i nijedan se ne renumeriše.** Paket `014_immutability_triggers` se ne
+dira. Dijelovi C i D ne proizvode nijedan schema objekat.
+
+## Test dokaz
+
+`02` §20.4, §25.1.3 i §25.1.3a; `03` §5.2, §3.7.1 i §10; `05` Faza 4; `08` §10, §21.7.5, §21.7.6,
+§24.6 i §26.2.
+
+Minimum za fazu 4:
+
+- `SELECT` **tačno devet** dozvoljenih kolona prolazi; `SELECT *` → `42501`; `id`, `configuration`,
+  `updated_at` i `updated_by` → `42501`, uključujući upotrebu isključivo u `WHERE` ili `ORDER BY`;
+- `UPDATE` **tačno devet** dozvoljenih kolona prolazi; `UPDATE` nad `practice_id`, `id`,
+  `configuration` ili `updated_by` → `42501`; `DELETE` i `INSERT` → `42501`;
+- `UPDATE` grant bez pripadajuće tenant politike **obara gate**;
+- `GET` i uspješan `PATCH` vraćaju **identičnu** osmopoljnu reprezentaciju; nijedan odgovor ne
+  sadrži `version` kao polje; oba nose `ETag`;
+- `PATCH` bez `If-Match` → `428`; sa zastarjelim `If-Match` → `409 VERSION_CONFLICT`; sa tačnim →
+  `200`, `version + 1`, novi `ETag`;
+- poslan `version`, `updated_at` ili `updated_by` u tijelu se **odbija**;
+- `updated_by` je **nepromijenjen** nakon uspješnog `PATCH`-a;
+- redoslijed autorizacije ima **jedanaest** koraka i status tražene ordinacije se provjerava
+  **prije** `set_request_context`;
+- regresijski dokaz `GET /me` iz klauzule D.12 u punom obimu.
+
+## Zavisnosti
+
+D-009, D-023, D-028, D-029, D-033, D-038, D-041, D-044, D-046, D-047, D-048, D-049, D-050, D-051,
+D-052.
 
 ---
 

@@ -518,8 +518,8 @@ Kreiraj:
 - user-scoped bootstrap self-select politiku na practice_memberships;
 - ENABLE i FORCE RLS na practice_settings;
 - standardnu tenant politiku practice_id = app.practice_id na practice_settings;
-- proširen SELECT i OGRANIČEN UPDATE grant na practice_settings — grant i politika se uvode
-  ZAJEDNO, u istom paketu;
+- devetokolonski SELECT i devetokolonski UPDATE grant na practice_settings (D-053; docs/02
+  §20.2b.1) — grant i politika se uvode ZAJEDNO, u istom paketu;
 - GET /api/v1/practices/{practiceId}/settings;
 - PATCH /api/v1/practices/{practiceId}/settings, sa ETag, If-Match,
   428 PRECONDITION_REQUIRED, 409 VERSION_CONFLICT i atomičnim inkrementom version;
@@ -538,17 +538,30 @@ premjestiti ni redefinisati. Potpis, SECURITY INVOKER mod i tijelo ostaju TAČNO
 D-033. Isto važi za app_security.set_auth_subject_context(p_auth_subject text) i za politike nad
 users i practices iz docs/02 §17.5 i §17.6 — sve je kreirano u FAZI 3 i u ovoj fazi se ne dira.
 
-Obavezni redoslijed autorizacije (D-033 i D-038; identičan docs/03 §3.7.1):
+Obavezni redoslijed autorizacije — JEDANAEST KORAKA (D-033, D-038 i D-047 klauzula 10;
+identičan docs/03 §3.7.1; restituirano odlukom D-053, dio C):
 1. autentifikuj bearer token — potpis, issuer, audience i istek;
-2. izvedi pouzdani app.user_id kroz set_user_context;
+2. izvedi pouzdani app.user_id kroz set_auth_subject_context, čitanje users, provjeru
+   users.status, pa set_user_context;
 3. pročitaj i validiraj X-Practice-ID;
-4. pozovi set_request_context(p_practice_id uuid);
-5. validiraj AKTIVAN practice_memberships red kroz user-scoped bootstrap politiku;
-6. uspostavi transakcijski lokalni tenant context app.practice_id;
-7. učitaj dodijeljene tenant role za taj membership i tu ordinaciju;
-8. izvedi efektivne tenant permisije;
-9. provjeri permisiju koju endpoint zahtijeva i prihvaćene uslove;
-10. izvrši komandu pod tenant RLS-om.
+4. MEMBERSHIP-SCOPED PROČITAJ status TRAŽENE ORDINACIJE, PRIJE PROMJENE KONTEKSTA —
+   nula vidljivih redova => 403 ACCESS_DENIED;
+   status <> 'ACTIVE' => 403 ACCESS_DENIED uz rollback;
+   app.practice_id se NE uspostavlja dok ovaj korak ne uspije;
+5. pozovi set_request_context(p_practice_id uuid);
+6. validiraj AKTIVAN practice_memberships red kroz user-scoped bootstrap politiku;
+7. uspostavi transakcijski lokalni tenant context app.practice_id;
+8. učitaj dodijeljene tenant role za taj membership i tu ordinaciju;
+9. izvedi efektivne tenant permisije;
+10. provjeri permisiju koju endpoint zahtijeva i prihvaćene uslove;
+11. izvrši komandu pod tenant RLS-om.
+
+KORAK 4 JE OBAVEZAN I NE SMIJE SE PRESKOČITI. Raniji desetokoračni restatement u ovom
+prompt fajlu je bio ZASTARIO i ispuštao ga je. Nijedna sigurnosna semantika se ne mijenja —
+korak je obavezan od D-047. Provjera je APLIKACIJSKA: tijelo set_request_context se NE MIJENJA
+(docs/02 §16.2.3) i NE dobija provjeru practices.status. Korak 4 dokazuje POSTOJANJE membershipa,
+korak 6 dokazuje AKTIVAN membership; nijedan ne zamjenjuje drugi. Nijedan drugi korak se ne
+uklanja.
 
 Kontekst se automatski čisti na kraju transakcije.
 
@@ -594,13 +607,13 @@ Provjeri, ne kreiraj:
 - ove politike nisu riješile D-OPEN-011 i ne smiju se tako tumačiti; access model za users i
   practices riješen je odlukom D-047 kroz docs/02 §17.5 i §17.6, već u FAZI 3.
 
-RLS i runtime put za practice_settings (paket 013_rls_policies; docs/02 §6.4, §18.1, §20.2b,
-§22.13; docs/03 §5 i §10; D-049):
+RLS i runtime put za practice_settings (paket 013_rls_policies; docs/02 §6.4, §18.1, §20.2b.1,
+§22.13; docs/03 §5 i §10; D-049; D-053 dijelovi A i B):
 - ENABLE ROW LEVEL SECURITY;
 - FORCE ROW LEVEL SECURITY;
 - standardna tenant politika practice_id = app.practice_id;
-- proširena čitljiva površina koju settings endpoint zahtijeva;
-- OGRANIČEN UPDATE grant, uveden ZAJEDNO sa politikom koja ga ograničava;
+- SELECT grant nad TAČNO DEVET kolona;
+- UPDATE grant nad TAČNO DEVET kolona, uveden ZAJEDNO sa politikom koja ga ograničava;
 - UPDATE grant bez pripadajuće tenant politike obara phase gate;
 - GET i PATCH /api/v1/practices/{practiceId}/settings;
 - ETag na oba odgovora; If-Match obavezan na PATCH;
@@ -611,6 +624,125 @@ RLS i runtime put za practice_settings (paket 013_rls_policies; docs/02 §6.4, �
 - copilot_system NE DOBIJA nijedan grant; PUBLIC NE DOBIJA nijedan grant;
 - regresijski test dokazuje da je izloženost PHASE 3 INTERMEDIATE NON-PILOT
   CONDITIONAL-SETTINGS READ EXPOSURE zatvorena — copilot_app više ne vidi redove izvan tenanta.
+
+TAČNE POVRŠINE — NE IZMIŠLJAJ IH (D-053; docs/02 §20.2b.1). Formulacija "proširena čitljiva
+površina" je POVUČENA i zamijenjena ovim listama:
+
+grant select (
+  practice_id,
+  billing_review_required,
+  allow_mpa_approval,
+  allow_billing_specialist_approval,
+  require_reason_for_manual_change,
+  ai_enabled,
+  axenita_export_enabled,
+  retention_policy_code,
+  version
+) on practice_settings to copilot_app;
+
+grant update (
+  billing_review_required,
+  allow_mpa_approval,
+  allow_billing_specialist_approval,
+  require_reason_for_manual_change,
+  ai_enabled,
+  axenita_export_enabled,
+  retention_policy_code,
+  version,
+  updated_at
+) on practice_settings to copilot_app;
+
+- NEMA table-level SELECT i NEMA table-level UPDATE;
+- NEMA INSERT i NEMA DELETE za runtime role;
+- NEČITLJIVO ostaje: id (ako postoji), configuration, updated_at, updated_by;
+- BEZ UPDATE-a ostaje: practice_id, id (ako postoji), configuration, updated_by;
+- trokolonski grant Faze 3 je STROGI PODSKUP — NE OPOZIVAJ ga;
+- nedozvoljena kolona pada sa 42501 i kada se koristi samo u WHERE ili ORDER BY.
+
+ZAMRZNUTA SETTINGS REPREZENTACIJA (D-053 dio A; docs/03 §10). GET i uspješan PATCH vraćaju
+ISTU reprezentaciju, TAČNO OSAM POLJA:
+
+{
+  "practiceId": "<uuid>",
+  "billingReviewRequired": <boolean>,
+  "allowMpaApproval": <boolean>,
+  "allowBillingSpecialistApproval": <boolean>,
+  "requireReasonForManualChange": <boolean>,
+  "aiEnabled": <boolean>,
+  "axenitaExportEnabled": <boolean>,
+  "retentionPolicyCode": <string|null>
+}
+
+- oba odgovora nose ETag: "<version>", izveden iz practice_settings.version;
+- version SE NE DUPLIRA u JSON tijelo — ni u GET, ni u PATCH odgovoru, ni u PATCH zahtjevu;
+- updated_at, updated_by i configuration se NE VRAĆAJU.
+
+MEHANIKA OPTIMISTIČKOG UPDATE-a (D-053 dio B):
+- If-Match je OBAVEZAN; nedostajući => 428 PRECONDITION_REQUIRED;
+- očekivana verzija se izvodi ISKLJUČIVO iz If-Match;
+- izvrši JEDAN ATOMIČAN SQL UPDATE koji:
+  - postavlja SAMO poslana poslovna polja;
+  - postavlja version = version + 1;
+  - postavlja updated_at na tekuće vrijeme baze;
+  - nosi predikat practice_id = <uspostavljeni tenant> AND version = <očekivana verzija>;
+- nula pogođenih redova zbog zastarjele verzije => 409 VERSION_CONFLICT;
+- uspjeh vraća reprezentaciju i NOVI ETag;
+- pozivalac NIKADA ne šalje version, updated_at ni updated_by; poslano se ODBIJA.
+
+updated_by OSTAJE NETAKNUT. Settings endpoint ga NE PIŠE i on NIJE autoritativno audit polje —
+akterstvo ostaje u kanonskom audit modelu.
+
+NE UVODI (D-053 klauzula B.5):
+- triger nad version;
+- SECURITY DEFINER;
+- privilegovanu helper funkciju;
+- izmjenu paketa 014_immutability_triggers;
+- novi migration paket;
+- API polje za proizvoljnu verziju.
+
+Runtime privilegija UPDATE (version) je PRIHVAĆEN minimalan mehanizam za atomičan inkrement.
+
+ADAPTACIJA GET /me NAKON practice_settings RLS-a (D-053 dio D; docs/02 §17.1a; docs/03 §10).
+
+PROBLEM: GET /me izvodi uslovne permisije iz allow_mpa_approval i allow_billing_specialist_approval,
+a /me je NEUTRALNA ruta bez app.practice_id. Čim ova faza uvede tenant politiku, predikat postaje
+practice_id = NULL i vraća NULA REDOVA za svaki membership; resolver pada fail-closed i MPA i
+BILLING_SPECIALIST TIHO GUBE analysis.approve i analysis.approval.revoke. Regresija NE BACA GREŠKU.
+
+NE SLABI POLITIKU DA BI /me PRORADIO. Politika ostaje doslovno:
+  practice_id = nullif(current_setting('app.practice_id', true), '')::uuid
+
+Adaptiraj ISKLJUČIVO aplikacijski put:
+- GET /me OSTAJE neutralna autentifikovana ruta; NE uvodi X-Practice-ID;
+- zamrznuti /me ugovor iz docs/03 §10 se NE MIJENJA;
+- svaki practice_id za taj interni read dolazi ISKLJUČIVO iz već razriješenih membership redova
+  za app.user_id; nijedna vrijednost iz tijela, query parametra, headera ni putanje NE UČESTVUJE;
+- NEAKTIVAN membership NE DOBIJA kontekst i ostaje permissions = [] (set_request_context bi za
+  njega ionako podigao 42501, jer validira pm.active = true);
+- za AKTIVAN membership kojem uslovne postavke stvarno trebaju, uspostavi app.practice_id ZA TAJ
+  MEMBERSHIP kroz prihvaćeni set_request_context put (docs/02 §16.2.3), pa tek onda čitaj;
+- SVA ČITANJA KOJA NISU TENANT-SCOPED MORAJU SE ZAVRŠITI PRIJE PRVOG set_request_context POZIVA —
+  users (§17.5), practices (§17.6), practice_memberships (§17.3), practice_membership_roles
+  (§17.4), platform_role_assignments (§17.2). Razlog: RESTRICTIVE politika practices_context_narrow
+  sužava practices na TAČNO JEDNU ordinaciju čim kontekst postoji, pa bi čitanje practiceName za
+  više membershipa nakon toga bila tiha regresija;
+- postavke ordinacije A NIKADA ne doprinose ordinaciji B; NEMA unije postavki ni rola preko
+  ordinacija;
+- NE UVODI novi mehanizam čišćenja konteksta — set_request_context već briše app.practice_id
+  prije validacije (D-033 klauzula 10), a kraj transakcije gasi sve app.* varijable;
+- NEMA SECURITY DEFINER, BYPASSRLS, superuser puta ni ijedne zaobilaznice;
+- provjeru practices.status iz koraka 4 redoslijeda autorizacije NE UVODI na /me — ona štiti
+  KLIJENTSKI POSLAN X-Practice-ID na tenant ruti, a /me ne bira tenant i ne autorizuje nijednu
+  tenant operaciju (D-053 klauzula D.10).
+
+OBAVEZAN REGRESIJSKI TEST (D-053 klauzula D.12):
+- iste kanonske /me fixture daju ISTE memberships[].permissions PRIJE I NAKON RLS-a;
+- uslovno ponašanje MPA i BILLING_SPECIALIST tačno za OBA stanja OBA flaga;
+- neaktivan membership ostaje permissions = [];
+- multi-practice membership koristi postavke SVOJE ordinacije, nezavisno;
+- practiceName prisutan za SVAKI membership — dokaz redoslijeda čitanja;
+- nijedan tenant kontekst ne curi nakon transakcije;
+- nijedan klijentski poslan practice identifikator ne učestvuje u neutralnom /me.
 
 review_decision_change_links NIJE U OBUHVATU OVE FAZE (D-052, dio A):
 - tabelu kreira paket 009_review_approvals u FAZI 10 (docs/02 §22.9); u Fazi 4 ONA NE POSTOJI;
@@ -759,8 +891,10 @@ Vlasništvo faze i migration paketa (docs/02 §17.0):
   PREMJEŠTENA iz paketa 013 odlukom D-051; Faza 4 je samo verifikuje;
 - platform_role_assignments RLS politike, docs/02 §17.2 — Faza 3, paket
   002_identity_and_practices; PREMJEŠTENE iz paketa 013 odlukom D-051; Faza 4 ih samo verifikuje;
-- practice_settings ENABLE + FORCE RLS, tenant politika, prošireni SELECT, ograničen UPDATE i obje
-  settings rute — Faza 4, paket 013_rls_policies (D-049);
+- practice_settings ENABLE + FORCE RLS, tenant politika, devetokolonski SELECT, devetokolonski
+  UPDATE i obje settings rute — Faza 4, paket 013_rls_policies (D-049; D-053 dijelovi A i B);
+- adaptacija GET /me uslovnog reada pod practice_settings RLS-om i njen regresijski dokaz —
+  Faza 4, aplikacijski i test sloj, bez migration paketa (D-053 dio D; docs/02 §17.1a);
 - generalizovani tenant endpoint authorization/enforcement pipeline — Faza 4, aplikacijski sloj,
   bez migration paketa;
 - set_request_context(p_practice_id uuid) — Faza 4, paket 013_rls_policies;

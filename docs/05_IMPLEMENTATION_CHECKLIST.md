@@ -1186,8 +1186,6 @@ D-049, klauzula 5.
 - [ ] `ENABLE ROW LEVEL SECURITY`.
 - [ ] `FORCE ROW LEVEL SECURITY`.
 - [ ] Standardna tenant politika `practice_id = app.practice_id`.
-- [ ] Proširena čitljiva površina koju settings endpoint zahtijeva.
-- [ ] **Ograničen `UPDATE` grant — uveden zajedno sa politikom koja ga ograničava.**
 - [ ] **Phase gate pada ako `UPDATE` grant postoji bez pripadajuće tenant politike.**
 - [ ] `GET /api/v1/practices/{practiceId}/settings` registrovan.
 - [ ] `PATCH /api/v1/practices/{practiceId}/settings` registrovan.
@@ -1202,6 +1200,96 @@ D-049, klauzula 5.
       **zatvorena** — regresijski test dokazuje da `copilot_app` više ne vidi redove izvan tekućeg
       tenanta.
 - [ ] `copilot_system` **nema** nijedan grant; `PUBLIC` **nema** nijedan grant.
+
+### Zamrznuta settings reprezentacija — D-053, dio A
+
+Normativno: `03` §10 („Settings reprezentacija"); `02` §20.2b.1.
+
+- [ ] `GET` i **uspješan** `PATCH` vraćaju **istu** reprezentaciju.
+- [ ] Reprezentacija ima **tačno osam** polja: `practiceId`, `billingReviewRequired`,
+      `allowMpaApproval`, `allowBillingSpecialistApproval`, `requireReasonForManualChange`,
+      `aiEnabled`, `axenitaExportEnabled`, `retentionPolicyCode`.
+- [ ] `retentionPolicyCode` je `string|null`; preostalih šest su `boolean`; `practiceId` je `uuid`.
+- [ ] Oba odgovora nose `ETag: "<version>"`, izveden iz `practice_settings.version`.
+- [ ] **`version` se ne pojavljuje kao polje JSON tijela** — ni u `GET`, ni u `PATCH` odgovoru, ni
+      u `PATCH` zahtjevu.
+- [ ] `updated_at`, `updated_by` i `configuration` se **ne vraćaju**.
+
+### Tačna `SELECT` površina — D-053, dio A
+
+- [ ] `SELECT` grant obuhvata **tačno devet** kolona: `practice_id`, `billing_review_required`,
+      `allow_mpa_approval`, `allow_billing_specialist_approval`,
+      `require_reason_for_manual_change`, `ai_enabled`, `axenita_export_enabled`,
+      `retention_policy_code`, `version`.
+- [ ] **Nema table-level `SELECT`.**
+- [ ] `id`, `configuration`, `updated_at` i `updated_by` ostaju **nečitljivi**.
+- [ ] Nedozvoljena kolona pada sa `42501` **i kada se koristi samo u `WHERE` ili `ORDER BY`**.
+- [ ] Trokolonska površina Faze 3 je **strogi podskup**; **nijedan grant nije opozvan**.
+
+### Tačna `UPDATE` površina — D-053, dio B
+
+- [ ] `UPDATE` grant obuhvata **tačno devet** kolona: `billing_review_required`,
+      `allow_mpa_approval`, `allow_billing_specialist_approval`,
+      `require_reason_for_manual_change`, `ai_enabled`, `axenita_export_enabled`,
+      `retention_policy_code`, `version`, `updated_at`.
+- [ ] **Nema table-level `UPDATE`.**
+- [ ] `practice_id`, `id`, `configuration` i `updated_by` ostaju **bez `UPDATE`-a**.
+- [ ] **Nema `INSERT` i nema `DELETE`** za runtime role.
+- [ ] **`updated_by` je nepromijenjen nakon uspješnog `PATCH`-a** i **nije** tretiran kao
+      autoritativno audit polje.
+- [ ] **Nijedan novi triger nije uveden**; paket `014_immutability_triggers` je **nepromijenjen**.
+
+### Mehanika optimističkog update-a — D-053, dio B
+
+- [ ] Očekivana verzija se izvodi **isključivo iz `If-Match`**.
+- [ ] Izvršava se **jedan atomičan SQL `UPDATE`**.
+- [ ] `UPDATE` postavlja **samo poslana** poslovna polja.
+- [ ] `UPDATE` postavlja `version = version + 1`.
+- [ ] `UPDATE` postavlja `updated_at` na **tekuće vrijeme baze**.
+- [ ] Predikat je `practice_id = <uspostavljeni tenant> and version = <očekivana verzija>`.
+- [ ] Nula pogođenih redova zbog zastarjele verzije → **`409 VERSION_CONFLICT`**.
+- [ ] Uspjeh vraća reprezentaciju i **novi** `ETag`.
+- [ ] Pozivalac **nikada** ne šalje `version`, `updated_at` ni `updated_by`; poslano se **odbija**.
+- [ ] **Nije uveden**: triger nad `version`, `SECURITY DEFINER`, privilegovana helper funkcija,
+      izmjena paketa `014`, novi migration paket, API polje za proizvoljnu verziju.
+
+### `GET /me` nakon `practice_settings` RLS-a — D-053, dio D
+
+Normativno: `02` §17.1a; `03` §10. Faza 4 **adaptira aplikacijski put**, ne politiku.
+
+- [ ] Tenant politika nad `practice_settings` je **doslovno** `practice_id =
+      nullif(current_setting('app.practice_id', true), '')::uuid` — **nepromijenjena**.
+- [ ] **Nije uveden** bootstrap/membership-wide izuzetak ni ijedno drugo slabljenje.
+- [ ] `GET /me` ostaje **neutralna, autentifikovana** ruta.
+- [ ] **`X-Practice-ID` nije uveden** na `/me`.
+- [ ] Zamrznuti `/me` ugovor iz `03` §10 je **nepromijenjen**.
+- [ ] Svaki `practice_id` za interni read dolazi **isključivo iz razriješenih membership redova**
+      za `app.user_id`; **nijedna** vrijednost iz tijela, query parametra, headera ni putanje ne
+      učestvuje.
+- [ ] **Neaktivan membership ne dobija tenant kontekst** i ostaje `permissions = []`.
+- [ ] Za **aktivan** membership kojem uslovne postavke trebaju, kontekst se uspostavlja **po
+      membershipu**, kroz prihvaćeni `set_request_context` put (`02` §16.2.3).
+- [ ] Read se izvršava **pod istom strogom tenant politikom**.
+- [ ] **Sva ne-tenant-scoped čitanja — uključujući `practiceName` za sve membershipe — završena su
+      prije prvog `set_request_context` poziva** (RESTRICTIVE politika `02` §17.6).
+- [ ] Postavke ordinacije A **ne doprinose** ordinaciji B; **nema unije** postavki ni rola preko
+      ordinacija.
+- [ ] **Nijedan novi mehanizam čišćenja konteksta nije uveden** — izolaciju daju brisanje unutar
+      `set_request_context` i kraj transakcije.
+- [ ] **Nema `SECURITY DEFINER`, `BYPASSRLS`, superuser puta ni zaobilaznice.**
+- [ ] Provjera `practices.status` iz koraka 4 §3.7.1 **nije uvedena na `/me`** (D-053, klauzula
+      D.10).
+
+### `GET /me` regresijski dokaz — D-053, klauzula D.12
+
+- [ ] Iste kanonske `/me` fixture daju **iste** `memberships[].permissions` **prije i nakon**
+      uvođenja `practice_settings` RLS-a.
+- [ ] Uslovno ponašanje `MPA` i `BILLING_SPECIALIST` je tačno za **oba** stanja **oba** flaga.
+- [ ] Neaktivan membership ostaje `permissions = []`.
+- [ ] Multi-practice membership koristi postavke **svoje** ordinacije, nezavisno.
+- [ ] `practiceName` je prisutan za **svaki** membership — dokaz redoslijeda čitanja.
+- [ ] **Nijedan tenant kontekst ne curi** nakon transakcije.
+- [ ] **Nijedan klijentski poslan practice identifikator** ne učestvuje u neutralnom `/me`.
 
 ## RLS za `review_decision_change_links` — odgođeno u Fazu 10
 
@@ -1264,16 +1352,28 @@ Normativno: `02` §20.2.
 
 Normativno: `03` §3.7.1; `04` §6.2.1. Svaka granica se dokazuje **zasebno**.
 
+**Jedanaest koraka** (D-047, klauzula 10; restituirano odlukom D-053, dio C).
+
 - [ ] 1. bearer token je autentifikovan.
 - [ ] 2. pouzdani `app.user_id` je izveden iz verifikovanog subjekta.
 - [ ] 3. `X-Practice-ID` je pročitan i validiran.
-- [ ] 4. `set_request_context(p_practice_id uuid)` je pozvan.
-- [ ] 5. aktivan `practice_memberships` red je validiran.
-- [ ] 6. transakcijski lokalni tenant context je uspostavljen.
-- [ ] 7. dodijeljene tenant role su učitane.
-- [ ] 8. efektivne permisije su izvedene.
-- [ ] 9. tražena permisija i prihvaćeni uslovi su evaluirani.
-- [ ] 10. komanda je izvršena pod tenant RLS-om.
+- [ ] 4. **membership-scoped `status` tražene ordinacije je pročitan prije promjene konteksta** —
+      nula redova → `403 ACCESS_DENIED`; `status <> 'ACTIVE'` → `403 ACCESS_DENIED` uz rollback.
+- [ ] 5. `set_request_context(p_practice_id uuid)` je pozvan.
+- [ ] 6. aktivan `practice_memberships` red je validiran.
+- [ ] 7. transakcijski lokalni tenant context je uspostavljen.
+- [ ] 8. dodijeljene tenant role su učitane.
+- [ ] 9. efektivne permisije su izvedene.
+- [ ] 10. tražena permisija i prihvaćeni uslovi su evaluirani.
+- [ ] 11. komanda je izvršena pod tenant RLS-om.
+
+- [ ] Korak 4 se izvršava **prije** koraka 5 — `app.practice_id` ne postoji dok korak 4 ne uspije.
+- [ ] Korak 4 je **aplikacijski**; tijelo `set_request_context` **nije** promijenjeno (`02`
+      §16.2.3).
+- [ ] Korak 4 dokazuje **postojanje** membershipa, korak 6 dokazuje **aktivan** membership;
+      **nijedan ne zamjenjuje drugi**.
+- [ ] Nijedan drugi korak nije uklonjen ni oslabljen; **nijedna nova sigurnosna semantika nije
+      uvedena** (D-053, klauzula C.1).
 
 ## Kompozicija efektivnih permisija
 

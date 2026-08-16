@@ -302,7 +302,10 @@ Ograničenja (D-023, klauzula 4):
   vlasnički membership red (§17.4);
 - u fazi 3 **isključivo trokolonski** column-level SELECT na `practice_settings`
   (`practice_id`, `allow_mpa_approval`, `allow_billing_specialist_approval`), bez ijednog upisa
-  (§20.2b, D-049).
+  (§20.2b, D-049);
+- u fazi 4 **tačno devetokolonski** column-level SELECT i **tačno devetokolonski** column-level
+  UPDATE na `practice_settings`, bez INSERT-a i DELETE-a, ograničeni tenant politikom
+  (§20.2b.1, D-053).
 
 Credential: `DATABASE_URL`.
 
@@ -880,8 +883,16 @@ ordinacije, nikada podrazumijevano stanje.
 **Vlasništvo faza (D-049).** Paket `002_identity_and_practices` i **faza 3** kreiraju
 **kompletnu** schemu iznad — uključujući `version`, `check (version >= 1)`, `updated_by` i **oba**
 approval flaga. Runtime put te tabele pripada **fazi 4** i paketu `013_rls_policies`: `ENABLE` +
-`FORCE RLS`, tenant politika, proširena čitljiva površina, ograničen `UPDATE` grant, te `GET` i
+`FORCE RLS`, tenant politika, **devetokolonski `SELECT`**, **devetokolonski `UPDATE`**, te `GET` i
 `PATCH` settings rute sa `ETag`/`If-Match`/`428`/`409 VERSION_CONFLICT`.
+
+**Tačne runtime površine faze 4 (D-053, dijelovi A i B).** Ranija formulacija „proširena čitljiva
+površina" je **zamijenjena prebrojanim listama** iz §20.2b. `copilot_app` čita **tačno devet**
+kolona i piše **tačno devet** kolona. `configuration`, `updated_by` i `id` ostaju **nečitljivi**;
+`practice_id`, `id`, `configuration` i `updated_by` ostaju **bez `UPDATE`-a**; `updated_at` je
+upisiv, ali ga postavlja **baza**, nikada API pozivalac. `updated_by` **nije autoritativno audit
+polje** i settings endpoint ga ne dira — akterstvo ostaje u kanonskom audit modelu, **bez novog
+trigera** i **bez izmjene paketa `014_immutability_triggers`**.
 
 U fazi 3 `copilot_app` dobija **isključivo trokolonski** `SELECT` iz §20.2b i **nijedan** upis;
 nijedna settings ruta nije registrovana. Grantovi i tenant politika koja ograničava write
@@ -2954,6 +2965,80 @@ DELETE policy se ne kreira ako business delete nije dozvoljen.
 Obrazac pretpostavlja `practice_id not null` (§2.5). Nad nullable tenant ključem
 `NULL = <uuid>` daje `NULL` i red postaje nevidljiv bez greške.
 
+## 17.1a `GET /me` i tenant obrazac nad `practice_settings` (D-053, dio D)
+
+**Normativna odluka: D-053, dio D.** Ovaj odjeljak opisuje **jedinu** tačku u kojoj neutralna ruta
+mora čitati tenant tabelu, i **kako se to radi bez ijednog izuzetka u politici**.
+
+### 17.1a.1 Problem
+
+`GET /me` izvodi **uslovne** permisije `analysis.approve` i `analysis.approval.revoke` iz
+`allow_mpa_approval` i `allow_billing_specialist_approval` (D-041, D-044; `03` §10, §28.5). Ruta je
+**neutralna**: ne traži `X-Practice-ID` i ne bira tenant. Kada faza 4 uvede tenant politiku iz
+§17.1 nad `practice_settings`, a `app.practice_id` nije postavljen, predikat glasi
+`practice_id = NULL` i vraća **nula redova za svaki membership**. Resolver pada **fail-closed** na
+oba flaga `false`, pa bi ordinacija koja je odobravanje izričito uključila **tiho izgubila** te dvije
+permisije u odgovoru `/me`. Regresija **ne baca grešku** — mijenja sadržaj zamrznutog ugovora.
+
+### 17.1a.2 Politika se ne mijenja
+
+`practice_settings` zadržava **doslovno** standardni tenant predikat iz §17.1:
+
+```sql
+practice_id =
+nullif(current_setting('app.practice_id', true), '')::uuid
+```
+
+**Ne uvodi se bootstrap izuzetak, membership-wide grana, `SECURITY DEFINER`, `BYPASSRLS` ni ijedno
+drugo slabljenje.** Rješenje je **isključivo** aplikacijska adaptacija.
+
+### 17.1a.3 Prihvaćeni obrazac čitanja
+
+1. **Sva čitanja koja nisu uređena tenant predikatom završavaju se prije prvog
+   `set_request_context` poziva u toj transakciji** — `users` (§17.5), `practices` (§17.6),
+   `practice_memberships` (§17.3), `practice_membership_roles` (§17.4) i
+   `platform_role_assignments` (§17.2).
+
+   Razlog je **RESTRICTIVE** politika `practices_context_narrow` (§17.6): čim `app.practice_id`
+   postoji, `practices` vraća **tačno jednu** ordinaciju, pa bi čitanje `practiceName` za više
+   membershipa nakon uspostavljenog konteksta bilo tiha regresija `03` §10.
+2. **Neaktivan membership ne dobija kontekst** — njegove permisije su `[]` po `15` §3.2 i uslovne
+   postavke mu nisu potrebne. `set_request_context` bi za njega ionako podigao `42501`, jer
+   validira `pm.active = true` (§16.2.3).
+3. Za **aktivan** membership čije izvođenje stvarno zahtijeva uslovne postavke, `app.practice_id`
+   se uspostavlja **za taj membership**, kroz **prihvaćeni** `set_request_context` put (§16.2.3), i
+   `practice_settings` se čita **pod istom strogom politikom** iz §17.1a.2.
+4. **Identifikator ordinacije dolazi isključivo iz već razriješenog membership reda za
+   `app.user_id`.** Nijedna vrijednost iz tijela, query parametra, headera ni putanje ne učestvuje.
+
+### 17.1a.4 Izolacija bez novog mehanizma
+
+**Ne uvodi se nijedan novi mehanizam čišćenja konteksta**; postojeći su dovoljni i kanonski:
+
+- **između membershipa** — `set_request_context` **briše `app.practice_id` prije validacije** i
+  postavlja ga tek nakon uspjeha (§16.2.3; D-033, klauzula 10), pa uzastopni pozivi ne akumuliraju
+  i ne miješaju kontekst;
+- **nakon transakcije** — `app.*` su transakcijski lokalne i gase se sa krajem transakcije; pooled
+  konekcija ne nasljeđuje kontekst (§16.2).
+
+Posljedica: postavke ordinacije A **nikada** ne doprinose permisijama ordinacije B, i obrada više
+membershipa **nikada** ne unijira postavke ni role preko ordinacija.
+
+### 17.1a.5 Šta se ovim ne uvodi
+
+- `X-Practice-ID` na `/me` — **ne uvodi se**; ruta ostaje neutralna;
+- provjera `practices.status` iz D-047, klauzule 10 — **ne uvodi se na `/me`**. Taj korak štiti
+  **klijentski poslan** `X-Practice-ID` na tenant ruti; na `/me` klijent ne bira tenant, ruta ne
+  autorizuje nijednu tenant operaciju, a uvođenje provjere bi promijenilo zamrznuti odgovor za
+  aktivan membership u ne-`ACTIVE` ordinaciji (D-053, klauzula D.10);
+- nijedna izmjena `03` §10 reprezentacije, `15` matrice, permisije ni role.
+
+### 17.1a.6 Sigurnosni smjer
+
+Ovo je **pooštrenje**, ne olakšica: read koji je u fazi 3 bio potpuno neograničen
+(`PHASE 3 INTERMEDIATE NON-PILOT CONDITIONAL-SETTINGS READ EXPOSURE`, §20.2b) postaje ograničen
+tenant politikom, **jedan membership po jedan**.
+
 ## 17.2 User-scoped obrazac — `platform_role_assignments`
 
 Globalna tabela, nije tenant tabela, ne koristi `app.practice_id`.
@@ -3306,6 +3391,13 @@ membershipe i nema INSERT, UPDATE ni DELETE.
 `practice_settings` koristi standardni tenant predikat `practice_id = app.practice_id`.
 `UPDATE` je dozvoljen jer `PATCH /practices/{practiceId}/settings` postoji; concurrency se štiti
 `version` kolonom i `If-Match` (D-029).
+
+**Obje površine su column-level i prebrojane (D-053).** `S` i `U` u redu `practice_settings`
+znače **tačno devet** kolona za `SELECT` i **tačno devet** kolona za `UPDATE`, imenovanih u
+§20.2b. **Nema table-level `SELECT` ni table-level `UPDATE`.** Runtime privilegija
+`UPDATE (version)` je prihvaćena kao **minimalan mehanizam** koji atomičan inkrement iz `03` §5.2
+zahtijeva; **triger, `SECURITY DEFINER` i privilegovana helper funkcija se ne uvode** (D-053,
+klauzula B.5).
 
 **Vlasništvo faze (D-049).** Cijeli red `practice_settings` u ovoj matrici — `ENABLE` +
 `FORCE RLS`, tenant politika i `UPDATE` — pripada **fazi 4** i paketu `013_rls_policies`. **Grant
@@ -3720,8 +3812,9 @@ Pravila:
 - `PUBLIC` nema nijedan grant;
 - owner ostaje `copilot_migrator` (§3.5);
 - nedozvoljena kolona pada sa `42501` **i kada se koristi samo u predikatu ili u `ORDER BY`**;
-- proširenje ove površine i ograničen `UPDATE` grant pripadaju **fazi 4** i paketu
-  `013_rls_policies`, i uvode se **zajedno** sa tenant RLS politikom (§18.1).
+- proširenje ove površine na **tačno devet** kolona i **devetokolonski** `UPDATE` grant pripadaju
+  **fazi 4** i paketu `013_rls_policies`, i uvode se **zajedno** sa tenant RLS politikom
+  (§18.1, §20.2b.1; D-053).
 
 **`PHASE 3 INTERMEDIATE NON-PILOT CONDITIONAL-SETTINGS READ EXPOSURE`** (D-049, klauzula 3).
 Pošto `practice_settings` u fazi 3 još nema RLS iz §22.13, držalac dijeljenog `copilot_app`
@@ -3731,6 +3824,96 @@ postojanje reda. **To je stvarna izloženost sigurnosne konfiguracije i ne umanj
 je **isključivo** za nepilotsko međustanje faze 3, pod istim uslovima kao izloženost iz D-047,
 klauzule 18: na tom gateu ne postoje stvarni pilot korisnici ni podaci, a faza 4 je obavezna prije
 faze 5. Faza 4 je zatvara `ENABLE` + `FORCE RLS` i tenant politikom.
+
+### 20.2b.1 Runtime površina faze 4 — tačno devet `SELECT` i devet `UPDATE` kolona
+
+**Normativna odluka: D-053, dijelovi A i B.** Ovaj odjeljak **zamjenjuje** raniju neodređenu
+formulaciju „proširena čitljiva površina koju settings endpoint zahtijeva" (D-049, klauzula 5).
+Obje površine su **column-level i prebrojane**, uvode se **zajedno** sa tenant politikom, u paketu
+`013_rls_policies`.
+
+```sql
+grant select (
+  practice_id,
+  billing_review_required,
+  allow_mpa_approval,
+  allow_billing_specialist_approval,
+  require_reason_for_manual_change,
+  ai_enabled,
+  axenita_export_enabled,
+  retention_policy_code,
+  version
+) on practice_settings to copilot_app;
+
+grant update (
+  billing_review_required,
+  allow_mpa_approval,
+  allow_billing_specialist_approval,
+  require_reason_for_manual_change,
+  ai_enabled,
+  axenita_export_enabled,
+  retention_policy_code,
+  version,
+  updated_at
+) on practice_settings to copilot_app;
+```
+
+| Tabela | `copilot_migrator` | `copilot_app` (faza 4) | `copilot_system` | `PUBLIC` |
+|---|---|---|---|---|
+| practice_settings | owner | column-level SELECT — **tačno devet** kolona; column-level UPDATE — **tačno devet** kolona | — | — |
+
+**`SELECT` — osam kolona nosi reprezentaciju `03` §10, deveta (`version`) nosi `ETag`.**
+
+**`UPDATE` — sedam poslovnih postavki, plus `version` i `updated_at` kao concurrency/maintenance
+metadata.**
+
+Kolone koje ostaju **nečitljive** za `copilot_app`:
+
+```text
+id            (ako postoji u kanonskoj schemi)
+configuration
+updated_at
+updated_by
+```
+
+Kolone koje ostaju **bez `UPDATE`-a** za `copilot_app`:
+
+```text
+practice_id
+id            (ako postoji u kanonskoj schemi)
+configuration
+updated_by
+```
+
+Pravila:
+
+- **nema table-level `SELECT` i nema table-level `UPDATE`**;
+- **nijedna druga kolona** nije obuhvaćena nijednom od dvije liste; interna metadata se **ne izlaže
+  samo zato što postoji u tabeli**;
+- **nema `INSERT` i nema `DELETE`** za runtime role ni u fazi 4 — settings red kreira pouzdani seed
+  put (§23.4), ne request putanja;
+- `copilot_system` **nema nijedan grant**; `PUBLIC` nema nijedan grant; owner ostaje
+  `copilot_migrator`;
+- nedozvoljena kolona pada sa `42501` **i kada se koristi samo u predikatu ili u `ORDER BY`**;
+- **`UPDATE` grant bez pripadajuće tenant politike je zabranjen i obara phase gate** (D-049,
+  klauzula 5, nepromijenjeno);
+- **`updated_by` ostaje netaknut** — settings endpoint ga ne piše i on **nije autoritativno audit
+  polje**; akterstvo ostaje u kanonskom audit modelu, **bez novog trigera** i bez izmjene paketa
+  `014_immutability_triggers` (D-053, klauzula B.3);
+- `updated_at` postavlja **baza** pri `UPDATE`-u; API pozivalac ga **nikada** ne šalje;
+- `version` API pozivalac **nikada** ne šalje — očekivana verzija dolazi isključivo iz `If-Match`
+  (`03` §5.2).
+
+**Odnos prema fazi 3 (D-053, klauzula A.5).** Trokolonska površina iznad — `practice_id`,
+`allow_mpa_approval`, `allow_billing_specialist_approval` — je **strogi podskup** ove
+devetokolonske `SELECT` liste. Faza 4 je **proširuje**; **nijedan grant faze 3 se ne opoziva**, pa
+se uslovni read `GET /me` ne lomi na nivou privilegija. Ono što se za `GET /me` mijenja je **RLS**,
+a ne grant — vidi §17.1a.
+
+### 20.2b.2 `GET /me` uslovni read pod tenant RLS-om faze 4
+
+**Normativna odluka: D-053, dio D.** Vidi §17.1a. Tenant politika iz §17.1 se **ne slabi**;
+adaptira se **isključivo aplikacijski put**.
 
 ## 20.3 Sequence
 
@@ -3793,6 +3976,18 @@ Dodatno, prema **D-049** (`practice_settings`, faza 3):
 - `copilot_app` INSERT/UPDATE/DELETE nad `practice_settings` pada sa `42501`;
 - `copilot_system` bilo koji pristup `practice_settings` pada;
 - `PUBLIC` nema nijedan grant nad `practice_settings`.
+
+Dodatno, prema **D-053** (`practice_settings`, faza 4; §20.2b.1):
+
+- `copilot_app` `SELECT` nad **tačno devet** dozvoljenih kolona **prolazi**;
+- `copilot_app` `SELECT *` nad `practice_settings` i dalje pada sa `42501`;
+- `copilot_app` `SELECT` nad `id`, `configuration`, `updated_at` ili `updated_by` pada sa `42501`,
+  **i kada se kolona koristi isključivo u `WHERE` ili u `ORDER BY`**;
+- `copilot_app` `UPDATE` nad **tačno devet** dozvoljenih kolona **prolazi**;
+- `copilot_app` `UPDATE` nad `practice_id`, `id`, `configuration` ili `updated_by` pada sa `42501`;
+- `copilot_app` `INSERT` i `DELETE` nad `practice_settings` i dalje padaju sa `42501`;
+- `copilot_system` bilo koji pristup i dalje pada; `PUBLIC` i dalje nema nijedan grant;
+- `UPDATE` grant **bez** pripadajuće tenant politike **obara phase gate**.
 
 Dodatno, prema **D-051** (§17.2 i §17.4 u fazi 3):
 
@@ -4108,8 +4303,8 @@ tek nad tabelom koja u datoj fazi postoji** (§17.0; D-052, klauzula A.5);
 `practice_id = app.practice_id` za `review_decision_change_links`** (§13.2a, §18.1, D-046) —
 **odgođeni slice, izvršava se u fazi 10** nakon paketa `009_review_approvals` (§22.9);
 **bootstrap-safe user-scoped SELECT politika za `practice_memberships`** (§17.3);
-**`ENABLE` + `FORCE ROW LEVEL SECURITY`, tenant politika, proširena čitljiva površina i ograničen
-`UPDATE` grant za `practice_settings`** (§6.4, §18.1, §20.2b, D-049 klauzula 5);
+**`ENABLE` + `FORCE ROW LEVEL SECURITY`, tenant politika, devetokolonski `SELECT` i devetokolonski
+`UPDATE` za `practice_settings`** (§6.4, §18.1, §20.2b.1, D-049 klauzula 5; D-053, dijelovi A i B);
 SECURITY INVOKER `app_security.set_request_context` (§16.2.3);
 **globalne tarifne tabele i `system_storage_objects` ne dobijaju tenant RLS** (§18.3).
 
@@ -4138,10 +4333,21 @@ isključivo tačka izvršenja. **Nijedan novi broj paketa se ne uvodi i nijedan 
 `002` (§17.5, §17.6, §20.2a) i ovdje se **ne prepisuju**. Faza 4 samo počinje postavljati
 `app.practice_id`, čime se RESTRICTIVE politika iz §17.6 aktivira automatski.
 
-**`practice_settings` write sposobnost.** Ograničen `UPDATE` grant i tenant RLS politika koja ga
-ograničava uvode se **zajedno, u ovom paketu** (D-049, klauzula 5). `UPDATE` grant bez pripadajuće
-politike je zabranjen. Tabela pri tome prvi put dobija `FORCE RLS`, pa od tada podliježe i
-maintenance protokolu iz §23.4. Pouzdani seed put je stvarno popunjava, pa zajedno sa
+**`practice_settings` write sposobnost.** Devetokolonski `UPDATE` grant (§20.2b.1) i tenant RLS
+politika koja ga ograničava uvode se **zajedno, u ovom paketu** (D-049, klauzula 5). `UPDATE` grant
+bez pripadajuće politike je zabranjen. Tabela pri tome prvi put dobija `FORCE RLS`, pa od tada
+podliježe i maintenance protokolu iz §23.4.
+
+**Tačne površine (D-053, dijelovi A i B).** Ovaj paket dodjeljuje **tačno devet** `SELECT` i
+**tačno devet** `UPDATE` kolona iz §20.2b.1 — **nikada table-level**. `configuration`, `updated_by`
+i `id` ostaju nečitljivi; `practice_id`, `id`, `configuration` i `updated_by` ostaju bez
+`UPDATE`-a. **Nijedan triger, `SECURITY DEFINER` ni privilegovana helper funkcija se ne uvodi**, i
+paket `014_immutability_triggers` se **ne dira**.
+
+**`GET /me` nakon ove politike (D-053, dio D).** Uvođenje tenant politike nad `practice_settings`
+mijenja rezultat uslovnog reada neutralne rute `GET /me`. Politika se **ne slabi**; adaptira se
+aplikacijski put prema §17.1a. Ovaj paket **ne uvodi** nijedan izuzetak, bootstrap granu ni
+`X-Practice-ID` zahtjev na `/me`. Pouzdani seed put je stvarno popunjava, pa zajedno sa
 `practice_memberships` (§17.3) ulazi na **allowlistu faze 4** iz §23.4.4a (D-052, dio B).
 Proširenje allowliste je **eksplicitna klauzula ovog paketa** — tiho proširenje je zabranjeno.
 
@@ -4469,6 +4675,41 @@ Nivo: integration. Normativno: §20.2b. Puni ugovor je u `08` §21.7.
 Izloženost `PHASE 3 INTERMEDIATE NON-PILOT CONDITIONAL-SETTINGS READ EXPOSURE` se testom
 **eksplicitno tvrdi** kao prihvaćeno međustanje, da promjena ne bi prošla nezapaženo. Faza 4 je
 zatvara; regresijski test to dokazuje nakon §22.13.
+
+### 25.1.3a Runtime površina `practice_settings` u fazi 4 (D-053)
+
+Nivo: integration. Normativno: §20.2b.1, §18.1, §17.1a. Puni ugovor je u `08` §21.7.5 i §21.7.6.
+
+Površina i grantovi:
+
+- `SELECT` nad **tačno devet** dozvoljenih kolona **prolazi**;
+- `SELECT *` → **`42501`**;
+- `SELECT` nad `id`, `configuration`, `updated_at`, `updated_by` → **`42501`**, uključujući
+  upotrebu isključivo u `WHERE` ili `ORDER BY`;
+- `UPDATE` nad **tačno devet** dozvoljenih kolona **prolazi**;
+- `UPDATE` nad `practice_id`, `id`, `configuration`, `updated_by` → **`42501`**;
+- `INSERT` i `DELETE` → **`42501`**;
+- **nema table-level `SELECT` ni table-level `UPDATE`** — introspekcija to potvrđuje;
+- `copilot_system` bilo kakav pristup → pada; `PUBLIC` nema nijedan grant;
+- `UPDATE` grant **bez** pripadajuće tenant politike **obara phase gate**.
+
+Tenant izolacija i optimistic locking:
+
+- `copilot_app` vidi **isključivo** red tekućeg tenanta — regresijski test dokazuje da je izloženost
+  `PHASE 3 INTERMEDIATE NON-PILOT CONDITIONAL-SETTINGS READ EXPOSURE` **zatvorena**;
+- `version` se inkrementira **atomično**, u istom `UPDATE`-u koji nosi predikat
+  `practice_id = <tenant> and version = <očekivana>`;
+- `updated_at` postavlja **baza**; `updated_by` je **nepromijenjen** nakon uspješnog `PATCH`-a.
+
+`GET /me` regresija nakon uvođenja RLS-a (§17.1a; D-053, klauzula D.12):
+
+- iste kanonske `/me` fixture daju **iste** `memberships[].permissions` prije i nakon RLS-a;
+- uslovno ponašanje `MPA` i `BILLING_SPECIALIST` tačno je za **oba** stanja **oba** flaga;
+- neaktivan membership ostaje `permissions = []`;
+- multi-practice membership koristi postavke **svoje** ordinacije, nezavisno;
+- `practiceName` je prisutan za **svaki** membership — dokaz redoslijeda iz §17.1a.3;
+- nakon transakcije **nijedan** tenant kontekst ne curi;
+- **nijedan** klijentski poslan practice identifikator ne učestvuje u neutralnom `/me`.
 
 ### 25.1.4 §17.2 i §17.4 u fazi 3 (D-051)
 
@@ -4801,7 +5042,12 @@ Normativno:
   seed skripti** (rollback izuzet, §23.4.5);
 - **§17.2 i §17.4 su konačni u paketu `002`; paket `013` ih ne rekreira ni ne prepisuje**;
 - **`practice_settings` u fazi 3 ima isključivo trokolonski `SELECT` i nijedan upisni grant; write
-  grant i tenant politika koja ga ograničava uvode se zajedno u paketu `013`**.
+  grant i tenant politika koja ga ograničava uvode se zajedno u paketu `013`**;
+- **`practice_settings` u fazi 4 ima tačno devetokolonski `SELECT` i tačno devetokolonski `UPDATE`
+  iz §20.2b.1, nikada table-level; `configuration`, `updated_by` i `id` ostaju nečitljivi, a
+  `practice_id`, `id`, `configuration` i `updated_by` ostaju bez `UPDATE`-a** (D-053);
+- **`GET /me` ostaje neutralna ruta i nakon `practice_settings` RLS-a; tenant politika iz §17.1
+  nije oslabljena, nego je aplikacijski put adaptiran prema §17.1a** (D-053, dio D).
 
 ## 27.1 Rokovi za neriješene stavke
 

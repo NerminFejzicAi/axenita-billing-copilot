@@ -662,6 +662,44 @@ namjerno ne filtrira `pm.active`, pa neaktivan membership i dalje prikazuje ime 
 skladu sa pravilima vidljivosti iznad. Vlastiti `users` red čita se kroz self politiku
 (`02` §17.5). Nijedno od toga ne daje pristup redu drugog korisnika.
 
+### Adaptacija faze 4 — uslovne postavke pod `practice_settings` RLS-om
+
+**Normativna odluka: D-053, dio D.** Puni obrazac je u `02` §17.1a.
+
+Uslovne permisije u `permissions[]` (§28.5) izvode se iz `allow_mpa_approval` i
+`allow_billing_specialist_approval`. Kada faza 4 uvede tenant politiku nad `practice_settings`
+(`02` §17.1, §22.13), taj se read **više ne izvršava bez tenant konteksta**: uz nepostavljen
+`app.practice_id` politika vraća nula redova, resolver pada fail-closed i `MPA` odnosno
+`BILLING_SPECIALIST` bi **tiho izgubili** `analysis.approve` i `analysis.approval.revoke`.
+
+**Ugovor `/me` iznad se time ne mijenja.** Faza 4 adaptira **isključivo interni put**:
+
+- **`GET /me` ostaje neutralna, autentifikovana ruta** — `X-Practice-ID` se **ne uvodi** i nije
+  primjenjiv; klijent **ne bira** tenant;
+- **svaki `practice_id` upotrijebljen za taj interni read dolazi isključivo iz već razriješenih
+  membership redova** autentifikovanog korisnika; nijedna vrijednost iz tijela, query parametra,
+  headera ni putanje ne učestvuje;
+- **neaktivan membership ne dobija tenant kontekst** i ostaje `permissions = []`;
+- za **aktivan** membership čije izvođenje stvarno zahtijeva uslovne postavke, kontekst se
+  uspostavlja **za taj membership**, kroz prihvaćeni `set_request_context` put (`02` §16.2.3), i
+  postavke se čitaju **pod istom strogom tenant politikom**;
+- **postavke ordinacije A nikada ne doprinose ordinaciji B**; obrada više membershipa **ne
+  unijira** postavke ni role preko ordinacija;
+- **sva čitanja koja nisu tenant-scoped — uključujući `practiceName` za sve membershipe — završavaju
+  se prije prvog uspostavljanja konteksta** (RESTRICTIVE politika `02` §17.6 nakon toga sužava
+  `practices` na tačno jednu ordinaciju);
+- **tenant kontekst ne curi** nakon transakcije.
+
+**Politika se ne slabi.** Ne uvodi se bootstrap izuzetak, membership-wide grana, `SECURITY
+DEFINER` ni ijedna zaobilaznica (D-053, klauzule D.1 i D.11).
+
+**Korak provjere `practices.status` iz §3.7.1 se na `/me` ne uvodi** — on štiti **klijentski
+poslan** `X-Practice-ID` na tenant ruti, dok `/me` ne bira tenant i ne autorizuje nijednu tenant
+operaciju (D-053, klauzula D.10).
+
+**Regresijski dokaz je obavezan** (D-053, klauzula D.12; `08` §21.7.6): iste kanonske fixture daju
+**iste** `memberships[].permissions` prije i nakon uvođenja RLS-a.
+
 ## GET `/practices/{practiceId}`
 
 Permission: `practice.read`.
@@ -741,6 +779,55 @@ se **isključivo faza implementacije endpointa**.
 
 Ugovor obje rute ispod ostaje **zamrznut i normativan** za svoju implementaciju u fazi 4.
 
+## Settings reprezentacija — zamrznuta (D-053, dio A)
+
+**Normativna odluka: D-053, dio A.** `GET` i **uspješan** `PATCH` vraćaju **istu** reprezentaciju
+resursa, tačno ovih **osam** polja i nijedno drugo:
+
+```json
+{
+  "practiceId": "practice-uuid",
+  "billingReviewRequired": true,
+  "allowMpaApproval": false,
+  "allowBillingSpecialistApproval": false,
+  "requireReasonForManualChange": true,
+  "aiEnabled": true,
+  "axenitaExportEnabled": true,
+  "retentionPolicyCode": null
+}
+```
+
+| Polje | Tip |
+|---|---|
+| `practiceId` | uuid |
+| `billingReviewRequired` | boolean |
+| `allowMpaApproval` | boolean |
+| `allowBillingSpecialistApproval` | boolean |
+| `requireReasonForManualChange` | boolean |
+| `aiEnabled` | boolean |
+| `axenitaExportEnabled` | boolean |
+| `retentionPolicyCode` | string, nullable |
+
+Obje rute vraćaju:
+
+```http
+ETag: "<version>"
+```
+
+Vrijednost je **integer** `practice_settings.version` (`02` §6.4).
+
+**`version` se ne duplira u JSON tijelo.** Ne pojavljuje se ni u `GET` odgovoru, ni u `PATCH`
+odgovoru, ni u `PATCH` zahtjevu. Postoji **tačno jedan** kanal za tekuću verziju resursa, i to je
+`ETag`.
+
+**`updated_at` i `updated_by` se ne vraćaju** i **ne primaju**. `updated_by` **nije autoritativno
+audit polje** i settings endpoint ga ne dira; akterstvo ostaje u kanonskom audit modelu (`02`
+§20.2b.1; D-053, klauzula B.3). `configuration` se **ne izlaže** — nema grant nijednoj runtime roli
+(`02` §20.2b.1), pa nije dostupan ni na nivou baze.
+
+Runtime površina baze koja ovu reprezentaciju nosi je **tačno devet** `SELECT` kolona — osam iz
+tabele iznad plus `version` za `ETag` (`02` §20.2b.1).
+
 ## GET `/practices/{practiceId}/settings`
 
 **Faza 4** (D-049).
@@ -750,7 +837,7 @@ Permission: `practice.settings.read`.
 Podobne role (D-044; matrica u `15`): `PRACTICE_ADMIN` **ALLOW**, sve ostale **DENY**. Isto
 važi za `practice.settings.manage` na `PATCH` ruti.
 
-Vraća `ETag` za optimistic locking (§5.2).
+Vraća reprezentaciju iznad i `ETag` za optimistic locking (§5.2).
 
 ## PATCH `/practices/{practiceId}/settings`
 
@@ -808,10 +895,40 @@ Pojašnjenja:
 - **neaktivan membership uvijek odbija**, bez obzira na flag;
 - **platform rola nikada ne zadovoljava** uslov tenant podobnosti za odobravanje.
 
-Odgovor `200` vraća **novi `ETag`**; `version` je inkrementiran atomično.
+Odgovor `200` vraća **zamrznutu osmopoljnu reprezentaciju** iz „Settings reprezentacija" iznad i
+**novi `ETag`**; `version` je inkrementiran atomično.
 
 Greške: `428 PRECONDITION_REQUIRED` bez `If-Match`, `409 VERSION_CONFLICT` na stale
 `If-Match`.
+
+### Mehanika optimističkog update-a (D-053, dio B)
+
+- `If-Match` je **obavezan** (§5.2); nedostajući → **`428 PRECONDITION_REQUIRED`**;
+- **očekivana verzija se izvodi isključivo iz `If-Match`**;
+- izvršava se **jedan atomičan SQL `UPDATE`** koji:
+  - postavlja **samo poslana** poslovna polja;
+  - postavlja `version = version + 1`;
+  - postavlja `updated_at` na **tekuće vrijeme baze**;
+  - nosi predikat `practice_id = <uspostavljeni tenant> and version = <očekivana verzija>`;
+- **nula pogođenih redova zbog zastarjele očekivane verzije → `409 VERSION_CONFLICT`**;
+- uspjeh vraća reprezentaciju i **novi** `ETag`.
+
+Runtime write površina baze je **tačno devet** `UPDATE` kolona — sedam poslovnih polja iz tabele
+iznad plus `version` i `updated_at` (`02` §20.2b.1). Runtime privilegija `UPDATE (version)` je
+prihvaćena kao **minimalan mehanizam** koji ovaj ugovor zahtijeva; **triger, `SECURITY DEFINER`,
+privilegovana helper funkcija, izmjena paketa `014` i novi migration paket se ne uvode** (D-053,
+klauzula B.5).
+
+**Polja koja pozivalac nikada ne šalje:**
+
+| Polje | Porijeklo |
+|---|---|
+| `version` | isključivo `If-Match` — **nikada tijelo zahtjeva** |
+| `updated_at` | postavlja **server/baza** |
+| `updated_by` | **ne prima se**; settings endpoint ga ne piše |
+
+Poslano `version`, `updated_at` ili `updated_by` u tijelu se **odbija**; proizvoljno API polje za
+verziju **ne postoji**.
 
 ---
 

@@ -481,3 +481,14 @@ Obje se smatraju zatvorenim tek kada, u fazi 4:
 - `practice_settings` nosi `ENABLE` + `FORCE RLS` i tenant politiku, a regresijski test dokazuje da
   `copilot_app` više ne vidi redove izvan tekućeg tenanta (`08` §21.7.5);
 - `practice_settings` `UPDATE` grant postoji **isključivo zajedno** sa politikom koja ga ograničava.
+
+**Dopuna (D-053, 2026-08-16).** Zatvaranje druge izloženosti je **prebrojano i uslovljeno**:
+`copilot_app` u fazi 4 dobija **tačno devet** `SELECT` i **tačno devet** `UPDATE` kolona iz `02`
+§20.2b.1 — nikada table-level, i bez `INSERT`-a i `DELETE`-a. Trokolonska površina faze 3 je
+**strogi podskup** i **ne opoziva se**.
+
+Uz to, zatvaranje **ne smije oboriti `GET /me`**: uvođenje tenant politike bi bez adaptacije tiho
+uklonilo uslovne permisije iz zamrznutog `/me` odgovora. **Politika se ne slabi** — adaptira se
+aplikacijski put (`02` §17.1a; `03` §10), a regresijski dokaz iz `08` §21.7.6 je **dio izlaznog
+kriterija**. Izlazni kriterij nije ispunjen ako je `/me` sačuvan slabljenjem RLS-a, uvođenjem
+`X-Practice-ID` na `/me`, `SECURITY DEFINER` funkcijom ili bilo kojom zaobilaznicom.

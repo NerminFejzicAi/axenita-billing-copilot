@@ -144,6 +144,53 @@ je već prisutna i aktivira se automatski čim faza 4 počne postavljati konteks
 - `platformRoles` i tenant membershipi su **odvojeni**; `platformRoles` ne kreiraju tenant pristup;
 - platform/system context se **ne** uspostavlja kroz `set_request_context`.
 
+## 2.1a Neutralna ruta `GET /me` i tenant RLS nad `practice_settings` (D-053, dio D)
+
+Dijagram iznad prikazuje **tenant** rutu, sa klijentski poslanim `X-Practice-ID`. `GET /me` je
+**neutralna** ruta: nema `X-Practice-ID`, nema klijentski odabranog tenanta, i u fazi 3 nikada ne
+poziva `set_request_context`.
+
+Faza 4 uvodi tenant politiku nad `practice_settings` (`02` §17.1, §22.13). Bez adaptacije bi
+uslovni read koji `/me` koristi za `analysis.approve` i `analysis.approval.revoke` vraćao **nula
+redova** — `practice_id = NULL` — i **tiho** izostavio te permisije iz zamrznutog odgovora
+(`03` §10).
+
+```text
+GET /me, faza 4:
+
+  BEGIN
+  set_auth_subject_context(...)        PHASE 3
+  select users                         PHASE 3   (§17.5)
+  set_user_context(...)                PHASE 3
+  ---------------------------------------------- sva ne-tenant-scoped čitanja OVDJE
+  select practice_memberships          (§17.3, user-scoped)
+  select practices                     (§17.6, membership-scoped, JOŠ NESUŽENO)
+  select practice_membership_roles     (§17.4, bootstrap-readable)
+  select platform_role_assignments     (§17.2, user-scoped)
+  ---------------------------------------------- tek sada, po AKTIVNOM membershipu kojem treba
+  za svaki takav membership:
+      set_request_context(<practice_id iz TOG membership reda>)   PHASE 4
+      select practice_settings                                    (tenant RLS, §17.1)
+  ----------------------------------------------
+  COMMIT   -> gasi app.auth_subject, app.user_id i app.practice_id
+```
+
+Normativna pravila (`02` §17.1a):
+
+- **politika se ne slabi** — nema bootstrap izuzetka ni membership-wide grane;
+- **`practice_id` dolazi isključivo iz razriješenog membership reda**, nikada iz tijela, query
+  parametra, headera ni putanje;
+- **neaktivan membership ne dobija kontekst** i ostaje `permissions = []`;
+- **redoslijed je obavezan** — nakon prvog `set_request_context` poziva RESTRICTIVE politika
+  `practices_context_narrow` (§17.6) sužava `practices` na **tačno jednu** ordinaciju, pa bi
+  čitanje `practiceName` za više membershipa poslije toga bila tiha regresija;
+- **izolacija ne traži novi mehanizam** — `set_request_context` briše `app.practice_id` prije
+  validacije (D-033, klauzula 10), a kraj transakcije gasi sve `app.*` varijable;
+- **provjera `practices.status` iz koraka 4 §3.7.1 se ovdje ne primjenjuje** — ona štiti klijentski
+  poslan `X-Practice-ID`, a `/me` ne bira tenant i ne autorizuje nijednu tenant operaciju
+  (D-053, klauzula D.10);
+- **`X-Practice-ID` se na `/me` ne uvodi.**
+
 ## 2.2 Napomena — access model za `users` i `practices` (D-047)
 
 Opšti runtime pristup nad `users` i `practices` **riješen je odlukom D-047** (2026-08-12);
