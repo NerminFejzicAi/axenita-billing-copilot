@@ -145,8 +145,23 @@ Normativna odluka za autorstvo migracija je **D-050** (`docs/02` §26.3, `docs/1
   superuser seed credential, trajna `copilot_migrator` RLS politika.
 - Write grant i RLS politika koja ga ograničava uvode se **zajedno**, u istom migration paketu.
 - Tenant business servis ne pristupa direktno globalnom PrismaServiceu.
-- Koristi `TenantDatabaseService.run(practiceId, userId, callback)`.
-- RLS request context se postavlja unutar iste interactive transakcije.
+- Tenant zahtjev se izvršava u **jednoj** autentifikovanoj interaktivnoj transakciji, na **jednoj**
+  pinovanoj sesiji. RLS request context se postavlja pozivom `set_request_context(p_practice_id
+  uuid)` **unutar te iste** transakcije, i **tek nakon** koraka 1–4 iz `03` §3.7.1 (D-047,
+  klauzula 10).
+- `TenantDatabaseService` ostaje **kanonski facade koncept** za tenant business module. Historijski
+  zapis `TenantDatabaseService.run(practiceId, userId, callback)` opisuje **obavezno svojstvo**, ne
+  obavezan potpis (D-054, klauzule 5–10). Svaka konkretna implementacija mora biti **tanak facade**
+  nad postojećom transakcijom/sesijom i tenant request pipelineom, i mora: koristiti postojeću
+  pinovanu transakciju; **ne** posjedovati vlastiti `PrismaClient`; **ne** otvarati drugu,
+  ugniježdenu ni paralelnu transakciju; **ne** postavljati `app.practice_id` prije kanonskih
+  provjera statusa ordinacije i aktivnog membershipa; i **nikada** ne tretirati caller-supplied
+  `userId` kao granicu povjerenja — identitet dolazi isključivo iz autentifikovanog
+  admission/session stanja.
+- `PracticeContextGuard` je **naziv faze** tenant admisije i uspostave konteksta, ne obavezno
+  NestJS `Guard`. **Zabranjen je** `CanActivate` koji bi validirao tenant kontekst **prije**
+  admisije autentifikovanog korisnika (D-054, klauzule 2–4).
+- Ovo nije preporuka. Tenant business modul koji zaobiđe ovaj put **obara gate**.
 - Bez request contexta pristup tenant podacima mora biti default-deny.
 
 ## 5.4 Immutability

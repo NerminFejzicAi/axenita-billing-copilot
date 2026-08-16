@@ -1109,10 +1109,13 @@ Nijedno od njih nije bloker zatvaranja i nijedno se ne rješava u ovom gateu.
 
 # 5. Faza 4 — Tenant/RLS
 
-Status: `NOT_STARTED`
+Status: `IN_PROGRESS` — slice P4-5B (tenant request/context pipeline) je merged u kanonski `main`
+kroz PR #15 (`530295d`, implementacija `fdef469`). Faza **nije** završena: settings `GET`/`PATCH`
+nije započet, a preostale tenant tabele i slice-evi ostaju otvoreni.
 
-Normativno: D-033, D-038, **D-049**, **D-051** i **D-052**; `02` §16.2, §17.0, §17.3, §18.1, §20.2,
-§20.2b, §22.13 i §23.4.4a; `03` §3.7, §5, §10 i §28.5; `04` §6.2, §6.4.1 i §6.4.2; `07` Faza 4.
+Normativno: D-033, D-038, **D-049**, **D-051**, **D-052**, **D-053** i **D-054**; `02` §16.2,
+§17.0, §17.3, §18.1, §20.2, §20.2b, §22.13 i §23.4.4a; `03` §3.7, §5, §10 i §28.5; `04` §6.2,
+§6.4.1 i §6.4.2; `07` Faza 4.
 
 Vlasnik migration paketa za preostale RLS stavke ove faze: **`013_rls_policies`**. Schema objekti
 ostaju u `002_identity_and_practices` (Faza 3). Ne uvodi se novi broj paketa.
@@ -1128,6 +1131,46 @@ Vlasništvo slicea ostaje `013_rls_policies`; odgođeno je isključivo izvršenj
 politike ove faze izvršavaju se samo nad tabelama koje u Fazi 4 stvarno postoje.** Ista odluka
 **eksplicitno ovlašćuje** proširenje D-048 allowliste na `practice_memberships` i
 `practice_settings` (`02` §23.4.4a).
+
+**Tumačenje imena artefakata — D-054.** U ovoj fazi `PracticeContextGuard` je **naziv faze** tenant
+admisije i uspostave konteksta, ne obavezno NestJS `Guard`; za tekuću tenant rutu realizovan je
+`TenantRequestPipeline`-om. `TenantDatabaseService` ostaje **kanonski facade koncept** za tenant
+business module; njegov historijski potpis `run(practiceId, userId, callback)` **nije normativan**.
+Pri konfliktu, redoslijed iz `03` §3.7.1 i D-047, klauzule 10 je nadređen imenu artefakta.
+
+## Slice P4-5B — tenant request/context pipeline
+
+**Normativno: D-054.** Merged u kanonski `main` kroz PR #15; implementacijski commit `fdef469`.
+Ova sekcija bilježi **isključivo** ono što je taj slice mehanički dokazao. Stavke u vlasništvu
+drugih slice-eva Faze 4 (paket `013`, settings ruta, preostale tenant tabele) ostaju neoznačene i
+usklađuju se u vlastitim gate-ovima.
+
+- [x] **`PracticeContextGuard` je koncept, ne NestJS `Guard`** — realizovan klasom
+      `TenantRequestPipeline` (`apps/api/src/identity/application/tenant-request.pipeline.ts`),
+      **unutar** autentifikovane interaktivne transakcije (D-054, klauzule 2–3).
+- [x] **`CanActivate` varijanta nije uvedena** i ne smije biti uvedena tamo gdje bi validirala
+      tenant kontekst prije admisije korisnika (D-054, klauzula 4).
+- [x] **Kompletan redoslijed tenant rute do `set_request_context` je implementiran** za
+      `GET /api/v1/practices/{practiceId}`: pipeline vlasnik koraka 3–10, servis rute vlasnik
+      koraka 11 (`03` §3.7.1).
+- [x] **`set_request_context` je jedini put do `app.practice_id`** na toj ruti — bez `set_config`,
+      bez druge session metode, bez dodatne database funkcije, bez `SECURITY DEFINER` i bez RLS
+      zaobilaznice.
+- [x] **Obje membership barijere zadržane** — aplikacijska (D-047, klauzula 10, korak 4) i ona
+      unutar funkcije (korak 6); nijedna ne zamjenjuje drugu.
+- [x] **Provjera `practices.status` je strogo prije** poziva funkcije; privilegovani prozor je
+      dužine nula.
+- [x] **Transakcijski lokalan tenant kontekst i izolacija su testirani** — uspostava za tačno
+      traženu ordinaciju, nestanak nakon `COMMIT` i nakon `ROLLBACK`, izolacija sekvencijalnih i
+      konkurentnih zahtjeva, i nekontaminacija sljedećeg zahtjeva nakon odbijenog.
+- [x] **`42501` iz `set_request_context`** se prevodi u zajednički `403 ACCESS_DENIED`, bez
+      otkrivanja SQLSTATE-a, iskaza, imena funkcije ni database poruke; **nema** globalnog
+      prevođenja `42501`.
+- [ ] **Konkretan `TenantDatabaseService` facade** — **NIJE** implementiran i **ne označava se**
+      završenim. Koncept ostaje kanonski (D-054, klauzula 5); konkretna klasa se uvodi tek kada je
+      stvarni tenant business modul zatraži, i tada mora dokazati klauzule 6–10.
+- [ ] **Uklanjanje `userId` seama** iz `TenantRequestPipeline.admit(...)` — obavezno **prije** nego
+      što se doda ijedna dodatna tenant ruta (D-054, klauzula 12).
 
 ## Schema i funkcije
 
@@ -1354,25 +1397,28 @@ Normativno: `03` §3.7.1; `04` §6.2.1. Svaka granica se dokazuje **zasebno**.
 
 **Jedanaest koraka** (D-047, klauzula 10; restituirano odlukom D-053, dio C).
 
-- [ ] 1. bearer token je autentifikovan.
-- [ ] 2. pouzdani `app.user_id` je izveden iz verifikovanog subjekta.
-- [ ] 3. `X-Practice-ID` je pročitan i validiran.
-- [ ] 4. **membership-scoped `status` tražene ordinacije je pročitan prije promjene konteksta** —
-      nula redova → `403 ACCESS_DENIED`; `status <> 'ACTIVE'` → `403 ACCESS_DENIED` uz rollback.
-- [ ] 5. `set_request_context(p_practice_id uuid)` je pozvan.
-- [ ] 6. aktivan `practice_memberships` red je validiran.
-- [ ] 7. transakcijski lokalni tenant context je uspostavljen.
-- [ ] 8. dodijeljene tenant role su učitane.
-- [ ] 9. efektivne permisije su izvedene.
-- [ ] 10. tražena permisija i prihvaćeni uslovi su evaluirani.
-- [ ] 11. komanda je izvršena pod tenant RLS-om.
+Označeno stanje vrijedi za **jedinu postojeću tenant rutu**, `GET /api/v1/practices/{practiceId}`
+(slice P4-5B, D-054, klauzula 11). Svaka nova tenant ruta dokazuje isti redoslijed **iznova**.
 
-- [ ] Korak 4 se izvršava **prije** koraka 5 — `app.practice_id` ne postoji dok korak 4 ne uspije.
-- [ ] Korak 4 je **aplikacijski**; tijelo `set_request_context` **nije** promijenjeno (`02`
+- [x] 1. bearer token je autentifikovan.
+- [x] 2. pouzdani `app.user_id` je izveden iz verifikovanog subjekta.
+- [x] 3. `X-Practice-ID` je pročitan i validiran.
+- [x] 4. **membership-scoped `status` tražene ordinacije je pročitan prije promjene konteksta** —
+      nula redova → `403 ACCESS_DENIED`; `status <> 'ACTIVE'` → `403 ACCESS_DENIED` uz rollback.
+- [x] 5. `set_request_context(p_practice_id uuid)` je pozvan.
+- [x] 6. aktivan `practice_memberships` red je validiran.
+- [x] 7. transakcijski lokalni tenant context je uspostavljen.
+- [x] 8. dodijeljene tenant role su učitane.
+- [x] 9. efektivne permisije su izvedene.
+- [x] 10. tražena permisija i prihvaćeni uslovi su evaluirani.
+- [x] 11. komanda je izvršena pod tenant RLS-om.
+
+- [x] Korak 4 se izvršava **prije** koraka 5 — `app.practice_id` ne postoji dok korak 4 ne uspije.
+- [x] Korak 4 je **aplikacijski**; tijelo `set_request_context` **nije** promijenjeno (`02`
       §16.2.3).
-- [ ] Korak 4 dokazuje **postojanje** membershipa, korak 6 dokazuje **aktivan** membership;
+- [x] Korak 4 dokazuje **postojanje** membershipa, korak 6 dokazuje **aktivan** membership;
       **nijedan ne zamjenjuje drugi**.
-- [ ] Nijedan drugi korak nije uklonjen ni oslabljen; **nijedna nova sigurnosna semantika nije
+- [x] Nijedan drugi korak nije uklonjen ni oslabljen; **nijedna nova sigurnosna semantika nije
       uvedena** (D-053, klauzula C.1).
 
 ## Kompozicija efektivnih permisija
@@ -1398,14 +1444,16 @@ Normativno: D-038, klauzule 7–11 i 16–18; `03` §28.5; `04` §6.4.1.
 
 ## Transaction-local context
 
-- [ ] `app.user_id` uspostavljen iz pouzdanog auth stanja.
-- [ ] `app.practice_id` postavljen tek nakon uspješne membership validacije.
-- [ ] Tenant context je transakcijski lokalan.
-- [ ] interactive transaction.
-- [ ] Tenant-scoped upiti se izvršavaju tek nakon uspješnog bootstrapa.
-- [ ] Context se automatski čisti na kraju transakcije.
-- [ ] Pooled konekcija ne nasljeđuje context prethodnog requesta.
-- [ ] Failure i rollback putanje ne propuštaju `app.practice_id`.
+Dokazano slice-om P4-5B za tekuću tenant rutu (D-054, klauzula 11).
+
+- [x] `app.user_id` uspostavljen iz pouzdanog auth stanja.
+- [x] `app.practice_id` postavljen tek nakon uspješne membership validacije.
+- [x] Tenant context je transakcijski lokalan.
+- [x] interactive transaction.
+- [x] Tenant-scoped upiti se izvršavaju tek nakon uspješnog bootstrapa.
+- [x] Context se automatski čisti na kraju transakcije.
+- [x] Pooled konekcija ne nasljeđuje context prethodnog requesta.
+- [x] Failure i rollback putanje ne propuštaju `app.practice_id`.
 
 ## Platform i tenant razdvajanje
 
@@ -1573,8 +1621,12 @@ Klasifikacija je prihvaćena u D-045. **Za ove stavke se ne otvaraju implementac
 
 ## Guard i servisi
 
-- [ ] PracticeContext guard.
-- [ ] TenantDatabaseService.
+- [x] PracticeContext guard — **kao koncept**, realizovan `TenantRequestPipeline`-om za tekuću
+      tenant rutu; **nije** NestJS `CanActivate` i ne smije to postati tamo gdje bi validirao
+      tenant kontekst prije admisije korisnika (D-054, klauzule 2–4).
+- [ ] TenantDatabaseService — **koncept ostaje kanonski, konkretan facade nije implementiran** i
+      **ne označava se** završenim dok ga stvarni tenant business modul ne zatraži (D-054,
+      klauzule 5–10).
 - [ ] RLS enabled.
 - [ ] FORCE RLS.
 
@@ -1682,6 +1734,20 @@ Test command:
 Test result:
 Role matrica conformance (vs docs/15):
 ```
+
+## Prenesena zapažanja — P4-5BR
+
+Nezavisni review slice-a P4-5B (`0 MERGE_BLOCKERS`) prenio je sljedeća zapažanja. Nijedno **nije**
+riješeno; nijedno se **ne rješava** u gateu P4-5R1 (D-054, *Posljedice*). Sljedeći gate odlučuje
+koja od njih se moraju popraviti prije P4-5C.
+
+| Oznaka | Zapažanje | Klasifikacija |
+|---|---|---|
+| O2/O3 | Detekcija `42501` se u praksi oslanja na Prisma rendered error tekst; adapter nema namjenski unit spec | `HARDENING_BACKLOG` |
+| O4 | `TenantRequestPipeline.admit(session, userId, ...)` nosi budući wrong-user seam (D-054, klauzula 12) | `HARDENING_BACKLOG` |
+| O5 | Citat dokumentacije uz aplikacijsko pooštravanje `ACTIVE` membershipa može biti precizniji | `DOCUMENTATION_BACKLOG` |
+| O6 | Recording test double ne modelira kompletno §17.6 membership visibility ponašanje | `HARDENING_BACKLOG` |
+| O7 | HTTP anti-enumeration jednakost se može ojačati set-wide | `HARDENING_BACKLOG` |
 
 ---
 
