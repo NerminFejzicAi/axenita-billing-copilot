@@ -62,51 +62,117 @@ type TransactionClient = Prisma.TransactionClient;
 const INSUFFICIENT_PRIVILEGE = '42501';
 
 /**
- * Whether a driver error is a PostgreSQL `insufficient_privilege` failure.
+ * The exact rendered SQLSTATE token of a failed Prisma raw statement.
  *
- * WHY THE SHAPE IS NOT ASSUMED. The same SQLSTATE reaches this process in more than one shape:
- * `pg` reports it as `error.code`, and Prisma wraps a failed raw statement in
- * `PrismaClientKnownRequestError` with its own `code` (`P2010`) and the server's SQLSTATE in
- * `meta.code`. Pinning one of those would make the translation silently stop working on a
- * driver upgrade — and a translation that stops working here fails OPEN, turning a refused
- * tenant context into an internal error instead of the accepted `403`. The check therefore
- * accepts either structured position, walks a bounded `cause` chain, and finally falls back to
- * the rendered message.
+ * The shipped stack renders a driver failure as, literally:
  *
- * The message fallback is deliberately allowed to be generous. It is applied to the error of
- * ONE statement only — see the single call site — and every false positive it could produce
- * fails CLOSED, into the same refusal the caller would otherwise have produced anyway.
+ *     Invalid `prisma.$executeRaw()` invocation:
+ *
+ *     Raw query failed. Code: `42501`. Message: `User context is not established`
+ *
+ * The capture group is the SQLSTATE and the backticks are the delimiters, so the pattern matches
+ * a POSITION in the driver's own format rather than an occurrence of five digits anywhere in the
+ * text. Only the FIRST match is ever consulted — see {@link rendersInsufficientPrivilege}.
  */
-function isInsufficientPrivilege(error: unknown): boolean {
+const RENDERED_SQLSTATE = /Raw query failed\. Code: `([^`]*)`\./;
+
+/** Narrowing helper: an indexable object, which neither `null` nor a primitive is. */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+/**
+ * Whether the error carries SQLSTATE `42501` in a STRUCTURED position the shipped driver uses.
+ *
+ * THE SHAPE IS RE-DERIVED, NOT ASSUMED. Against Prisma 7.9.1 with `@prisma/adapter-pg` 7.9.1 and
+ * `pg` 8.23.0, a real `42501` from `app_security.set_request_context` arrives as:
+ *
+ *     PrismaClientKnownRequestError {
+ *       code: 'P2010',                                   <-- Prisma's code, NOT the SQLSTATE
+ *       meta: { driverAdapterError: { name: 'DriverAdapterError',
+ *               cause: { originalCode: '42501', code: '42501', kind: 'postgres', ... } } },
+ *       // no `cause` property at all
+ *     }
+ *
+ * That is why the previous `.code` / `.meta.code` / `cause`-chain branches all missed and only
+ * the message fallback ever fired: `code` is `P2010`, `meta` carries no `code`, and the error
+ * exposes no `cause` to walk. The SQLSTATE nevertheless IS recoverable structurally — at
+ * `meta.driverAdapterError.cause.originalCode` — so this check reads that position directly,
+ * which needs no new dependency, no widened `catch` and no change to the database stack.
+ *
+ * Each position is compared for EXACT EQUALITY with the one SQLSTATE this translation covers.
+ * The code is never pattern-matched as "some five-character SQLSTATE", because Prisma's own
+ * `P2010` would satisfy such a pattern and would then be mistaken for a server code. `42883`,
+ * `22P02` and every other SQLSTATE therefore fall through untouched.
+ *
+ * The bounded descent covers exactly two links — the adapter's `meta.driverAdapterError.cause`
+ * and a plain `cause` — so a driver that reports the SQLSTATE at the top level (`pg`'s own
+ * `DatabaseError.code`) or wraps it one level deeper is still recognised, without the walk ever
+ * becoming an open-ended search.
+ */
+function hasInsufficientPrivilegeSqlState(error: unknown): boolean {
   let current: unknown = error;
 
-  for (let depth = 0; depth < 5; depth += 1) {
-    if (typeof current !== 'object' || current === null) {
-      break;
+  for (let depth = 0; depth < 4; depth += 1) {
+    if (!isRecord(current)) {
+      return false;
     }
 
-    const candidate = current as {
-      readonly code?: unknown;
-      readonly meta?: { readonly code?: unknown };
-      readonly cause?: unknown;
-    };
-
-    if (candidate.code === INSUFFICIENT_PRIVILEGE) {
-      return true;
-    }
-
+    // `originalCode` is where `@prisma/adapter-pg` puts the server's SQLSTATE; `code` is where
+    // a bare `pg` `DatabaseError` puts it. Both are exact positions, never substrings.
     if (
-      typeof candidate.meta === 'object' &&
-      candidate.meta !== null &&
-      candidate.meta.code === INSUFFICIENT_PRIVILEGE
+      current['originalCode'] === INSUFFICIENT_PRIVILEGE ||
+      current['code'] === INSUFFICIENT_PRIVILEGE
     ) {
       return true;
     }
 
-    current = candidate.cause;
+    const meta = current['meta'];
+    const driverAdapterError = isRecord(meta) ? meta['driverAdapterError'] : undefined;
+
+    current = isRecord(driverAdapterError) ? driverAdapterError['cause'] : current['cause'];
   }
 
-  return error instanceof Error && error.message.includes(INSUFFICIENT_PRIVILEGE);
+  return false;
+}
+
+/**
+ * Whether the RENDERED driver message reports SQLSTATE `42501` in the driver's own code position.
+ *
+ * This is the fallback for a future driver that stops exposing the structured position, and it
+ * is deliberately not a substring test. `message.includes('42501')` — the previous implementation
+ * — would classify `new Error('42501')`, a practice name containing those digits, or a server
+ * message that merely quotes them.
+ *
+ * BOUND VALUES CANNOT REACH THE DECISION. Only the FIRST match is consulted, and the driver
+ * always renders its own `Raw query failed. Code: ...` segment before the server's message. A
+ * value that smuggled the token into the message segment — a `practiceId` crafted to appear
+ * inside an `invalid input syntax for type uuid: "..."` text, say — therefore lands strictly
+ * AFTER the authoritative token and cannot displace it. The captured code of that statement is
+ * `22P02`, and `22P02` is not `42501`.
+ */
+function rendersInsufficientPrivilege(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  return RENDERED_SQLSTATE.exec(error.message)?.[1] === INSUFFICIENT_PRIVILEGE;
+}
+
+/**
+ * Whether a driver error is a PostgreSQL `insufficient_privilege` failure.
+ *
+ * Structured position first, rendered position second. A translation that stops working here
+ * fails OPEN — it would turn a refused tenant context into an internal error instead of the
+ * accepted `403` — which is why the rendered fallback is kept at all; it is kept EXACT so that
+ * it cannot fire on anything but the driver's own code position.
+ *
+ * Recognition says only "this statement failed with 42501". WHICH statement is not this
+ * function's business and never becomes a global rule: the single `catch` that consults it wraps
+ * exactly one call, so an `insufficient_privilege` raised anywhere else is unaffected.
+ */
+function isInsufficientPrivilege(error: unknown): boolean {
+  return hasInsufficientPrivilegeSqlState(error) || rendersInsufficientPrivilege(error);
 }
 
 /**
@@ -189,14 +255,21 @@ class PrismaIdentityBootstrapSession implements IdentityBootstrapSession {
     `;
   }
 
-  public async findMembershipInPractice(
-    userId: string,
+  public async findCurrentUserMembershipInPractice(
     practiceId: string,
   ): Promise<MembershipRow | undefined> {
-    // BOTH predicates are load bearing and neither may be dropped. `practice_memberships` has
-    // no RLS in phase 3, so `user_id` is the only thing keeping another user's membership out,
-    // and `practice_id` is the application-layer narrowing to the REQUESTED practice that
-    // D-047 clause 18 assigns to this phase. `unique (practice_id, user_id)` bounds the result
+    // BOTH predicates are load bearing and neither may be dropped.
+    //
+    // THE USER PREDICATE IS THE ESTABLISHED CONTEXT, NOT AN ARGUMENT (D-054 clause 12). It reads
+    // the transaction-local `app.user_id` that `set_user_context` wrote on THIS connection
+    // inside THIS transaction — the same expression the accepted §17.2/§17.3/§17.4/§17.6
+    // policies use — so the identity this statement authorises against is the authenticated one
+    // by construction. No TypeScript value can substitute another user, because there is no
+    // parameter for one. With no context established the expression is NULL, `user_id = NULL`
+    // is NULL, and the statement returns zero rows: fail closed.
+    //
+    // The practice predicate is the application-layer narrowing to the REQUESTED practice that
+    // D-047 clause 18 assigns to this route. `unique (practice_id, user_id)` bounds the result
     // to one row.
     const rows = await this.tx.$queryRaw<MembershipRow[]>`
       select
@@ -204,7 +277,7 @@ class PrismaIdentityBootstrapSession implements IdentityBootstrapSession {
         "practice_id" as "practiceId",
         "active"
       from "practice_memberships"
-      where "user_id"     = ${userId}::uuid
+      where "user_id"     = nullif(current_setting('app.user_id', true), '')::uuid
         and "practice_id" = ${practiceId}::uuid
     `;
 

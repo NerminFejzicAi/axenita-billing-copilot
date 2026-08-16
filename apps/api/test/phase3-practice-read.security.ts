@@ -538,6 +538,44 @@ describe('GET /api/v1/practices/{practiceId}', () => {
       expect(absent.body['title']).toBe(foreign.body['title']);
     });
 
+    it('answers EVERY canonical practice refusal with one identical document', async () => {
+      // The pairwise check above proves two branches agree. Anti-enumeration needs the whole
+      // SET to agree: a client must not be able to tell "no such practice" from "not yours",
+      // from "yours but suspended", from "yours but your membership is off", from "yours and
+      // active but you lack the permission". Any one branch drifting — a distinct `title`, a
+      // more helpful `detail`, an `errors` array — reintroduces the oracle, and only a set-wide
+      // assertion catches the branch that drifts alone.
+      const refusals = await Promise.all([
+        // The path is not the practice of the header.
+        readPractice(admin, MATRIX_PRACTICE, { path: PHASE_3_SEED_IDS.practiceNord }),
+        // No such practice.
+        readPractice(admin, '11111111-1111-4111-8111-1111119999ff'),
+        // Exists and is ACTIVE, but the caller holds no membership.
+        readPractice(admin, PHASE_3_SEED_IDS.practiceWithoutMembers),
+        // Membership exists and carries PRACTICE_ADMIN, but it is not ACTIVE.
+        readPractice(FIXTURE.inactiveMemberSubject, MATRIX_PRACTICE),
+        // ACTIVE membership with PRACTICE_ADMIN, but the practice is not ACTIVE.
+        readPractice(FIXTURE.suspendedAdminSubject, FIXTURE.suspendedPractice),
+        // Everything admitted, but the role does not derive `practice.read` (`15` §5).
+        readPractice(ROLE_CALLERS[1].subject, MATRIX_PRACTICE),
+      ]);
+
+      // `instance` is the request path and `requestId` is the per-request correlation id; both
+      // are REQUIRED to differ (`03` §3.5, §8) and neither discloses anything about the
+      // practice. Every other member must be byte-identical across the set.
+      const documents = refusals.map(({ status, body }) => {
+        const { instance: _instance, requestId: _requestId, ...rest } = body;
+
+        return JSON.stringify({ status, ...rest });
+      });
+
+      expect(new Set(documents).size).toBe(1);
+      expect(JSON.parse(documents[0] as string)).toMatchObject({
+        status: 403,
+        code: 'ACCESS_DENIED',
+      });
+    });
+
     it('answers 403 for an INACTIVE membership that carries PRACTICE_ADMIN', async () => {
       const { status, body } = await readPractice(FIXTURE.inactiveMemberSubject, MATRIX_PRACTICE);
 
@@ -834,7 +872,7 @@ describe('GET /api/v1/practices/{practiceId}', () => {
       //     every practice except that one.
       const observed = await bootstrap.runAuthenticatedSession(
         PHASE_3_SEED_SUBJECTS.practiceAdmin,
-        async (session, user) => {
+        async (session) => {
           // The seeded admin is a member of `demo-praxis-nord` too, so it is visible while no
           // tenant context exists.
           const nordBefore = await session.findRequestedPractice(PHASE_3_SEED_IDS.practiceNord);
@@ -842,7 +880,9 @@ describe('GET /api/v1/practices/{practiceId}', () => {
             PHASE_3_SEED_IDS.practiceDemo,
           ]);
 
-          const admitted = await pipeline.admit(session, user.id, {
+          // No user is passed: the pipeline derives the membership from the `app.user_id` this
+          // session established (D-054 clause 12).
+          const admitted = await pipeline.admit(session, {
             requestedPracticeId: PHASE_3_SEED_IDS.practiceDemo,
             practiceContextHeader: PHASE_3_SEED_IDS.practiceDemo,
             requiredPermission: 'practice.read',

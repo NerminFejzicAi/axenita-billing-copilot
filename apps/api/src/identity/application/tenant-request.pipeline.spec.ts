@@ -114,8 +114,11 @@ describe('TenantRequestPipeline', () => {
   function admit(overrides: AdmitOverrides = {}): Promise<AdmittedTenantRequest> {
     return bootstrap.runAuthenticatedSession(
       overrides.subject ?? SUBJECT,
-      async (session: IdentityBootstrapSession, user: BootstrapUserRow) =>
-        pipeline.admit(session, user.id, {
+      // Two arguments, and neither of them is a user. The admitted `user` the bootstrap yields
+      // is deliberately NOT forwarded: after D-054 clause 12 the pipeline has no parameter that
+      // could receive it (see the `admit` signature specs below).
+      async (session: IdentityBootstrapSession) =>
+        pipeline.admit(session, {
           requestedPracticeId: overrides.practiceId ?? PRACTICE,
           practiceContextHeader: 'header' in overrides ? overrides.header : PRACTICE,
           requiredPermission: overrides.permission ?? REQUIRED_PERMISSION,
@@ -134,6 +137,102 @@ describe('TenantRequestPipeline', () => {
     return failure as ApiException;
   }
 
+  describe('membership identity is bound to the session (D-054 clause 12)', () => {
+    it('exposes no user parameter on admit at all', () => {
+      // The seam D-054 clause 12 requires removed was the SECOND, independently supplied
+      // identity value. Its absence is asserted on the arity itself, because that is the thing
+      // that made the wrong user expressible: `(session, request)` and nothing else.
+      expect(pipeline.admit.bind(pipeline)).toHaveLength(2);
+
+      const source = TenantRequestPipeline.prototype.admit.toString();
+
+      expect(source).not.toContain('userId');
+      // The predecessor session method took `(userId, practiceId)`. Neither it nor any other
+      // user-accepting lookup may reappear on this path.
+      expect(source).not.toContain('findMembershipInPractice');
+    });
+
+    it('carries no user identity on the request object either', async () => {
+      // Moving the parameter into `TenantRequest` would restore the seam verbatim, so the
+      // admitted request is checked for any identity-shaped member as well.
+      seedEligibleCaller(['PRACTICE_ADMIN']);
+
+      const admitted = await admit();
+
+      expect(Object.keys(admitted)).not.toContain('userId');
+    });
+
+    it('resolves the membership against the established app.user_id', async () => {
+      seedEligibleCaller(['PRACTICE_ADMIN']);
+
+      await admit();
+
+      // The recorded identity is the one `set_user_context` established, not one the pipeline
+      // supplied: the double derives it from the modelled GUC exactly as the real predicate
+      // `user_id = nullif(current_setting('app.user_id', true), '')::uuid` does.
+      const contextCall = database.calls.indexOf(`set_user_context(${USER})`);
+      const membershipCall = database.calls.indexOf(
+        `select current_membership(${USER},${PRACTICE})`,
+      );
+
+      expect(contextCall).toBeGreaterThanOrEqual(0);
+      expect(membershipCall).toBeGreaterThan(contextCall);
+    });
+
+    it('admits nobody when no user context is established, however eligible the data', async () => {
+      // The session method has no user argument, so with `app.user_id` unset the predicate is
+      // NULL and the read is zero rows — the same fail-closed outcome the database produces.
+      // A pipeline that still carried an identity of its own could not fail this way.
+      seedEligibleCaller(['PRACTICE_ADMIN']);
+
+      const failure = await database
+        .runBootstrapTransaction(async (session) => {
+          // Deliberately NO set_user_context: the authenticated half never ran.
+          await session.setAuthSubjectContext(SUBJECT);
+
+          return pipeline.admit(session, {
+            requestedPracticeId: PRACTICE,
+            practiceContextHeader: PRACTICE,
+            requiredPermission: REQUIRED_PERMISSION,
+          });
+        })
+        .then(
+          () => undefined,
+          (error: unknown) => error,
+        );
+
+      expect((failure as ApiException).getStatus()).toBe(403);
+      expect(database.calls).toContain(`select current_membership(null,${PRACTICE})`);
+      expect(database.calls.some((call) => call.startsWith('set_request_context('))).toBe(false);
+    });
+
+    it('cannot be pointed at another user’s membership by any caller-supplied value', async () => {
+      // The whole of the removed seam, driven as an attack: the ACTIVE, role-bearing membership
+      // in the requested practice belongs to OTHER_USER, and the authenticated caller is USER.
+      // There is no argument through which the caller could nominate OTHER_USER, and the
+      // session-derived predicate does not match, so admission fails.
+      world.bootstrapUsers.push(activeUser());
+      world.practices.push(practiceRow(PRACTICE, 'Demo Praxis Zuerich'));
+      world.memberships.push({
+        id: OTHER_MEMBERSHIP,
+        practiceId: PRACTICE,
+        active: true,
+        userId: OTHER_USER,
+      });
+      world.membershipRoles.push({
+        membershipId: OTHER_MEMBERSHIP,
+        practiceId: PRACTICE,
+        role: 'PRACTICE_ADMIN',
+      });
+
+      expect((await refusalOf()).getStatus()).toBe(403);
+      // The foreign membership was never even read under this identity, so its roles could not
+      // have contributed to any permission decision.
+      expect(database.calls.some((call) => call.includes(OTHER_USER))).toBe(false);
+      expect(database.calls.some((call) => call.includes(OTHER_MEMBERSHIP))).toBe(false);
+    });
+  });
+
   describe('the admitted tenant request (03 §3.7.1, D-047 clause 10)', () => {
     it('performs steps 3 to 10 in exactly the frozen order', async () => {
       seedEligibleCaller(['PRACTICE_ADMIN']);
@@ -145,7 +244,7 @@ describe('TenantRequestPipeline', () => {
       expect(database.calls).toEqual([
         ...ADMISSION,
         `select practice(${PRACTICE})`,
-        `select membership(${USER},${PRACTICE})`,
+        `select current_membership(${USER},${PRACTICE})`,
         ESTABLISH_CONTEXT,
         `select membership_roles(${MEMBERSHIP})`,
         `select practice_settings(${PRACTICE})`,
@@ -197,7 +296,7 @@ describe('TenantRequestPipeline', () => {
       const context = database.calls.indexOf(ESTABLISH_CONTEXT);
 
       expect(database.calls.indexOf(`select practice(${PRACTICE})`)).toBeLessThan(context);
-      expect(database.calls.indexOf(`select membership(${USER},${PRACTICE})`)).toBeLessThan(
+      expect(database.calls.indexOf(`select current_membership(${USER},${PRACTICE})`)).toBeLessThan(
         context,
       );
     });
@@ -449,7 +548,7 @@ describe('TenantRequestPipeline', () => {
       expect(database.calls).toEqual([
         ...ADMISSION,
         `select practice(${PRACTICE})`,
-        `select membership(${USER},${PRACTICE})`,
+        `select current_membership(${USER},${PRACTICE})`,
         ESTABLISH_CONTEXT,
         'ROLLBACK',
       ]);
@@ -463,7 +562,7 @@ describe('TenantRequestPipeline', () => {
       seedEligibleCaller(['PRACTICE_ADMIN']);
 
       const failure = await bootstrap
-        .runAuthenticatedSession(SUBJECT, async (session, user) => {
+        .runAuthenticatedSession(SUBJECT, async (session) => {
           const sabotaged: IdentityBootstrapSession = {
             ...session,
             findMembershipRoles: (): Promise<never> => {
@@ -471,7 +570,7 @@ describe('TenantRequestPipeline', () => {
             },
           };
 
-          return pipeline.admit(sabotaged, user.id, {
+          return pipeline.admit(sabotaged, {
             requestedPracticeId: PRACTICE,
             practiceContextHeader: PRACTICE,
             requiredPermission: REQUIRED_PERMISSION,

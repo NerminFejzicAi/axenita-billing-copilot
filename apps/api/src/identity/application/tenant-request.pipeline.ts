@@ -140,17 +140,24 @@ export class TenantRequestPipeline {
   /**
    * Admits one tenant request, or throws.
    *
+   * THERE IS NO IDENTITY PARAMETER (D-054 clause 12). This method used to take a `userId`
+   * alongside the session. At its one call site that value came from the admitted user and was
+   * correct, but the SIGNATURE permitted the sentence "authorise practice P using user U2" while
+   * the authenticated `app.user_id` was U1 — and D-054 clause 12 requires the wrong user to be
+   * mechanically inexpressible before any further tenant route exists. It is not enough to pass
+   * the right value, nor to accept one and assert equality afterwards: the parameter itself is
+   * the seam, so the parameter is gone. The only identity reachable from here is the one
+   * `session` already carries.
+   *
    * @param session the pinned session of the ALREADY-OPEN authenticated transaction. It cannot
    *   be constructed by a caller and it exists only inside
    *   {@link IdentityBootstrapService.runAuthenticatedSession}, which is what makes steps 2a–2d
-   *   impossible to bypass.
-   * @param userId the `users.id` of the already-admitted current user (step 2c), which is
-   *   already established as `app.user_id` (step 2d).
-   * @param request the untrusted inputs of the tenant request.
+   *   impossible to bypass — and which is why it, and not an argument, is the identity.
+   * @param request the untrusted inputs of the tenant request. It carries no user identity, and
+   *   none may be added to it: moving the seam into this object would restore it verbatim.
    */
   public async admit(
     session: IdentityBootstrapSession,
-    userId: string,
     request: TenantRequest,
   ): Promise<AdmittedTenantRequest> {
     // Step 3, deliberately AFTER admission. A caller whose identity has not been admitted must
@@ -163,7 +170,7 @@ export class TenantRequestPipeline {
 
     // Step 4 — BOTH halves, and both strictly before any tenant context exists.
     await this.admitRequestedPractice(session, practiceId);
-    const membershipId = await this.admitActiveMembership(session, userId, practiceId);
+    const membershipId = await this.admitActiveMembership(session, practiceId);
 
     // Steps 5 to 7.
     await this.establishTenantContext(session, practiceId);
@@ -224,16 +231,21 @@ export class TenantRequestPipeline {
    * for an inactive membership was a database exception, which is a far worse control than a
    * decision taken in the open.
    *
-   * The read binds the resolved current user and the requested practice in one statement.
+   * The read binds the CURRENT AUTHENTICATED user and the requested practice in one statement.
    * Reading a user's memberships and picking the matching one in memory would be a weaker, and
    * therefore wrong, implementation of the same requirement.
+   *
+   * WHICH user is not decided here and cannot be. The session method takes no user argument: it
+   * derives the identity from the transaction-local `app.user_id` that step 2d established on
+   * this same pinned connection (D-054 clause 12). This method therefore cannot admit a
+   * membership of anyone other than the caller, whatever it is passed — the only thing it can
+   * name is the practice.
    */
   private async admitActiveMembership(
     session: IdentityBootstrapSession,
-    userId: string,
     practiceId: string,
   ): Promise<string> {
-    const membership = await session.findMembershipInPractice(userId, practiceId);
+    const membership = await session.findCurrentUserMembershipInPractice(practiceId);
 
     if (membership === undefined || membership.active !== true) {
       throw accessDenied();

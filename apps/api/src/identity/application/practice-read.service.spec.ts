@@ -169,7 +169,7 @@ describe('PracticeReadService', () => {
       expect(database.calls).toEqual([
         ...CHAIN_UP_TO_USER_CONTEXT,
         `select practice(${PRACTICE})`,
-        `select membership(${USER},${PRACTICE})`,
+        `select current_membership(${USER},${PRACTICE})`,
         `set_request_context(${PRACTICE})`,
         `select membership_roles(${MEMBERSHIP})`,
         `select practice_settings(${PRACTICE})`,
@@ -368,12 +368,14 @@ describe('PracticeReadService', () => {
   });
 
   describe('membership narrowing (D-047 clause 18)', () => {
-    it('binds the resolved user and the requested practice in one read', async () => {
+    it('binds the AUTHENTICATED user and the requested practice in one read', async () => {
       seedEligibleCaller(['PRACTICE_ADMIN']);
 
       await read();
 
-      expect(database.calls).toContain(`select membership(${USER},${PRACTICE})`);
+      // The recorded identity is the one `set_user_context` established, because the read has
+      // no user argument to be given another (D-054 clause 12).
+      expect(database.calls).toContain(`select current_membership(${USER},${PRACTICE})`);
       // Never "read all my memberships and filter afterwards".
       expect(database.calls.some((call) => call.startsWith('select memberships('))).toBe(false);
     });
@@ -391,7 +393,7 @@ describe('PracticeReadService', () => {
       expect(database.calls).toEqual([
         ...CHAIN_UP_TO_USER_CONTEXT,
         `select practice(${PRACTICE})`,
-        `select membership(${USER},${PRACTICE})`,
+        `select current_membership(${USER},${PRACTICE})`,
         'ROLLBACK',
       ]);
     });
