@@ -5,83 +5,74 @@
  * contract in `03`; `03` §28.5 (permission derivation); `04` §5.2 and §5.3; `15` §5;
  * D-038 clauses 12–14; D-047 clauses 8, 10, 11 and 18; D-049.
  *
- * THE ORDER IS THE CONTRACT — AGAIN, AND MORE SO
+ * THE ORDER IS THE CONTRACT — AND IT IS NOW COMPLETE
  *
  * `03` §3.7.1 states that the order is mandatory and that no step may be skipped, and D-047
  * clause 10 repeats it for the requested practice specifically. The whole chain runs inside the
  * ONE interactive transaction of D-047 clause 8, on one pinned connection, and every rejection
- * throws, which rolls that transaction back and discards `app.auth_subject` and `app.user_id`
- * with it:
+ * throws, which rolls that transaction back and discards `app.auth_subject`, `app.user_id` and
+ * `app.practice_id` with it:
  *
  *     BEGIN                                        (D-047 clause 8)
  *       set_auth_subject_context(subject)          \
  *       bootstrap users read, exactly one row       |  IdentityBootstrapService
  *       users.status = ACTIVE                       |  (03 §3.7.1 steps 1-2,
  *       set_user_context(users.id)                 /   D-047 clauses 2-4 and 9)
- *       read + validate X-Practice-ID                  (03 §3.7.1 step 3)
- *       path practiceId == practice context            (03, negative cases)
- *       membership-scoped read of the practice          (03 §3.7.1 step 4, D-047 clause 10)
- *       0 rows                 -> 403 ACCESS_DENIED, ROLLBACK
- *       practice.status <> ACTIVE -> 403 ACCESS_DENIED, ROLLBACK
- *       membership of THIS user in THIS practice        (D-047 clause 18)
- *       no membership          -> 403 ACCESS_DENIED, ROLLBACK
- *       membership not active  -> 403 ACCESS_DENIED, ROLLBACK
- *       roles of that membership, settings of that practice
- *       practice.read in the derived effective set      (03 §28.5, 15 §5)
- *       not granted            -> 403 ACCESS_DENIED, ROLLBACK
+ *       read + validate X-Practice-ID              \
+ *       path practiceId == practice context         |
+ *       membership-scoped read of the practice      |
+ *       0 rows / status <> ACTIVE -> 403, ROLLBACK  |  TenantRequestPipeline
+ *       ACTIVE membership of THIS user             /   (03 §3.7.1 steps 3-6,
+ *       absent or inactive        -> 403, ROLLBACK  |   D-047 clauses 10, 11 and 18)
+ *       set_request_context(requested practice)     |
+ *         ACTIVE membership re-validated in the DB  |
+ *         app.practice_id now exists                |
+ *       roles of that membership, settings of that  |
+ *       practice, effective permission set          |
+ *       practice.read not granted -> 403, ROLLBACK /
+ *       the practice, read under tenant RLS            <-- step 11, below
  *       projection of exactly six fields
  *     COMMIT
  *
- * WHERE PHASE 4 WOULD BE
+ * WHAT THIS SERVICE STILL OWNS
  *
- * D-047 clause 10 places `set_request_context` at step 7, AFTER the practice-status check, so
- * that no non-`ACTIVE` practice ever obtains a tenant context and the privileged window has
- * length zero. THIS ROUTE does not perform that step yet: it establishes no `app.practice_id`,
- * and neither `PracticeContextGuard` nor `TenantDatabaseService` exists (D-047 clause 16). The
- * practical meaning of the requirement here is the one this service implements — every rejection
- * happens strictly before the point where the tenant context would be established, so adding
- * that call later changes nothing about which requests are refused.
+ * Two things, and deliberately only two: WHICH permission the route requires, and WHAT the
+ * route does once the request has been admitted. Everything between admission and those two —
+ * the header, the path/header match, the practice, the membership, the tenant context, the
+ * roles, the settings and the permission decision — belongs to {@link TenantRequestPipeline},
+ * so that the frozen order lives in one place and cannot drift per route.
  *
- * The function itself exists from package `013_rls_policies` onward and `GET /me` already calls
- * it internally (D-053). Extending it to this route is a separate, later slice; nothing here
- * depends on that having happened, because `practice.read` is an `ALLOW` cell and not a
- * `CONDITIONAL` one, so the settings read below cannot change this route's decision.
+ * STEP 11 IS A SECOND READ, ON PURPOSE
  *
- * D-047 clause 18 is explicit that phase 3 performs the tenant narrowing for this route at the
- * APPLICATION layer, additionally to what RLS already does. This service therefore proves three
- * identities align — the verified current user, the requested path `practiceId`, and
- * `X-Practice-ID` — and that the user owns an eligible active membership in that practice.
+ * The practice was already read once, at step 4, to decide admission — necessarily BEFORE
+ * `app.practice_id` existed, because D-047 clause 10 puts the status check strictly before
+ * `set_request_context`. Projecting that first row would mean the response of a tenant route
+ * was assembled from a read taken outside the tenant context, which is exactly the property
+ * this phase exists to establish. The row is therefore re-read through the SAME narrow
+ * six-column surface, now under the established context, where `practices_context_narrow`
+ * (`02` §17.6) is RESTRICTIVE and can return no practice other than `app.practice_id`. No new
+ * query, no new column, no new representation and no change to the frozen response contract.
  *
  * NO GRANT IS RESTATED HERE
  *
- * The service names the permission the endpoint REQUIRES, which `04` §5.2 assigns to `03`, and
- * derives whether the caller holds it through {@link resolveEffectivePermissions} and
- * {@link hasEffectivePermission} — the single application representation of the `15` matrix
- * (`04` §6.4.1). There is no `role === 'PRACTICE_ADMIN'` anywhere in this file, and there must
- * never be one: the matrix is the oracle, and a hard-coded role check would silently survive a
- * change to it.
+ * The service names the permission the endpoint REQUIRES, which `04` §5.2 assigns to `03`; the
+ * pipeline derives whether the caller holds it through the single application representation of
+ * the `15` matrix (`04` §6.4.1). There is no `role === 'PRACTICE_ADMIN'` anywhere in this file,
+ * and there must never be one: the matrix is the oracle, and a hard-coded role check would
+ * silently survive a change to it.
  */
 
 import { Injectable } from '@nestjs/common';
 
 import { type Permission, type PracticeResponseDto } from '@axenita/contracts';
 
-import {
-  hasEffectivePermission,
-  resolveEffectivePermissions,
-  type ConditionalPermissionSettings,
-} from '../domain/effective-permissions.js';
 import { accessDenied } from '../identity.errors.js';
 import {
   type IdentityBootstrapSession,
   type RequestedPracticeRow,
 } from '../infrastructure/identity-database.port.js';
-import {
-  DISABLED_CONDITIONAL_SETTINGS,
-  IdentityBootstrapService,
-  tenantRolesOf,
-} from './identity-bootstrap.service.js';
-import { assertPathMatchesPracticeContext, readPracticeContext } from './practice-context.js';
+import { IdentityBootstrapService } from './identity-bootstrap.service.js';
+import { TenantRequestPipeline } from './tenant-request.pipeline.js';
 
 /**
  * The permission this endpoint requires (`03`, `15` §5, D-047 clause 11).
@@ -91,9 +82,6 @@ import { assertPathMatchesPracticeContext, readPracticeContext } from './practic
  * which role holds it, which is the matrix's business alone (`04` §5.2).
  */
 const REQUIRED_PERMISSION: Permission = 'practice.read';
-
-/** The one `entity_status` value that admits a practice (`02` §4.2, D-047 clause 10). */
-const ACTIVE_PRACTICE_STATUS = 'ACTIVE';
 
 /** Everything one request supplies. All three inputs are narrowed against each other. */
 export interface PracticeReadRequest {
@@ -107,10 +95,13 @@ export interface PracticeReadRequest {
 
 @Injectable()
 export class PracticeReadService {
-  public constructor(private readonly identityBootstrap: IdentityBootstrapService) {}
+  public constructor(
+    private readonly identityBootstrap: IdentityBootstrapService,
+    private readonly tenantRequests: TenantRequestPipeline,
+  ) {}
 
   /**
-   * Resolves the caller, authorises the read and projects the practice.
+   * Resolves the caller, admits the tenant request and projects the practice.
    *
    * Returns only for a caller who is an `ACTIVE` user, holds an ACTIVE membership in the
    * requested `ACTIVE` practice, and whose roles in THAT membership derive `practice.read`.
@@ -120,123 +111,42 @@ export class PracticeReadService {
     return this.identityBootstrap.runAuthenticatedSession(
       request.verifiedAuthSubject,
       async (session, user) => {
-        // Step 3 of 03 §3.7.1 — deliberately AFTER admission. A caller whose identity has not
-        // been admitted must not learn anything about their headers, and 03 §3.7.1 forbids
-        // reordering the chain.
-        const practiceContextId = readPracticeContext(request.practiceContextHeader);
+        // Steps 3 to 10. Returns only for an admitted request, and only with
+        // `app.practice_id` established for the remainder of this transaction.
+        const admitted = await this.tenantRequests.admit(session, user.id, {
+          requestedPracticeId: request.requestedPracticeId,
+          practiceContextHeader: request.practiceContextHeader,
+          requiredPermission: REQUIRED_PERMISSION,
+        });
 
-        // 03: "practiceId iz putanje mora odgovarati uspostavljenom practice contextu". The
-        // mismatch answer is the shared 403, indistinguishable from every other refusal.
-        assertPathMatchesPracticeContext(
-          request.requestedPracticeId,
-          practiceContextId,
-          accessDenied,
-        );
-
-        const practice = await this.admitPractice(session, practiceContextId);
-        const permissions = await this.derivePermissions(session, user.id, practiceContextId);
-
-        // 03 §28.5 and 15 §5, evaluated through the single matrix representation. PRACTICE_ADMIN
-        // is the only tenant role the accepted matrix grants this permission to; SYSTEM_ADMIN is
-        // a platform role, is not an input to this derivation at all, and therefore cannot
-        // contribute (D-038 clauses 12-14, D-047 clause 11).
-        if (!hasEffectivePermission(permissions, REQUIRED_PERMISSION)) {
-          throw accessDenied();
-        }
-
-        return project(practice);
+        return project(await this.readAdmittedPractice(session, admitted.practiceId));
       },
     );
   }
 
   /**
-   * Step 4 of `03` §3.7.1 and steps 4 to 6 of D-047 clause 10 — the membership-scoped read of
-   * the requested practice and its status check.
+   * Step 11 — the business read, under the established tenant context.
    *
-   * Both refusals are the same `403 ACCESS_DENIED` with the same body. A practice that does not
-   * exist, a practice the caller is not a member of, and a practice that is not `ACTIVE` are
-   * indistinguishable from outside, which is what prevents enumeration (`03`, negative cases).
+   * `practiceId` is the admitted practice and therefore the value now in `app.practice_id`, so
+   * the RESTRICTIVE §17.6 narrowing and the explicit predicate agree by construction; the
+   * statement could not return another tenant's practice even if they did not.
+   *
+   * `undefined` is unreachable: the same statement returned a row a few steps earlier under a
+   * strictly WIDER policy state, and the context that narrowed it since names this very
+   * practice. It is still handled, and handled as the shared refusal rather than as an
+   * internal error, because a tenant route that cannot see its own tenant must fail closed.
    */
-  private async admitPractice(
+  private async readAdmittedPractice(
     session: IdentityBootstrapSession,
     practiceId: string,
   ): Promise<RequestedPracticeRow> {
     const practice = await session.findRequestedPractice(practiceId);
 
-    // Zero rows. The 02 §17.6 membership policy exposes only practices the caller holds a
-    // membership in, so this covers "no such practice" and "not my practice" at once.
     if (practice === undefined) {
       throw accessDenied();
     }
 
-    // D-047 clause 10 — a practice whose status is not ACTIVE is refused with a rollback, and
-    // in phase 4 this refusal will still stand strictly before `set_request_context`.
-    if (practice.status !== ACTIVE_PRACTICE_STATUS) {
-      throw accessDenied();
-    }
-
     return practice;
-  }
-
-  /**
-   * The membership half of the narrowing, plus the permission derivation for it.
-   *
-   * The membership read binds the resolved current user and the requested practice in one
-   * statement (D-047 clause 18). Its absence and its inactivity are separate checks with the
-   * same answer: D-047 clause 10 notes that practice visibility proves a membership EXISTS —
-   * the §17.6 policy does not filter `pm.active` — while activity is a second, independent
-   * fact. In phase 4 `set_request_context` re-establishes that second fact in the database;
-   * in phase 3 this check is the only thing that does, so it may not be skipped on the grounds
-   * that the practice was visible.
-   */
-  private async derivePermissions(
-    session: IdentityBootstrapSession,
-    userId: string,
-    practiceId: string,
-  ): Promise<readonly Permission[]> {
-    const membership = await session.findMembershipInPractice(userId, practiceId);
-
-    if (membership === undefined || membership.active !== true) {
-      throw accessDenied();
-    }
-
-    const roleRows = await session.findMembershipRoles([membership.id]);
-    const roles = tenantRolesOf(membership.id, roleRows);
-
-    // `practice.read` is not a CONDITIONAL cell, but the resolver derives the WHOLE effective
-    // set of the membership and its API therefore requires the practice's flags. They are read
-    // for the requested practice only — never for any other — and they are an input, never an
-    // output: nothing from `practice_settings` reaches the response (D-049, 03 §28.5).
-    const settings = await this.readConditionalSettings(session, practiceId);
-
-    return resolveEffectivePermissions({
-      // Already proven true above. Passed through rather than hard-coded, so the resolver's own
-      // "an inactive membership grants nothing" rule (`15` §3.2) stays a second, independent
-      // barrier instead of being bypassed by a literal.
-      active: membership.active,
-      roles,
-      settings,
-    });
-  }
-
-  /** The conditional flags of exactly one practice, fail-closed when there is no row (D-041). */
-  private async readConditionalSettings(
-    session: IdentityBootstrapSession,
-    practiceId: string,
-  ): Promise<ConditionalPermissionSettings> {
-    const rows = await session.findConditionalSettings([practiceId]);
-    const settings = rows.find((row) => row.practiceId === practiceId);
-
-    if (settings === undefined) {
-      return DISABLED_CONDITIONAL_SETTINGS;
-    }
-
-    // Strict equality, exactly as the resolver applies it: anything other than a literal `true`
-    // fails closed.
-    return Object.freeze({
-      allowMpaApproval: settings.allowMpaApproval === true,
-      allowBillingSpecialistApproval: settings.allowBillingSpecialistApproval === true,
-    });
   }
 }
 

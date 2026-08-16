@@ -93,6 +93,37 @@ export interface ConditionalSettingsRow {
 }
 
 /**
+ * `app_security.set_request_context` refused to establish the tenant context.
+ *
+ * The function raises SQLSTATE `42501` for exactly three reasons (`02` §16.2.3, D-033 clauses
+ * 9–11): `app.user_id` is not established, the caller holds no membership in the requested
+ * practice, or the membership exists but is not `ACTIVE`. A tenant route has already ruled out
+ * all three at the application layer BEFORE it calls the function, so in practice this error
+ * means the facts changed underneath the request — most plausibly a concurrent transaction
+ * deactivating the membership between the application check and this call.
+ *
+ * WHY A TYPE AND NOT A SQLSTATE STRING. The knowledge that a refusal is SQLSTATE `42501`, that
+ * the driver reports it in one shape rather than another, and that the statement was a
+ * `select app_security.set_request_context(...)` all belong to the database adapter. The
+ * application layer must be able to answer `403 ACCESS_DENIED` for THIS operation without
+ * acquiring any of it, and without a global "42501 means forbidden" rule that would also
+ * swallow an insufficient-privilege failure caused by a revoked grant somewhere else.
+ *
+ * The message is static and server-side only. It names no practice, no user, no membership and
+ * no database message, so it can never carry a tenant fact into a log line (`09` §11), and the
+ * one caller that catches it replaces it with the shared refusal before it reaches any filter.
+ */
+export class TenantContextRejectedError extends Error {
+  public constructor() {
+    super(
+      'app_security.set_request_context refused to establish the requested tenant context ' +
+        '(SQLSTATE 42501).',
+    );
+    this.name = 'TenantContextRejectedError';
+  }
+}
+
+/**
  * One current platform role assignment.
  *
  * Only `platform_role` is projected. `granted_by`, `granted_at`, `revoked_at` and `revoked_by`
@@ -165,6 +196,18 @@ export interface IdentityBootstrapSession {
    *
    * An inactive membership raises `42501`, which is exactly why `/me` must not call this for one
    * (D-053 clause D.4).
+   *
+   * On a tenant route the practice id is the CLIENT-NAMED one, and it may reach this method
+   * only after the whole of `03` §3.7.1 steps 1 to 4 has passed: user admission, header
+   * validation, path/header match, the membership-scoped practice status check and the
+   * application-level ACTIVE membership check (D-047 clause 10). The function then validates
+   * the ACTIVE membership INDEPENDENTLY — the two barriers are cumulative and neither replaces
+   * the other.
+   *
+   * @throws TenantContextRejectedError when the database refuses with SQLSTATE `42501`. Every
+   *   implementation must translate that ONE refusal of THIS ONE operation, and must translate
+   *   no other error, so that the application layer can fail closed without ever inspecting a
+   *   driver error.
    */
   setRequestContext(practiceId: string): Promise<void>;
 

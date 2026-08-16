@@ -31,6 +31,7 @@ import { ApiException } from '../../common/errors/api-exception.js';
 import { type BootstrapUserRow } from '../infrastructure/identity-database.port.js';
 import { IdentityBootstrapService } from './identity-bootstrap.service.js';
 import { PracticeReadService } from './practice-read.service.js';
+import { TenantRequestPipeline } from './tenant-request.pipeline.js';
 
 const SUBJECT = 'dev|practice-admin';
 
@@ -71,7 +72,13 @@ describe('PracticeReadService', () => {
     // The very same bootstrap the `/me` route uses. There is no second implementation of
     // `set_auth_subject_context`, of the users read, of the ACTIVE-user check or of
     // `set_user_context`, and this wiring is what proves it.
-    service = new PracticeReadService(new IdentityBootstrapService(database));
+    //
+    // The tenant half is the real `TenantRequestPipeline`, never a double: the property under
+    // test is the ORDER of the whole chain, and a stubbed pipeline would prove nothing about it.
+    service = new PracticeReadService(
+      new IdentityBootstrapService(database),
+      new TenantRequestPipeline(),
+    );
   });
 
   /** Seeds an ACTIVE user with an ACTIVE membership carrying `roles` in the ACTIVE practice. */
@@ -155,12 +162,18 @@ describe('PracticeReadService', () => {
       expect(database.transactions).toBe(1);
       expect(database.committed).toBe(1);
       expect(database.rolledBack).toBe(0);
+      // THE COMPLETE FROZEN ORDER of 03 §3.7.1 and D-047 clause 10, asserted as one literal
+      // sequence so that moving, adding or dropping a single step fails this spec. The tenant
+      // context is established at step 7 — after the practice status and the application
+      // membership check, before the roles, the settings and the business read.
       expect(database.calls).toEqual([
         ...CHAIN_UP_TO_USER_CONTEXT,
         `select practice(${PRACTICE})`,
         `select membership(${USER},${PRACTICE})`,
+        `set_request_context(${PRACTICE})`,
         `select membership_roles(${MEMBERSHIP})`,
         `select practice_settings(${PRACTICE})`,
+        `select practice(${PRACTICE})`,
         'COMMIT',
       ]);
     });
@@ -173,6 +186,27 @@ describe('PracticeReadService', () => {
       expect(database.calls.indexOf(`select practice(${PRACTICE})`)).toBeGreaterThan(
         database.calls.indexOf(`set_user_context(${USER})`),
       );
+    });
+
+    it('projects a practice read under the established tenant context (step 11)', async () => {
+      seedEligibleCaller(['PRACTICE_ADMIN']);
+
+      const practice = await read();
+
+      // The admission read of step 4 necessarily precedes `set_request_context`; the read whose
+      // row becomes the response must follow it, or the response of a tenant route would be
+      // assembled outside the tenant context.
+      const context = database.calls.indexOf(`set_request_context(${PRACTICE})`);
+      const reads = database.calls
+        .map((call, index) => ({ call, index }))
+        .filter((entry) => entry.call === `select practice(${PRACTICE})`)
+        .map((entry) => entry.index);
+
+      expect(reads).toHaveLength(2);
+      expect(reads[0]).toBeLessThan(context);
+      expect(reads.at(-1)).toBeGreaterThan(context);
+      expect(database.calls.at(-2)).toBe(`select practice(${PRACTICE})`);
+      expect(practice.id).toBe(PRACTICE);
     });
 
     it('reads the settings of the requested practice only', async () => {
@@ -300,9 +334,9 @@ describe('PracticeReadService', () => {
 
         expect(failure.getStatus()).toBe(403);
         expect(failure.code).toBe('ACCESS_DENIED');
-        // The status check is step 6 of D-047 clause 10 and precedes everything downstream. In
-        // phase 4 `set_request_context` becomes step 7, so this rejection will still stand
-        // strictly before any tenant context exists.
+        // The status check is step 6 of D-047 clause 10 and `set_request_context` is step 7, so
+        // a non-ACTIVE practice is refused strictly before any tenant context can exist and the
+        // privileged window is of length zero.
         expect(database.calls).toEqual([
           ...CHAIN_UP_TO_USER_CONTEXT,
           `select practice(${PRACTICE})`,

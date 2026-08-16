@@ -1,10 +1,10 @@
 /**
- * `GET /api/v1/practices/{practiceId}` against a real PostgreSQL — the phase 3 tenant contract
- * end to end.
+ * `GET /api/v1/practices/{practiceId}` against a real PostgreSQL — the tenant contract end to
+ * end, including the tenant execution boundary.
  *
  * Normative sources: `03` §3.2, §3.4, §3.7.1 and the accepted `GET /practices/{practiceId}`
- * section; `08` §21.5, §24.14 and §24.17; `15` §5; D-038 clauses 12–14; D-047 clauses 8, 10, 11
- * and 18; D-049.
+ * section; `02` §16.2.3, §17.1 and §17.6; `08` §21.5, §24.14 and §24.17; `15` §5; D-033 clauses
+ * 9–12; D-038 clauses 12–14; D-047 clauses 8, 10, 11 and 18; D-049; D-053.
  *
  * WHY THIS SUITE AND NOT AN `*.e2e-spec.ts`
  *
@@ -45,6 +45,13 @@ import {
   runInForceRlsMaintenanceWindow,
   runPhase3Seed,
 } from '../prisma/seed.js';
+import { IdentityBootstrapService } from '../src/identity/application/identity-bootstrap.service.js';
+import { TenantRequestPipeline } from '../src/identity/application/tenant-request.pipeline.js';
+import {
+  IDENTITY_DATABASE,
+  TenantContextRejectedError,
+  type IdentityDatabase,
+} from '../src/identity/infrastructure/identity-database.port.js';
 import { closeTestApplication } from './support/create-test-application.js';
 import { developmentBearer } from './support/development-token.js';
 import {
@@ -100,6 +107,35 @@ const FIXTURE = {
   inactiveMemberSubject: 'dev|matrix-inactive-member',
   inactiveMemberMembership: '33333333-3333-4333-8333-3333330000e9',
   inactiveMemberRole: '44444444-4444-4444-8444-4444440000e9',
+
+  /**
+   * A SECOND `ACTIVE` practice that a caller can genuinely be admitted to.
+   *
+   * The tenant-context isolation properties — one request must not leak `app.practice_id` into
+   * the next, and two concurrent requests must not see each other's tenant — are unprovable
+   * with a single admissible practice: every observation would be of the same practice id, and
+   * a total leak would look exactly like correct behaviour. Two admissible practices are the
+   * minimum that can tell the two apart.
+   */
+  secondPractice: '11111111-1111-4111-8111-1111110000d1',
+  secondAdminUser: '22222222-2222-4222-8222-2222220000d1',
+  secondAdminSubject: 'dev|matrix-second-admin',
+  secondAdminMembership: '33333333-3333-4333-8333-3333330000d1',
+  secondAdminRole: '44444444-4444-4444-8444-4444440000d1',
+
+  /**
+   * One caller with an ACTIVE `PRACTICE_ADMIN` membership in BOTH practices.
+   *
+   * The sharpest isolation subject there is: the same user, the same role and the same
+   * credential, differing only in the practice each request names.
+   */
+  dualAdminUser: '22222222-2222-4222-8222-2222220000d2',
+  dualAdminSubject: 'dev|matrix-dual-admin',
+  dualAdminMembershipMatrix: '33333333-3333-4333-8333-3333330000d2',
+  dualAdminMembershipSecond: '33333333-3333-4333-8333-3333330000d3',
+  dualAdminRoleMatrix: '44444444-4444-4444-8444-4444440000d2',
+  dualAdminRoleSecond: '44444444-4444-4444-8444-4444440000d3',
+  secondPracticeSettings: '55555555-5555-4555-8555-5555550000d1',
 } as const;
 
 /** The practice every matrix caller is a member of. */
@@ -135,6 +171,31 @@ async function applyFixture(migrationUrl: string): Promise<void> {
                  'SUSPENDED'::entity_status, now(), now())`,
         [FIXTURE.suspendedPractice],
       );
+
+      // The second admissible practice of the isolation specs.
+      await trusted.query(
+        `insert into "practices" ("id", "code", "name", "legal_name", "zsr_number", "gln_number",
+                                  "default_language", "timezone", "status", "created_at", "updated_at")
+         values ($1, 'demo-praxis-zweit', 'Demo Praxis Zweit', 'Demo Praxis Zweit AG',
+                 'DEV-ZSR-0011', '7601000000011', 'de-CH', 'Europe/Zurich',
+                 'ACTIVE'::entity_status, now(), now())`,
+        [FIXTURE.secondPractice],
+      );
+    });
+
+    // Its own settings row, with BOTH conditional flags enabled — the opposite of the seeded
+    // `demo-praxis` row. A derivation that read the wrong practice's settings would therefore
+    // produce a different permission set, not merely the same one by luck (D-041, D-049).
+    await runInForceRlsMaintenanceWindow(client, 'practice_settings', async (trusted) => {
+      await trusted.query(
+        `insert into "practice_settings" ("id", "practice_id", "billing_review_required",
+                                          "allow_mpa_approval", "allow_billing_specialist_approval",
+                                          "require_reason_for_manual_change", "ai_enabled",
+                                          "axenita_export_enabled", "retention_policy_code",
+                                          "configuration", "version", "updated_by", "updated_at")
+         values ($1, $2, false, true, true, false, false, false, null, '{}'::jsonb, 1, null, now())`,
+        [FIXTURE.secondPracticeSettings, FIXTURE.secondPractice],
+      );
     });
 
     await runInForceRlsMaintenanceWindow(client, 'users', async (trusted) => {
@@ -146,6 +207,8 @@ async function applyFixture(migrationUrl: string): Promise<void> {
         [FIXTURE.platformOnlyUser, FIXTURE.platformOnlySubject, 'Dev Matrix Platform Only'],
         [FIXTURE.suspendedAdminUser, FIXTURE.suspendedAdminSubject, 'Dev Matrix Suspended Admin'],
         [FIXTURE.inactiveMemberUser, FIXTURE.inactiveMemberSubject, 'Dev Matrix Inactive Member'],
+        [FIXTURE.secondAdminUser, FIXTURE.secondAdminSubject, 'Dev Matrix Second Admin'],
+        [FIXTURE.dualAdminUser, FIXTURE.dualAdminSubject, 'Dev Matrix Dual Admin'],
       ];
 
       for (const [id, subject, name] of users) {
@@ -179,6 +242,9 @@ async function applyFixture(migrationUrl: string): Promise<void> {
           true,
         ],
         [FIXTURE.inactiveMemberMembership, MATRIX_PRACTICE, FIXTURE.inactiveMemberUser, false],
+        [FIXTURE.secondAdminMembership, FIXTURE.secondPractice, FIXTURE.secondAdminUser, true],
+        [FIXTURE.dualAdminMembershipMatrix, MATRIX_PRACTICE, FIXTURE.dualAdminUser, true],
+        [FIXTURE.dualAdminMembershipSecond, FIXTURE.secondPractice, FIXTURE.dualAdminUser, true],
       ] as const) {
         await trusted.query(
           `insert into "practice_memberships" ("id", "practice_id", "user_id",
@@ -211,6 +277,24 @@ async function applyFixture(migrationUrl: string): Promise<void> {
           FIXTURE.inactiveMemberRole,
           MATRIX_PRACTICE,
           FIXTURE.inactiveMemberMembership,
+          'PRACTICE_ADMIN',
+        ],
+        [
+          FIXTURE.secondAdminRole,
+          FIXTURE.secondPractice,
+          FIXTURE.secondAdminMembership,
+          'PRACTICE_ADMIN',
+        ],
+        [
+          FIXTURE.dualAdminRoleMatrix,
+          MATRIX_PRACTICE,
+          FIXTURE.dualAdminMembershipMatrix,
+          'PRACTICE_ADMIN',
+        ],
+        [
+          FIXTURE.dualAdminRoleSecond,
+          FIXTURE.secondPractice,
+          FIXTURE.dualAdminMembershipSecond,
           'PRACTICE_ADMIN',
         ],
       ] as const) {
@@ -726,27 +810,215 @@ describe('GET /api/v1/practices/{practiceId}', () => {
     });
   });
 
-  describe('phase boundary (D-047 clause 16, D-049)', () => {
-    it('establishes no database practice context, even though set_request_context now exists', async () => {
-      // `013_rls_policies` creates the function (02 §16.2.3), so its absence is no longer the
-      // assertion. This route is still an APPLICATION-level tenant check: it validates
-      // `X-Practice-ID` and the membership itself, and does not yet establish `app.practice_id`.
-      // Wiring the route to `set_request_context` belongs to a later phase 4 application slice,
-      // which this database slice deliberately does not pull forward (D-047 clause 16).
-      expect((await readPractice(ROLE_CALLERS[0].subject, MATRIX_PRACTICE)).status).toBe(200);
+  /**
+   * THE INVERTED PHASE BOUNDARY.
+   *
+   * Until this slice, this block asserted the opposite: that the route established NO database
+   * practice context, with a comment saying a later phase 4 application slice would have to
+   * invert it. This is that slice, so the assertion is converted rather than deleted — the
+   * security property it protects (a tenant route's context is exactly the requested practice,
+   * and it never outlives its transaction) is stronger now, not absent.
+   */
+  describe('tenant context establishment (03 §3.7.1 steps 5-7, D-047 clause 10, D-033)', () => {
+    it('establishes app.practice_id for exactly the admitted practice, inside the transaction', async () => {
+      const bootstrap = app.get(IdentityBootstrapService);
+      const pipeline = app.get(TenantRequestPipeline);
 
-      const functions = await appClient.query<{ name: string | null }>(
-        `select to_regprocedure('app_security.set_request_context(uuid)')::text as "name"`,
+      // `app.practice_id` is transaction local, so it cannot be observed from outside the
+      // transaction — by construction, and that is the property. It is therefore observed
+      // through the two policies that read it, which is a database-enforced observation rather
+      // than an application claim:
+      //
+      //   - `practice_settings_select` (§17.1) exposes a row ONLY for `app.practice_id`;
+      //   - `practices_context_narrow` (§17.6) is RESTRICTIVE and, once the GUC exists, hides
+      //     every practice except that one.
+      const observed = await bootstrap.runAuthenticatedSession(
+        PHASE_3_SEED_SUBJECTS.practiceAdmin,
+        async (session, user) => {
+          // The seeded admin is a member of `demo-praxis-nord` too, so it is visible while no
+          // tenant context exists.
+          const nordBefore = await session.findRequestedPractice(PHASE_3_SEED_IDS.practiceNord);
+          const settingsBefore = await session.findConditionalSettings([
+            PHASE_3_SEED_IDS.practiceDemo,
+          ]);
+
+          const admitted = await pipeline.admit(session, user.id, {
+            requestedPracticeId: PHASE_3_SEED_IDS.practiceDemo,
+            practiceContextHeader: PHASE_3_SEED_IDS.practiceDemo,
+            requiredPermission: 'practice.read',
+          });
+
+          return {
+            admittedPractice: admitted.practiceId,
+            nordBefore: nordBefore?.id,
+            settingsBefore: settingsBefore.length,
+            // Established: the tenant row is now readable, and it is the requested one.
+            settingsAfter: (
+              await session.findConditionalSettings([PHASE_3_SEED_IDS.practiceDemo])
+            ).map((row) => row.practiceId),
+            // Established and EQUAL to the requested practice: another practice of the same
+            // caller has become invisible to the RESTRICTIVE narrowing.
+            nordAfter: (await session.findRequestedPractice(PHASE_3_SEED_IDS.practiceNord))?.id,
+            demoAfter: (await session.findRequestedPractice(PHASE_3_SEED_IDS.practiceDemo))?.id,
+          };
+        },
       );
 
-      expect(functions.rows[0]?.name).toBe('app_security.set_request_context(uuid)');
+      expect(observed).toEqual({
+        admittedPractice: PHASE_3_SEED_IDS.practiceDemo,
+        nordBefore: PHASE_3_SEED_IDS.practiceNord,
+        settingsBefore: 0,
+        settingsAfter: [PHASE_3_SEED_IDS.practiceDemo],
+        nordAfter: undefined,
+        demoAfter: PHASE_3_SEED_IDS.practiceDemo,
+      });
+    });
 
-      // No tenant scope survives on the pool, and none was established in the first place.
+    it('leaves no app.practice_id on the pooled connection after COMMIT', async () => {
+      expect((await readPractice(ROLE_CALLERS[0].subject, MATRIX_PRACTICE)).status).toBe(200);
+
+      // The same pool the application uses, on a separate connection. `set_request_context`
+      // writes the GUC with `set_config(..., true)`, so it is discarded at COMMIT (02 §16.2,
+      // 08 §21.5.7) and no pooled connection can inherit it.
       const context = await appClient.query<{ practice: string | null }>(
         `select nullif(current_setting('app.practice_id', true), '') as "practice"`,
       );
 
       expect(context.rows[0]?.practice).toBeNull();
+      // And without a context the tenant policy of §17.1 exposes nothing at all.
+      expect(
+        (await appClient.query('select "practice_id" from "practice_settings"')).rowCount,
+      ).toBe(0);
+    });
+
+    it('leaves no app.practice_id after a ROLLBACK that followed an established context', async () => {
+      // PHYSICIAN is an ACTIVE member of the ACTIVE practice, so this request is refused at
+      // step 10 — AFTER the context was established — which is the only refusal that can leave
+      // a tenant context behind if the transaction did not discard it.
+      expect((await readPractice(ROLE_CALLERS[1].subject, MATRIX_PRACTICE)).status).toBe(403);
+
+      const context = await appClient.query<{ practice: string | null }>(
+        `select nullif(current_setting('app.practice_id', true), '') as "practice"`,
+      );
+
+      expect(context.rows[0]?.practice).toBeNull();
+      expect(
+        (await appClient.query('select "practice_id" from "practice_settings"')).rowCount,
+      ).toBe(0);
+    });
+
+    it('keeps sequential requests for DIFFERENT practices isolated', async () => {
+      // One caller, one credential, one role — only the requested practice differs. A context
+      // that survived a request would make the second response the first one's practice.
+      const sequence = [
+        MATRIX_PRACTICE,
+        FIXTURE.secondPractice,
+        FIXTURE.secondPractice,
+        MATRIX_PRACTICE,
+        FIXTURE.secondPractice,
+      ];
+
+      for (const practiceId of sequence) {
+        const { status, body } = await readPractice(FIXTURE.dualAdminSubject, practiceId);
+
+        expect(status).toBe(200);
+        expect(body['id']).toBe(practiceId);
+      }
+    });
+
+    it('keeps a refused tenant request from contaminating the next admitted one', async () => {
+      const denied = await readPractice(FIXTURE.dualAdminSubject, FIXTURE.suspendedPractice);
+      expect(denied.status).toBe(403);
+
+      const allowed = await readPractice(FIXTURE.dualAdminSubject, FIXTURE.secondPractice);
+      expect(allowed.status).toBe(200);
+      expect(allowed.body['id']).toBe(FIXTURE.secondPractice);
+    });
+
+    it('keeps concurrent requests for DIFFERENT practices isolated', async () => {
+      // Issued together, so they interleave on the pool. Each answer must be the practice its
+      // own request named — a shared or leaked `app.practice_id` would cross them.
+      const results = await Promise.all([
+        readPractice(FIXTURE.dualAdminSubject, MATRIX_PRACTICE),
+        readPractice(FIXTURE.dualAdminSubject, FIXTURE.secondPractice),
+        readPractice(FIXTURE.secondAdminSubject, FIXTURE.secondPractice),
+        readPractice(ROLE_CALLERS[0].subject, MATRIX_PRACTICE),
+        readPractice(FIXTURE.suspendedAdminSubject, FIXTURE.suspendedPractice),
+        readPractice(FIXTURE.dualAdminSubject, MATRIX_PRACTICE),
+      ]);
+
+      const expected = [
+        MATRIX_PRACTICE,
+        FIXTURE.secondPractice,
+        FIXTURE.secondPractice,
+        MATRIX_PRACTICE,
+        undefined,
+        MATRIX_PRACTICE,
+      ];
+
+      expect(results.map((result) => result.body['id'])).toEqual(expected);
+      expect(results.map((result) => result.status)).toEqual([200, 200, 200, 200, 403, 200]);
+    });
+
+    it('translates a real SQLSTATE 42501 from set_request_context into the typed refusal', async () => {
+      // The application layer never inspects a driver error: the adapter raises
+      // `TenantContextRejectedError` for THIS operation and this SQLSTATE, and the pipeline
+      // turns that ONE type into the shared 403. This half of the mapping is proven here,
+      // against a real refusal by the real function; the other half — that the type becomes
+      // `403 ACCESS_DENIED` with nothing of the SQLSTATE in it — is proven in
+      // `src/identity/application/tenant-request.pipeline.spec.ts`.
+      const database = app.get<IdentityDatabase>(IDENTITY_DATABASE);
+
+      const refusals = [
+        // No membership at all in the requested practice (D-033 clause 11).
+        [callerIds(0).userId, ROLE_CALLERS[0].subject, PHASE_3_SEED_IDS.practiceWithoutMembers],
+        // A membership that exists but is not ACTIVE — the deactivation race, exactly.
+        [FIXTURE.inactiveMemberUser, FIXTURE.inactiveMemberSubject, MATRIX_PRACTICE],
+      ] as const;
+
+      for (const [userId, subject, practiceId] of refusals) {
+        const failure = await database
+          .runBootstrapTransaction(async (session) => {
+            await session.setAuthSubjectContext(subject);
+            await session.findUsersForVerifiedSubject();
+            await session.setUserContext(userId);
+            await session.setRequestContext(practiceId);
+          })
+          .then(
+            () => undefined,
+            (error: unknown) => error,
+          );
+
+        expect(failure).toBeInstanceOf(TenantContextRejectedError);
+      }
+    });
+
+    it('keeps GET /me header-independent and D-053 compatible', async () => {
+      // `/me` is tenant NEUTRAL (03 §3.4): it requires no `X-Practice-ID`, reads none, and no
+      // client-supplied practice id participates in it (D-053 clause D.6). Introducing the
+      // tenant pipeline must not have changed that in either direction.
+      const bodies: string[] = [];
+
+      for (const header of [
+        undefined,
+        PHASE_3_SEED_IDS.practiceDemo,
+        PHASE_3_SEED_IDS.practiceWithoutMembers,
+        'not-a-uuid',
+      ]) {
+        const pending = request(app.getHttpServer())
+          .get('/api/v1/me')
+          .set('Authorization', developmentBearer(PHASE_3_SEED_SUBJECTS.practiceAdmin));
+
+        const response = await (header === undefined
+          ? pending
+          : pending.set(PRACTICE_HEADER, header));
+
+        expect(response.status).toBe(200);
+        bodies.push(JSON.stringify(response.body));
+      }
+
+      // Byte identical: a malformed or foreign header changes neither the status nor one field.
+      expect(new Set(bodies).size).toBe(1);
     });
 
     it('registers no settings route under the practice path (D-049)', async () => {

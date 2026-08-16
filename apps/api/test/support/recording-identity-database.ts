@@ -30,6 +30,7 @@
  */
 
 import {
+  TenantContextRejectedError,
   type BootstrapUserRow,
   type ConditionalSettingsRow,
   type IdentityBootstrapSession,
@@ -66,6 +67,18 @@ export interface World {
   membershipRoles: MembershipRoleRow[];
   settings: ConditionalSettingsRow[];
   platformRoles: OwnedPlatformRole[];
+  /**
+   * Practices whose `set_request_context` refuses even though the membership rows say it
+   * should succeed — the RACE of D-033 clause 11.
+   *
+   * It exists because that race is the one path to a real `42501` that an application cannot
+   * reach by choosing its inputs: every deterministic cause is already refused, earlier and by
+   * name, at the application layer. A concurrent transaction deactivating the membership
+   * between the application check and the function call is not reproducible from a spec, so it
+   * is injected here instead — at exactly the point where the database would refuse, in
+   * exactly the shape it refuses with.
+   */
+  contextRaces: string[];
 }
 
 /** An `ACTIVE` practice with the accepted development defaults of `02` §23.2. */
@@ -93,6 +106,7 @@ export function emptyWorld(): World {
     membershipRoles: [],
     settings: [],
     platformRoles: [],
+    contextRaces: [],
   };
 }
 
@@ -170,7 +184,13 @@ export class RecordingDatabase implements IdentityDatabase {
         appPracticeId = undefined;
 
         if (appUserId === undefined) {
-          throw new Error('42501: User context is not established');
+          throw new TenantContextRejectedError();
+        }
+
+        // The injected race, checked exactly where the function's own membership validation
+        // sits: the GUC has already been cleared, and no context is established.
+        if (world.contextRaces.includes(practiceId)) {
+          throw new TenantContextRejectedError();
         }
 
         const eligible = world.memberships.some(
@@ -180,7 +200,11 @@ export class RecordingDatabase implements IdentityDatabase {
         if (!eligible) {
           // The function raises 42501 for a foreign practice AND for an inactive membership
           // (D-033 clause 11). A spec can therefore assert that `/me` never calls it for one.
-          throw new Error('42501: User is not a member of requested practice');
+          //
+          // The REAL adapter translates that SQLSTATE into `TenantContextRejectedError` and
+          // never lets a driver error escape, so this double raises the same type. Raising a
+          // bare `Error` here would let a spec pass while the production mapping was missing.
+          throw new TenantContextRejectedError();
         }
 
         appPracticeId = practiceId;
