@@ -110,10 +110,14 @@ export class PracticeReadService {
   public async loadPractice(request: PracticeReadRequest): Promise<PracticeResponseDto> {
     return this.identityBootstrap.runAuthenticatedSession(
       request.verifiedAuthSubject,
-      async (session, user) => {
+      async (session) => {
         // Steps 3 to 10. Returns only for an admitted request, and only with
         // `app.practice_id` established for the remainder of this transaction.
-        const admitted = await this.tenantRequests.admit(session, user.id, {
+        //
+        // The admitted user is NOT passed. The pipeline derives the membership from the
+        // `app.user_id` this session already established, so this route cannot name an identity
+        // even by mistake (D-054 clause 12).
+        const admitted = await this.tenantRequests.admit(session, {
           requestedPracticeId: request.requestedPracticeId,
           practiceContextHeader: request.practiceContextHeader,
           requiredPermission: REQUIRED_PERMISSION,

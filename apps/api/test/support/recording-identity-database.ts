@@ -214,14 +214,27 @@ export class RecordingDatabase implements IdentityDatabase {
         calls.push(`select memberships(${userId})`);
         return Promise.resolve(world.memberships.filter((row) => row.userId === userId));
       },
-      findMembershipInPractice: async (
-        userId: string,
+      findCurrentUserMembershipInPractice: async (
         practiceId: string,
       ): Promise<MembershipRow | undefined> => {
-        calls.push(`select membership(${userId},${practiceId})`);
+        // The recorded user is the one the statement DERIVES, never one it was handed: the real
+        // predicate is `user_id = nullif(current_setting('app.user_id', true), '')::uuid`, so the
+        // modelled GUC is the only identity available here too (D-054 clause 12). Recording it
+        // is what lets a spec assert that the membership was resolved against the authenticated
+        // identity and not against some other value the caller supplied.
+        calls.push(`select current_membership(${appUserId ?? 'null'},${practiceId})`);
+
+        // No context, no identity, no rows — `user_id = NULL` is NULL, exactly as in the
+        // database. Fail closed.
+        if (appUserId === undefined) {
+          return Promise.resolve(undefined);
+        }
+
         // Both predicates, exactly as the real statement applies them.
         return Promise.resolve(
-          world.memberships.find((row) => row.userId === userId && row.practiceId === practiceId),
+          world.memberships.find(
+            (row) => row.userId === appUserId && row.practiceId === practiceId,
+          ),
         );
       },
       findPractices: async (practiceIds: readonly string[]): Promise<readonly PracticeRow[]> => {

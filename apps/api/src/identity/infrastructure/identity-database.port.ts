@@ -212,20 +212,36 @@ export interface IdentityBootstrapSession {
   setRequestContext(practiceId: string): Promise<void>;
 
   /**
-   * Reads ONE membership, bound to one user and one practice at the same time.
+   * Reads ONE membership: the CURRENT AUTHENTICATED user's membership in one practice.
    *
-   * This is the application-layer narrowing D-047 clause 18 assigns to phase 3 for
-   * `GET /practices/{practiceId}`: `practice_memberships` gets its own user-scoped policy only
-   * in phase 4 (`02` §17.3, package `013`), so the binding between the resolved current user and
-   * the REQUESTED practice has to be an explicit predicate of this statement. Reading a user's
-   * memberships and picking the matching one in memory would be a weaker, and therefore wrong,
-   * implementation of the same requirement.
+   * THE USER IS NOT A PARAMETER, AND THAT IS THE POINT (D-054 clause 12).
+   *
+   * The predecessor of this method took `(userId, practiceId)`. Its single call site passed the
+   * admitted user, so it was correct — but the SHAPE let a caller ask "authorise practice P using
+   * user U2" while the authenticated identity was U1, and D-054 clause 12 requires the wrong user
+   * to be mechanically INEXPRESSIBLE before any further tenant route is added. The user is
+   * therefore derived inside the statement, from the transaction-local `app.user_id` established
+   * by {@link setUserContext} on this very session, and there is no parameter through which a
+   * second identity could enter.
+   *
+   * That derivation is a genuine trust boundary rather than a restatement: `app.user_id` is
+   * written ONLY by the authenticated bootstrap path, never from client input, and it lives on
+   * the same pinned connection inside the same interactive transaction as this read. An
+   * implementation must therefore bind the user through the established context — the canonical
+   * predicate is `nullif(current_setting('app.user_id', true), '')::uuid`, the same one the
+   * accepted policies use — and must never accept it from its caller. With no context
+   * established the predicate is NULL and the statement returns zero rows, which fails closed.
+   *
+   * This remains the application-layer narrowing D-047 clause 18 assigns to this route: the
+   * binding between the current user and the REQUESTED practice is an explicit predicate of ONE
+   * statement. Reading a user's memberships and picking the matching one in memory would be a
+   * weaker, and therefore wrong, implementation of the same requirement.
    *
    * At most one row can match: `practice_memberships` carries `unique (practice_id, user_id)`
-   * (`02` §6.3), so `undefined` unambiguously means "this user has no membership in this
+   * (`02` §6.3), so `undefined` unambiguously means "the current user has no membership in this
    * practice".
    */
-  findMembershipInPractice(userId: string, practiceId: string): Promise<MembershipRow | undefined>;
+  findCurrentUserMembershipInPractice(practiceId: string): Promise<MembershipRow | undefined>;
 
   /**
    * Reads the requested practice by id, through the `02` §17.6 membership policy.
