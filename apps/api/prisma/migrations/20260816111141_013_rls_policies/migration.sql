@@ -288,11 +288,26 @@ WITH CHECK (
 -- itself escape FORCE RLS, and would create a privileged callable taking arbitrary input.
 --
 -- CLEAR-BEFORE-VALIDATE (D-033 clause 10) is the security-critical ordering: `app.practice_id`
--- is cleared as the FIRST statement, before any validation. A failed context switch therefore
--- CANNOT leave the previous tenant scope usable — a successful switch to practice A followed
--- by a rejected switch to practice B ends with NO tenant context, not with A still active.
--- `app.practice_id` is set ONLY after the membership is verified (D-033 clause 12), so
--- repeated calls can neither accumulate nor mix context (D-053 clause D.9).
+-- is cleared as the FIRST statement, before any validation, and is set again ONLY after the
+-- membership is verified (D-033 clause 12). The canonical security property that follows is:
+--
+--     A FAILED CONTEXT ESTABLISHMENT NEVER MAKES THE REJECTED PRACTICE ACTIVE, AND NEVER
+--     LEAVES A PREVIOUSLY ESTABLISHED PRACTICE IN PLACE FOR THE STATEMENTS THAT WOULD HAVE
+--     FOLLOWED IT.
+--
+-- Concretely, after a successful switch to practice A and a rejected switch to practice B: B is
+-- never active, and A has already been cleared before the rejection is raised. In the canonical
+-- request path the raised exception also aborts the transaction, so no further statement runs
+-- and no usable tenant scope remains at all. Repeated calls can therefore neither accumulate nor
+-- mix context (D-053 clause D.9).
+--
+-- The precise post-failure VALUE of the GUC is a property of PostgreSQL transaction semantics
+-- rather than of this function: `set_config(..., true)` is transaction local, so a caller that
+-- wraps the call in a subtransaction can restore the previous value with
+-- `ROLLBACK TO SAVEPOINT`. That is standard behaviour and NOT a requirement this package places
+-- on the application; no savepoint discipline is introduced or assumed here. It does not weaken
+-- the property above, because a restored value can only ever be a context the SAME session had
+-- already legitimately established, never the rejected one.
 --
 -- The membership must be ACTIVE (D-033 clause 11). An inactive membership raises `42501`,
 -- which is exactly why `GET /me` must not call this function for an inactive membership

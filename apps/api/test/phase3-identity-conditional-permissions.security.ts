@@ -16,10 +16,22 @@
  * disposable database of its own. It never touches `copilot` or `copilot_test` — the same
  * `assertDisposableTarget` guard applies (08 §3).
  *
- * All fixture writes use the canonical paths: `users` and `practice_membership_roles` carry
- * FORCE row level security and go through the D-048 maintenance protocol; `practice_memberships`
- * and `practice_settings` do not and are written in an ordinary explicit transaction
- * (02 §23.4.4).
+ * All fixture writes use the canonical paths: `users`, `practice_memberships`,
+ * `practice_membership_roles` and `practice_settings` all carry FORCE row level security once
+ * `013_rls_policies` is applied, so every one of them goes through the D-048 maintenance
+ * protocol (02 §23.4.4, §23.4.4a; D-052 part B).
+ *
+ * WHAT `013_rls_policies` CHANGES FOR THIS SUITE
+ *
+ * `practice_settings` now carries the §17.1 tenant policy, and the NEUTRAL `GET /me` route
+ * deliberately establishes no tenant context (D-053 clause D.13). The conditional read therefore
+ * returns ZERO rows and the resolver falls back to `DISABLED_CONDITIONAL_SETTINGS`, which is the
+ * fail-closed behaviour D-041 requires. Restoring conditional derivation on `/me` is an
+ * APPLICATION-path adaptation owned by a later phase 4 slice, and is explicitly NOT part of the
+ * database slice. The specs below therefore assert the post-`013` state: the flags are confined,
+ * `/me` grants no conditional permission from either state of either flag, and the derivation
+ * logic itself stays proven by the DB-free resolver unit suite
+ * (`src/identity/domain/effective-permissions.spec.ts`), which covers both flag states.
  */
 
 import { type NestExpressApplication } from '@nestjs/platform-express';
@@ -100,15 +112,14 @@ async function applyFixture(migrationUrl: string): Promise<void> {
       }
     });
 
-    await client.query('begin');
-    try {
+    await runInForceRlsMaintenanceWindow(client, 'practice_memberships', async (trusted) => {
       for (const [membershipId, practiceId, userId, active] of [
         [FIXTURE.mpaOptedIn, OPTED_IN_PRACTICE, FIXTURE.mpaUser, true],
         [FIXTURE.mpaOptedOut, OPTED_OUT_PRACTICE, FIXTURE.mpaUser, true],
         [FIXTURE.billingMembership, OPTED_IN_PRACTICE, FIXTURE.billingUser, true],
         [FIXTURE.inactiveMembership, OPTED_IN_PRACTICE, FIXTURE.inactiveUser, false],
       ] as const) {
-        await client.query(
+        await trusted.query(
           `insert into "practice_memberships" ("id", "practice_id", "user_id",
                                                "professional_gln", "active",
                                                "created_at", "updated_at")
@@ -116,22 +127,23 @@ async function applyFixture(migrationUrl: string): Promise<void> {
           [membershipId, practiceId, userId, active],
         );
       }
+    });
 
-      // Exactly one practice opts in, and only to MPA approval. The billing flag stays `false`
-      // everywhere, which is what makes the "eligible role, disabled flag" case assertable.
-      await client.query(
+    // Exactly one practice opts in, and only to MPA approval. The billing flag stays `false`
+    // everywhere, which is what makes the "eligible role, disabled flag" case assertable.
+    //
+    // `practice_settings` carries FORCE row level security from `013_rls_policies` onward, so
+    // this trusted write goes through the §23.4.3 maintenance protocol like every other one
+    // (§23.4.4a, D-052 clause B.2).
+    await runInForceRlsMaintenanceWindow(client, 'practice_settings', async (trusted) => {
+      await trusted.query(
         `update "practice_settings"
             set "allow_mpa_approval" = true,
                 "allow_billing_specialist_approval" = false
           where "practice_id" = $1`,
         [OPTED_IN_PRACTICE],
       );
-
-      await client.query('commit');
-    } catch (error) {
-      await client.query('rollback');
-      throw error;
-    }
+    });
 
     await runInForceRlsMaintenanceWindow(client, 'practice_membership_roles', async (trusted) => {
       for (const [roleId, practiceId, membershipId, role] of [
@@ -201,13 +213,36 @@ describe('conditional tenant permissions in GET /me', () => {
     return membership;
   }
 
-  it('grants an eligible role with the flag enabled (MPA + allow_mpa_approval)', async () => {
-    const optedIn = membershipOf(await me(FIXTURE.mpaSubject), FIXTURE.mpaOptedIn);
+  it('has the opted-in flag genuinely enabled in the database, readable under tenant context', async () => {
+    // The fixture is real, and after `013` the ONLY way to read it as `copilot_app` is with an
+    // established tenant context. Proving that here is what makes the two specs below meaningful:
+    // they assert an absence, and an absence over data that was never written proves nothing.
+    const client = await connect(disposable.app);
 
-    expect(optedIn.roles).toEqual(['MPA']);
-    expect(optedIn.permissions).toContain('analysis.approve');
-    // D-041 keeps approval and revocation eligibility identical; they must never diverge.
-    expect(optedIn.permissions).toContain('analysis.approval.revoke');
+    try {
+      await client.query('begin');
+      await client.query('select app_security.set_user_context($1::uuid)', [FIXTURE.mpaUser]);
+      await client.query('select app_security.set_request_context($1::uuid)', [OPTED_IN_PRACTICE]);
+
+      const scoped = await client.query<{
+        practice_id: string;
+        allow_mpa_approval: boolean;
+        allow_billing_specialist_approval: boolean;
+      }>(
+        `select "practice_id", "allow_mpa_approval", "allow_billing_specialist_approval"
+           from "practice_settings"`,
+      );
+
+      // Exactly ONE row — the established tenant — and the flag the fixture set.
+      expect(scoped.rows).toHaveLength(1);
+      expect(scoped.rows[0]?.practice_id).toBe(OPTED_IN_PRACTICE);
+      expect(scoped.rows[0]?.allow_mpa_approval).toBe(true);
+      expect(scoped.rows[0]?.allow_billing_specialist_approval).toBe(false);
+
+      await client.query('rollback');
+    } finally {
+      await client.end();
+    }
   });
 
   it('refuses an eligible role while the flag is disabled', async () => {
@@ -218,20 +253,38 @@ describe('conditional tenant permissions in GET /me', () => {
     expect(optedOut.permissions).not.toContain('analysis.approval.revoke');
   });
 
-  it('confines the flag to its own practice — same user, same role, two practices', async () => {
+  it('grants no conditional permission on the NEUTRAL /me route after 013, in either flag state', async () => {
+    // THE POST-`013` STATE, ASSERTED RATHER THAN PRETENDED AWAY (D-053 part D, clause D.13).
+    //
+    // `practice_settings` now carries the §17.1 tenant policy and `/me` establishes no tenant
+    // context, so `findConditionalSettings` returns zero rows and the resolver falls back to
+    // `DISABLED_CONDITIONAL_SETTINGS`. Both memberships therefore look identical, INCLUDING the
+    // one whose practice has `allow_mpa_approval = true` in the database — proven true by the
+    // spec above.
+    //
+    // This is FAIL-CLOSED, which is the direction D-041 requires: a configuration the route
+    // cannot read never enables a CONDITIONAL grant. It is NOT a weakening of a phase 3 control
+    // and must never be read as one. Restoring conditional derivation is an APPLICATION-path
+    // adaptation owned by a later phase 4 slice; this migration deliberately does not weaken the
+    // policy to accommodate `/me` (D-053 clause D.11).
     const body = await me(FIXTURE.mpaSubject);
 
     const optedIn = membershipOf(body, FIXTURE.mpaOptedIn);
     const optedOut = membershipOf(body, FIXTURE.mpaOptedOut);
 
+    expect(optedIn.roles).toEqual(['MPA']);
     expect(optedIn.roles).toEqual(optedOut.roles);
-    expect(optedIn.permissions).not.toEqual(optedOut.permissions);
-    expect(
-      optedIn.permissions.filter((permission) => permission.startsWith('analysis.appro')),
-    ).toEqual(['analysis.approve', 'analysis.approval.revoke']);
-    expect(
-      optedOut.permissions.filter((permission) => permission.startsWith('analysis.appro')),
-    ).toEqual([]);
+
+    for (const membership of [optedIn, optedOut]) {
+      expect(
+        membership.permissions.filter((permission) => permission.startsWith('analysis.appro')),
+      ).toEqual([]);
+    }
+
+    // The UNCONDITIONAL half of the role is untouched — the route still derives permissions, it
+    // simply derives no CONDITIONAL cell.
+    expect(optedIn.permissions.length).toBeGreaterThan(0);
+    expect(optedIn.permissions).toEqual(optedOut.permissions);
   });
 
   it('refuses a different conditional role whose own flag is disabled in the same practice', async () => {
@@ -262,16 +315,19 @@ describe('conditional tenant permissions in GET /me', () => {
   });
 
   it('reads the settings of the caller practices only, never the whole table', async () => {
-    // The exposure being scoped is real: `practice_settings` carries no RLS policy in phase 3,
-    // so a broad read WOULD return the settings of a practice the caller has no membership in
-    // (D-049, 08 §21.7.4). The application filter is what prevents that from mattering.
+    // THE PHASE 3 EXPOSURE OF D-049 CLAUSE 3 IS NOW CLOSED (08 §21.7.4 -> §21.8).
+    //
+    // In phase 3 this broad read returned every row, and only an application-level filter kept
+    // it from mattering. After `013` the §17.1 tenant policy makes the same statement return
+    // ZERO rows without an established tenant context: the control is now in the database, and
+    // the application filter is a second barrier rather than the only one.
     const client = await connect(disposable.app);
 
     try {
       const everything = await client.query(
         'select "practice_id" from "practice_settings" order by "practice_id"',
       );
-      expect(everything.rowCount).toBe(3);
+      expect(everything.rowCount).toBe(0);
 
       const body = await me(FIXTURE.mpaSubject);
       expect(body.memberships.map((membership) => membership.membershipId).sort()).toEqual(

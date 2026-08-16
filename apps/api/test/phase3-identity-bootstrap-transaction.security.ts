@@ -121,8 +121,8 @@ describe('identity bootstrap transaction', () => {
       ['practices', 'select "id" from "practices"'],
       ['platform_role_assignments', 'select "id" from "platform_role_assignments"'],
     ])(
-      'returns nothing from %s once app.user_id is gone (02 §17.2, §17.4, §17.6)',
-      async (table, statement) => {
+      'returns nothing from %s once app.user_id is gone (02 §17.2, §17.3, §17.4, §17.6)',
+      async (_table, statement) => {
         await probe.query('begin');
         await probe.query('select app_security.set_user_context($1::uuid)', [ADMIN_ID]);
         const inside = await probe.query(statement, statement.includes('$1') ? [ADMIN_ID] : []);
@@ -132,15 +132,11 @@ describe('identity bootstrap transaction', () => {
 
         expect(inside.rowCount).toBeGreaterThan(0);
 
-        if (table === 'practice_memberships') {
-          // 02 §17.3 belongs to phase 4, so this table has no policy yet and stays readable.
-          // That is exactly why the application scopes it with an explicit `user_id` predicate,
-          // and why this row count is unchanged rather than zero. Documented, not a defect
-          // (08 §21.5.6).
-          expect(outside.rowCount).toBe(inside.rowCount);
-        } else {
-          expect(outside.rowCount).toBe(0);
-        }
+        // ALL FOUR tables now behave identically. `practice_memberships` was the one exception
+        // in phase 3 — it carried no policy and stayed readable after the context was gone,
+        // which 08 §21.5.6 recorded as a documented intermediate state. `013_rls_policies`
+        // closes it, so the exception is gone and the table returns zero rows like the others.
+        expect(outside.rowCount).toBe(0);
       },
     );
   });
@@ -188,15 +184,24 @@ describe('identity bootstrap transaction', () => {
     it('reads every row of the chain inside one transaction', async () => {
       const counts = await runCanonicalChain();
 
-      // Two memberships, two practices, three role rows, two settings rows, one platform role.
-      // None of these are reachable on a connection that did not run the context calls, so
-      // obtaining them proves the whole chain shared one transaction.
+      // Two memberships, two practices, three role rows, one platform role. None of these are
+      // reachable on a connection that did not run the context calls, so obtaining them proves
+      // the whole chain shared one transaction.
+      //
+      // `settings: 0` is the POST-`013` state, not a defect. This chain is the NEUTRAL `/me`
+      // path: it establishes `app.user_id` and deliberately no tenant context, and
+      // `practice_settings` now carries the §17.1 tenant policy, so the conditional read is
+      // confined to zero rows. In phase 3 it returned two. The application falls back to
+      // `DISABLED_CONDITIONAL_SETTINGS`, which is FAIL-CLOSED and exactly what D-041 requires
+      // of a configuration the route cannot read. Restoring the read is an APPLICATION-path
+      // adaptation owned by a later phase 4 slice; the policy is deliberately NOT weakened to
+      // accommodate `/me` (D-053 clauses D.11 and D.13).
       expect(counts).toEqual({
         users: 1,
         memberships: 2,
         practices: 2,
         roles: 3,
-        settings: 2,
+        settings: 0,
         platformRoles: 1,
       });
     });

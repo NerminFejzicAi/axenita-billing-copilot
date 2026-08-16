@@ -34,15 +34,18 @@ import { Client } from 'pg';
  * seed controls is a frozen constant. Running the seed twice therefore yields the same row
  * set, the same row count and no duplicate-key failure.
  *
- * `FORCE ROW LEVEL SECURITY` (02 §23.4, D-048)
+ * `FORCE ROW LEVEL SECURITY` (02 §23.4, §23.4.4a, D-048, D-052 part B)
  *
- * Four of the six tables this seed writes to already carry `ENABLE` + `FORCE ROW LEVEL
- * SECURITY` after migration package `002_identity_and_practices`. Under FORCE, even the
- * table owner is subject to the policies, and no accepted policy permits an owner write, so
- * a plain trusted insert fails. Those four writes therefore go through
- * `runInForceRlsMaintenanceWindow` below and through nothing else. `practice_memberships`
- * and `practice_settings` carry no FORCE in phase 3 and are deliberately NOT allowlisted, so
- * they are written normally.
+ * ALL SIX tables this seed writes to carry `ENABLE` + `FORCE ROW LEVEL SECURITY` once the
+ * canonical migration chain is complete: four after `002_identity_and_practices`, and
+ * `practice_memberships` and `practice_settings` after `013_rls_policies`. Under FORCE, even
+ * the table owner is subject to the policies, and no accepted policy permits an owner write,
+ * so a plain trusted insert fails with SQLSTATE `42501`. Every seed write therefore goes
+ * through `runInForceRlsMaintenanceWindow` below and through nothing else.
+ *
+ * The extension of the allowlist from four tables to six is NOT silent: it is authorised by
+ * D-052 part B and by the explicit clause in section 5 of `013_rls_policies`, which §23.4.4
+ * requires of the package that first puts a table under FORCE (§23.4.4a, D-052 clause B.4).
  */
 
 // -----------------------------------------------------------------------------
@@ -53,10 +56,14 @@ import { Client } from 'pg';
  * The phase 3 allowlist, exactly as frozen by 02 §23.4.4 and D-048 clause 5 (grown from two
  * tables to four by D-051 clause 7).
  *
- * `practice_memberships` and `practice_settings` are deliberately absent: neither carries
- * FORCE row level security in phase 3, so neither needs nor may have a maintenance window.
- * Extending this list silently is forbidden (D-048 clause 6) — it requires an accepted
- * decision, or an explicit clause in the package that first puts that table under FORCE.
+ * It is PRESERVED verbatim rather than folded into a flat list, because §23.4.4a and D-052
+ * clause B.2 require phase 4 to EXTEND the phase 3 allowlist and not to replace it. Keeping
+ * the two lists separate is what makes the provenance of every allowlisted table mechanically
+ * testable: a table silently added to phase 3 and a table silently added to phase 4 are
+ * different governance failures, and a single flat constant could hide either.
+ *
+ * These four tables receive `ENABLE` + `FORCE ROW LEVEL SECURITY` in migration package
+ * `002_identity_and_practices`.
  */
 export const PHASE_3_FORCE_RLS_ALLOWLIST = [
   'users',
@@ -65,7 +72,34 @@ export const PHASE_3_FORCE_RLS_ALLOWLIST = [
   'platform_role_assignments',
 ] as const;
 
-export type ForceRlsAllowlistedTable = (typeof PHASE_3_FORCE_RLS_ALLOWLIST)[number];
+/**
+ * The phase 4 extension — EXACTLY the two tables migration package `013_rls_policies` puts
+ * under `FORCE ROW LEVEL SECURITY` (02 §23.4.4a; D-052 clause B.2).
+ *
+ * Authorised by D-052 part B AND by the explicit clause in section 5 of `013_rls_policies`,
+ * which is the package that introduces FORCE for both. §23.4.4 permits the allowlist to grow
+ * ONLY through an accepted decision or such a clause; both conditions are satisfied here, so
+ * the extension is explicit rather than silent (D-048 clause 6, 08 §26.2).
+ *
+ * The trusted seed path genuinely writes to both: without this extension the seed would fail
+ * with SQLSTATE `42501` from `013` onward, with no permitted way to populate either table.
+ */
+export const PHASE_4_FORCE_RLS_ALLOWLIST = ['practice_memberships', 'practice_settings'] as const;
+
+/**
+ * The EFFECTIVE trusted maintenance allowlist — the phase 3 four PLUS the phase 4 two, in
+ * that order. Exactly SIX tables, which is the complete set of tables carrying `ENABLE` +
+ * `FORCE ROW LEVEL SECURITY` after the canonical migration chain (02 §23.4.4a).
+ *
+ * Derived rather than written out, so the two lists above remain the single source of truth
+ * and a table can never appear here without appearing in exactly one of them.
+ */
+export const FORCE_RLS_MAINTENANCE_ALLOWLIST = [
+  ...PHASE_3_FORCE_RLS_ALLOWLIST,
+  ...PHASE_4_FORCE_RLS_ALLOWLIST,
+] as const;
+
+export type ForceRlsAllowlistedTable = (typeof FORCE_RLS_MAINTENANCE_ALLOWLIST)[number];
 
 /** Raised when a maintenance window is requested for a table outside the frozen allowlist. */
 export class TableNotAllowlistedError extends Error {
@@ -73,8 +107,9 @@ export class TableNotAllowlistedError extends Error {
 
   public constructor(requestedTable: string) {
     super(
-      `Table "${requestedTable}" is not on the phase 3 maintenance allowlist ` +
-        `(${PHASE_3_FORCE_RLS_ALLOWLIST.join(', ')}). See 02 §23.4.4 / D-048 clause 5.`,
+      `Table "${requestedTable}" is not on the trusted maintenance allowlist ` +
+        `(${FORCE_RLS_MAINTENANCE_ALLOWLIST.join(', ')}). ` +
+        'See 02 §23.4.4 / §23.4.4a, D-048 clause 5 and D-052 part B.',
     );
     this.name = 'TableNotAllowlistedError';
     this.requestedTable = requestedTable;
@@ -161,7 +196,7 @@ export async function runInForceRlsMaintenanceWindow(
   requestedTable: string,
   trustedDml: (client: Client) => Promise<void>,
 ): Promise<void> {
-  const target = PHASE_3_FORCE_RLS_ALLOWLIST.find((allowed) => allowed === requestedTable);
+  const target = FORCE_RLS_MAINTENANCE_ALLOWLIST.find((allowed) => allowed === requestedTable);
 
   if (target === undefined) {
     throw new TableNotAllowlistedError(requestedTable);
@@ -680,9 +715,10 @@ async function seedPlatformRoleAssignments(client: Client): Promise<void> {
  * and platform role assignments.
  *
  * Each allowlisted table gets its OWN maintenance window and therefore its own explicit
- * transaction, so a window is never open for more than the one table it writes. The two
- * tables that carry no FORCE in phase 3 are written in one ordinary explicit transaction —
- * ordinary, but still not autocommit.
+ * transaction, so a window is never open for more than the one table it writes. After
+ * migration package `013_rls_policies` that applies to ALL SIX tables: `practice_memberships`
+ * and `practice_settings` carry FORCE from that package onward and are written through the
+ * §23.4.3 protocol exactly like the other four (§23.4.4a, D-052 part B).
  */
 export async function runPhase3Seed(connectionString: string): Promise<void> {
   assertLocalDevelopmentTarget(connectionString);
@@ -702,27 +738,16 @@ export async function runPhase3Seed(connectionString: string): Promise<void> {
     await runInForceRlsMaintenanceWindow(client, 'practices', seedPractices);
     await runInForceRlsMaintenanceWindow(client, 'users', seedUsers);
 
-    // `practice_memberships` and `practice_settings` are NOT allowlisted and need no window:
-    // neither carries FORCE row level security in phase 3 (02 §23.4.4, D-048 clause 5).
-    await client.query('begin');
-    try {
-      await seedMemberships(client);
-      await client.query('commit');
-    } catch (error) {
-      await client.query('rollback');
-      throw error;
-    }
+    // `practice_memberships` carries FORCE from `013_rls_policies` onward and is on the phase 4
+    // half of the allowlist, so it uses the same §23.4.3 protocol as every other seeded table
+    // (§23.4.4a, D-052 clause B.2). It is written before `practice_membership_roles` because
+    // the composite foreign key of that table references `(practice_id, id)` here.
+    await runInForceRlsMaintenanceWindow(client, 'practice_memberships', seedMemberships);
 
     await runInForceRlsMaintenanceWindow(client, 'practice_membership_roles', seedMembershipRoles);
 
-    await client.query('begin');
-    try {
-      await seedPracticeSettings(client);
-      await client.query('commit');
-    } catch (error) {
-      await client.query('rollback');
-      throw error;
-    }
+    // `practice_settings` likewise carries FORCE from `013_rls_policies` onward.
+    await runInForceRlsMaintenanceWindow(client, 'practice_settings', seedPracticeSettings);
 
     await runInForceRlsMaintenanceWindow(
       client,

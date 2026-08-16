@@ -4,14 +4,23 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { connect, securityDatabase } from './support/phase3-security-context.js';
 
 /**
- * Mechanical verification of migration package `002_identity_and_practices` (02 §22.2, §26.3
- * step 7; 08 §21.5.1, §21.6.1, §21.6.5, §21.7.2).
+ * Mechanical verification of the CANONICAL MIGRATION CHAIN — packages
+ * `001_extensions_and_roles`, `002_identity_and_practices` and `013_rls_policies` (02 §22.2,
+ * §26.3 step 7; 08 §21.5.1, §21.6.1, §21.6.5, §21.7.2, §21.8).
  *
  * These are catalogue assertions, not behaviour assertions: the schema, the ownership, the
  * grant surface, the RLS flags and the policy set are read straight out of `pg_catalog` and
  * compared against the accepted model, exactly. A WIDER grant than the least-privilege model
  * must fail the test, which is why every assertion is `toStrictEqual` on a full set rather
  * than a containment check (08 §5.1).
+ *
+ * PHASE 4 RECONCILIATION. The structural half — enums, tables, ownership, constraints,
+ * indexes, the `002` table-level grants — is UNCHANGED by `013`, which adds no table, column,
+ * enum, constraint or index. What `013` changes, and what the assertions below now describe,
+ * is exactly four things: the applied migration history, the `practice_settings` column
+ * privilege surface, the RLS flags of `practice_memberships` and `practice_settings`, and the
+ * policy and context-function sets. Every phase 3 artifact is asserted to have SURVIVED
+ * unchanged rather than deleted from the contract (D-047 clause 16, D-051 clauses 1, 5, 6).
  */
 const database = securityDatabase();
 
@@ -26,7 +35,7 @@ afterAll(async () => {
 });
 
 describe('migration history', () => {
-  it('given the disposable database when migrated then exactly packages 001 and 002 are applied', async () => {
+  it('given the disposable database when migrated then exactly packages 001, 002 and 013 are applied', async () => {
     const result = await migrator.query<{
       migration_name: string;
       finished: boolean;
@@ -42,6 +51,7 @@ describe('migration history', () => {
     expect(result.rows.map((row) => row.migration_name)).toStrictEqual([
       '20260810213856_001_extensions_and_roles',
       '20260814013200_002_identity_and_practices',
+      '20260816111141_013_rls_policies',
     ]);
     expect(result.rows.every((row) => row.finished && !row.rolled_back)).toBe(true);
   });
@@ -286,14 +296,87 @@ describe('privilege catalogue (02 §20.2, §20.2a, §20.2b; D-047, D-049, D-051)
     expect(columns).toStrictEqual(['code', 'default_language', 'id', 'name', 'status', 'timezone']);
   });
 
-  it('given practice_settings when inspected then copilot_app reads exactly the three D-049 columns', async () => {
+  it('given practice_settings when inspected then copilot_app reads exactly the nine D-053 columns', async () => {
+    // D-053 part A. Package `013` EXTENDS the phase 3 three-column surface of D-049 clause 2 —
+    // `practice_id`, `allow_mpa_approval`, `allow_billing_specialist_approval` — which is a
+    // STRICT SUBSET of this list and is NOT revoked (D-053 clause A.5). `id`, `configuration`,
+    // `updated_by` and `updated_at` stay unreadable (clause A.4).
     const columns = await grantedColumns(migrator, 'practice_settings', 'copilot_app');
 
     expect(columns).toStrictEqual([
+      'ai_enabled',
       'allow_billing_specialist_approval',
       'allow_mpa_approval',
+      'axenita_export_enabled',
+      'billing_review_required',
       'practice_id',
+      'require_reason_for_manual_change',
+      'retention_policy_code',
+      'version',
     ]);
+    expect(columns).toHaveLength(9);
+
+    // The phase 3 surface survived intact inside the extended one.
+    for (const phase3Column of [
+      'practice_id',
+      'allow_mpa_approval',
+      'allow_billing_specialist_approval',
+    ]) {
+      expect(columns).toContain(phase3Column);
+    }
+  });
+
+  it('given practice_settings when inspected then copilot_app updates exactly the nine D-053 columns', async () => {
+    // D-053 part B. `practice_id` is deliberately ABSENT: without `UPDATE (practice_id)` a
+    // tenant-key move is rejected on the PRIVILEGE level, before the `WITH CHECK` of the tenant
+    // policy is even reached (clause B.2). `id`, `configuration` and `updated_by` are absent too.
+    const columns = await grantedColumns(migrator, 'practice_settings', 'copilot_app', 'UPDATE');
+
+    expect(columns).toStrictEqual([
+      'ai_enabled',
+      'allow_billing_specialist_approval',
+      'allow_mpa_approval',
+      'axenita_export_enabled',
+      'billing_review_required',
+      'require_reason_for_manual_change',
+      'retention_policy_code',
+      'updated_at',
+      'version',
+    ]);
+    expect(columns).toHaveLength(9);
+    expect(columns).not.toContain('practice_id');
+  });
+
+  it('given practice_settings when inspected then NO table-level privilege of any kind exists', async () => {
+    // 02 §20.2b forbids a table-level SELECT and §20.2b.1 forbids a table-level UPDATE. Both
+    // surfaces are COLUMN-LEVEL only, which is what makes the counted lists above the whole
+    // truth: a table-level grant would make every column reachable and would not appear in
+    // `role_column_grants` as a per-column row.
+    const result = await migrator.query<{ grantee: string; privilege_type: string }>(
+      `select grantee, privilege_type from information_schema.role_table_grants
+        where table_schema = 'public' and table_name = 'practice_settings'
+          and grantee <> 'copilot_migrator'
+        order by grantee, privilege_type`,
+    );
+
+    expect(result.rows).toStrictEqual([]);
+  });
+
+  it('given practice_settings when inspected then NO INSERT and NO DELETE is granted to any runtime role', async () => {
+    // §20.2b.1 — the settings row is created by the trusted seed path (§23.4), never by a
+    // request path, and business delete is not permitted.
+    // `copilot_migrator` is excluded because it is the table OWNER and holds every privilege by
+    // definition; it is not a runtime role, and under FORCE it is subject to the policies
+    // anyway. Every other grantee must hold nothing.
+    const result = await migrator.query<{ grantee: string; privilege_type: string }>(
+      `select distinct grantee, privilege_type from information_schema.role_column_grants
+        where table_schema = 'public' and table_name = 'practice_settings'
+          and grantee <> 'copilot_migrator'
+          and privilege_type in ('INSERT', 'DELETE')
+        order by grantee, privilege_type`,
+    );
+
+    expect(result.rows).toStrictEqual([]);
   });
 
   it('given practice_settings when inspected then copilot_system and PUBLIC hold nothing', async () => {
@@ -354,7 +437,7 @@ describe('privilege catalogue (02 §20.2, §20.2a, §20.2b; D-047, D-049, D-051)
 });
 
 describe('RLS and policy catalogue (02 §17.2, §17.4, §17.5, §17.6; D-047, D-051)', () => {
-  it('given package 002 when applied then exactly four tables carry ENABLE and FORCE row level security', async () => {
+  it('given the canonical chain when applied then ALL SIX tables carry ENABLE and FORCE row level security', async () => {
     const result = await migrator.query<{
       relname: string;
       relrowsecurity: boolean;
@@ -367,19 +450,22 @@ describe('RLS and policy catalogue (02 §17.2, §17.4, §17.5, §17.6; D-047, D-
         order by c.relname`,
     );
 
+    // Exactly SIX, every one of them `true`/`true`. The four owned by package `002` are NOT
+    // re-altered by `013` and are asserted here to have kept that state; `practice_memberships`
+    // (§17.3, D-051 clause 5) and `practice_settings` (§20.2b, §22.13) receive it in `013`,
+    // which is what closes both phase 3 intermediate exposures.
     expect(result.rows).toStrictEqual([
       { relname: 'platform_role_assignments', relrowsecurity: true, relforcerowsecurity: true },
       { relname: 'practice_membership_roles', relrowsecurity: true, relforcerowsecurity: true },
-      // 02 §17.3 belongs to package `013_rls_policies` and phase 4 (D-051 clause 5).
-      { relname: 'practice_memberships', relrowsecurity: false, relforcerowsecurity: false },
-      // 02 §20.2b, §22.13 — RLS and the bounded UPDATE grant arrive together, in phase 4.
-      { relname: 'practice_settings', relrowsecurity: false, relforcerowsecurity: false },
+      { relname: 'practice_memberships', relrowsecurity: true, relforcerowsecurity: true },
+      { relname: 'practice_settings', relrowsecurity: true, relforcerowsecurity: true },
       { relname: 'practices', relrowsecurity: true, relforcerowsecurity: true },
       { relname: 'users', relrowsecurity: true, relforcerowsecurity: true },
     ]);
+    expect(result.rows).toHaveLength(6);
   });
 
-  it('given package 002 when applied then exactly seven policies exist, with their accepted mode, command and roles', async () => {
+  it('given the canonical chain when applied then exactly TEN policies exist, with their accepted mode, command and roles', async () => {
     const result = await migrator.query<{
       tbl: string;
       polname: string;
@@ -422,6 +508,34 @@ describe('RLS and policy catalogue (02 §17.2, §17.4, §17.5, §17.6; D-047, D-
         command: 'r',
         roles: 'copilot_app',
       },
+      // The three PHASE 4 policies of package `013`. `practice_memberships` deliberately uses
+      // the bootstrap-safe USER-SCOPED pattern rather than the §17.1 tenant pattern, because
+      // `set_request_context` determines FROM THIS VERY TABLE whether tenant context may be
+      // established at all (§17.3, D-033 clauses 5-6).
+      {
+        tbl: 'practice_memberships',
+        polname: 'practice_memberships_self_select',
+        mode: 'PERMISSIVE',
+        command: 'r',
+        roles: 'copilot_app',
+      },
+      {
+        tbl: 'practice_settings',
+        polname: 'practice_settings_select',
+        mode: 'PERMISSIVE',
+        command: 'r',
+        roles: 'copilot_app',
+      },
+      // The ONLY non-SELECT policy in the whole catalogue. `w` is `FOR UPDATE`; it exists
+      // because `013` grants a bounded column-level UPDATE, and D-049 clause 5 forbids that
+      // grant to exist without the tenant policy that constrains it.
+      {
+        tbl: 'practice_settings',
+        polname: 'practice_settings_update',
+        mode: 'PERMISSIVE',
+        command: 'w',
+        roles: 'copilot_app',
+      },
       // RESTRICTIVE is MANDATORY and NORMATIVE (02 §17.6): restrictive policies combine with
       // AND, so no future permissive policy can OR away the narrowing rule.
       {
@@ -453,19 +567,57 @@ describe('RLS and policy catalogue (02 §17.2, §17.4, §17.5, §17.6; D-047, D-
         roles: 'copilot_app',
       },
     ]);
+    expect(result.rows).toHaveLength(10);
   });
 
-  it('given no policy when inspected then none carries a WITH CHECK expression', async () => {
-    // Every accepted phase 3 policy is FOR SELECT. A WITH CHECK expression would mean a write
-    // path exists, and no runtime role holds a write grant on any of these tables.
-    const result = await migrator.query<{ polname: string }>(
-      `select p.polname from pg_policy p
+  it('given the catalogue when inspected then EXACTLY ONE policy carries a WITH CHECK expression', async () => {
+    // Nine of the ten policies are FOR SELECT, where a WITH CHECK expression would mean an
+    // unaccounted write path. The tenth is `practice_settings_update`, and there the pairing is
+    // NORMATIVE rather than redundant (§17.1): `USING` decides which rows may be updated, while
+    // `WITH CHECK` forbids moving a row OUT of the established tenant by rewriting
+    // `practice_id`. Omitting it would leave the tenant key movable.
+    const result = await migrator.query<{ polname: string; withcheck: string }>(
+      `select p.polname, pg_get_expr(p.polwithcheck, p.polrelid) as withcheck
+         from pg_policy p
          join pg_class c on c.oid = p.polrelid
          join pg_namespace n on n.oid = c.relnamespace
-        where n.nspname = 'public' and p.polwithcheck is not null`,
+        where n.nspname = 'public' and p.polwithcheck is not null
+        order by p.polname`,
     );
 
-    expect(result.rows).toStrictEqual([]);
+    expect(result.rows.map((row) => row.polname)).toStrictEqual(['practice_settings_update']);
+
+    // The WITH CHECK predicate is the SAME canonical tenant predicate as the USING one.
+    const using = await policyExpression(migrator, 'practice_settings_update');
+    expect(result.rows[0]?.withcheck).toBe(using);
+    expect(using).toContain("current_setting('app.practice_id'::text, true)");
+  });
+
+  it('given the practice_settings SELECT policy when inspected then it is the unweakened §17.1 tenant predicate', async () => {
+    // D-053 clause D.11: NO bootstrap exception, NO membership-wide branch, NO `app.user_id`
+    // fallback. With `app.practice_id` unset it evaluates to `practice_id = NULL`, which yields
+    // zero rows for every practice.
+    const expression = await policyExpression(migrator, 'practice_settings_select');
+
+    expect(expression).toContain("current_setting('app.practice_id'::text, true)");
+    expect(expression).toContain('practice_id');
+    expect(expression).not.toContain('app.user_id');
+    expect(expression).not.toContain('practice_memberships');
+  });
+
+  it('given the practice_memberships policy when inspected then it is USER-scoped and not tenant-scoped', async () => {
+    // §17.3 / D-033 clause 6. A `practice_id = app.practice_id` policy here would be circular:
+    // `set_request_context` reads THIS table to decide whether tenant context may be
+    // established at all. `app.practice_id` therefore has NO effect on membership visibility.
+    //
+    // The policy also deliberately does NOT filter `active`: `03` §10 requires an INACTIVE
+    // membership to stay visible in the frozen `GET /me` response with `permissions = []`.
+    const expression = await policyExpression(migrator, 'practice_memberships_self_select');
+
+    expect(expression).toContain("current_setting('app.user_id'::text, true)");
+    expect(expression).toContain('user_id');
+    expect(expression).not.toContain('app.practice_id');
+    expect(expression).not.toContain('active');
   });
 
   it('given the users bootstrap policy when inspected then it carries the mandatory app.user_id IS NULL guard', async () => {
@@ -509,8 +661,12 @@ describe('RLS and policy catalogue (02 §17.2, §17.4, §17.5, §17.6; D-047, D-
   });
 });
 
-describe('context functions (02 §16.1, §16.2.2, §16.2.4)', () => {
-  it('given package 002 when applied then it created exactly two context functions, both SECURITY INVOKER', async () => {
+describe('context functions (02 §16.1, §16.2.2, §16.2.3, §16.2.4)', () => {
+  it('given the canonical chain when applied then app_security holds exactly THREE context functions, all SECURITY INVOKER', async () => {
+    // Two belong to package `002` and are NOT touched by `013`; `set_request_context` belongs
+    // to `013` (§16.2.3, §22.13). All three carry a fixed `search_path` and none is
+    // `SECURITY DEFINER` — a `SECURITY DEFINER` variant is a PERMANENTLY REJECTED alternative
+    // (D-047 clause 2, D-048 clause 1, D-052 clause B.3).
     const result = await migrator.query<{ proname: string; prosecdef: boolean; config: string }>(
       `select p.proname, p.prosecdef, array_to_string(p.proconfig, ',') as config
          from pg_proc p
@@ -525,30 +681,77 @@ describe('context functions (02 §16.1, §16.2.2, §16.2.4)', () => {
         prosecdef: false,
         config: 'search_path=public, pg_temp',
       },
+      { proname: 'set_request_context', prosecdef: false, config: 'search_path=public, pg_temp' },
       { proname: 'set_user_context', prosecdef: false, config: 'search_path=public, pg_temp' },
     ]);
+    expect(result.rows).toHaveLength(3);
   });
 
-  it('given phase 3 when inspected then set_request_context does not exist', async () => {
-    // It stays in `013_rls_policies` and phase 4 (02 §16.2.3, §22.13). Creating it here would
-    // pull phase 4 forward.
-    const result = await migrator.query<{ total: string }>(
-      `select count(*)::text as total from pg_proc p
+  it('given set_request_context when inspected then PUBLIC holds no EXECUTE and only copilot_app does', async () => {
+    // The same least-privilege shape as the two package `002` functions.
+    const result = await migrator.query<{
+      app: boolean;
+      system: boolean;
+      everyone: boolean;
+    }>(
+      `select has_function_privilege('copilot_app', 'app_security.set_request_context(uuid)', 'EXECUTE') as app,
+              has_function_privilege('copilot_system', 'app_security.set_request_context(uuid)', 'EXECUTE') as system,
+              has_function_privilege('public', 'app_security.set_request_context(uuid)', 'EXECUTE') as everyone`,
+    );
+
+    expect(result.rows[0]).toStrictEqual({ app: true, system: false, everyone: false });
+  });
+
+  it('given set_request_context when inspected then it derives the user from app.user_id and accepts no user argument', async () => {
+    // D-033 clause 9: the function does NOT accept `p_user_id`. A forged user id therefore has
+    // nowhere to enter. It reads `practice_memberships` ONLY and requires `active = true`
+    // (clauses 11-12), and it does NOT check `practices.status`, which is an APPLICATION-level
+    // step of `03` §3.7.1 (D-047 clause 10, D-053 clause C.3).
+    const result = await migrator.query<{ args: string; arity: number; body: string }>(
+      `select pg_get_function_identity_arguments(p.oid) as args,
+              p.pronargs as arity,
+              p.prosrc as body
+         from pg_proc p
          join pg_namespace n on n.oid = p.pronamespace
         where n.nspname = 'app_security' and p.proname = 'set_request_context'`,
     );
 
-    expect(result.rows[0]?.total).toBe('0');
+    // EXACTLY ONE argument, and it is the practice — there is no `p_user_id` parameter for a
+    // forged user id to enter through.
+    expect(result.rows[0]?.arity).toBe(1);
+    expect(result.rows[0]?.args).toBe('p_practice_id uuid');
+
+    const body = result.rows[0]?.body ?? '';
+    expect(body).toContain("current_setting('app.user_id', true)");
+    expect(body).toContain('pm.active = true');
+    expect(body).not.toContain('p_user_id');
+    expect(body).not.toContain('practices.status');
+    expect(body).not.toContain('FROM practices');
+    // It reads no role table either (D-038 clauses 20-21).
+    expect(body).not.toContain('practice_membership_roles');
+
+    // CLEAR-BEFORE-VALIDATE (D-033 clause 10) — `app.practice_id` is cleared as the FIRST
+    // statement, before any validation, so a rejected switch cannot leave the previous tenant
+    // scope usable.
+    const clearAt = body.indexOf("set_config('app.practice_id', '', true)");
+    const validateAt = body.indexOf('practice_memberships');
+    expect(clearAt).toBeGreaterThanOrEqual(0);
+    expect(validateAt).toBeGreaterThan(clearAt);
   });
 });
 
-async function grantedColumns(client: Client, table: string, grantee: string): Promise<string[]> {
+async function grantedColumns(
+  client: Client,
+  table: string,
+  grantee: string,
+  privilege: 'SELECT' | 'UPDATE' = 'SELECT',
+): Promise<string[]> {
   const result = await client.query<{ column_name: string }>(
     `select column_name from information_schema.column_privileges
       where table_schema = 'public' and table_name = $1 and grantee = $2
-        and privilege_type = 'SELECT'
+        and privilege_type = $3
       order by column_name`,
-    [table, grantee],
+    [table, grantee, privilege],
   );
 
   return result.rows.map((row) => row.column_name);

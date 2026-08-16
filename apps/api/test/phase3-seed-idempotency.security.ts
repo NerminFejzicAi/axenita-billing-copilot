@@ -1,7 +1,12 @@
 import { type Client } from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { PHASE_3_FORCE_RLS_ALLOWLIST, PHASE_3_SEED, runPhase3Seed } from '../prisma/seed.js';
+import {
+  FORCE_RLS_MAINTENANCE_ALLOWLIST,
+  PHASE_3_SEED,
+  PHASE_3_SEED_IDS,
+  runPhase3Seed,
+} from '../prisma/seed.js';
 import { connect, securityDatabase } from './support/phase3-security-context.js';
 
 /**
@@ -65,7 +70,7 @@ async function forceFlags(): Promise<Record<string, string>> {
        join pg_namespace n on n.oid = c.relnamespace
       where n.nspname = 'public' and c.relname = any($1::text[])
       order by c.relname`,
-    [[...PHASE_3_FORCE_RLS_ALLOWLIST]],
+    [[...FORCE_RLS_MAINTENANCE_ALLOWLIST]],
   );
 
   return Object.fromEntries(
@@ -95,9 +100,12 @@ describe('seed idempotency (02 §23.1, 04 §5.4)', () => {
     const after = await physicalRowCounts();
     expect(after).toStrictEqual(before);
 
-    // 08 §21.6.1 — steady state AFTER the seed, for all four allowlisted tables.
-    expect(await forceFlags()).toStrictEqual(flagsBefore);
-    for (const value of Object.values(await forceFlags())) {
+    // 08 §21.6.1, §21.8 — steady state AFTER the seed, for all SIX allowlisted tables.
+    const flagsAfter = await forceFlags();
+    expect(flagsAfter).toStrictEqual(flagsBefore);
+    expect(Object.keys(flagsAfter)).toHaveLength(6);
+
+    for (const value of Object.values(flagsAfter)) {
       expect(value).toBe('true/true');
     }
   });
@@ -123,19 +131,55 @@ describe('seed idempotency (02 §23.1, 04 §5.4)', () => {
   });
 
   it('given the seeded settings when read then both approval flags are the canonical false baseline', async () => {
+    // After `013` this read is TENANT SCOPED: `practice_settings` carries the §17.1 policy, so
+    // `copilot_app` sees one row per established tenant and nothing without a context. The
+    // baseline is therefore asserted per practice, through the canonical `set_user_context` ->
+    // `set_request_context` path — which is also what proves the seeded memberships are real.
     const app = await connect(database.app);
 
     try {
-      const result = await app.query<{
-        allow_mpa_approval: boolean;
-        allow_billing_specialist_approval: boolean;
-      }>('select allow_mpa_approval, allow_billing_specialist_approval from practice_settings');
+      // Without a tenant context, ZERO rows — the D-049 clause 3 exposure is closed.
+      const unscoped = await app.query('select allow_mpa_approval from practice_settings');
+      expect(unscoped.rowCount).toBe(0);
 
-      expect(result.rows).toHaveLength(PHASE_3_SEED.practiceSettings.length);
-      for (const row of result.rows) {
-        expect(row.allow_mpa_approval).toBe(false);
-        expect(row.allow_billing_specialist_approval).toBe(false);
+      // Each pair is a user with an ACTIVE membership in that practice — `set_request_context`
+      // requires `active = true` (D-033 clause 11), so the admin's INACTIVE Nord membership
+      // cannot be used to establish Nord context.
+      for (const [userId, practiceId] of [
+        [PHASE_3_SEED_IDS.userPracticeAdmin, PHASE_3_SEED_IDS.practiceDemo],
+        [PHASE_3_SEED_IDS.userPhysician, PHASE_3_SEED_IDS.practiceNord],
+      ] as const) {
+        await app.query('begin');
+        try {
+          await app.query('select app_security.set_user_context($1::uuid)', [userId]);
+          await app.query('select app_security.set_request_context($1::uuid)', [practiceId]);
+
+          const result = await app.query<{
+            practice_id: string;
+            allow_mpa_approval: boolean;
+            allow_billing_specialist_approval: boolean;
+          }>(
+            `select practice_id, allow_mpa_approval, allow_billing_specialist_approval
+               from practice_settings`,
+          );
+
+          // Exactly the established tenant's row, and D-041's canonical `false` baseline.
+          expect(result.rows).toHaveLength(1);
+          expect(result.rows[0]?.practice_id).toBe(practiceId);
+          expect(result.rows[0]?.allow_mpa_approval).toBe(false);
+          expect(result.rows[0]?.allow_billing_specialist_approval).toBe(false);
+        } finally {
+          await app.query('rollback');
+        }
       }
+
+      // The seed still writes one settings row per practice; the count is read through the
+      // trusted owner path, since no single tenant context can observe all three.
+      await migrator.query('analyze practice_settings');
+      const physical = await migrator.query<{ physical: number }>(
+        `select c.reltuples::int as physical from pg_class c where c.relname = 'practice_settings'`,
+      );
+      expect(physical.rows[0]?.physical).toBe(PHASE_3_SEED.practiceSettings.length);
     } finally {
       await app.end();
     }

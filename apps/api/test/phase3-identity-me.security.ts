@@ -323,17 +323,18 @@ describe('GET /api/v1/me', () => {
       }
     });
 
-    it('keeps the intermediate practice_settings read exposure out of the HTTP output (D-049)', async () => {
-      // The exposure is real and named: `practice_settings` carries no RLS policy in phase 3,
-      // so `copilot_app` can read the three granted columns of a practice it has no membership
-      // in. This asserts the exposure rather than pretending it away (08 §21.7.4)...
+    it('keeps practice_settings out of the HTTP output, and the phase 3 read exposure is now CLOSED (D-049, D-053)', async () => {
+      // In phase 3 this read returned the settings row of a practice the caller has no
+      // membership in — the accepted D-049 clause 3 exposure. After `013_rls_policies` the
+      // §17.1 tenant policy makes the same statement return ZERO rows without an established
+      // tenant context, and `/me` is a NEUTRAL route that establishes none (08 §21.7.4 -> §21.8).
       const visible = await appClient.query<{ practice_id: string }>(
         'select "practice_id" from "practice_settings" where "practice_id" = $1',
         [PHASE_3_SEED_IDS.practiceWithoutMembers],
       );
-      expect(visible.rowCount).toBe(1);
+      expect(visible.rowCount).toBe(0);
 
-      // ...and then asserts that none of it reaches a response.
+      // The response projection was never the only barrier and still is not.
       for (const subject of [
         PHASE_3_SEED_SUBJECTS.practiceAdmin,
         PHASE_3_SEED_SUBJECTS.physician,
@@ -442,12 +443,31 @@ describe('GET /api/v1/me', () => {
       expect(withHeader.body).toEqual(withoutHeader.body);
     });
 
-    it('proves the phase 4 tenant context function does not exist in this package', async () => {
+    it('proves /me establishes NO tenant context, even though set_request_context now exists', async () => {
+      // `013_rls_policies` creates the function (02 §16.2.3), so its absence is no longer the
+      // assertion. The assertion is that the NEUTRAL `/me` route does not CALL it: `03` §3.4
+      // classifies `/me` as tenant-neutral, and D-053 clause D.13 keeps the remedy for the
+      // consequent conditional-settings read an APPLICATION-path change owned by a later slice,
+      // not a weakening of the policy.
       const functions = await appClient.query<{ name: string | null }>(
         `select to_regprocedure('app_security.set_request_context(uuid)')::text as "name"`,
       );
 
-      expect(functions.rows[0]?.name).toBeNull();
+      expect(functions.rows[0]?.name).toBe('app_security.set_request_context(uuid)');
+
+      // A successful `/me` leaves no tenant scope behind on the pool, because it never
+      // established one. Every `app.*` value is transaction local in any case.
+      expect((await me(PHASE_3_SEED_SUBJECTS.practiceAdmin)).status).toBe(200);
+
+      const context = await appClient.query<{ practice: string | null }>(
+        `select nullif(current_setting('app.practice_id', true), '') as "practice"`,
+      );
+
+      expect(context.rows[0]?.practice).toBeNull();
+      // And without tenant context the §17.1 policy exposes no settings row at all.
+      expect(
+        (await appClient.query('select "practice_id" from "practice_settings"')).rowCount,
+      ).toBe(0);
     });
 
     it('registers no practice settings route in this phase (D-049)', async () => {
