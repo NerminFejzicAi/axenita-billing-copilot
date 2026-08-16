@@ -2892,6 +2892,182 @@ D-052.
 
 ---
 
+# D-054 — Orkestracija tenant konteksta u fazi 4 i tumačenje `TenantDatabaseService`-a
+
+- **Status:** ACCEPTED
+- **Datum:** 2026-08-17
+- **Amandman na:** **D-006** i **AGENTS.md §5.3** — isključivo u dijelu **tumačenja imena**
+  `PracticeContextGuard` i doslovnog potpisa `TenantDatabaseService.run(practiceId, userId,
+  callback)`. Sigurnosni **sadržaj** oba zahtjeva ostaje nepromijenjen i ne slabi se. **D-047,
+  klauzula 10** i **`03` §3.7.1** se **ne mijenjaju** — ova ih odluka izričito potvrđuje kao
+  **nadređene** svakom izvedenom imenu artefakta. **D-049 i D-053** ostaju nepromijenjeni.
+- **Kontekst/problem:** Nezavisni review gatea **P4-5BR** nad prihvaćenom implementacijom **P4-5B**
+  (`fdef469`, merged u kanonski `main` kroz PR #15, `530295d`) mehanički je utvrdio da dva
+  kanonska **imena** iz planske dokumentacije nemaju jednoznačno tumačenje, i da doslovno čitanje
+  jednog od njih **direktno protivriječi** zamrznutom redoslijedu.
+
+  **OD-1 — `PracticeContextGuard` kao NestJS `CanActivate` je neizvodiv.** Nest guard se izvršava
+  **prije** kontrolera, dakle **prije** nego što se interaktivna transakcija iz D-047, klauzule 8
+  uopšte otvori. Iz toga slijede tri nezavisne posljedice: (a) validacija `X-Practice-ID` headera
+  je u `03` §3.7.1 zamrznuta **nakon** admisije korisnika (koraci 1–2), a guard bi odgovorio
+  pozivaocu čiji identitet još nije primljen; (b) transakcijski lokalan `app.practice_id` **ne
+  može** biti uspostavljen izvan pinovane interaktivne transakcije, pa guard ne može izvršiti
+  korake 5–7; (c) trajni regresijski testovi zahtijevaju da nepoznat ili neaktivan korisnik dobije
+  `403` **prije** nego što izostanak headera može proizvesti `400` — guard bi taj poredak obrnuo.
+
+  **OD-2 — doslovno čitanje `TenantDatabaseService.run(practiceId, userId, callback)`.** Potpis
+  napisan u planskoj fazi, prije D-047, čita se kao ovlaštenje za drugu transakciju, drugi
+  `PrismaClient`, postavljanje `app.practice_id` odmah pri ulasku i **caller-supplied `userId`**
+  kao identitet. Svako od ta četiri čitanja krši D-047 i `03` §3.7.1. Ime i njegovo **svojstvo**
+  ostaju ispravni; **potpis** nije normativan.
+
+  Ambiguitet je governance problem, ne implementacijski: prihvaćeni kod je konforman, a
+  dokumentacija ga opisuje imenima koja dopuštaju nekonformno čitanje.
+
+## Odluka
+
+# Dio A — Redoslijed je nadređen imenu artefakta
+
+### A.1 Klauzula 1 — zamrznut redoslijed ostaje autoritativan
+
+**D-047, klauzula 10** i **`03` §3.7.1** ostaju **jedini autoritativni** izvor redoslijeda
+tenant zahtjeva. Nijedno ime artefakta iz izvedene planske dokumentacije (`01`, `04`, `07`, `09`,
+`10`, `AGENTS.md`) ne smije se čitati kao ovlaštenje za odstupanje od tog redoslijeda. Pri
+konfliktu **redoslijed pobjeđuje ime**.
+
+# Dio B — `PracticeContextGuard`
+
+### B.1 Klauzula 2 — koncept, ne framework artefakt
+
+`PracticeContextGuard` je **semantički arhitektonski koncept** — faza tenant admisije i uspostave
+konteksta unutar autentifikovanog zahtjeva. **Nije** nužno NestJS framework `Guard`. Ime se u
+kanonskim dokumentima zadržava kao naziv **faze**, ne kao naziv klase.
+
+### B.2 Klauzula 3 — prihvaćena realizacija za tekući slice
+
+Za tekući identity/practice slice ruta, taj koncept je realizovan klasom **`TenantRequestPipeline`**
+(`apps/api/src/identity/application/tenant-request.pipeline.ts`), koja izvršava korake **3–10**
+`03` §3.7.1 **unutar** već otvorene autentifikovane interaktivne transakcije. Korak 11 ostaje na
+servisu rute. To je **prihvaćena** realizacija, a ne privremeni zaobilazak.
+
+### B.3 Klauzula 4 — zabrana
+
+**Zabranjeno je** uvesti `PracticeContextGuard` kao NestJS `CanActivate` **tamo gdje bi validirao
+tenant kontekst prije admisije autentifikovanog korisnika**. Takav artefakt obara gate. Zabrana je
+uslovna po svojoj semantici, a ne po imenu: ono što je zabranjeno je **inverzija redoslijeda**.
+
+# Dio C — `TenantDatabaseService`
+
+### C.1 Klauzula 5 — koncept ostaje kanonski
+
+`TenantDatabaseService` **ostaje kanonski facade koncept** za tenant business module (D-006,
+`01` §6.2 i §10, `09` §5). Ova odluka ga **ne ukida** i ne pretvara u opcionu preporuku.
+
+### C.2 Klauzule 6–10 — obavezna svojstva svake buduće konkretne implementacije
+
+Svaki budući konkretan `TenantDatabaseService` mora:
+
+6. **koristiti postojeću** pinovanu transakciju/sesiju autentifikovanog zahtjeva;
+7. **ne posjedovati vlastiti `PrismaClient`** — runtime ima tačno jedan `PrismaService` i tačno
+   jedan `copilot_app` klijent;
+8. **ne otvarati drugu, ugniježdenu ni paralelnu** aplikacijsku transakciju;
+9. **ne postavljati `app.practice_id` prije** kanonskih provjera `practices.status` i aktivnog
+   membershipa (`03` §3.7.1, koraci 3–4; D-047, klauzula 10);
+10. **nikada ne tretirati caller-supplied `userId` kao granicu povjerenja** — identitet korisnika
+    se izvodi **isključivo** iz autentifikovanog admission/session stanja (`app.user_id`,
+    D-047, klauzule 2–4 i 9).
+
+Dodatno i bez izuzetka: jedna autentifikovana interaktivna transakcija, jedna pinovana sesija,
+`set_request_context` **unutar te iste** transakcije, tenant business komanda **tek nakon**
+uspostavljenog konteksta, i **default-deny** kada tenant konteksta nema.
+
+Smije biti **tanak facade** nad postojećom transakcijom/sesijom i `TenantRequestPipeline`-om.
+**Ne smije** postati paralelan database stack.
+
+# Dio D — Status prihvaćenog P4-5B
+
+### D.1 Klauzula 11 — konformnost
+
+Prihvaćena P4-5B implementacija rute `GET /api/v1/practices/{practiceId}` je **konformna** sa
+`03` §3.7.1, D-047 i ovom odlukom: `set_request_context` je jedini put do `app.practice_id`, obje
+membership barijere su zadržane, provjera statusa ordinacije je strogo prije poziva funkcije, a
+privilegovani prozor je dužine nula.
+
+### D.2 Klauzula 12 — `userId` seam
+
+`TenantRequestPipeline.admit(session, userId, request)` trenutno prima `userId` kao parametar.
+Za tekuću jedinu tenant rutu taj parametar dolazi isključivo iz admisijom utvrđenog identiteta i
+nije eksternalno dostupan. **Prije nego što se doda ijedna dodatna tenant ruta**, taj seam se mora
+**mehanički ukloniti ili vezati za autentifikovani session identitet**, tako da pogrešan korisnik
+ne bude ni izraziv. Do tada se ne tvrdi da je seam zatvoren.
+
+### D.3 Klauzula 13 — nema database promjene
+
+Ova odluka **ne uvodi nijednu** promjenu schema, migracija, RLS politika, grantova, funkcija,
+rola, permission matrice ni resolvera. Nijedan novi paket se ne uvodi i nijedan se ne renumeriše.
+
+### D.4 Klauzula 14 — ne otvara settings slice
+
+Ova odluka **ne ovlašćuje** implementaciju `GET`/`PATCH /practices/{practiceId}/settings`. Settings
+ugovor ostaje zamrznut u D-053 i njegova implementacija zahtijeva zaseban gate.
+
+## Razlog
+
+Zamrznut redoslijed je sigurnosni invarijant, a imena artefakata su planski jezik nastao prije
+njega. Kad se to dvoje razilazi, jedini ispravan potez je **eksplicitno zapisati koje ime opisuje
+koncept, a koje artefakt**, umjesto da se invarijant tiho prilagodi imenu. Alternativa — doslovna
+implementacija guarda — bila je mehanički oborena: proizvela bi odgovor neadmitiranom pozivaocu i
+ne bi mogla uspostaviti transakcijski lokalan GUC.
+
+## Alternative
+
+- **Implementirati `CanActivate` guard i pomjeriti redoslijed** — odbijeno: mijenja zamrznuti
+  D-047 / `03` §3.7.1 ugovor i obara trajne regresijske testove.
+- **Ukloniti oba imena iz kanonske dokumentacije** — odbijeno: `TenantDatabaseService` nosi
+  stvarno sigurnosno svojstvo za buduće business module, a brisanje imena bi to svojstvo izgubilo.
+- **Uvesti prazan `TenantDatabaseService` odmah, radi imena** — odbijeno: facade koji ne posjeduje
+  klijent, ne otvara transakciju i ne drži konekciju dodao bi ime bez svojstva.
+
+## Posljedice
+
+- Izvedena dokumentacija koja pominje `PracticeContextGuard` čita se kao **naziv faze**;
+- `AGENTS.md` §5.3 je preformulisan tako da nosi isto sigurnosno pravilo bez neizvodivog potpisa;
+- `05`, Faza 4 označava **koncept** kao implementiran za tekuću rutu, a **konkretan
+  `TenantDatabaseService` facade ostaje neoznačen** dok ga stvarni business modul ne zatraži;
+- prenesena hardening zapažanja iz P4-5BR (O2/O3, O4, O5, O6, O7) ostaju **otvorena** i vode se u
+  `05`, Faza 4; nijedno se ne rješava ovom odlukom.
+
+## Security/privacy uticaj
+
+Nema promjene sigurnosne površine. Odluka **pooštrava** tumačenje: eksplicitno zabranjuje četiri
+konkretna nekonformna čitanja (druga transakcija, drugi klijent, rano postavljanje
+`app.practice_id`, caller-supplied identitet) koja su ranije bila dopuštena doslovnim čitanjem.
+Nijedna zabrana se ne uklanja.
+
+## Migration/rollout
+
+Nijedna. Bez schema objekta, bez migracije, bez izmjene baze. Isključivo governance/dokumentacija.
+
+## Test dokaz
+
+Bez novih testova — svojstva su već dokazana testovima prihvaćenim u P4-5B:
+
+- `03` §3.7.1 korak 4 prije koraka 5, sa rollbackom za ne-`ACTIVE` ordinaciju;
+- nepoznat i neaktivan korisnik odbijeni **prije** razmatranja headera;
+- `app.practice_id` uspostavljen za **tačno** traženu ordinaciju, unutar transakcije;
+- kontekst ne preživi `COMMIT` ni `ROLLBACK` i ne curi na pooled konekciju;
+- odbijen tenant zahtjev ne kontaminira sljedeći prihvaćeni;
+- `42501` iz `set_request_context` se prevodi u zajednički `403 ACCESS_DENIED`, bez otkrivanja
+  SQLSTATE-a, iskaza, imena funkcije ni database poruke.
+
+Budući konkretan `TenantDatabaseService` mora ponovo dokazati klauzule 6–10 prije prihvatanja.
+
+## Zavisnosti
+
+D-006, D-023, D-033, D-038, D-041, D-047, D-049, D-051, D-052, D-053.
+
+---
+
 # Otvorene odluke
 
 ## D-OPEN-001 — Produkcijski OIDC provider
