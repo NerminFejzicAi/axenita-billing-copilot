@@ -1,5 +1,7 @@
 import 'reflect-metadata';
 
+import { DEVELOPMENT_AUTH_FIXTURE } from '../support/development-token.js';
+
 /**
  * Deterministic baseline environment for every test file.
  *
@@ -23,6 +25,9 @@ const BASELINE_ENVIRONMENT: Readonly<Record<string, string>> = {
   OBJECT_STORAGE_ENDPOINT: 'http://127.0.0.1:1',
   OBJECT_STORAGE_HEALTH_PATH: '/minio/health/live',
   HEALTH_CHECK_TIMEOUT_MS: '1000',
+  DEV_AUTH_JWT_SECRET: DEVELOPMENT_AUTH_FIXTURE.secret,
+  DEV_AUTH_JWT_ISSUER: DEVELOPMENT_AUTH_FIXTURE.issuer,
+  DEV_AUTH_JWT_AUDIENCE: DEVELOPMENT_AUTH_FIXTURE.audience,
 };
 
 for (const [key, value] of Object.entries(BASELINE_ENVIRONMENT)) {

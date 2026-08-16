@@ -162,7 +162,9 @@ Korak 1 — izvorno stanje je **ispravno bootstrapovana tekuća kanonska migrati
 pnpm db:migrate:status
 ```
 
-Korak 2 — generisati inkrementalni SQL kandidat:
+Korak 2 — generisati inkrementalni SQL kandidat.
+
+Kanonska sirova Prisma komanda (D-050):
 
 ```powershell
 npx prisma migrate diff `
@@ -171,6 +173,34 @@ npx prisma migrate diff `
   --script `
   -o prisma/migrations/<timestamp>_<package>/migration.sql
 ```
+
+Repozitorijska skripta `db:migrate:diff` je isključivo convenience wrapper oko **iste** D-050
+semantike — ne uvodi i ne mijenja nijedno pravilo autorstva. Tačne, dokazano radne invokacije:
+
+Iz root-a repozitorija:
+
+```powershell
+pnpm db:migrate:diff -o prisma/migrations/<timestamp>_<package>/migration.sql
+```
+
+Iz `apps/api`:
+
+```powershell
+pnpm run db:migrate:diff -o prisma/migrations/<timestamp>_<package>/migration.sql
+```
+
+**NE koristiti** oblik sa literalnim separatorom:
+
+```text
+pnpm db:migrate:diff -- -o prisma/migrations/<timestamp>_<package>/migration.sql
+pnpm run db:migrate:diff -- -o prisma/migrations/<timestamp>_<package>/migration.sql
+```
+
+Razlog: sa pnpm 11 literalni `--` se **prosljeđuje Prismi**; Prisma tada tretira naredni `-o` kao
+pozicioni/ignorisani ulaz, ispisuje SQL na stdout, **ne kreira izlazni fajl** i pri tome može
+završiti sa exit kodom `0`. Otkaz je dakle **tih** — nema poruke o grešci i nema nenultog exit
+koda, pa se postojanje generisanog `migration.sql` fajla mora provjeriti eksplicitno prije
+prelaska na Korak 3.
 
 Korak 3 — ručno dopuniti custom SQL koji Prisma ne izražava: constrainti, grants, revokes, RLS,
 politike, funkcije, sigurnosne asercije, komentari.
@@ -203,8 +233,10 @@ prisma db push
 prisma migrate dev --create-only   # kao mehanizam autorstva (D-050)
 ```
 
-Skripta `db:migrate:dev` iz `package.json` **nije** kanonski put autorstva. Njeno usklađivanje je
-implementacijski zadatak i ne izvodi se dokumentacionom izmjenom.
+Usklađivanje `package.json` skripti sa D-050 je izvedeno: ranija skripta `db:migrate:dev`
+(`prisma migrate dev`) **više ne postoji** ni u root-u ni u `apps/api`, a zamijenila ju je
+`db:migrate:diff` opisana u Koraku 2. `prisma migrate dev` nema skriptu jer nije dozvoljen
+mehanizam autorstva.
 
 ---
 
@@ -505,7 +537,7 @@ git diff --check
     "db:format": "...",
     "db:validate": "...",
     "db:generate": "...",
-    "db:migrate:dev": "...",
+    "db:migrate:diff": "...",
     "db:migrate:deploy": "...",
     "db:migrate:status": "...",
     "db:seed": "...",

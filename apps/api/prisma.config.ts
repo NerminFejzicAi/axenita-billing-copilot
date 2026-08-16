@@ -53,6 +53,18 @@ export default defineConfig({
   schema: 'prisma/schema.prisma',
   migrations: {
     path: 'prisma/migrations',
+    /**
+     * Phase 3 development seed (02 §23.2, 10 §8). Registering it here is what makes
+     * `prisma db seed` — and therefore `pnpm db:seed` — the single canonical entry point.
+     *
+     * It inherits the `MIGRATION_DATABASE_URL` resolved above, so the seed runs as
+     * `copilot_migrator`, the trusted table owner. That is a hard requirement of D-048: a
+     * superuser seed credential is a permanently rejected alternative (02 §23.4.2).
+     *
+     * The script is TypeScript executed directly by Node's built-in type stripping, so no
+     * TypeScript runner dependency is added (00 §5.3).
+     */
+    seed: 'node prisma/seed.ts',
   },
   datasource: {
     url: migrationDatabaseUrl,

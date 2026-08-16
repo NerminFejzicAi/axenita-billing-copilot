@@ -2,15 +2,17 @@
 //
 // Normative sources: D-004 (Prisma 7 + custom SQL), `02_DATABASE_SCHEMA_V1.md` §26.
 //
-// Scope note (phase 2): this schema intentionally declares **no models**. Phase 2 owns
-// migration package `001_extensions_and_roles` only (§22.1) — database roles, ownership
-// and least-privilege grants. Business tables belong to packages `002` and later and are
-// created by their own phases (04 §5 onward). Declaring them early would pull phase 3+
-// scope forward.
+// Scope note (phase 3): this schema declares the identity and practice domain owned by
+// migration package `002_identity_and_practices` (§22.2) — `practices`, `users`,
+// `practice_memberships`, `practice_membership_roles`, `practice_settings`,
+// `platform_role_assignments` and the three enums they use. Business tables belong to
+// packages `003` and later and are created by their own phases (04 §5 onward). Declaring
+// them early would pull phase 4+ scope forward.
 //
 // Rules that Prisma cannot express and that therefore live in migration SQL (§26):
 //   - RLS policies, grants, functions, triggers;
 //   - some composite foreign keys;
+//   - CHECK constraints;
 //   - `NULLS NOT DISTINCT` (§26.2).
 // `prisma migrate diff` may report drift on those objects. That is expected and must not
 // be "fixed" by removing them (§26.2).
@@ -28,4 +30,216 @@ generator client {
   output       = "../src/generated/prisma"
   moduleFormat = "esm"
   runtime      = "nodejs"
+}
+
+// =============================================================================
+// Enums (§4)
+// =============================================================================
+
+/// Practice and user lifecycle status (§4.2).
+///
+/// One shared type for both tables: §4.2 declares a single value set titled "Status
+/// ordinacije/korisnika", and §6.1/§6.2 both point at it. The physical type name is
+/// `entity_status`; §4.2 fixes the values but not the name, so the name is a naming
+/// resolution recorded by the phase 3 implementation authorisation, not a new decision.
+enum EntityStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  ARCHIVED
+
+  @@map("entity_status")
+}
+
+/// Tenant application roles, valid inside exactly one practice (§4.1).
+///
+/// Exactly six values. Assignments live in `practice_membership_roles` (§6.3a), never as a
+/// singular column on `practice_memberships` (D-038 clause 2). `SYSTEM_ADMIN` is a platform
+/// role and must never appear here (D-038 clause 12).
+enum MembershipRole {
+  PRACTICE_ADMIN
+  PHYSICIAN
+  MPA
+  BILLING_SPECIALIST
+  AUDITOR
+  READ_ONLY
+
+  @@map("membership_role")
+}
+
+/// Platform application role (§4.16).
+///
+/// Separate from `membership_role` (D-023 clause 8). A platform role alone grants no tenant
+/// permission at all (D-038 clause 13).
+enum PlatformRole {
+  SYSTEM_ADMIN
+
+  @@map("platform_role")
+}
+
+// =============================================================================
+// Identity and tenant tables (§6)
+// =============================================================================
+
+/// A medical practice — the tenant (§6.1).
+///
+/// Runtime access is bootstrap-scoped: `ENABLE` + `FORCE RLS` with a PERMISSIVE membership
+/// policy and a RESTRICTIVE context-narrowing policy (§17.6), plus a column-level SELECT
+/// grant that deliberately excludes `legal_name`, `zsr_number` and `gln_number` (§20.2a).
+/// Those three columns therefore exist here but are unreachable for `copilot_app`.
+model Practice {
+  id              String       @id @db.Uuid
+  code            String       @unique(map: "practices_code_key") @db.VarChar(50)
+  name            String       @db.VarChar(255)
+  legalName       String?      @map("legal_name") @db.VarChar(255)
+  zsrNumber       String?      @map("zsr_number") @db.VarChar(50)
+  glnNumber       String?      @map("gln_number") @db.VarChar(50)
+  defaultLanguage String       @default("de-CH") @map("default_language") @db.VarChar(10)
+  timezone        String       @default("Europe/Zurich") @db.VarChar(100)
+  status          EntityStatus
+  createdAt       DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  memberships PracticeMembership[]
+  settings    PracticeSettings?
+
+  @@index([status], map: "practices_status_idx")
+  @@map("practices")
+}
+
+/// An authenticated human user (§6.2).
+///
+/// No password and no password hash: authentication is OIDC/JWT in production and a
+/// controlled development mechanism otherwise (09 §5). `auth_subject` is readable only
+/// through the RLS policy expression of §17.5 — `copilot_app` has no column grant on it, so
+/// an application level `SELECT` or `WHERE` on it fails with SQLSTATE 42501 (§20.2a).
+model User {
+  id                String       @id @db.Uuid
+  authSubject       String       @unique(map: "users_auth_subject_key") @map("auth_subject") @db.VarChar(255)
+  email             String       @db.VarChar(320)
+  displayName       String       @map("display_name") @db.VarChar(255)
+  preferredLanguage String       @map("preferred_language") @db.VarChar(10)
+  status            EntityStatus
+  lastLoginAt       DateTime?    @map("last_login_at") @db.Timestamptz(6)
+  createdAt         DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  memberships             PracticeMembership[]
+  platformRoleAssignments PlatformRoleAssignment[]
+
+  @@map("users")
+}
+
+/// Membership of one user in one practice (§6.3).
+///
+/// D-038 clause 2: this table has **no** singular `role` column and **no**
+/// `(practice_id, active, role)` index. Role assignment lives in
+/// `practice_membership_roles`. `active` is the only membership lifecycle flag, and it is
+/// owned here — the assignment table must never grow its own.
+///
+/// `unique (practice_id, id)` is both the unconditional tenant constraint of §2.5 and the
+/// parent key of the composite foreign key declared by `practice_membership_roles`.
+model PracticeMembership {
+  id              String   @id @db.Uuid
+  practiceId      String   @map("practice_id") @db.Uuid
+  userId          String   @map("user_id") @db.Uuid
+  professionalGln String?  @map("professional_gln") @db.VarChar(50)
+  active          Boolean
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // Referential actions are pinned to `NO ACTION` — PostgreSQL's default — because §6.3
+  // declares none. Prisma would otherwise emit `ON DELETE RESTRICT ON UPDATE CASCADE`,
+  // which is an invented rule (§28.1 tracks referential actions as an open question).
+  practice Practice                 @relation(fields: [practiceId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "practice_memberships_practice_fk")
+  user     User                     @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "practice_memberships_user_fk")
+  roles    PracticeMembershipRole[]
+
+  @@unique([practiceId, userId], map: "practice_memberships_practice_user_key")
+  @@unique([practiceId, id], map: "practice_memberships_tenant_key")
+  @@index([userId, active], map: "practice_memberships_user_active_idx")
+  @@map("practice_memberships")
+}
+
+/// Current tenant role assignments of a membership (§6.3a, D-038).
+///
+/// Lifecycle (D-038 clauses 25–32): the table stores **only currently effective**
+/// assignments. Removing a role deletes its row; re-assigning later inserts a new row. The
+/// unique triple stays non-partial precisely because deletion frees it. Assignment history
+/// belongs to immutable audit evidence, never to retained revoked rows — hence no
+/// `revoked_at`, `revoked_by`, `active`, `valid_from` or `valid_to` here.
+///
+/// The composite foreign key `(practice_id, membership_id)` makes a cross-practice
+/// assignment structurally impossible (D-038 clause 19). No separate
+/// `practice_id -> practices(id)` foreign key is declared: §22.2 enumerates exactly three
+/// constraints for this table, and the composite key already carries `practice_id` into a
+/// parent that is itself keyed to `practices`. Referential actions are deliberately not
+/// declared, so PostgreSQL applies `NO ACTION`; §28.1 tracks that as an open question.
+model PracticeMembershipRole {
+  id           String         @id @db.Uuid
+  practiceId   String         @map("practice_id") @db.Uuid
+  membershipId String         @map("membership_id") @db.Uuid
+  role         MembershipRole
+  createdAt    DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  membership PracticeMembership @relation(fields: [practiceId, membershipId], references: [practiceId, id], onDelete: NoAction, onUpdate: NoAction, map: "practice_membership_roles_membership_fk")
+
+  @@unique([practiceId, id], map: "practice_membership_roles_tenant_key")
+  @@unique([practiceId, membershipId, role], map: "practice_membership_roles_membership_role_key")
+  @@map("practice_membership_roles")
+}
+
+/// Exactly one settings row per practice (§6.4).
+///
+/// Both approval flags default to `false`: approval outside `PHYSICIAN`/`PRACTICE_ADMIN` is
+/// an opt-in decision of the practice, never a default state (D-041). `version` is the
+/// optimistic locking column of D-029 and is guarded by a CHECK constraint that lives in
+/// migration SQL because Prisma cannot express it.
+///
+/// The table carries no `created_at`: §6.4 declares `updated_at` only.
+model PracticeSettings {
+  id                             String   @id @db.Uuid
+  practiceId                     String   @unique(map: "practice_settings_practice_key") @map("practice_id") @db.Uuid
+  billingReviewRequired          Boolean  @map("billing_review_required")
+  allowMpaApproval               Boolean  @default(false) @map("allow_mpa_approval")
+  allowBillingSpecialistApproval Boolean  @default(false) @map("allow_billing_specialist_approval")
+  requireReasonForManualChange   Boolean  @map("require_reason_for_manual_change")
+  aiEnabled                      Boolean  @map("ai_enabled")
+  axenitaExportEnabled           Boolean  @map("axenita_export_enabled")
+  retentionPolicyCode            String?  @map("retention_policy_code") @db.VarChar(100)
+  configuration                  Json     @db.JsonB
+  version                        Int      @default(1)
+  updatedBy                      String?  @map("updated_by") @db.Uuid
+  updatedAt                      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  practice Practice @relation(fields: [practiceId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "practice_settings_practice_fk")
+
+  @@unique([practiceId, id], map: "practice_settings_tenant_key")
+  @@map("practice_settings")
+}
+
+/// Platform role assignment (§6.5).
+///
+/// A global table: it has no `practice_id` and is not a tenant table. `SYSTEM_ADMIN` is
+/// never derived from a membership role, and a `SYSTEM_ADMIN` without an active membership
+/// reaches no tenant data at all (D-023 clauses 8–12). Writes are seed/migration only in the
+/// MVP.
+///
+/// `granted_by` and `revoked_by` are plain uuid columns: §6.5 declares a foreign key for
+/// `user_id` only, and inventing two more would widen the accepted constraint set.
+model PlatformRoleAssignment {
+  id           String       @id @db.Uuid
+  userId       String       @map("user_id") @db.Uuid
+  platformRole PlatformRole @map("platform_role")
+  grantedBy    String?      @map("granted_by") @db.Uuid
+  grantedAt    DateTime     @default(now()) @map("granted_at") @db.Timestamptz(6)
+  revokedAt    DateTime?    @map("revoked_at") @db.Timestamptz(6)
+  revokedBy    String?      @map("revoked_by") @db.Uuid
+
+  user User @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "platform_role_assignments_user_fk")
+
+  @@unique([userId, platformRole], map: "platform_role_assignments_user_role_key")
+  @@index([userId], map: "platform_role_assignments_user_idx")
+  @@map("platform_role_assignments")
 }

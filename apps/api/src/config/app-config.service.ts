@@ -87,6 +87,26 @@ export class AppConfigService {
     return toEndpoint(this.get('REDIS_URL'), 6379);
   }
 
+  /**
+   * Shared secret of the isolated development authentication mechanism (09 §5).
+   *
+   * Consumed by `DevelopmentAuthGuard` only. Like the database credential, it must never be
+   * logged, echoed in an error or placed in a response body (09 §11).
+   */
+  public get developmentAuthSecret(): string {
+    return this.get('DEV_AUTH_JWT_SECRET');
+  }
+
+  /** Expected `iss` claim of a development token (03 §3.1). */
+  public get developmentAuthIssuer(): string {
+    return this.get('DEV_AUTH_JWT_ISSUER');
+  }
+
+  /** Expected `aud` claim of a development token (03 §3.1). */
+  public get developmentAuthAudience(): string {
+    return this.get('DEV_AUTH_JWT_AUDIENCE');
+  }
+
   /** Absolute health URL of the S3-compatible object storage. */
   public get objectStorageHealthUrl(): string {
     const endpoint = this.get('OBJECT_STORAGE_ENDPOINT').replace(/\/+$/, '');

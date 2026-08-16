@@ -8,17 +8,38 @@ import { integrationDatabaseUrls } from './setup/integration-test-database.js';
 import { runPrismaCli } from './support/run-prisma-cli.js';
 
 /**
- * Migration foundation (04 §4.5, 08 §5, 05 Faza 2).
+ * Migration foundation (04 §4.5, 08 §5, 05 Faza 2–3).
  *
  * The migration history has already been applied to the isolated test database by the
- * suite's global setup, using `copilot_migrator`. These specs prove the properties phase 2
- * is accountable for: a deterministic clean migration, a stable no-op on repetition, an
- * intact checksum, and a package that verifies rather than assumes the role model.
+ * suite's global setup, using `copilot_migrator`. These specs prove the properties the
+ * migration chain is accountable for: a deterministic clean migration, a stable no-op on
+ * repetition, an intact checksum per package, and a history that verifies rather than
+ * assumes the accepted package set.
+ *
+ * The expectations below describe the *current* canonical database. Phase 2 owned package
+ * 001 alone; phase 3 adds package 002, so the assertions name both explicitly rather than
+ * counting, and a package appearing or disappearing is a defect, not a test omission.
  *
  * Nothing destructive runs here: no reset, no drop, no volume operation.
  */
 const urls = integrationDatabaseUrls();
 const apiRoot = resolve(import.meta.dirname, '..');
+
+/** The canonical applied migration history, in application order (05 Faza 2–3). */
+const EXPECTED_MIGRATIONS = [
+  '20260810213856_001_extensions_and_roles',
+  '20260814013200_002_identity_and_practices',
+] as const;
+
+/** Every business table the canonical history creates, in `order by tablename` order. */
+const EXPECTED_BUSINESS_TABLES = [
+  'platform_role_assignments',
+  'practice_membership_roles',
+  'practice_memberships',
+  'practice_settings',
+  'practices',
+  'users',
+] as const;
 
 let migrator: Client;
 
@@ -36,7 +57,7 @@ afterAll(async () => {
 });
 
 describe('migration history', () => {
-  it('given the migrated database when inspected then package 001 is recorded as applied', async () => {
+  it('given the migrated database when inspected then exactly the canonical packages are recorded as applied', async () => {
     const result = await migrator.query<{
       migration_name: string;
       finished_at: Date | null;
@@ -47,35 +68,40 @@ describe('migration history', () => {
          from _prisma_migrations order by started_at`,
     );
 
-    expect(result.rows).toHaveLength(1);
+    // Identity and order, not a count: a wrong package applied in the right number would
+    // otherwise pass (00 §6.2).
+    expect(result.rows.map((row) => row.migration_name)).toStrictEqual([...EXPECTED_MIGRATIONS]);
 
-    const migration = result.rows[0];
-    expect(migration?.migration_name).toMatch(/_001_extensions_and_roles$/);
-    expect(migration?.finished_at).not.toBeNull();
-    expect(migration?.rolled_back_at).toBeNull();
-    expect(migration?.applied_steps_count).toBeGreaterThan(0);
+    for (const migration of result.rows) {
+      expect(migration.finished_at).not.toBeNull();
+      expect(migration.rolled_back_at).toBeNull();
+      expect(migration.applied_steps_count).toBeGreaterThan(0);
+    }
   });
 
-  it('given the applied migration when compared then its checksum matches the file on disk', async () => {
+  it('given every applied migration when compared then its checksum matches the file on disk', async () => {
     // A drifting checksum means the applied migration and the repository disagree, which
     // 00 §6.2 forbids ("primijenjena migracija se ne mijenja").
     const result = await migrator.query<{ migration_name: string; checksum: string }>(
-      'select migration_name, checksum from _prisma_migrations',
+      'select migration_name, checksum from _prisma_migrations order by started_at',
     );
 
-    const applied = result.rows[0];
-    expect(applied).toBeDefined();
+    expect(result.rows).toHaveLength(EXPECTED_MIGRATIONS.length);
 
-    const sqlPath = resolve(
-      apiRoot,
-      'prisma/migrations',
-      applied?.migration_name ?? '',
-      'migration.sql',
-    );
-    const sql = readFileSync(sqlPath, 'utf8');
+    for (const applied of result.rows) {
+      const sqlPath = resolve(
+        apiRoot,
+        'prisma/migrations',
+        applied.migration_name,
+        'migration.sql',
+      );
+      const sql = readFileSync(sqlPath, 'utf8');
 
-    expect(sql).toContain('001_extensions_and_roles');
-    expect(applied?.checksum).toMatch(/^[0-9a-f]{64}$/);
+      // Each package's SQL names itself, so a history row can never be matched against
+      // another package's file.
+      expect(sql).toContain(applied.migration_name.replace(/^\d+_/, ''));
+      expect(applied.checksum).toMatch(/^[0-9a-f]{64}$/);
+    }
   });
 });
 
@@ -99,20 +125,22 @@ describe('migration determinism', () => {
   });
 });
 
-describe('migration scope — phase 2 owns package 001 only', () => {
-  it('given the migrated database when inspected then no business table exists yet', async () => {
-    // Packages 002+ belong to later phases (02 §22). Pulling a domain table forward would
-    // be phase 3+ scope entering phase 2.
+describe('migration scope — packages 001 and 002', () => {
+  it('given the migrated database when inspected then exactly the phase 3 business tables exist', async () => {
+    // Drift detection, unchanged in intent from the phase 2 "no business table yet" spec:
+    // the set is named exactly, so a table pulled forward from a later package (02 §22) or
+    // one silently dropped both fail. `_prisma_migrations` is Prisma bookkeeping, not a
+    // business table, and stays excluded.
     const result = await migrator.query<{ tablename: string }>(
       `select tablename from pg_tables
         where schemaname = 'public' and tablename <> '_prisma_migrations'
         order by tablename`,
     );
 
-    expect(result.rows.map((row) => row.tablename)).toStrictEqual([]);
+    expect(result.rows.map((row) => row.tablename)).toStrictEqual([...EXPECTED_BUSINESS_TABLES]);
   });
 
-  it('given package 001 when inspected then it installed no PostgreSQL extension', async () => {
+  it('given the migrated database when inspected then it installed no PostgreSQL extension', async () => {
     // 02 §22.1 — no extension is currently required; the application generates every UUID.
     const result = await migrator.query<{ extname: string }>(
       `select extname from pg_extension where extname <> 'plpgsql' order by extname`,
