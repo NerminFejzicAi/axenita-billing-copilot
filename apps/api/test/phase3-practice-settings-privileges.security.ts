@@ -380,13 +380,16 @@ describe('THE PHASE 3 CONDITIONAL-SETTINGS READ EXPOSURE IS CLOSED (08 §21.7.4 
     }
   });
 
-  it('given a planted app.practice_id without a membership then it still yields ZERO rows', async () => {
-    // 02 §25.1.1. The GUC can be set directly by `copilot_app` — the context function is not a
-    // privilege boundary (§16.2a, D-047 clause 20) — so the policy must not be the only thing
-    // standing between a planted value and another tenant's data. Here it is enough because the
-    // planted practice genuinely has no settings the caller may reach: `set_request_context`
-    // would have REFUSED this practice, and the seeded settings row of `demo-praxis-sued`
-    // becomes visible only to a caller that can establish that tenant, which nobody can.
+  it('given no active membership when set_request_context requests that practice then it is REFUSED', async () => {
+    // D-033 clause 11. `practice_settings` uses the strict literal `practice_id =
+    // app.practice_id` predicate with NO independent membership subquery, so the tenant boundary
+    // the application relies on is the context-establishment path itself: a practice in which the
+    // established identity holds no active membership can never become the request context.
+    //
+    // This proves the accepted application context-establishment path rejects the non-membership
+    // practice; it does not claim that a holder of the `copilot_app` database credential cannot
+    // call `set_config` directly — `app.practice_id` is a GUC and the context function is not a
+    // privilege boundary (§16.2a, D-047 clause 20). No HTTP path lets a caller choose that value.
     await app.query('begin');
 
     try {
