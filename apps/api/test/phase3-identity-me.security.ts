@@ -327,7 +327,9 @@ describe('GET /api/v1/me', () => {
       // In phase 3 this read returned the settings row of a practice the caller has no
       // membership in — the accepted D-049 clause 3 exposure. After `013_rls_policies` the
       // §17.1 tenant policy makes the same statement return ZERO rows without an established
-      // tenant context, and `/me` is a NEUTRAL route that establishes none (08 §21.7.4 -> §21.8).
+      // tenant context (08 §21.7.4 -> §21.8). `/me` establishes one only INSIDE its own
+      // transaction, and only for practices the caller is an ACTIVE member of, so this probe on
+      // a separate connection sees nothing.
       const visible = await appClient.query<{ practice_id: string }>(
         'select "practice_id" from "practice_settings" where "practice_id" = $1',
         [PHASE_3_SEED_IDS.practiceWithoutMembers],
@@ -429,11 +431,13 @@ describe('GET /api/v1/me', () => {
   });
 
   describe('route classification', () => {
-    it('needs no X-Practice-ID and establishes no phase 4 context (03 §3.4, D-047 clause 16)', async () => {
+    it('needs no X-Practice-ID and ignores one entirely (03 §3.4, D-053 clause D.6)', async () => {
       const withoutHeader = await me(PHASE_3_SEED_SUBJECTS.practiceAdmin);
       expect(withoutHeader.status).toBe(200);
 
-      // A sent header is ignored: `/me` is neutral, not tenant scoped.
+      // A sent header is ignored: `/me` is neutral in its input, and no client-supplied practice
+      // id participates in it — not as a requirement, and not as a selector for which membership
+      // gets its settings read.
       const withHeader = await request(app.getHttpServer())
         .get('/api/v1/me')
         .set('Authorization', developmentBearer(PHASE_3_SEED_SUBJECTS.practiceAdmin))
@@ -443,31 +447,62 @@ describe('GET /api/v1/me', () => {
       expect(withHeader.body).toEqual(withoutHeader.body);
     });
 
-    it('proves /me establishes NO tenant context, even though set_request_context now exists', async () => {
-      // `013_rls_policies` creates the function (02 §16.2.3), so its absence is no longer the
-      // assertion. The assertion is that the NEUTRAL `/me` route does not CALL it: `03` §3.4
-      // classifies `/me` as tenant-neutral, and D-053 clause D.13 keeps the remedy for the
-      // consequent conditional-settings read an APPLICATION-path change owned by a later slice,
-      // not a weakening of the policy.
+    it('establishes tenant context INTERNALLY only, and leaves none behind (D-053)', async () => {
+      // `/me` is tenant-neutral in its INPUT — no `X-Practice-ID` — but since `013_rls_policies`
+      // it does establish `app.practice_id` internally, once per ACTIVE membership, through
+      // `set_request_context` and from practice ids it resolved from the caller's own membership
+      // rows. That is the accepted D-053 remedy for the §17.1 policy on `practice_settings`, and
+      // it is invisible from outside: the function exists, the route uses it, and nothing about
+      // it survives the request.
       const functions = await appClient.query<{ name: string | null }>(
         `select to_regprocedure('app_security.set_request_context(uuid)')::text as "name"`,
       );
 
       expect(functions.rows[0]?.name).toBe('app_security.set_request_context(uuid)');
 
-      // A successful `/me` leaves no tenant scope behind on the pool, because it never
-      // established one. Every `app.*` value is transaction local in any case.
       expect((await me(PHASE_3_SEED_SUBJECTS.practiceAdmin)).status).toBe(200);
 
-      const context = await appClient.query<{ practice: string | null }>(
-        `select nullif(current_setting('app.practice_id', true), '') as "practice"`,
+      // Every `app.*` value is set with `set_config(..., true)` and is therefore transaction
+      // local, so no internal switch can reach a pooled connection or a later transaction.
+      const context = await appClient.query<{
+        subject: string | null;
+        user: string | null;
+        practice: string | null;
+      }>(
+        `select nullif(current_setting('app.auth_subject', true), '') as "subject",
+                nullif(current_setting('app.user_id', true), '')      as "user",
+                nullif(current_setting('app.practice_id', true), '')  as "practice"`,
       );
 
-      expect(context.rows[0]?.practice).toBeNull();
+      expect(context.rows[0]).toEqual({ subject: null, user: null, practice: null });
       // And without tenant context the §17.1 policy exposes no settings row at all.
       expect(
         (await appClient.query('select "practice_id" from "practice_settings"')).rowCount,
       ).toBe(0);
+    });
+
+    it('never establishes tenant context for the caller INACTIVE membership (D-053 clause D.4)', async () => {
+      // The admin holds an ACTIVE membership in `demo-praxis` and an INACTIVE one in
+      // `demo-praxis-nord`. `set_request_context` requires `active = true` and raises 42501
+      // otherwise, so a `/me` that called it for the inactive membership would have aborted its
+      // transaction and answered 500 instead of the 200 asserted here.
+      expect((await me(PHASE_3_SEED_SUBJECTS.practiceAdmin)).status).toBe(200);
+
+      await appClient.query('begin');
+
+      try {
+        await appClient.query('select app_security.set_user_context($1::uuid)', [
+          PHASE_3_SEED_IDS.userPracticeAdmin,
+        ]);
+
+        await expect(
+          appClient.query('select app_security.set_request_context($1::uuid)', [
+            PHASE_3_SEED_IDS.practiceNord,
+          ]),
+        ).rejects.toMatchObject({ code: '42501' });
+      } finally {
+        await appClient.query('rollback');
+      }
     });
 
     it('registers no practice settings route in this phase (D-049)', async () => {

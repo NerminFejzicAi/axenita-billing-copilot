@@ -158,6 +158,8 @@ describe('identity bootstrap transaction', () => {
 
         await session.setUserContext(ADMIN_ID);
 
+        // THE NEUTRAL BLOCK — everything that must span ALL memberships, taken before the first
+        // `app.practice_id` exists (D-053 clause D.10).
         const memberships = await session.findMemberships(ADMIN_ID);
         const practices = await session.findPractices(
           memberships.map((membership) => membership.practiceId),
@@ -165,17 +167,22 @@ describe('identity bootstrap transaction', () => {
         const roles = await session.findMembershipRoles(
           memberships.map((membership) => membership.id),
         );
-        const settings = await session.findConditionalSettings(
-          memberships.map((membership) => membership.practiceId),
-        );
         const platformRoles = await session.findCurrentPlatformRoles(ADMIN_ID);
+
+        // THE TENANT BLOCK — one context per ACTIVE membership, from that membership's own
+        // practice id, then that practice's settings under the §17.1 policy.
+        let settings = 0;
+        for (const membership of memberships.filter((row) => row.active)) {
+          await session.setRequestContext(membership.practiceId);
+          settings += (await session.findConditionalSettings([membership.practiceId])).length;
+        }
 
         return {
           users: users.length,
           memberships: memberships.length,
           practices: practices.length,
           roles: roles.length,
-          settings: settings.length,
+          settings,
           platformRoles: platformRoles.length,
         };
       });
@@ -188,22 +195,124 @@ describe('identity bootstrap transaction', () => {
       // reachable on a connection that did not run the context calls, so obtaining them proves
       // the whole chain shared one transaction.
       //
-      // `settings: 0` is the POST-`013` state, not a defect. This chain is the NEUTRAL `/me`
-      // path: it establishes `app.user_id` and deliberately no tenant context, and
-      // `practice_settings` now carries the §17.1 tenant policy, so the conditional read is
-      // confined to zero rows. In phase 3 it returned two. The application falls back to
-      // `DISABLED_CONDITIONAL_SETTINGS`, which is FAIL-CLOSED and exactly what D-041 requires
-      // of a configuration the route cannot read. Restoring the read is an APPLICATION-path
-      // adaptation owned by a later phase 4 slice; the policy is deliberately NOT weakened to
-      // accommodate `/me` (D-053 clauses D.11 and D.13).
+      // `settings: 1` is the D-053 state: the admin holds ONE active membership (`demo-praxis`)
+      // and one inactive one (`demo-praxis-nord`). Exactly one tenant context is therefore
+      // established and exactly one settings row becomes readable. In phase 3 this read returned
+      // two rows without any context at all, which is precisely the exposure `013` closed.
       expect(counts).toEqual({
         users: 1,
         memberships: 2,
         practices: 2,
         roles: 3,
-        settings: 0,
+        settings: 1,
         platformRoles: 1,
       });
+    });
+
+    it('reads the practices of ALL memberships before the first tenant context narrows them', async () => {
+      // `practices_context_narrow` is RESTRICTIVE (02 §17.6). This is the regression the D-053
+      // read order exists to prevent, shown directly against PostgreSQL: the same statement
+      // returns both practices before the context and exactly one after it.
+      const counts = await database.runBootstrapTransaction(async (session) => {
+        await session.setAuthSubjectContext(ADMIN_SUBJECT);
+        await session.findUsersForVerifiedSubject();
+        await session.setUserContext(ADMIN_ID);
+
+        const practiceIds = (await session.findMemberships(ADMIN_ID)).map(
+          (membership) => membership.practiceId,
+        );
+
+        const before = await session.findPractices(practiceIds);
+        await session.setRequestContext(PHASE_3_SEED_IDS.practiceDemo);
+        const after = await session.findPractices(practiceIds);
+
+        return { before: before.length, after: after.length, requested: practiceIds.length };
+      });
+
+      expect(counts).toEqual({ requested: 2, before: 2, after: 1 });
+    });
+
+    it('confines the settings read to the established practice, and refuses it without one', async () => {
+      const counts = await database.runBootstrapTransaction(async (session) => {
+        await session.setAuthSubjectContext(ADMIN_SUBJECT);
+        await session.findUsersForVerifiedSubject();
+        await session.setUserContext(ADMIN_ID);
+
+        const both = [PHASE_3_SEED_IDS.practiceDemo, PHASE_3_SEED_IDS.practiceNord];
+
+        // No tenant context yet: the §17.1 predicate is `practice_id = NULL`.
+        const withoutContext = await session.findConditionalSettings(both);
+
+        await session.setRequestContext(PHASE_3_SEED_IDS.practiceDemo);
+        // Asking for BOTH practices still yields only the established one — the policy, not the
+        // application filter, is what confines it.
+        const withContext = await session.findConditionalSettings(both);
+
+        return {
+          withoutContext: withoutContext.length,
+          withContext: withContext.length,
+          established: withContext[0]?.practiceId,
+        };
+      });
+
+      expect(counts).toEqual({
+        withoutContext: 0,
+        withContext: 1,
+        established: PHASE_3_SEED_IDS.practiceDemo,
+      });
+    });
+
+    it('refuses set_request_context for an INACTIVE membership, in the database (D-033 clause 11)', async () => {
+      // `membershipAdminInNord` is inactive. This is why `/me` must skip it rather than rely on
+      // the resolver alone: the call itself fails, and the failure would abort the transaction.
+      const failure = await database
+        .runBootstrapTransaction(async (session) => {
+          await session.setAuthSubjectContext(ADMIN_SUBJECT);
+          await session.findUsersForVerifiedSubject();
+          await session.setUserContext(ADMIN_ID);
+          await session.setRequestContext(PHASE_3_SEED_IDS.practiceNord);
+        })
+        .then(
+          () => undefined,
+          (error: unknown) => error,
+        );
+
+      expect(failure).toBeInstanceOf(Error);
+      expect(String((failure as Error).message)).toContain('42501');
+    });
+
+    it('refuses set_request_context for a practice the caller has no membership in', async () => {
+      const failure = await database
+        .runBootstrapTransaction(async (session) => {
+          await session.setAuthSubjectContext(ADMIN_SUBJECT);
+          await session.findUsersForVerifiedSubject();
+          await session.setUserContext(ADMIN_ID);
+          await session.setRequestContext(PHASE_3_SEED_IDS.practiceWithoutMembers);
+        })
+        .then(
+          () => undefined,
+          (error: unknown) => error,
+        );
+
+      expect(failure).toBeInstanceOf(Error);
+      expect(String((failure as Error).message)).toContain('42501');
+    });
+
+    it('refuses set_request_context before app.user_id exists (D-033 clause 9)', async () => {
+      // The function derives the user EXCLUSIVELY from `app.user_id` and never accepts one, so
+      // an internal context cannot be established for an unadmitted caller.
+      const failure = await database
+        .runBootstrapTransaction(async (session) => {
+          await session.setAuthSubjectContext(ADMIN_SUBJECT);
+          await session.setRequestContext(PHASE_3_SEED_IDS.practiceDemo);
+        })
+        .then(
+          () => undefined,
+          (error: unknown) => error,
+        );
+
+      expect(failure).toBeInstanceOf(Error);
+      expect(String((failure as Error).message)).toContain('42501');
     });
 
     it('reads nothing RLS dependent when set_user_context is skipped', async () => {
@@ -251,6 +360,46 @@ describe('identity bootstrap transaction', () => {
 
       expect(survivor).toHaveLength(1);
       expect(survivor[0]?.id).toBe(PHASE_3_SEED_IDS.userPhysician);
+    });
+
+    it('discards app.practice_id at COMMIT as well, so no tenant scope reaches the pool', async () => {
+      // The `/me` chain now ESTABLISHES a tenant context, so the leak question applies to
+      // `app.practice_id` too (D-053 clause D.9). `set_config(..., true)` is transaction local,
+      // and a following transaction on the SAME pool must therefore see nothing.
+      const established = await database.runBootstrapTransaction(async (session) => {
+        await session.setAuthSubjectContext(ADMIN_SUBJECT);
+        await session.findUsersForVerifiedSubject();
+        await session.setUserContext(ADMIN_ID);
+        await session.setRequestContext(PHASE_3_SEED_IDS.practiceDemo);
+
+        return (await session.findConditionalSettings([PHASE_3_SEED_IDS.practiceDemo])).length;
+      });
+
+      expect(established).toBe(1);
+
+      // A second transaction on the same pool, with only the subject context established: the
+      // settings read must be back to zero rows, which is impossible if the previous
+      // `app.practice_id` survived.
+      const afterwards = await database.runBootstrapTransaction(async (session) => {
+        await session.setAuthSubjectContext(ADMIN_SUBJECT);
+        await session.findUsersForVerifiedSubject();
+        await session.setUserContext(ADMIN_ID);
+
+        return (
+          await session.findConditionalSettings([
+            PHASE_3_SEED_IDS.practiceDemo,
+            PHASE_3_SEED_IDS.practiceNord,
+          ])
+        ).length;
+      });
+
+      expect(afterwards).toBe(0);
+
+      // And an independent connection sees no context at all.
+      const context = await probe.query<{ practice: string | null }>(
+        `select nullif(current_setting('app.practice_id', true), '') as "practice"`,
+      );
+      expect(context.rows[0]?.practice).toBeNull();
     });
 
     it('rejects an empty subject in the database, not in application code (02 §16.2.4)', async () => {

@@ -217,6 +217,7 @@ describe('IdentityBootstrapService', () => {
         'select membership_roles',
         'select practice_settings',
         'select platform_roles',
+        'set_request_context',
       ]) {
         expect(database.calls.findIndex((call) => call.startsWith(dependent))).toBeGreaterThan(
           setUserContext,
@@ -550,6 +551,234 @@ describe('IdentityBootstrapService', () => {
 
       expect(me.memberships[0]?.permissions).toContain('practice.read');
       expect(me.memberships[1]?.permissions).toEqual([]);
+    });
+  });
+
+  describe('internal tenant context (D-053)', () => {
+    beforeEach(() => {
+      world.bootstrapUsers.push(activeUser());
+      world.practices.push(
+        practiceRow(PRACTICE_A, 'Demo Praxis Zuerich'),
+        practiceRow(PRACTICE_B, 'Demo Praxis Nord'),
+      );
+    });
+
+    /** Two active memberships of one user, one conditional role each, in two practices. */
+    function twoActiveMpaMemberships(): void {
+      world.memberships.push(
+        { id: MEMBERSHIP_A, practiceId: PRACTICE_A, active: true, userId: USER },
+        { id: MEMBERSHIP_B, practiceId: PRACTICE_B, active: true, userId: USER },
+      );
+      world.membershipRoles.push(
+        { membershipId: MEMBERSHIP_A, practiceId: PRACTICE_A, role: 'MPA' },
+        { membershipId: MEMBERSHIP_B, practiceId: PRACTICE_B, role: 'MPA' },
+      );
+    }
+
+    it('completes every neutral read BEFORE the first tenant context (D-053 clause D.10)', async () => {
+      // 02 §17.6 `practices_context_narrow` is RESTRICTIVE: after the first
+      // `set_request_context` only ONE practice stays visible. Reading names, roles or platform
+      // roles after that point would silently lose every other membership's data.
+      twoActiveMpaMemberships();
+      world.platformRoles.push({ platformRole: 'SYSTEM_ADMIN', userId: USER });
+      world.settings.push(
+        settingsRow(PRACTICE_A, true, false),
+        settingsRow(PRACTICE_B, false, false),
+      );
+
+      await service.loadCurrentIdentity(SUBJECT);
+
+      const firstContext = database.calls.findIndex((call) =>
+        call.startsWith('set_request_context'),
+      );
+      expect(firstContext).toBeGreaterThan(0);
+
+      for (const neutral of [
+        'select memberships',
+        'select practices',
+        'select membership_roles',
+        'select platform_roles',
+      ]) {
+        const index = database.calls.findIndex((call) => call.startsWith(neutral));
+        expect(index).toBeGreaterThan(-1);
+        expect(index).toBeLessThan(firstContext);
+      }
+    });
+
+    it('keeps practiceName for EVERY membership, not just the last established practice', async () => {
+      twoActiveMpaMemberships();
+      world.settings.push(
+        settingsRow(PRACTICE_A, true, false),
+        settingsRow(PRACTICE_B, false, false),
+      );
+
+      const me = await service.loadCurrentIdentity(SUBJECT);
+
+      // The recorder narrows `practices` exactly as the RESTRICTIVE policy does, so a
+      // regression in the read order shows up here as a missing name, not as a silent pass.
+      expect(me.memberships.map((membership) => membership.practiceName)).toEqual([
+        'Demo Praxis Zuerich',
+        'Demo Praxis Nord',
+      ]);
+    });
+
+    it('establishes context once per active membership, through set_request_context only', async () => {
+      twoActiveMpaMemberships();
+      world.settings.push(settingsRow(PRACTICE_A, true, false));
+
+      await service.loadCurrentIdentity(SUBJECT);
+
+      expect(database.calls.filter((call) => call.startsWith('set_request_context'))).toEqual([
+        `set_request_context(${PRACTICE_A})`,
+        `set_request_context(${PRACTICE_B})`,
+      ]);
+    });
+
+    it('reads settings only for the practice whose context was just established', async () => {
+      twoActiveMpaMemberships();
+      world.settings.push(
+        settingsRow(PRACTICE_A, true, false),
+        settingsRow(PRACTICE_B, false, false),
+      );
+
+      await service.loadCurrentIdentity(SUBJECT);
+
+      // Every settings read is immediately preceded by the context of its OWN practice. A
+      // multi-practice aggregate read would break this pairing.
+      const tenantCalls = database.calls.filter(
+        (call) =>
+          call.startsWith('set_request_context') || call.startsWith('select practice_settings'),
+      );
+
+      expect(tenantCalls).toEqual([
+        `set_request_context(${PRACTICE_A})`,
+        `select practice_settings(${PRACTICE_A})`,
+        `set_request_context(${PRACTICE_B})`,
+        `select practice_settings(${PRACTICE_B})`,
+      ]);
+    });
+
+    it('passes only already-resolved membership practice ids to set_request_context', async () => {
+      twoActiveMpaMemberships();
+
+      await service.loadCurrentIdentity(SUBJECT);
+
+      const owned = new Set(
+        world.memberships.filter((row) => row.userId === USER).map((row) => row.practiceId),
+      );
+      for (const call of database.calls.filter((entry) =>
+        entry.startsWith('set_request_context'),
+      )) {
+        expect(owned.has(call.slice('set_request_context('.length, -1))).toBe(true);
+      }
+    });
+
+    it('never establishes context for an inactive membership (D-053 clause D.4)', async () => {
+      world.memberships.push(
+        { id: MEMBERSHIP_A, practiceId: PRACTICE_A, active: true, userId: USER },
+        { id: MEMBERSHIP_B, practiceId: PRACTICE_B, active: false, userId: USER },
+      );
+      world.membershipRoles.push({
+        membershipId: MEMBERSHIP_B,
+        practiceId: PRACTICE_B,
+        role: 'MPA',
+      });
+      world.settings.push(
+        settingsRow(PRACTICE_A, false, false),
+        settingsRow(PRACTICE_B, true, true),
+      );
+
+      const me = await service.loadCurrentIdentity(SUBJECT);
+
+      expect(database.calls).not.toContain(`set_request_context(${PRACTICE_B})`);
+      expect(database.calls).not.toContain(`select practice_settings(${PRACTICE_B})`);
+      expect(me.memberships[1]).toMatchObject({
+        active: false,
+        practiceName: 'Demo Praxis Nord',
+        roles: ['MPA'],
+        permissions: [],
+      });
+    });
+
+    it.each([
+      ['MPA', true, 'analysis.approve'],
+      ['MPA', false, 'analysis.approve'],
+      ['BILLING_SPECIALIST', true, 'analysis.approve'],
+      ['BILLING_SPECIALIST', false, 'analysis.approve'],
+    ] as const)(
+      'derives %s conditional approval with its own flag %s, under tenant RLS',
+      async (role, flag, permission) => {
+        world.memberships.push({
+          id: MEMBERSHIP_A,
+          practiceId: PRACTICE_A,
+          active: true,
+          userId: USER,
+        });
+        world.membershipRoles.push({ membershipId: MEMBERSHIP_A, practiceId: PRACTICE_A, role });
+        world.settings.push(
+          role === 'MPA'
+            ? settingsRow(PRACTICE_A, flag, false)
+            : settingsRow(PRACTICE_A, false, flag),
+        );
+
+        const me = await service.loadCurrentIdentity(SUBJECT);
+        const permissions = me.memberships[0]?.permissions ?? [];
+
+        expect(permissions.includes(permission)).toBe(flag);
+        expect(permissions.includes('analysis.approval.revoke')).toBe(flag);
+      },
+    );
+
+    it.each([
+      ['MPA', false, true],
+      ['BILLING_SPECIALIST', true, false],
+    ] as const)(
+      'refuses %s eligibility from the OTHER role flag alone (cross-flag isolation)',
+      async (role, mpaFlag, billingFlag) => {
+        world.memberships.push({
+          id: MEMBERSHIP_A,
+          practiceId: PRACTICE_A,
+          active: true,
+          userId: USER,
+        });
+        world.membershipRoles.push({ membershipId: MEMBERSHIP_A, practiceId: PRACTICE_A, role });
+        world.settings.push(settingsRow(PRACTICE_A, mpaFlag, billingFlag));
+
+        const me = await service.loadCurrentIdentity(SUBJECT);
+        const permissions = me.memberships[0]?.permissions ?? [];
+
+        expect(permissions).not.toContain('analysis.approve');
+        expect(permissions).not.toContain('analysis.approval.revoke');
+        // The unconditional half of the role is untouched.
+        expect(permissions.length).toBeGreaterThan(0);
+      },
+    );
+
+    it('keeps two practices of one user independent, with no union in either direction', async () => {
+      twoActiveMpaMemberships();
+      world.settings.push(
+        settingsRow(PRACTICE_A, true, false),
+        settingsRow(PRACTICE_B, false, false),
+      );
+
+      const me = await service.loadCurrentIdentity(SUBJECT);
+
+      expect(me.memberships[0]?.permissions).toContain('analysis.approve');
+      expect(me.memberships[1]?.permissions).not.toContain('analysis.approve');
+      // Same role, same user, one transaction — the only difference is the settings row of the
+      // practice each membership belongs to.
+      expect(me.memberships[0]?.roles).toEqual(me.memberships[1]?.roles);
+    });
+
+    it('fails closed when the tenant read yields no settings row for a practice', async () => {
+      twoActiveMpaMemberships();
+      world.settings.push(settingsRow(PRACTICE_B, true, true));
+      // Practice A has no row at all; practice B is enabled but belongs to the other membership.
+
+      const me = await service.loadCurrentIdentity(SUBJECT);
+
+      expect(me.memberships[0]?.permissions).not.toContain('analysis.approve');
+      expect(me.memberships[1]?.permissions).toContain('analysis.approve');
     });
   });
 

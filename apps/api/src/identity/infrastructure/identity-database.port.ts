@@ -148,6 +148,27 @@ export interface IdentityBootstrapSession {
   findMemberships(userId: string): Promise<readonly MembershipRow[]>;
 
   /**
+   * `app_security.set_request_context(<practice id>)` — `02` §16.2.3, D-033 clauses 7–12,
+   * D-053 clauses D.5 and D.7.
+   *
+   * THE ONLY ACCEPTED WAY TO ESTABLISH `app.practice_id`. The application never issues
+   * `set_config('app.practice_id', ...)` itself: the function re-derives the user from
+   * `app.user_id`, re-validates an ACTIVE `practice_memberships` row for it, and clears the GUC
+   * as its FIRST statement, so a rejected target never becomes active and a previously
+   * established one never survives the rejection (D-033 clauses 10 and 12). Setting the GUC
+   * directly would skip all three properties.
+   *
+   * `practiceId` must come from an ALREADY-RESOLVED membership row of `app.user_id`. No header,
+   * query, body or path value may reach this method on the neutral `/me` route (D-053 clause
+   * D.6); the function would reject a foreign practice with `42501` in any case, but the
+   * application must not depend on that as its only barrier.
+   *
+   * An inactive membership raises `42501`, which is exactly why `/me` must not call this for one
+   * (D-053 clause D.4).
+   */
+  setRequestContext(practiceId: string): Promise<void>;
+
+  /**
    * Reads ONE membership, bound to one user and one practice at the same time.
    *
    * This is the application-layer narrowing D-047 clause 18 assigns to phase 3 for
@@ -194,18 +215,30 @@ export interface IdentityBootstrapSession {
    *
    * The policy works before `app.practice_id` exists and deliberately does not filter
    * `pm.active`, which is what lets an inactive membership still render its `practiceName`
-   * (`03` §10). Phase 3 never sets `app.practice_id`, so the RESTRICTIVE narrowing branch stays
-   * inert.
+   * (`03` §10).
+   *
+   * CALL ORDER IS LOAD-BEARING FROM PACKAGE `013` ONWARD. `practices_context_narrow` (§17.6) is
+   * RESTRICTIVE, so once `app.practice_id` exists this read narrows to exactly ONE practice. On
+   * `/me` it must therefore complete BEFORE the first {@link setRequestContext}, or only the
+   * membership whose context happens to be established would keep its `practiceName`
+   * (D-053 clause D.10).
    */
   findPractices(practiceIds: readonly string[]): Promise<readonly PracticeRow[]>;
 
   /**
-   * Reads the conditional approval flags of the given practices.
+   * Reads the conditional approval flags of the given practices, under strict tenant RLS.
    *
-   * `practice_settings` has broad row visibility in phase 3 — it carries no RLS policy, only a
-   * three column grant (D-049, the named `PHASE 3 INTERMEDIATE NON-PILOT CONDITIONAL-SETTINGS
-   * READ EXPOSURE`). The application must therefore scope the query itself, which is exactly
-   * what the practice id filter does. Reading every row and filtering in memory is forbidden.
+   * From package `013` onward `practice_settings` carries the §17.1 tenant policy: without an
+   * established `app.practice_id` the predicate is `practice_id = NULL` and the statement
+   * returns ZERO ROWS for every practice, and with one established it can only ever return that
+   * one practice's row (D-049 clause 5, D-053 clause D.1). The caller must therefore have
+   * established tenant context through {@link setRequestContext} first.
+   *
+   * The explicit practice id filter is kept as a SECOND barrier, not as the only one: it was the
+   * whole control in phase 3 (the named `PHASE 3 INTERMEDIATE NON-PILOT CONDITIONAL-SETTINGS
+   * READ EXPOSURE` of D-049 clause 3, now closed), and dropping it would leave the application
+   * unable to state which practice it believes it is reading. Reading every row and filtering in
+   * memory remains forbidden.
    */
   findConditionalSettings(
     practiceIds: readonly string[],
