@@ -1057,6 +1057,53 @@ Test **eksplicitno tvrdi** postojanje izloženosti
 
 ---
 
+# 21.8 D-052 — proširenje D-048 allowliste u fazi 4
+
+**Normativna odluka: D-052, dio B.** Nivo: security/RLS integration nad stvarnim PostgreSQL-om.
+**Vlasništvo: paket `013_rls_policies`, faza 4.** Normativni izvor: `02` §17.3, §22.13, §23.4.3,
+§23.4.4a i §23.4.5; D-048; D-049, klauzula 5.
+
+Faza 4 prvi put uvodi `FORCE ROW LEVEL SECURITY` nad `practice_memberships` i `practice_settings`,
+a pouzdani seed put upisuje u obje.
+
+## 21.8.1 Obuhvat allowliste
+
+- allowlist faze 4 sadrži **tačno** `practice_memberships` i `practice_settings`;
+- allowlist faze 3 iz `02` §23.4.4 je **nepromijenjena** — sve četiri tabele i dalje na njoj;
+- ukupna allowlist nakon faze 4 ima **tačno šest** tabela;
+- proširenje je **eksplicitno** i vezano za `02` §23.4.4a; **tiho proširenje obara phase gate**;
+- tabela **izvan** proširene allowliste je i dalje odbijena **prije** bilo kakvog `ALTER TABLE`-a.
+
+## 21.8.2 Steady state prije i nakon seeda
+
+Za **obje** tabele faze 4:
+
+- `relrowsecurity = true` i `relforcerowsecurity = true` **nakon migracije**;
+- `relrowsecurity = true` i `relforcerowsecurity = true` **nakon seeda**.
+
+Ovo je **trajni regresijski test**, ne jednokratna provjera.
+
+## 21.8.3 Maintenance prozor i putevi neuspjeha
+
+- pouzdani seed DML nad obje tabele ide **isključivo** kroz protokol iz `02` §23.4.3;
+- isti DML **bez** prozora **pada** — dokaz da prozor rješava stvaran problem;
+- **prekinut ili neuspio seed ne ostavlja `FORCE` isključenim** — nakon rollbacka obje zastavice
+  su ponovo `true`, za obje tabele; obavezan test;
+- neuspjela restore asercija **podiže izuzetak i abortira transakciju**;
+- unutar prozora se ne izvršava **nijedan nepovezani sigurnosni DDL**.
+
+## 21.8.4 Trajno odbijene zaobilaznice
+
+- **nijedna rola nema `BYPASSRLS`**;
+- **nijedna `SECURITY DEFINER` funkcija** nije uvedena kao zaobilaznica;
+- **nijedan superuser runtime put** nije konfigurisan;
+- `ALTER TABLE ... DISABLE ROW LEVEL SECURITY` se **ne pojavljuje** u forward migraciji ni seedu —
+  statička provjera izvora; rollback je izuzet (`02` §23.4.5);
+- **nijedna trajna owner-write politika** ne postoji;
+- mehanizam **nije dohvatljiv** iz request/runtime aplikacijskog koda — statička provjera.
+
+---
+
 # 22. D-034 — Linearni lanac analysis revizija
 
 Normativno: D-034; `02` §10.2.1 i §19.4; `03` §15.3.
@@ -1747,6 +1794,12 @@ Normativno: D-046; `02` §13.1, §13.2, §13.2a, §13.2a.1, §18.1, §22.9, §22
 Vlasništvo migracija: schema objekti u **`009_review_approvals`**, RLS objekti u
 **`013_rls_policies`**. Nijedan novi broj paketa se ne uvodi.
 
+**Izvršna faza: 10, za cijelu §24a (D-052).** Tabelu `review_decision_change_links` kreira paket
+`009_review_approvals` u Fazi 10, pa **nijedna** grupa iz §24a nije izvodiva u Fazi 4. RLS slice
+paketa `013_rls_policies` odgođen je u Fazu 10 i izvršava se neposredno nakon paketa `009`.
+**Vlasništvo paketa i sve asercije ostaju nepromijenjeni** — mijenja se isključivo tačka
+izvršenja.
+
 `review_item_changes` je **nezavisan immutable correction event**. Nijedan test **ne smije**
 pretpostaviti direktnu kolonu `review_decision_id` ni relaciju
 `review_item_changes` → `review_decisions`; asocijacija postoji **isključivo** kroz
@@ -1829,7 +1882,9 @@ Nivo: integration + audit.
 
 ## 24a.5 Lifecycle, grants i RLS
 
-Nivo: security + integration.
+Nivo: security + integration. **Faza 10, paket `013_rls_policies`** — premješteno iz Faze 4
+odlukom **D-052**, jer tabela u Fazi 4 ne postoji. Izvršava se nakon paketa
+`009_review_approvals`. Nijedna asercija ispod nije promijenjena.
 
 - `UPDATE` nad `review_decision_change_links` je **odbijen**;
 - `DELETE` nad `review_decision_change_links` je **odbijen**;
@@ -1966,22 +2021,28 @@ očekivani status/kod, obaveznu audit asertaciju i da li blokira završetak faze
 | §24.19 audit dokaz | integration + e2e | prema fazi vlasnika radnje | — | **da**; **BLOCKED** za role administration |
 | §24a.1–24a.2 D-046 schema i integritet linkova | integration | Faza 10 | `009_review_approvals` | **da** |
 | §24a.3–24a.4 D-046 pokrivenost i rollback | integration + e2e + audit | Faza 10 | `009_review_approvals` | **da** |
-| §24a.5 D-046 lifecycle, grants i RLS | security + integration | Faza 4 | `013_rls_policies` | **da** |
+| §24a.5 D-046 lifecycle, grants i RLS — **premješteno odlukom D-052** | security + integration | **Faza 10** | `013_rls_policies` | **da** |
 | §24a.6 D-046 introspekcija vlasništva i inventara | integration | Faza 10 | `009_review_approvals` | **da** |
 
 Vlasništvo migration paketa preuzeto je iz `02` §22 i `04`. **Nijedan novi broj paketa se ne
 uvodi.**
 
-**Premještanja vlasništva, ne brisanja (D-049, D-051).** Nijedna test grupa nije uklonjena ni
-oslabljena ovom rekonsilijacijom. Eksplicitno premješteno:
+**Premještanja vlasništva, ne brisanja (D-049, D-051, D-052).** Nijedna test grupa nije uklonjena
+ni oslabljena ovom rekonsilijacijom. Eksplicitno premješteno:
 
 | Test grupa | Ranije | Sada |
 |---|---|---|
 | §24.4 RLS self-enumeracija (`practice_membership_roles`) | Faza 4 / `013_rls_policies` | **Faza 3 / `002_identity_and_practices`** |
 | §17.2 asercije nad `platform_role_assignments` (`02` §20.4) | Faza 4 / `013_rls_policies` | **Faza 3 / `002_identity_and_practices`** |
 | §10 optimistic locking — `practice_settings` | Faza 3 (D-028 klauzula 4) | **Faza 4 / `013_rls_policies`** |
+| §24a.5 lifecycle, grants i RLS (`review_decision_change_links`) — D-052 | Faza 4 / `013_rls_policies` | **Faza 10 / `013_rls_policies`** |
 
-Novo dodano, bez ijednog brisanja: §21.6 (D-048, D-051) i §21.7 (D-049).
+**§24a.5 mijenja isključivo fazu izvršenja, ne vlasništvo paketa ni ijednu aserciju** (D-052,
+klauzule A.4–A.5, A.9). Tabelu kreira paket `009_review_approvals` u Fazi 10, pa u Fazi 4 ne
+postoji i nijedna od tih asercija nije izvodiva. Sve asercije ostaju **doslovno nepromijenjene** i
+izvršavaju se u Fazi 10, nakon paketa `009`.
+
+Novo dodano, bez ijednog brisanja: §21.6 (D-048, D-051), §21.7 (D-049) i §21.8 (D-052).
 
 ## 26.2 Uslovi pada phase gatea
 
@@ -1994,7 +2055,12 @@ Phase gate **mora pasti** kada:
 - D-037 export precondition testovi padnu;
 - D-046 testovi integriteta linkova, granice pokrivenosti ili rollbacka padnu.
 
-Faza 4 ili Faza 10 **mora pasti** i kada, prema §24a:
+**Faza 10 mora pasti** i kada, prema §24a. Cijeli blok ispod pripada **isključivo Fazi 10**
+(D-052): svaka tvrdnja zahtijeva postojanje `review_decision_change_links`, koju kreira paket
+`009_review_approvals` u toj fazi. **Faza 4 se po ovim uslovima ne ocjenjuje** — za nju važi
+poseban blok niže.
+
+Dakle, Faza 10 **mora pasti** kada:
 
 - `review_item_changes` nosi kolonu `review_decision_id` u bilo kojem obliku;
 - postoji composite FK `review_item_changes` → `review_decisions`;
@@ -2013,6 +2079,15 @@ Faza 4 ili Faza 10 **mora pasti** i kada, prema §24a:
 - vlasništvo pakete odstupi od `009_review_approvals` (schema) i `013_rls_policies` (RLS);
 - inventar tenant tabela nije **30**;
 - inventar deklarisanih composite FK-ova nije **14**.
+
+Faza 4 **mora pasti** i kada, prema D-052, dio A:
+
+- Faza 4 kreira `review_decision_change_links`;
+- Faza 4 izvrši `ENABLE`, `FORCE`, tenant politiku ili bilo koji grant nad tom tabelom;
+- migracija, test ili aplikacijski artefakt Faze 4 referencira tu tabelu kao postojeću;
+- generički tenant RLS obrazac i harness Faze 4 ne postoje ili nisu dokazani nad
+  `practice_settings`;
+- bude uveden novi broj migration paketa ili bude renumerisan postojeći.
 
 Faza 3 ili Faza 4 **mora pasti** i kada:
 
@@ -2056,7 +2131,7 @@ Faza 3 ili Faza 4 **mora pasti** i kada, prema §24.13–§24.19:
 - bude uvedena treća `users` politika bez prihvaćenog ADR-a (`13` §19);
 - permisija endpointa ili podobnost role odstupi od `03` ili `15`.
 
-Faza 3 ili Faza 4 **mora pasti** i kada, prema §21.6 i §21.7 (D-048, D-049, D-051):
+Faza 3 ili Faza 4 **mora pasti** i kada, prema §21.6, §21.7 i §21.8 (D-048, D-049, D-051, D-052):
 
 - bilo koja tabela sa allowliste faze 3 nema `relrowsecurity = true` ili
   `relforcerowsecurity = true` nakon migracije ili nakon seeda;
@@ -2078,6 +2153,12 @@ Faza 3 ili Faza 4 **mora pasti** i kada, prema §21.6 i §21.7 (D-048, D-049, D-
 - nedozvoljena `practice_settings` kolona bude čitljiva, uključujući upotrebu samo u `WHERE` ili
   `ORDER BY`;
 - `practice_settings` `UPDATE` grant u fazi 4 postoji **bez** pripadajuće tenant RLS politike;
+- allowlist faze 4 ne sadrži **tačno** `practice_memberships` i `practice_settings`, ili je
+  allowlist faze 3 pritom promijenjena (`02` §23.4.4a);
+- `practice_memberships` ili `practice_settings` nemaju `relrowsecurity = true` i
+  `relforcerowsecurity = true` nakon migracije ili nakon seeda faze 4;
+- prekinut seed faze 4 ostavi `FORCE` isključenim nad bilo kojom od te dvije tabele;
+- proširenje allowliste faze 4 bude izvedeno tiho, bez klauzule iz `02` §23.4.4a;
 - izloženost `PHASE 3 INTERMEDIATE NON-PILOT CONDITIONAL-SETTINGS READ EXPOSURE` bude
   neopravdano tvrđena kao zatvorena u fazi 3, ili ne bude zatvorena u fazi 4;
 - migracija bude autorisana kroz `prisma migrate dev --create-only` ili `prisma db push`, ili

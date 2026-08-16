@@ -1111,8 +1111,8 @@ Nijedno od njih nije bloker zatvaranja i nijedno se ne rješava u ovom gateu.
 
 Status: `NOT_STARTED`
 
-Normativno: D-033, D-038, **D-049** i **D-051**; `02` §16.2, §17.0, §17.3, §18.1, §20.2, §20.2b i
-§22.13; `03` §3.7, §5, §10 i §28.5; `04` §6.2, §6.4.1 i §6.4.2; `07` Faza 4.
+Normativno: D-033, D-038, **D-049**, **D-051** i **D-052**; `02` §16.2, §17.0, §17.3, §18.1, §20.2,
+§20.2b, §22.13 i §23.4.4a; `03` §3.7, §5, §10 i §28.5; `04` §6.2, §6.4.1 i §6.4.2; `07` Faza 4.
 
 Vlasnik migration paketa za preostale RLS stavke ove faze: **`013_rls_policies`**. Schema objekti
 ostaju u `002_identity_and_practices` (Faza 3). Ne uvodi se novi broj paketa.
@@ -1121,6 +1121,13 @@ ostaju u `002_identity_and_practices` (Faza 3). Ne uvodi se novi broj paketa.
 `002` i Fazi 3. Ova faza zadržava `02` §17.3, `practice_settings` RLS i runtime put (D-049),
 `set_request_context`, uspostavu `app.practice_id`, `PracticeContextGuard`, `TenantDatabaseService`
 i preostale tenant tabele (`02` §17.0).
+
+**Dodatno sužen obuhvat nakon D-052.** RLS i grantovi nad `review_decision_change_links` **nisu u
+ovoj fazi** — tabelu kreira paket `009_review_approvals` u Fazi 10, pa u Fazi 4 ne postoji.
+Vlasništvo slicea ostaje `013_rls_policies`; odgođeno je isključivo izvršenje. **Preostale tenant
+politike ove faze izvršavaju se samo nad tabelama koje u Fazi 4 stvarno postoje.** Ista odluka
+**eksplicitno ovlašćuje** proširenje D-048 allowliste na `practice_memberships` i
+`practice_settings` (`02` §23.4.4a).
 
 ## Schema i funkcije
 
@@ -1196,22 +1203,49 @@ D-049, klauzula 5.
       tenanta.
 - [ ] `copilot_system` **nema** nijedan grant; `PUBLIC` **nema** nijedan grant.
 
-## RLS za `review_decision_change_links`
+## RLS za `review_decision_change_links` — odgođeno u Fazu 10
 
-Paket: `013_rls_policies`. Normativno: `02` §13.2a, §18.1 i §22.13; D-046, klauzule 25–33.
+**Ažurirano odlukom D-052 (2026-08-16).** Ovi artefakti se **ne izvršavaju u ovoj fazi**. Tabelu
+`review_decision_change_links` kreira paket `009_review_approvals` u **Fazi 10** (`02` §22.9), pa u
+Fazi 4 **ne postoji** — RLS i grantovi nad njom nisu izvodivi. Vlasništvo slicea **ostaje**
+`013_rls_policies` (`02` §22.13); odgođena je **isključivo tačka izvršenja**. Puna, nepromijenjena
+verifikaciona lista je u §11 („RLS i grants — D-046").
 
-- [ ] `ENABLE ROW LEVEL SECURITY`.
-- [ ] `FORCE ROW LEVEL SECURITY`.
-- [ ] Standardna tenant politika `practice_id = app.practice_id`.
-- [ ] **Nijedan bootstrap izuzetak se ne primjenjuje** — tenant context mora već biti uspostavljen.
-- [ ] `copilot_app` ima **isključivo** `SELECT` i `INSERT`.
-- [ ] `copilot_app` **nema** `UPDATE` grant.
-- [ ] `copilot_app` **nema** `DELETE` grant.
-- [ ] `copilot_system` **nema** nijedan automatski grant (D-023).
-- [ ] `PUBLIC` **nema** nijedan grant.
-- [ ] Owner ostaje `copilot_migrator`.
-- [ ] Cross-tenant čitanje je **odbijeno**.
-- [ ] Vlasnik paketa je `013_rls_policies`; **ne uvodi se novi broj paketa**.
+**Nijedan sigurnosni zahtjev nije uklonjen, oslabljen ni označen završenim.**
+
+U ovoj fazi provjerljivo je isključivo sljedeće:
+
+- [ ] Faza 4 **ne kreira** tabelu `review_decision_change_links`.
+- [ ] Paket `013_rls_policies` u Fazi 4 **ne sadrži nijedan** `CREATE POLICY`,
+      `ENABLE ROW LEVEL SECURITY`, `FORCE ROW LEVEL SECURITY` ni grant za
+      `review_decision_change_links`.
+- [ ] Nijedna migracija, test ni aplikacijski artefakt Faze 4 **ne referencira** tu tabelu kao
+      postojeću.
+- [ ] Generički tenant RLS obrazac i test harness postoje i dokazani su nad `practice_settings`,
+      tako da ih odgođeni slice Faze 10 samo proširuje (D-052, klauzula A.8).
+- [ ] **Ne uvodi se novi broj paketa i nijedan se ne renumeriše.**
+
+## Proširenje D-048 allowliste — D-052, dio B
+
+Paket: `013_rls_policies`. Normativno: `02` §23.4.4a i §23.4.5; `08` §21.8; D-048; D-052, dio B.
+
+Ova faza prvi put uvodi `FORCE RLS` nad `practice_memberships` i `practice_settings`, a pouzdani
+seed put upisuje u obje.
+
+- [ ] Allowlist je proširen **tačno** sa `practice_memberships` i `practice_settings`.
+- [ ] Proširenje je **eksplicitno** — tiho proširenje obara phase gate.
+- [ ] Allowlist faze 3 (`users`, `practices`, `practice_membership_roles`,
+      `platform_role_assignments`) je **nepromijenjena**; ukupno **šest** tabela.
+- [ ] `FORCE RLS` je **obnovljen nakon seeda** za obje tabele.
+- [ ] **Put neuspjeha obnavlja `FORCE RLS`.**
+- [ ] **Rollback obnavlja `FORCE RLS`** — prekinut seed nikada ne ostavlja `FORCE` isključenim.
+- [ ] **Nijedna rola nema `BYPASSRLS`.**
+- [ ] **Nijedna `SECURITY DEFINER` zaobilaznica** nije uvedena.
+- [ ] **Nijedan superuser runtime put** nije konfigurisan.
+- [ ] **`DISABLE ROW LEVEL SECURITY`** se ne pojavljuje u forward migraciji ni seedu.
+- [ ] **Nijedna trajna owner-write politika** ne postoji.
+- [ ] Testovi dokazuju steady-state `ENABLE` **i** `FORCE` **prije i nakon** seeda.
+- [ ] Upis izvan protokola iz `02` §23.4.3 **pada**.
 
 ## Database grants
 
@@ -1751,6 +1785,10 @@ Status: `NOT_STARTED`
 Vlasnik migration paketa: **`009_review_approvals`** (schema) i **`013_rls_policies`** (RLS).
 Ne uvodi se novi broj paketa.
 
+**Oba se izvršavaju u ovoj fazi (D-052).** RLS slice paketa `013_rls_policies` nad
+`review_decision_change_links` **premješten je iz Faze 4 u ovu fazu** i izvršava se neposredno
+nakon što paket `009_review_approvals` kreira tabelu. Vidi „RLS i grants — D-046" niže.
+
 - [ ] review_decisions.
 - [ ] review_item_changes.
 - [ ] review_decision_change_links.
@@ -1793,6 +1831,30 @@ Normativno: `02` §13.1, §13.2, §13.2a, §22.9 i §25.2.2; D-046, klauzule 13�
 - [ ] Append-only grantovi: `SELECT` i `INSERT`, **bez** `UPDATE` i **bez** `DELETE`.
 - [ ] **Nijedan spekulativni samostalni indeks se ne kreira** (`02` §21).
 - [ ] Schema objekti pripadaju paketu `009_review_approvals`; RLS objekti paketu `013_rls_policies`.
+
+## RLS i grants — D-046
+
+**Premješteno iz Faze 4 odlukom D-052 (2026-08-16).** Vlasnik paketa **ostaje**
+`013_rls_policies`; izvršava se **u ovoj fazi**, neposredno nakon što paket `009_review_approvals`
+kreira tabelu. Lista je preuzeta iz Faze 4 **nepromijenjena** — nijedan zahtjev nije uklonjen,
+oslabljen ni označen završenim.
+
+Normativno: `02` §13.2a, §17.0, §18.1 i §22.13; D-046, klauzule 25–33; D-052, dio A.
+
+- [ ] `ENABLE ROW LEVEL SECURITY`.
+- [ ] `FORCE ROW LEVEL SECURITY`.
+- [ ] Standardna tenant politika `practice_id = app.practice_id`.
+- [ ] **Nijedan bootstrap izuzetak se ne primjenjuje** — tenant context mora već biti uspostavljen.
+- [ ] `copilot_app` ima **isključivo** `SELECT` i `INSERT`.
+- [ ] `copilot_app` **nema** `UPDATE` grant.
+- [ ] `copilot_app` **nema** `DELETE` grant.
+- [ ] `copilot_system` **nema** nijedan automatski grant (D-023).
+- [ ] `PUBLIC` **nema** nijedan grant.
+- [ ] Owner ostaje `copilot_migrator`.
+- [ ] Cross-tenant čitanje je **odbijeno**.
+- [ ] Vlasnik paketa je `013_rls_policies`; **ne uvodi se novi broj paketa**.
+- [ ] RLS slice se izvršava **nakon** paketa `009_review_approvals`, u ovoj fazi.
+- [ ] Faza 4 nije izvršila nijedan RLS ni grant objekat nad ovom tabelom.
 
 ## Transakcija i pokrivenost — D-046
 

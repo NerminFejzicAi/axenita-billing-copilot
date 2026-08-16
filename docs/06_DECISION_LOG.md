@@ -2210,6 +2210,225 @@ D-023, D-033, D-038, D-047, D-048.
 
 ---
 
+# D-052 — Odgođeni RLS slice `review_decision_change_links` i allowlist faze 4
+
+- **Status:** ACCEPTED
+- **Datum:** 2026-08-16
+- **Amandman na:** D-046, klauzule 25–33 — isključivo u dijelu **izvršne faze** RLS/grant slicea; i
+  D-048, §23.4.4 — u dijelu **eksplicitnog proširenja allowliste** za tabele kojima fazu 4 prvi put
+  uvodi `FORCE RLS`. Amandman obuhvata i svu izvedenu dokumentaciju o fazi izvršenja i allowlisti.
+- **Kontekst/problem:** Dvije nezavisne kontradikcije otkrivene su na gateu P4-0, prije planiranja
+  faze 4.
+
+  **OD-1 — nemoguća zavisnost.** Nekoliko kanonskih izvora dodjeljuje `ENABLE`/`FORCE ROW LEVEL
+  SECURITY`, tenant politiku i grantove nad `review_decision_change_links` **fazi 4** kroz paket
+  `013_rls_policies` (`02` §17.0, §22.13; `04` §6.3; `05` Faza 4; `07` Faza 4; `08` §26.1), dok
+  **samu tabelu kreira paket `009_review_approvals` u fazi 10** (`02` §22.9; `04` §12.3, aktivnost
+  13; `07` Faza 10). Tabela **trenutno ne postoji**. Faza 4 bi time morala izvršiti RLS i grantove
+  nad nepostojećim objektom, što nije izvodivo, pa faza 4 **ne bi mogla istinito zatvoriti**.
+  Repozitorij je već bio interno nesaglasan: `04` §12.3, aktivnost 14, isti RLS slice navodi kao
+  aktivnost **faze 10**, dok ga `04` §6.3 navodi kao obuhvat **faze 4**.
+
+  **OD-2 — allowlist.** Faza 4 prvi put uvodi `FORCE ROW LEVEL SECURITY` nad `practice_memberships`
+  i `practice_settings` (`02` §17.0, §17.3, §22.13; D-049, klauzula 5). Postojeća D-048 allowlist
+  (`02` §23.4.4) je **allowlist faze 3** i te dvije tabele **izričito isključuje**. Pouzdani seed
+  put u njih upisuje. `02` §23.4.4 dopušta proširenje **isključivo** kroz eksplicitnu prihvaćenu
+  odluku ili eksplicitnu klauzulu paketa koji za tu tabelu uvodi `FORCE RLS`; **tiho proširenje je
+  zabranjeno**, a `08` §26.2 obara phase gate ako do njega dođe.
+
+## Odluka
+
+# Dio A — `review_decision_change_links`
+
+### A.1 Faza 4 ne kreira tabelu
+
+Faza 4 **ne kreira** `review_decision_change_links` i **ne uvodi** nijedan njen schema objekat.
+
+### A.2 Faza 4 ne piše RLS ni grantove nad nepostojećom tabelom
+
+Faza 4 **ne implementira** `ENABLE ROW LEVEL SECURITY`, `FORCE ROW LEVEL SECURITY`, tenant politiku
+ni ijedan grant nad `review_decision_change_links`. Nijedan artefakt faze 4 ne smije referencirati
+tu tabelu kao postojeću.
+
+### A.3 Vlasništvo schema objekata — nepromijenjeno
+
+Schema vlasništvo ostaje **paket `009_review_approvals`, faza 10** (`02` §22.9). Ova odluka ga **ne
+dira**.
+
+### A.4 Vlasništvo RLS/grant koncepta — nepromijenjeno
+
+Konceptualno vlasništvo RLS-a i grantova ostaje **paket `013_rls_policies`** (`02` §22.13). RLS se
+**ne premješta** u paket `009`.
+
+### A.5 Izvršna tačka — odgođena u fazu 10
+
+Slice paketa `013_rls_policies` koji se odnosi na `review_decision_change_links` **izvršava se u
+fazi 10, neposredno nakon što paket `009_review_approvals` kreira tabelu**.
+
+Razdvajaju se dva pojma koja je ranija dokumentacija spajala:
+
+```text
+vlasništvo paketa   -> 013_rls_policies   (nepromijenjeno)
+izvršna faza        -> faza 10            (odgođeno ovom odlukom, ranije faza 4)
+```
+
+### A.6 Nijedan paket se ne uvodi ni renumeriše
+
+**Ne uvodi se nijedan novi broj migration paketa** i **nijedan postojeći se ne renumeriše.**
+Brojevi u `02` §22 ostaju redoslijed zavisnosti, ne brojevi faza (`04` §6.2).
+
+### A.7 Rekonsilijacija checkliste i testova
+
+Stavke checkliste i test grupe koje zahtijevaju postojanje `review_decision_change_links` **prelaze
+u fazu 10**. Nijedna se **ne briše**, **ne oslabljuje** i **ne označava završenom**. Faza 4
+zadržava isključivo negativne, u fazi 4 provjerljive tvrdnje — da tabela nije kreirana i da paket
+`013` u fazi 4 ne sadrži nijedan RLS objekat za nju.
+
+### A.8 Faza 4 zadržava generički tenant RLS obrazac
+
+Faza 4 i dalje **uspostavlja generički tenant RLS obrazac i test harness** koji kasnije faze
+proširuju (`04` §6.3). `practice_settings` ostaje tenant tabela na kojoj se obrazac primjenjuje u
+punom obimu (D-049, klauzula 5). Odgođen je **jedan slice nad jednom nepostojećom tabelom**, ne
+obrazac.
+
+### A.9 Sigurnosne semantike se ne mijenjaju
+
+Konačni zahtjevi iz D-046, klauzula 25–33, ostaju **doslovno nepromijenjeni**:
+
+- `ENABLE` **i** `FORCE ROW LEVEL SECURITY`;
+- standardna tenant politika `practice_id = app.practice_id` iz `02` §17.1;
+- **nijedan bootstrap izuzetak** — tenant kontekst mora već biti uspostavljen prije čitanja;
+- `copilot_app` dobija **isključivo** `SELECT` i `INSERT`; **bez** `UPDATE`; **bez** `DELETE`;
+- `copilot_system` **ne dobija** nijedan grant (D-023);
+- `PUBLIC` **ne dobija** nijedan grant;
+- owner ostaje `copilot_migrator`;
+- cross-tenant čitanje je odbijeno.
+
+**Mijenja se isključivo faza izvršenja i tačka zavisnosti — nijedna sigurnosna semantika.**
+
+# Dio B — Proširenje D-048 allowliste u fazi 4
+
+### B.1 Eksplicitno ovlaštenje
+
+Ovo je **eksplicitna prihvaćena odluka** koju `02` §23.4.4 zahtijeva. Kada paket
+`013_rls_policies` uvede `FORCE ROW LEVEL SECURITY` za `practice_memberships` i
+`practice_settings`, D-048 seed/maintenance allowlist **se proširuje** tačno onim tabelama faze 4
+u koje `seed.ts` stvarno upisuje.
+
+### B.2 Obuhvat proširenja
+
+Pouzdani seed put upisuje u **obje** tabele, pa allowlist faze 4 obuhvata **tačno dvije** tabele:
+
+```text
+practice_memberships
+practice_settings
+```
+
+Allowlist faze 3 (`users`, `practices`, `practice_membership_roles`, `platform_role_assignments`)
+ostaje **nepromijenjena**; faza 4 je **proširuje**, ne zamjenjuje.
+
+### B.3 Obavezni uslovi proširenja
+
+- proširenje je **eksplicitno**, nikada tiho;
+- `FORCE RLS` se **obnavlja nakon seeda**;
+- **putevi neuspjeha i rollbacka obnavljaju `FORCE RLS`**;
+- **bez `BYPASSRLS`**;
+- **bez `SECURITY DEFINER` zaobilaznice**;
+- **bez superuser runtime puta**;
+- **bez `DISABLE ROW LEVEL SECURITY`**;
+- **bez trajne owner-write politike**;
+- testovi dokazuju steady-state `ENABLE` **i** `FORCE` **prije i nakon** seeda.
+
+Protokol iz `02` §23.4.3 i normativna pravila iz `02` §23.4.5 primjenjuju se **nepromijenjeni**.
+
+### B.4 Ova odluka ništa ne implementira
+
+Ova odluka **evidentira ovlaštenje**. `seed.ts`, migracije i allowlist kod se ovom odlukom **ne
+mijenjaju**. Implementacija pripada implementacijskom gateu faze 4.
+
+## Razlog
+
+**Dio A.** Zavisnost je fizička, ne stilska: RLS politika i grantovi ne mogu postojati nad tabelom
+koja nije kreirana. Držanje slicea u fazi 4 čini fazu 4 nezatvorivom bez neistinite tvrdnje.
+Odgađanje **izvršenja** uz zadržavanje **vlasništva paketa** rješava kontradikciju bez ijedne
+sigurnosne koncesije i bez renumeracije — isti obrazac razdvajanja koji su D-047 klauzula 17 i
+D-051 već primijenili na vlasništvo paketa.
+
+**Dio B.** `02` §23.4.4 traži eksplicitno ovlaštenje prije proširenja, a `08` §26.2 obara gate na
+tihom proširenju. Bez ove klauzule faza 4 bi se našla u mrtvom uglu: `FORCE RLS` nad tabelama koje
+seed puni, bez ijednog dozvoljenog načina da ih seed popuni. Isti obrazac je D-051, klauzula 7,
+već primijenio za fazu 3.
+
+## Alternative
+
+- **Premjestiti kreiranje tabele u fazu 4** — odbijeno: povlači cijeli D-046 review/approval domen
+  šest faza ranije, bez ijednog potrošača u fazi 4.
+- **Premjestiti RLS slice u paket `009`** — odbijeno: D-046 i `02` §22.9 izričito drže RLS izvan
+  paketa `009`; premještanje bi oborilo §24a.6 introspekciju vlasništva.
+- **Uvesti novi migration paket za odgođeni slice** — odbijeno: `02` §22 brojevi su redoslijed
+  zavisnosti; novi broj bi bio čista renumeracija, koju ova odluka izričito zabranjuje.
+- **Ostaviti stavke u fazi 4 i označiti ih „nije primjenjivo"** — odbijeno: gubi konačni sigurnosni
+  zahtjev i dopušta da faza 10 prođe bez RLS-a nad tabelom.
+- **Tiho proširiti allowlist pri implementaciji** — odbijeno: `02` §23.4.4 to izričito zabranjuje,
+  a `08` §26.2 obara phase gate.
+
+## Posljedice
+
+- `02` §22.13 se **sužava** za fazu 4: slice `review_decision_change_links` ostaje u paketu, ali se
+  izvršava u fazi 10.
+- `04` §6.3 gubi `review_decision_change_links` iz obuhvata faze 4; `04` §12.3, aktivnost 14,
+  postaje jedina izvršna tačka i time prestaje kontradikcija unutar `04`.
+- `05` Faza 4 gubi trinaest neostvarivih stavki; iste stavke, **nepromijenjene**, ulaze u `05`
+  Faza 10.
+- `08` §24a.5 prelazi iz faze 4 u fazu 10; vlasništvo paketa ostaje `013_rls_policies`.
+- `08` §26.2 D-046 blok postaje isključivo gate faze 10.
+- D-048 allowlist dobija **imenovanu allowlistu faze 4** sa tačno dvije tabele.
+- Faza 4 postaje **istinito zatvoriva** bez `review_decision_change_links`.
+- Nijedan broj paketa nije dodan ni renumerisan. Nijedan endpoint, payload, permisija, rola ni
+  error kod nije dodirnut.
+
+## Security/privacy uticaj
+
+**Neutralan po dijelu A, strogo pozitivan po dijelu B.**
+
+Dio A ne uklanja, ne oslabljuje i ne odgađa nijednu zaštitu nad postojećim podacima:
+`review_decision_change_links` ne postoji, ne sadrži nijedan red i nije dohvatljiva. Tabela dobija
+`ENABLE` + `FORCE RLS` i konačne grantove **u istoj fazi u kojoj prvi put može primiti podatak** —
+nikada ne postoji prozor u kojem tabela sa podacima nema RLS.
+
+Dio B sprječava stvarnu regresiju: bez njega bi implementacija faze 4 bila gurnuta prema
+`BYPASSRLS`, `SECURITY DEFINER` ili `DISABLE ROW LEVEL SECURITY` zaobilaznici. Klauzula B.3
+zabranjuje sve četiri i zahtijeva dokaz steady-statea prije i nakon seeda.
+
+## Migration/rollout
+
+Redoslijed u fazi 10 ostaje: paket `009_review_approvals` kreira tabelu, constrainte i grantove →
+odgođeni slice paketa `013_rls_policies` dodaje `ENABLE`, `FORCE` i tenant politiku. Nijedan novi
+broj paketa. Rollback odgođenog slicea je nedestruktivan — `DROP POLICY` i
+`DISABLE ROW LEVEL SECURITY` nad jednom tabelom, u okviru poništavanja migracije (`02` §23.4.5).
+
+Proširenje allowliste iz dijela B izvršava se **u paketu `013_rls_policies`**, u istoj migraciji
+koja tim tabelama uvodi `FORCE RLS`, i **ne mijenja** protokol iz `02` §23.4.3.
+
+## Test dokaz
+
+`02` §25.2.2; `05` Faze 4 i 10; `08` §21.8, §24a.5, §26.1 i §26.2.
+
+Minimum za fazu 4: `review_decision_change_links` **ne postoji** nakon faze 4; paket
+`013_rls_policies` u fazi 4 ne sadrži nijedan RLS objekat za nju; generički tenant RLS obrazac i
+harness postoje i dokazani su nad `practice_settings`; obje tabele allowliste faze 4 nose
+steady-state `relrowsecurity = true` i `relforcerowsecurity = true` **prije i nakon** seeda;
+prekinut seed ne ostavlja `FORCE` isključenim; nijedna `BYPASSRLS` rola, `SECURITY DEFINER`
+funkcija ni `DISABLE ROW LEVEL SECURITY` ne postoji.
+
+Minimum za fazu 10: sve tvrdnje `08` §24a.5 prolaze nakon što paket `009` kreira tabelu.
+
+## Zavisnosti
+
+D-023, D-029, D-033, D-038, D-046, D-047, D-048, D-049, D-050, D-051.
+
+---
+
 # Otvorene odluke
 
 ## D-OPEN-001 — Produkcijski OIDC provider

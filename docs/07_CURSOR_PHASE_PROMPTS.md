@@ -612,19 +612,29 @@ RLS i runtime put za practice_settings (paket 013_rls_policies; docs/02 §6.4, �
 - regresijski test dokazuje da je izloženost PHASE 3 INTERMEDIATE NON-PILOT
   CONDITIONAL-SETTINGS READ EXPOSURE zatvorena — copilot_app više ne vidi redove izvan tenanta.
 
-RLS za review_decision_change_links (paket 013_rls_policies; docs/02 §13.2a, §18.1, §22.13; D-046):
-- ENABLE ROW LEVEL SECURITY;
-- FORCE ROW LEVEL SECURITY;
-- standardna tenant politika practice_id = app.practice_id;
-- NEMA bootstrap izuzetka — tenant context mora već biti uspostavljen prije čitanja;
-- copilot_app dobija ISKLJUČIVO SELECT i INSERT;
-- copilot_app NEMA UPDATE grant;
-- copilot_app NEMA DELETE grant;
-- copilot_system NE DOBIJA nijedan automatski grant nad tom tenant tabelom;
-- PUBLIC NE DOBIJA nijedan grant;
-- owner ostaje copilot_migrator;
-- cross-tenant čitanje je odbijeno;
-- RLS se NE PREMJEŠTA u paket 009; schema objekti ostaju u 009_review_approvals (Faza 10).
+review_decision_change_links NIJE U OBUHVATU OVE FAZE (D-052, dio A):
+- tabelu kreira paket 009_review_approvals u FAZI 10 (docs/02 §22.9); u Fazi 4 ONA NE POSTOJI;
+- NE kreiraj tu tabelu;
+- NE izvršavaj ENABLE, FORCE, tenant politiku ni ijedan grant nad njom;
+- NE referenciraj je kao postojeću ni u migraciji, ni u testu, ni u aplikacijskom kodu;
+- vlasništvo RLS slicea OSTAJE paket 013_rls_policies — odgođena je isključivo tačka izvršenja;
+- puni, nepromijenjeni sigurnosni zahtjevi izvršavaju se u Fazi 10 (docs/05 Faza 10,
+  „RLS i grants — D-046"; docs/08 §24a.5);
+- preostale tenant politike ove faze izvršavaj SAMO nad tabelama koje u Fazi 4 stvarno postoje;
+- generički tenant RLS obrazac i test harness i dalje uspostavlja OVA faza, dokazano nad
+  practice_settings — Faza 10 ga samo proširuje;
+- NE uvodi novi broj paketa i NE renumeriši postojeće.
+
+Proširenje D-048 allowliste (docs/02 §23.4.4a; D-052, dio B):
+- ova faza prvi put uvodi FORCE RLS nad practice_memberships i practice_settings;
+- pouzdani seed put upisuje u OBJE, pa se allowlist proširuje TAČNO tim dvjema tabelama;
+- proširenje mora biti EKSPLICITNO — tiho proširenje obara phase gate;
+- allowlist faze 3 ostaje nepromijenjena; ukupno šest tabela;
+- FORCE RLS se obnavlja NAKON seeda;
+- putevi neuspjeha i rollbacka obnavljaju FORCE RLS;
+- ZABRANJENO: BYPASSRLS, SECURITY DEFINER zaobilaznica, superuser runtime put,
+  DISABLE ROW LEVEL SECURITY, trajna owner-write politika;
+- testovi dokazuju steady-state ENABLE I FORCE prije i nakon seeda.
 
 Effective-permission resolver (D-038; docs/03 §28.5):
 - unija ALLOW grantova svih tenant rola dodijeljenih odabranom AKTIVNOM membershipu;
@@ -1093,7 +1103,24 @@ Schema D-046 (paket 009_review_approvals; nijedan novi broj paketa):
   → review_item_changes (practice_id, analysis_run_id, id);
 - SVI D-046 FK-ovi koriste ON DELETE NO ACTION i ON UPDATE NO ACTION;
 - grantovi za review_decision_change_links: SELECT i INSERT za copilot_app, bez UPDATE i bez DELETE;
-- RLS nad review_decision_change_links pripada paketu 013_rls_policies (Faza 4), ne ovom paketu.
+- RLS nad review_decision_change_links pripada paketu 013_rls_policies, NE ovom paketu.
+
+RLS za review_decision_change_links — ODGOĐENI SLICE PAKETA 013_rls_policies, IZVRŠAVA SE U OVOJ
+FAZI (D-052, dio A; docs/02 §13.2a, §18.1, §22.13; D-046, klauzule 25–33). Faza 4 ga NIJE
+izvršila jer tabela tada nije postojala. Izvrši ga NEPOSREDNO NAKON schema objekata gore:
+- ENABLE ROW LEVEL SECURITY;
+- FORCE ROW LEVEL SECURITY;
+- standardna tenant politika practice_id = app.practice_id;
+- NEMA bootstrap izuzetka — tenant context mora već biti uspostavljen prije čitanja;
+- copilot_app dobija ISKLJUČIVO SELECT i INSERT;
+- copilot_app NEMA UPDATE grant;
+- copilot_app NEMA DELETE grant;
+- copilot_system NE DOBIJA nijedan automatski grant nad tom tenant tabelom;
+- PUBLIC NE DOBIJA nijedan grant;
+- owner ostaje copilot_migrator;
+- cross-tenant čitanje je odbijeno;
+- RLS se NE PREMJEŠTA u paket 009; objekti pripadaju paketu 013_rls_policies;
+- NE uvodi novi broj paketa i NE renumeriši postojeće.
 
 Transakcija i granica pokrivenosti (D-046, klauzule 34–52):
 - correction transakcija PRVO zauzima analysis_runs ... FOR UPDATE za (practice_id, analysis_run_id);
@@ -1150,7 +1177,9 @@ Tačna verifikacija na kraju faze:
 - inventar tenant tabela je tačno 30;
 - inventar deklarisanih composite FK-ova je tačno 14;
 - broj aktivnih permisija je 32, a rezervisanih 3;
-- schema objekti su u 009_review_approvals, RLS objekti u 013_rls_policies;
+- schema objekti su u 009_review_approvals, RLS objekti u 013_rls_policies, i OBOJE su izvršeni
+  u ovoj fazi (D-052);
+- review_decision_change_links nosi ENABLE I FORCE ROW LEVEL SECURITY nakon ove faze;
 - nijedan migration paket nije dodan ni renumerisan;
 - javni API ugovor je nepromijenjen.
 

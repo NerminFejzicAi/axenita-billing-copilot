@@ -577,6 +577,8 @@ Pojašnjenja (D-038, klauzule 20–21):
 | `set_request_context(p_practice_id uuid)` | Faza 4 | `013_rls_policies` |
 | uspostava `app.practice_id`, `PracticeContextGuard`, `TenantDatabaseService` | Faza 4 | `013_rls_policies` / aplikacijski sloj |
 | transakcijski lokalne tenant varijable | Faza 4 | `013_rls_policies` |
+| proširenje D-048 allowliste na `practice_memberships` i `practice_settings` (`02` §23.4.4a, D-052) | **Faza 4** | `013_rls_policies` |
+| `ENABLE` + `FORCE RLS` i tenant politika nad `review_decision_change_links` (D-046) — **odgođeno izvršenje (D-052)** | **Faza 10** | `013_rls_policies` |
 | redoslijed request middlewarea | Faza 3 auth guard → Faza 4 practice guard | — |
 | negativni membership testovi | Faza 4 | — |
 | testovi curenja konteksta na pooled konekciji | Faza 4 | — |
@@ -615,9 +617,9 @@ postojeća numeracija.
 - PracticeContext guard;
 - TenantDatabaseService;
 - RLS policy za postojeće tenant tabele;
-- `ENABLE` i `FORCE RLS` te standardna tenant politika `practice_id = app.practice_id` nad
-  `review_decision_change_links` — paket `013_rls_policies` (D-046; `02` §13.2a, §18.1, §22.13);
 - force RLS;
+- **eksplicitno proširenje D-048 allowliste** na `practice_memberships` i `practice_settings` —
+  `02` §23.4.4a (D-052, dio B);
 - integration testovi;
 - negative testovi.
 
@@ -628,6 +630,26 @@ obavezno uspostaviti pattern i test harness koji će se proširiti u fazi 5.
 **`02` §17.2 i §17.4 nisu u obuhvatu ove faze.** Premješteni su u paket
 `002_identity_and_practices` i Fazu 3 (D-051). Faza 4 ih smije verifikovati i koristiti, ali ih
 **ne smije rekreirati, zamijeniti ni prepisati**. Isto već važi za `02` §17.5 i §17.6 (D-047).
+
+**`review_decision_change_links` nije u obuhvatu ove faze (D-052, klauzule A.1–A.9).** Tabelu
+kreira paket `009_review_approvals` u **Fazi 10** (`02` §22.9), pa u Fazi 4 **ne postoji**. Faza 4
+je **ne kreira** i nad njom **ne izvršava** `ENABLE`, `FORCE`, tenant politiku ni ijedan grant.
+Vlasništvo tog RLS slicea ostaje paket `013_rls_policies`, ali se **izvršava u Fazi 10**,
+neposredno nakon paketa `009` — vidi §12.3, aktivnost 14. Sigurnosni zahtjevi iz D-046, klauzula
+25–33, **ostaju nepromijenjeni**; odgođena je isključivo tačka izvršenja, i **nijedan broj paketa
+se ne uvodi ni renumeriše**.
+
+**Generički obrazac ostaje u ovoj fazi.** Faza 4 i dalje uspostavlja generički tenant RLS obrazac i
+test harness koji kasnije faze — uključujući odgođeni slice Faze 10 — samo proširuju (D-052,
+klauzula A.8).
+
+**Proširenje D-048 allowliste (D-052, dio B).** Ova faza prvi put uvodi `FORCE RLS` nad
+`practice_memberships` i `practice_settings`, a pouzdani seed put upisuje u obje. Allowlist
+maintenance protokola se zato **eksplicitno proširuje** tačno tim dvjema tabelama (`02` §23.4.4a).
+Proširenje mora biti eksplicitno; `FORCE RLS` se obnavlja nakon seeda i na putevima
+neuspjeha/rollbacka; `BYPASSRLS`, `SECURITY DEFINER` zaobilaznica, superuser runtime put,
+`DISABLE ROW LEVEL SECURITY` i trajna owner-write politika ostaju **zabranjeni**. **Tiho
+proširenje obara phase gate** (`08` §26.2).
 
 `practice_memberships` je izuzetak: ona dobija **bootstrap politiku vezanu za `app.user_id`**, ne standardni tenant predikat `practice_id = app.practice_id`. Standardni predikat bi bio cikličan, jer se ta tabela čita upravo da bi se tenant context uopšte mogao postaviti (§6.2.2).
 
@@ -1330,7 +1352,9 @@ backend/10-review-approval
 11. audit;
 12. e2e concurrency test;
 13. schema objekti D-046 u paketu `009_review_approvals` prema `02` §22.9;
-14. RLS nad `review_decision_change_links` u paketu `013_rls_policies` prema `02` §22.13;
+14. RLS nad `review_decision_change_links` u paketu `013_rls_policies` prema `02` §22.13 —
+    **odgođeni slice iz D-052, izvršava se ovdje, neposredno nakon aktivnosti 13**, jer tabela
+    prije ovog paketa ne postoji; Faza 4 ga **ne izvršava**;
 15. `analysis_runs FOR UPDATE` na **početku** correction transakcije;
 16. **isti** lock na početku decision transakcije;
 17. deterministička granica pokrivenosti;
@@ -1408,7 +1432,8 @@ prihvaćenim unique constraintom. Već prihvaćeno idempotency ponašanje ostaje
 - klijent **ne šalje** `review_item_change` ID-eve; asocijacija je **serverski izvedena**;
 - **nema** novog polja u request ni response payloadu; **nema izmjene javnog API ugovora**;
 - vlasništvo migracija: schema u **`009_review_approvals`**, RLS u **`013_rls_policies`**;
-  **nijedan migration paket se ne dodaje niti renumeriše**;
+  **oba se izvršavaju u ovoj fazi** — RLS kao odgođeni slice iz D-052, neposredno nakon schema
+  objekata; **nijedan migration paket se ne dodaje niti renumeriše**;
 - **nijedan spekulativni samostalni indeks se ne kreira** (`02` §21).
 
 ## 12.4 Acceptance
