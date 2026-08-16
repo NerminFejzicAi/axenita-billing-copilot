@@ -1061,16 +1061,53 @@ describe('GET /api/v1/practices/{practiceId}', () => {
       expect(new Set(bodies).size).toBe(1);
     });
 
-    it('registers no settings route under the practice path (D-049)', async () => {
-      for (const path of [`/api/v1/practices/${MATRIX_PRACTICE}/settings`, '/api/v1/practices']) {
-        const response = await request(app.getHttpServer())
-          .get(path)
-          .set('Authorization', developmentBearer(ROLE_CALLERS[0].subject))
-          .set(PRACTICE_HEADER, MATRIX_PRACTICE);
+    /**
+     * THE PHASE BOUNDARY THIS SLICE MOVED.
+     *
+     * Until the settings read landed, this asserted that `GET /practices/{id}/settings` was not
+     * registered at all — the D-049 statement that the settings routes belong to phase 4. Phase 4
+     * has now implemented the READ half, so the "GET is absent" half of that boundary is replaced
+     * by the invariants that now govern it rather than deleted; the security property is stronger
+     * afterwards, not absent. The WRITE half is untouched and stays asserted below: `PATCH`
+     * belongs to a later slice and must remain unregistered (D-053 clause B.4).
+     *
+     * The complete behaviour of the settings read — the frozen eight-field representation, the
+     * strong version `ETag`, the `15` §5 matrix, the missing-row invariant, multi-practice
+     * isolation and anti-enumeration — is proven in `phase4-practice-settings-read.security.ts`.
+     * What is asserted here is only that THIS suite's view of the route surface is current.
+     */
+    it('registers the settings READ, and still no practice directory (D-049, D-053)', async () => {
+      const settings = await request(app.getHttpServer())
+        .get(`/api/v1/practices/${MATRIX_PRACTICE}/settings`)
+        .set('Authorization', developmentBearer(ROLE_CALLERS[0].subject))
+        .set(PRACTICE_HEADER, MATRIX_PRACTICE);
 
-        // There is no list or directory of practices either (D-047 clause 11).
-        expect(response.status).toBe(404);
-      }
+      expect(settings.status).toBe(200);
+      // The strong version tag of D-053 clause A.2, never the weak content tag Express would
+      // otherwise generate — and `version` is in the header alone, never in the body.
+      expect(settings.headers['etag']).toMatch(/^"\d+"$/);
+      expect(JSON.stringify(settings.body)).not.toContain('version');
+
+      // There is no list or directory of practices (D-047 clause 11).
+      const directory = await request(app.getHttpServer())
+        .get('/api/v1/practices')
+        .set('Authorization', developmentBearer(ROLE_CALLERS[0].subject))
+        .set(PRACTICE_HEADER, MATRIX_PRACTICE);
+
+      expect(directory.status).toBe(404);
+    });
+
+    it('registers NO settings WRITE route (D-053 clause B.4)', async () => {
+      // The one half of the old boundary that has NOT moved. `PATCH` carries `If-Match`, `428`,
+      // `409` and an atomic version increment, none of which this phase accepted, so it must not
+      // exist — not even as a stub that would have to answer something.
+      const response = await request(app.getHttpServer())
+        .patch(`/api/v1/practices/${MATRIX_PRACTICE}/settings`)
+        .set('Authorization', developmentBearer(ROLE_CALLERS[0].subject))
+        .set(PRACTICE_HEADER, MATRIX_PRACTICE)
+        .send({ aiEnabled: true });
+
+      expect(response.status).toBe(404);
     });
   });
 });

@@ -5,8 +5,9 @@
  * catalogue and the application role vocabulary, because `GET /me` returns `roles[]` and
  * derived `permissions[]` per membership (`03` §10) and both are part of the HTTP contract.
  * Phase 3 also owns the `GET /me` and `GET /practices/{practiceId}` documents themselves, so
- * their DTOs are published here. The DTOs of later endpoints and the error catalogue are
- * introduced by the phases that own them.
+ * their DTOs are published here. Phase 4 adds the frozen settings representation of D-053 clause
+ * A.1, because `GET /practices/{practiceId}/settings` renders it. The DTOs of later endpoints and
+ * the error catalogue are introduced by the phases that own them.
  *
  * The role-to-permission matrix is intentionally absent here: `03` §28.4 keeps the complete
  * matrix in `15_ROLE_PERMISSION_MATRIX_V1.md` so that two independently editable matrices
@@ -40,3 +41,5 @@ export {
 export { type MeMembershipDto, type MePlatformRoleDto, type MeResponseDto } from './me-contract.js';
 
 export { type PracticeResponseDto } from './practice-contract.js';
+
+export { type PracticeSettingsResponseDto } from './practice-settings-contract.js';

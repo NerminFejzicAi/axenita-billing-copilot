@@ -39,6 +39,7 @@ import {
   type MembershipRow,
   type PlatformRoleRow,
   type PracticeRow,
+  type PracticeSettingsRow,
   type RequestedPracticeRow,
 } from '../../src/identity/infrastructure/identity-database.port.js';
 
@@ -50,6 +51,27 @@ export interface OwnedMembership extends MembershipRow {
 /** A platform assignment plus the owning user, which the real query filters on. */
 export interface OwnedPlatformRole extends PlatformRoleRow {
   readonly userId: string;
+}
+
+/**
+ * One `practice_settings` row, in the shape the double stores it.
+ *
+ * ONE TABLE, ONE ROW STORE. Two statements read this table — the three-column conditional input
+ * of `03` §3.7.1 step 9 and the nine-column representation of step 11 — and they must be able to
+ * disagree about NOTHING. A second store for the representation would let a spec set flags in one
+ * and different flags in the other, and a production bug that read the wrong surface would then
+ * pass. The columns beyond the conditional three are therefore OPTIONAL rather than separate: a
+ * spec that only cares about permission derivation keeps writing the three it always wrote, and
+ * {@link settingsRow} fills the rest with the accepted development defaults of `02` §23.2 when a
+ * spec cares about the representation.
+ */
+export interface SettingsRow extends ConditionalSettingsRow {
+  readonly billingReviewRequired?: boolean;
+  readonly requireReasonForManualChange?: boolean;
+  readonly aiEnabled?: boolean;
+  readonly axenitaExportEnabled?: boolean;
+  readonly retentionPolicyCode?: string | null;
+  readonly version?: number;
 }
 
 export interface World {
@@ -65,7 +87,14 @@ export interface World {
    */
   practices: RequestedPracticeRow[];
   membershipRoles: MembershipRoleRow[];
-  settings: ConditionalSettingsRow[];
+  /**
+   * `practice_settings`, held in the FULL granted shape.
+   *
+   * There is one `practice_settings` table, so there is one row store here.
+   * `findConditionalSettings` projects it down to the three permission-derivation columns and
+   * `findPracticeSettings` returns all nine granted ones, exactly as the two real statements do.
+   */
+  settings: SettingsRow[];
   platformRoles: OwnedPlatformRole[];
   /**
    * Practices whose `set_request_context` refuses even though the membership rows say it
@@ -94,6 +123,29 @@ export function practiceRow(
     defaultLanguage: 'de-CH',
     timezone: 'Europe/Zurich',
     status: 'ACTIVE',
+    ...overrides,
+  };
+}
+
+/**
+ * A `practice_settings` row with the accepted development defaults of `02` §23.2.
+ *
+ * The counterpart of {@link practiceRow}: it exists so that a spec asserting the settings
+ * REPRESENTATION states only the columns it is actually about, while the row still carries every
+ * granted column with a definite value. `version` defaults to `1`, which is the column default of
+ * `02` §6.4 and therefore what a freshly seeded practice really holds.
+ */
+export function settingsRow(practiceId: string, overrides: Partial<SettingsRow> = {}): SettingsRow {
+  return {
+    practiceId,
+    billingReviewRequired: true,
+    allowMpaApproval: false,
+    allowBillingSpecialistApproval: false,
+    requireReasonForManualChange: true,
+    aiEnabled: false,
+    axenitaExportEnabled: false,
+    retentionPolicyCode: null,
+    version: 1,
     ...overrides,
   };
 }
@@ -271,13 +323,63 @@ export class RecordingDatabase implements IdentityDatabase {
         // all; with it, only that one practice's row is. The requested-id filter is applied on
         // top, as the second barrier the real statement also keeps.
         return Promise.resolve(
-          world.settings.filter(
-            (row) =>
-              appPracticeId !== undefined &&
-              row.practiceId === appPracticeId &&
-              practiceIds.includes(row.practiceId),
-          ),
+          world.settings
+            .filter(
+              (row) =>
+                appPracticeId !== undefined &&
+                row.practiceId === appPracticeId &&
+                practiceIds.includes(row.practiceId),
+            )
+            // Projected down to the THREE granted columns of the real statement. The store holds
+            // all nine, but this surface must not hand the permission resolver a member it could
+            // never have read — otherwise a production widening of the derivation input would go
+            // unnoticed here.
+            .map((row): ConditionalSettingsRow => ({
+              practiceId: row.practiceId,
+              allowMpaApproval: row.allowMpaApproval,
+              allowBillingSpecialistApproval: row.allowBillingSpecialistApproval,
+            })),
         );
+      },
+      findPracticeSettings: async (
+        practiceId: string,
+      ): Promise<PracticeSettingsRow | undefined> => {
+        calls.push(`select settings_representation(${practiceId})`);
+
+        // Recorded under its OWN name, distinct from `select practice_settings(...)` above. The
+        // two statements read the same table for opposite purposes — one decides authorisation,
+        // the other builds the document — and a spec must be able to assert that BOTH happened,
+        // in that order, and that neither was silently substituted for the other.
+        //
+        // The same `practice_settings_select` predicate (§17.1) applies: no `app.practice_id`,
+        // no row, for every practice. The requested-id filter is the second barrier the real
+        // statement also keeps.
+        if (appPracticeId === undefined || practiceId !== appPracticeId) {
+          return Promise.resolve(undefined);
+        }
+
+        const row = world.settings.find((entry) => entry.practiceId === practiceId);
+
+        if (row === undefined) {
+          return Promise.resolve(undefined);
+        }
+
+        // Projected to exactly the nine granted columns, defaults filled the way the column
+        // defaults of `02` §6.4 would. A spec that stored only the conditional three still gets
+        // a complete, definite row here rather than `undefined` members.
+        const complete = settingsRow(row.practiceId, row);
+
+        return Promise.resolve({
+          practiceId: complete.practiceId,
+          billingReviewRequired: complete.billingReviewRequired === true,
+          allowMpaApproval: complete.allowMpaApproval,
+          allowBillingSpecialistApproval: complete.allowBillingSpecialistApproval,
+          requireReasonForManualChange: complete.requireReasonForManualChange === true,
+          aiEnabled: complete.aiEnabled === true,
+          axenitaExportEnabled: complete.axenitaExportEnabled === true,
+          retentionPolicyCode: complete.retentionPolicyCode ?? null,
+          version: complete.version ?? 1,
+        });
       },
       findCurrentPlatformRoles: async (userId: string): Promise<readonly PlatformRoleRow[]> => {
         calls.push(`select platform_roles(${userId})`);

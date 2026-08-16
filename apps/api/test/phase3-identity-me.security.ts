@@ -505,22 +505,31 @@ describe('GET /api/v1/me', () => {
       }
     });
 
-    it('registers no practice settings route in this phase (D-049)', async () => {
-      // The settings routes are normatively forbidden in phase 3, not merely unimplemented. The
-      // practice route itself is a phase 3 endpoint and IS registered, so it is excluded here
-      // and owned by `phase3-practice-read.security.ts`; a list or directory of practices does
-      // not exist at all (D-047 clause 11).
-      for (const path of [
-        `/api/v1/practices/${PHASE_3_SEED_IDS.practiceDemo}/settings`,
-        '/api/v1/practices',
-      ]) {
-        const response = await request(app.getHttpServer())
-          .get(path)
-          .set('Authorization', developmentBearer(PHASE_3_SEED_SUBJECTS.practiceAdmin))
-          .set('X-Practice-ID', PHASE_3_SEED_IDS.practiceDemo);
+    it('registers no settings WRITE route, and still no practice directory (D-053 clause B.4)', async () => {
+      // THE PHASE BOUNDARY THIS ASSERTION GUARDS HAS MOVED, AND ONLY HALF OF IT.
+      //
+      // In phase 3 both settings routes were normatively forbidden (D-049), and this asserted
+      // that both were `404`. Phase 4 implemented the READ half, so that half is now owned by
+      // `phase4-practice-settings-read.security.ts` and asserted there in full — the property is
+      // stronger afterwards, not absent. The WRITE half has not moved: `PATCH` carries `If-Match`,
+      // `428`, `409` and an atomic version increment, none of which has been accepted for
+      // implementation, so it must remain unregistered — not even as a stub.
+      //
+      // A list or directory of practices does not exist at all (D-047 clause 11).
+      const patch = await request(app.getHttpServer())
+        .patch(`/api/v1/practices/${PHASE_3_SEED_IDS.practiceDemo}/settings`)
+        .set('Authorization', developmentBearer(PHASE_3_SEED_SUBJECTS.practiceAdmin))
+        .set('X-Practice-ID', PHASE_3_SEED_IDS.practiceDemo)
+        .send({ aiEnabled: true });
 
-        expect(response.status).toBe(404);
-      }
+      expect(patch.status).toBe(404);
+
+      const directory = await request(app.getHttpServer())
+        .get('/api/v1/practices')
+        .set('Authorization', developmentBearer(PHASE_3_SEED_SUBJECTS.practiceAdmin))
+        .set('X-Practice-ID', PHASE_3_SEED_IDS.practiceDemo);
+
+      expect(directory.status).toBe(404);
     });
 
     it('keeps /me neutral now that a tenant route exists alongside it (03 §3.4)', async () => {
