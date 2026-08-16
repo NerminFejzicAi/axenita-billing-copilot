@@ -8,11 +8,15 @@
  * WHAT THIS IS NOT
  *
  * This module establishes NO database practice context. `app.practice_id`,
- * `app_security.set_request_context`, `PracticeContextGuard` and `TenantDatabaseService` are
- * phase 4 concerns (D-047 clauses 10 and 16, `02` §16.2.3, §22.13) and appear nowhere here or
- * anywhere else in phase 3. D-047 clause 18 names the phase 3 state explicitly: the tenant
- * narrowing for `GET /practices/{id}` is performed ADDITIONALLY at the application layer, and
- * that is exactly — and only — what this module does.
+ * `app_security.set_request_context`, `PracticeContextGuard` and `TenantDatabaseService` appear
+ * nowhere in it (D-047 clauses 10 and 16, `02` §16.2.3, §22.13). D-047 clause 18 names the
+ * phase 3 state explicitly: the tenant narrowing for `GET /practices/{id}` is performed
+ * ADDITIONALLY at the application layer, and that is exactly — and only — what this module does.
+ *
+ * `set_request_context` DOES exist from package `013_rls_policies` onward, and the identity
+ * bootstrap calls it internally for `GET /me` (D-053). That is a different route and a different
+ * mechanism: it derives its practice ids from resolved membership rows, never from the header
+ * this module validates. `PracticeContextGuard` and `TenantDatabaseService` remain unbuilt.
  *
  * It is also not a guard. `03` §3.7.1 fixes the order of the chain and forbids skipping steps:
  * the bearer token is verified first (step 1), the current user is resolved and admitted second

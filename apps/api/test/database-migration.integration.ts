@@ -17,18 +17,22 @@ import { runPrismaCli } from './support/run-prisma-cli.js';
  * assumes the accepted package set.
  *
  * The expectations below describe the *current* canonical database. Phase 2 owned package
- * 001 alone; phase 3 adds package 002, so the assertions name both explicitly rather than
- * counting, and a package appearing or disappearing is a defect, not a test omission.
+ * 001 alone; phase 3 added package 002; phase 4 adds package 013, so the assertions name all
+ * three explicitly rather than counting, and a package appearing or disappearing is a defect,
+ * not a test omission. The assertion stays an EXACT chain — it is deliberately not weakened to
+ * a containment check, because a package pulled forward from a later phase (02 §22) must fail
+ * here rather than pass silently.
  *
  * Nothing destructive runs here: no reset, no drop, no volume operation.
  */
 const urls = integrationDatabaseUrls();
 const apiRoot = resolve(import.meta.dirname, '..');
 
-/** The canonical applied migration history, in application order (05 Faza 2–3). */
+/** The canonical applied migration history, in application order (05 Faza 2–4). */
 const EXPECTED_MIGRATIONS = [
   '20260810213856_001_extensions_and_roles',
   '20260814013200_002_identity_and_practices',
+  '20260816111141_013_rls_policies',
 ] as const;
 
 /** Every business table the canonical history creates, in `order by tablename` order. */
@@ -125,8 +129,8 @@ describe('migration determinism', () => {
   });
 });
 
-describe('migration scope — packages 001 and 002', () => {
-  it('given the migrated database when inspected then exactly the phase 3 business tables exist', async () => {
+describe('migration scope — packages 001, 002 and 013', () => {
+  it('given the migrated database when inspected then exactly the accepted business tables exist', async () => {
     // Drift detection, unchanged in intent from the phase 2 "no business table yet" spec:
     // the set is named exactly, so a table pulled forward from a later package (02 §22) or
     // one silently dropped both fail. `_prisma_migrations` is Prisma bookkeeping, not a

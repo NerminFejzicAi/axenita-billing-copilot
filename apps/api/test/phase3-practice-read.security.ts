@@ -26,10 +26,11 @@
  * migrates, seeds and drops a disposable database of its own, exactly like
  * `phase3-identity-conditional-permissions.security.ts` does and for the same reason.
  *
- * All fixture writes use the canonical paths: `practices`, `users`, `practice_membership_roles`
- * and `platform_role_assignments` carry FORCE row level security and go through the D-048
- * maintenance protocol; `practice_memberships` does not and is written in an ordinary explicit
- * transaction (`02` §23.4.4). No migration, schema, grant, policy or seed file is modified.
+ * All fixture writes use the canonical paths: every one of the six tables under FORCE row level
+ * security — `practices`, `users`, `practice_memberships`, `practice_membership_roles`,
+ * `practice_settings` and `platform_role_assignments` — goes through the D-048 maintenance
+ * protocol (`02` §23.4.4, §23.4.4a; D-052 part B). No migration, schema, grant, policy or seed
+ * file is modified.
  */
 
 import { type NestExpressApplication } from '@nestjs/platform-express';
@@ -157,10 +158,10 @@ async function applyFixture(migrationUrl: string): Promise<void> {
       }
     });
 
-    // `practice_memberships` carries no FORCE row level security in phase 3 and is deliberately
-    // NOT on the D-048 allowlist, so it is written in an ordinary explicit transaction.
-    await client.query('begin');
-    try {
+    // `practice_memberships` carries FORCE row level security from `013_rls_policies` onward
+    // and is on the phase 4 half of the maintenance allowlist, so this fixture write uses the
+    // same §23.4.3 protocol as every other trusted write here (§23.4.4a, D-052 clause B.2).
+    await runInForceRlsMaintenanceWindow(client, 'practice_memberships', async (trusted) => {
       for (const [membershipId, practiceId, userId, active] of [
         ...ROLE_CALLERS.map(
           (_caller, index) =>
@@ -179,7 +180,7 @@ async function applyFixture(migrationUrl: string): Promise<void> {
         ],
         [FIXTURE.inactiveMemberMembership, MATRIX_PRACTICE, FIXTURE.inactiveMemberUser, false],
       ] as const) {
-        await client.query(
+        await trusted.query(
           `insert into "practice_memberships" ("id", "practice_id", "user_id",
                                                "professional_gln", "active",
                                                "created_at", "updated_at")
@@ -187,12 +188,7 @@ async function applyFixture(migrationUrl: string): Promise<void> {
           [membershipId, practiceId, userId, active],
         );
       }
-
-      await client.query('commit');
-    } catch (error) {
-      await client.query('rollback');
-      throw error;
-    }
+    });
 
     await runInForceRlsMaintenanceWindow(client, 'practice_membership_roles', async (trusted) => {
       for (const [roleId, practiceId, membershipId, role] of [
@@ -731,14 +727,26 @@ describe('GET /api/v1/practices/{practiceId}', () => {
   });
 
   describe('phase boundary (D-047 clause 16, D-049)', () => {
-    it('establishes no database practice context — set_request_context does not exist', async () => {
+    it('establishes no database practice context, even though set_request_context now exists', async () => {
+      // `013_rls_policies` creates the function (02 §16.2.3), so its absence is no longer the
+      // assertion. This route is still an APPLICATION-level tenant check: it validates
+      // `X-Practice-ID` and the membership itself, and does not yet establish `app.practice_id`.
+      // Wiring the route to `set_request_context` belongs to a later phase 4 application slice,
+      // which this database slice deliberately does not pull forward (D-047 clause 16).
       expect((await readPractice(ROLE_CALLERS[0].subject, MATRIX_PRACTICE)).status).toBe(200);
 
       const functions = await appClient.query<{ name: string | null }>(
         `select to_regprocedure('app_security.set_request_context(uuid)')::text as "name"`,
       );
 
-      expect(functions.rows[0]?.name).toBeNull();
+      expect(functions.rows[0]?.name).toBe('app_security.set_request_context(uuid)');
+
+      // No tenant scope survives on the pool, and none was established in the first place.
+      const context = await appClient.query<{ practice: string | null }>(
+        `select nullif(current_setting('app.practice_id', true), '') as "practice"`,
+      );
+
+      expect(context.rows[0]?.practice).toBeNull();
     });
 
     it('registers no settings route under the practice path (D-049)', async () => {

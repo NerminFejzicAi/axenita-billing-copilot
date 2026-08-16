@@ -28,9 +28,32 @@
  *       more than 1 row   -> internal invariant violation, ROLLBACK
  *       status <> ACTIVE  -> 403 ACCESS_DENIED, ROLLBACK      <-- still before the next line
  *       set_user_context(users.id)
- *       memberships, practices, membership roles, conditional settings, platform roles
+ *       memberships, practices, membership roles, platform roles   <-- ALL neutral reads first
+ *       per ACTIVE membership: set_request_context(its own practice), read that practice's
+ *                              conditional settings under strict tenant RLS
  *       derive permissions per membership (phase 3C resolver)
  *     COMMIT
+ *
+ * WHY THE NEUTRAL READS ALL COME FIRST (D-053 clause D.10)
+ *
+ * `practices_context_narrow` (`02` §17.6) is RESTRICTIVE, and restrictive policies combine with
+ * AND. The moment `app.practice_id` exists, `practices` narrows to exactly one row — so a
+ * `practiceName` read after the first `set_request_context` would survive for one membership and
+ * vanish for every other. Every read whose result must span ALL memberships therefore completes
+ * BEFORE the first tenant context is established. This ordering is a correctness requirement of
+ * the frozen `GET /me` document, not an optimisation.
+ *
+ * WHY `/me` ESTABLISHES TENANT CONTEXT AT ALL (D-053)
+ *
+ * `/me` remains tenant-NEUTRAL as a route: it requires no `X-Practice-ID`, reads none, and no
+ * client-supplied practice id participates in it (`03` §3.4, D-053 clause D.6). But package
+ * `013_rls_policies` put `practice_settings` behind the §17.1 tenant policy, and `CONDITIONAL`
+ * cells of the `15` matrix cannot be derived from a table that returns zero rows. The remedy is
+ * this application-path adaptation and NOT a weakened policy: the context is established
+ * INTERNALLY, once per active membership, from the practice id of that membership's own
+ * already-resolved row, through the accepted `set_request_context` function alone. Each practice
+ * is read under its own strict tenant scope, so Practice A's settings cannot reach Practice B's
+ * membership and no cross-practice union is expressible.
  *
  * This service composes; it does not decide grants. Every tenant permission comes from
  * {@link resolveEffectivePermissions}, which is the single application representation of the
@@ -64,6 +87,7 @@ import {
   type BootstrapUserRow,
   type IdentityBootstrapSession,
   type IdentityDatabase,
+  type MembershipRow,
 } from '../infrastructure/identity-database.port.js';
 
 /**
@@ -180,21 +204,20 @@ export class IdentityBootstrapService {
     const practiceIds = memberships.map((membership) => membership.practiceId);
     const membershipIds = memberships.map((membership) => membership.id);
 
+    // THE NEUTRAL BLOCK. Every one of these must see ALL memberships of the caller, so all four
+    // complete before the first `app.practice_id` exists — see the RESTRICTIVE narrowing note in
+    // the file header (D-053 clause D.10).
     const practices = await session.findPractices(practiceIds);
     const roleRows = await session.findMembershipRoles(membershipIds);
-    const settingsRows = await session.findConditionalSettings(practiceIds);
     const platformRoleRows = await session.findCurrentPlatformRoles(user.id);
 
-    const practiceNames = new Map(practices.map((practice) => [practice.id, practice.name]));
-    const settingsByPractice = new Map(
-      settingsRows.map((row) => [
-        row.practiceId,
-        Object.freeze({
-          allowMpaApproval: row.allowMpaApproval === true,
-          allowBillingSpecialistApproval: row.allowBillingSpecialistApproval === true,
-        }) satisfies ConditionalPermissionSettings,
-      ]),
+    // THE TENANT BLOCK. Strictly after the neutral one, and never the other way round.
+    const settingsByPractice = await readConditionalSettingsPerActiveMembership(
+      session,
+      memberships,
     );
+
+    const practiceNames = new Map(practices.map((practice) => [practice.id, practice.name]));
 
     const projected = memberships.map((membership): MeMembershipDto => {
       const practiceName = practiceNames.get(membership.practiceId);
@@ -244,6 +267,72 @@ export class IdentityBootstrapService {
       ),
     };
   }
+}
+
+/**
+ * The conditional flags of every ACTIVE membership's own practice, each read under its own
+ * strict tenant scope (D-053 clauses D.2 to D.8).
+ *
+ * ONE PRACTICE AT A TIME, AND ONLY ONE'S OWN. The loop establishes tenant context for exactly
+ * the practice of the membership it is about to read, from that membership's ALREADY-RESOLVED
+ * row, and then reads that practice's settings. Under the §17.1 tenant policy the read cannot
+ * return anything else, so the returned map cannot associate Practice A's flags with Practice B
+ * even if the code below it were wrong. There is no aggregate read and no union: a settings row
+ * enters the map under its own practice id or not at all.
+ *
+ * MOVING BETWEEN PRACTICES needs no clearing step of its own. `set_request_context` clears
+ * `app.practice_id` as its FIRST statement and re-establishes it only after re-validating the
+ * next target's ACTIVE membership (D-033 clauses 10 and 12), so contexts can neither accumulate
+ * nor mix. No new database function, no savepoint discipline and no direct GUC write is
+ * introduced to achieve this.
+ *
+ * AN INACTIVE MEMBERSHIP IS SKIPPED ENTIRELY (D-053 clause D.4): `set_request_context` requires
+ * `active = true` and would raise `42501`, and the resolver yields `[]` for it regardless
+ * (`15` §3.2), so there is nothing to read and nothing a read could change.
+ *
+ * A practice absent from the result has no settings row that the caller can read, and the caller
+ * falls back to {@link DISABLED_CONDITIONAL_SETTINGS} — fail closed, as D-041 requires.
+ */
+async function readConditionalSettingsPerActiveMembership(
+  session: IdentityBootstrapSession,
+  memberships: readonly MembershipRow[],
+): Promise<ReadonlyMap<string, ConditionalPermissionSettings>> {
+  const byPractice = new Map<string, ConditionalPermissionSettings>();
+
+  for (const membership of memberships) {
+    if (membership.active !== true) {
+      continue;
+    }
+
+    // `unique (practice_id, user_id)` (02 §6.3) makes a repeat impossible, so this is a guard
+    // against a broken invariant rather than a cache — it never merges two rows into one entry.
+    if (byPractice.has(membership.practiceId)) {
+      continue;
+    }
+
+    // The practice id comes from the membership row of `app.user_id` and from nowhere else. No
+    // header, query, body or path value can reach this call (D-053 clause D.6).
+    await session.setRequestContext(membership.practiceId);
+
+    const rows = await session.findConditionalSettings([membership.practiceId]);
+    const settings = rows.find((row) => row.practiceId === membership.practiceId);
+
+    if (settings === undefined) {
+      continue;
+    }
+
+    byPractice.set(
+      membership.practiceId,
+      // Strict equality, exactly as the resolver applies it: anything other than a literal
+      // `true` fails closed.
+      Object.freeze({
+        allowMpaApproval: settings.allowMpaApproval === true,
+        allowBillingSpecialistApproval: settings.allowBillingSpecialistApproval === true,
+      }) satisfies ConditionalPermissionSettings,
+    );
+  }
+
+  return byPractice;
 }
 
 /**

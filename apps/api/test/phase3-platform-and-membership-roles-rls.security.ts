@@ -231,15 +231,19 @@ describe('practice_membership_roles — self-scoped RLS (02 §17.4, 08 §21.6.4)
     ]);
   });
 
-  it('given phase 3 when the policy is exercised then practice_memberships still carries NO RLS', async () => {
-    // The key assertion of D-051 clause 4: the policy does NOT require §17.3 RLS to work. It
-    // relies on the EXISTENCE of the owning membership row, not on that table having a policy.
+  it('given practice_memberships now under RLS then this policy is UNCHANGED and does not regress', async () => {
+    // D-051 clause 4 said the §17.4 policy does not REQUIRE §17.3 RLS to work. Phase 4 adds that
+    // RLS, and the sharper question becomes whether adding it BREAKS the policy: once RLS is
+    // enabled on `practice_memberships`, the `EXISTS` sub-query inside this policy becomes
+    // subject to `practice_memberships_self_select`. That policy constrains
+    // `user_id = app.user_id`, which is the IDENTICAL predicate this one already applied, so
+    // the observed row set is unchanged — three rows, exactly as in phase 3.
     const state = await migrator.query<{ enabled: boolean; forced: boolean }>(
       `select relrowsecurity as enabled, relforcerowsecurity as forced
          from pg_class where relname = 'practice_memberships'`,
     );
 
-    expect(state.rows[0]).toStrictEqual({ enabled: false, forced: false });
+    expect(state.rows[0]).toStrictEqual({ enabled: true, forced: true });
 
     const rows = await visibleMembershipRoles({ userId: PHASE_3_SEED_IDS.userPracticeAdmin });
     expect(rows).toHaveLength(3);
@@ -258,23 +262,94 @@ describe('practice_membership_roles — self-scoped RLS (02 §17.4, 08 §21.6.4)
   });
 });
 
-describe('phase 3 intermediate state on practice_memberships (08 §21.5.6)', () => {
-  it('given phase 3 when copilot_app reads practice_memberships then it sees GENERIC rows, which is EXPECTED and DOCUMENTED', async () => {
-    // This asserts a KNOWN, ACCEPTED intermediate state and is NOT a pass for tenant
-    // isolation. §17.3 RLS for this table belongs to `013_rls_policies` and phase 4
-    // (D-051 clause 5). Phase 4 must close it, and 08 §21.5.6 requires a regression test
-    // there proving the same query then returns only the caller's own rows.
-    const rows = await withAppContext(
-      app,
-      { userId: PHASE_3_SEED_IDS.userPhysician },
-      async (client) => {
-        const result = await client.query<{ id: string }>('select id from practice_memberships');
-        return result.rows;
-      },
-    );
+describe('practice_memberships — the phase 3 exposure is CLOSED (02 §17.3; 08 §21.5.6, §21.8)', () => {
+  /**
+   * THE REGRESSION TEST 08 §21.5.6 DEMANDED.
+   *
+   * In phase 3 this table carried no RLS, and the very same query returned all FOUR seeded
+   * memberships to any authenticated caller — a KNOWN, ACCEPTED, DOCUMENTED intermediate
+   * exposure (D-047 clause 18, as narrowed by D-051 clause 5). `013_rls_policies` closes it
+   * with `practice_memberships_self_select`, and the specs below are the proof that it is
+   * closed rather than merely re-described.
+   */
+  async function visibleMemberships(context: {
+    userId?: string;
+    practiceId?: string;
+  }): Promise<string[]> {
+    return withAppContext(app, context, async (client) => {
+      const result = await client.query<{ id: string }>(
+        'select id from practice_memberships order by id',
+      );
+      return result.rows.map((row) => row.id);
+    });
+  }
 
-    // Four seeded memberships, including three that belong to other users.
-    expect(rows).toHaveLength(4);
+  it('given no app.user_id then ZERO membership rows are visible', async () => {
+    // Without a user context the policy predicate compares against NULL and matches nothing.
+    await expect(visibleMemberships({})).resolves.toStrictEqual([]);
+  });
+
+  it('given user U1 then ONLY U1 own membership rows are visible', async () => {
+    // The physician holds exactly one membership. In phase 3 this returned four.
+    await expect(
+      visibleMemberships({ userId: PHASE_3_SEED_IDS.userPhysician }),
+    ).resolves.toStrictEqual([PHASE_3_SEED_IDS.membershipPhysicianInNord]);
+  });
+
+  it('given user U1 then the memberships of OTHER users are invisible, including in a shared practice', async () => {
+    // The sharpest form: the admin and the inactive user are BOTH members of `demo-praxis`, so
+    // a leak through shared practice membership would show up here.
+    const admin = await visibleMemberships({ userId: PHASE_3_SEED_IDS.userPracticeAdmin });
+
+    // `order by id`: `...3001` (demo) precedes `...3002` (nord).
+    expect(admin).toStrictEqual([
+      PHASE_3_SEED_IDS.membershipAdminInDemo,
+      PHASE_3_SEED_IDS.membershipAdminInNord,
+    ]);
+
+    expect(admin).not.toContain(PHASE_3_SEED_IDS.membershipInactiveUserInDemo);
+    expect(admin).not.toContain(PHASE_3_SEED_IDS.membershipPhysicianInNord);
+  });
+
+  it('given an INACTIVE OWN membership then it REMAINS visible', async () => {
+    // The policy deliberately does not filter `active`: `03` §10 requires an inactive membership
+    // to stay in the frozen `GET /me` response with `permissions = []`. RLS governs visibility
+    // of one's own rows here, not authorisation (§17.3).
+    const admin = await visibleMemberships({ userId: PHASE_3_SEED_IDS.userPracticeAdmin });
+
+    expect(admin).toContain(PHASE_3_SEED_IDS.membershipAdminInNord);
+  });
+
+  it('given app.practice_id set, unset or foreign then membership visibility is IDENTICAL', async () => {
+    // §17.3 / D-033 clause 6: this table is USER-scoped, never tenant-scoped, because
+    // `set_request_context` reads it to decide whether tenant context may be established at
+    // all. `app.practice_id` must therefore have no effect whatsoever.
+    const withoutContext = await visibleMemberships({
+      userId: PHASE_3_SEED_IDS.userPracticeAdmin,
+    });
+
+    for (const practiceId of [
+      PHASE_3_SEED_IDS.practiceDemo,
+      PHASE_3_SEED_IDS.practiceNord,
+      PHASE_3_SEED_IDS.practiceWithoutMembers,
+    ]) {
+      await expect(
+        visibleMemberships({ userId: PHASE_3_SEED_IDS.userPracticeAdmin, practiceId }),
+      ).resolves.toStrictEqual(withoutContext);
+    }
+  });
+
+  it('given copilot_app then no write privilege on practice_memberships exists', async () => {
+    // SELECT ONLY — no INSERT/UPDATE/DELETE policy and no such grant (D-033 clause 13).
+    for (const statement of [
+      `insert into practice_memberships (id, practice_id, user_id, active, updated_at)
+       values ('00000000-0000-4000-8000-0000000000d3', '${PHASE_3_SEED_IDS.practiceDemo}',
+               '${PHASE_3_SEED_IDS.userPhysician}', true, now())`,
+      'update practice_memberships set active = false',
+      'delete from practice_memberships',
+    ]) {
+      await expect(sqlStateOf(app, statement)).resolves.toBe(INSUFFICIENT_PRIVILEGE);
+    }
   });
 });
 

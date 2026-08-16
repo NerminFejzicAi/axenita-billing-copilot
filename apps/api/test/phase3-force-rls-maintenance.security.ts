@@ -5,7 +5,9 @@ import { type Client } from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import {
+  FORCE_RLS_MAINTENANCE_ALLOWLIST,
   PHASE_3_FORCE_RLS_ALLOWLIST,
+  PHASE_4_FORCE_RLS_ALLOWLIST,
   TableNotAllowlistedError,
   forceRowSecurityAssertionSql,
   runInForceRlsMaintenanceWindow,
@@ -18,11 +20,18 @@ import {
 } from './support/phase3-security-context.js';
 
 /**
- * D-048 — the `FORCE ROW LEVEL SECURITY` maintenance protocol (02 §23.4, §25.1.2; 08 §21.6.2).
+ * D-048 and D-052 part B — the `FORCE ROW LEVEL SECURITY` maintenance protocol and its phase 4
+ * allowlist extension (02 §23.4, §23.4.4, §23.4.4a, §25.1.2; 08 §21.6.2, §21.8).
  *
  * The steady-state assertions here are PERMANENT REGRESSION TESTS, not a one-off check
  * (02 §23.4.5). The window specs prove the protocol solves a real problem, restores FORCE on
  * failure, and refuses a target outside the frozen allowlist before touching the table.
+ *
+ * PHASE 4. `013_rls_policies` puts `practice_memberships` and `practice_settings` under FORCE,
+ * which is what makes the D-052 part B extension necessary: without it the trusted seed path
+ * has no permitted way to populate two tables it must populate. The allowlist therefore grows
+ * from FOUR tables to SIX — the phase 3 four are EXTENDED, never replaced — and the provenance
+ * of every entry stays mechanically testable through two separate constants.
  */
 const database = securityDatabase();
 const apiRoot = resolve(import.meta.dirname, '..');
@@ -55,36 +64,88 @@ async function rowSecurityOf(table: string): Promise<{ enabled: boolean; forced:
   return row ?? { enabled: false, forced: false };
 }
 
-describe('steady state after migration and after seed (08 §21.6.1)', () => {
-  it.each(PHASE_3_FORCE_RLS_ALLOWLIST)(
+describe('steady state after migration and after seed (08 §21.6.1, §21.8)', () => {
+  it.each(FORCE_RLS_MAINTENANCE_ALLOWLIST)(
     'given %s when inspected then row level security is enabled AND forced',
     async (table) => {
       await expect(rowSecurityOf(table)).resolves.toStrictEqual({ enabled: true, forced: true });
     },
   );
 
-  it('given the two tables outside the allowlist then neither carries phase 3 RLS', async () => {
-    // Both first receive it in `013_rls_policies` (02 §17.3, §20.2b, §22.13), so neither
-    // needs nor may have a phase 3 maintenance window (D-048 clause 5).
-    await expect(rowSecurityOf('practice_memberships')).resolves.toStrictEqual({
-      enabled: false,
-      forced: false,
-    });
-    await expect(rowSecurityOf('practice_settings')).resolves.toStrictEqual({
-      enabled: false,
-      forced: false,
-    });
-  });
+  it('given the whole schema then EXACTLY these six tables carry ENABLE and FORCE, and no other', async () => {
+    // The counted form of the assertion above. A seventh table silently acquiring FORCE, or one
+    // of the six silently losing it, must fail here (02 §20.4, §25.1.2).
+    const result = await migrator.query<{ relname: string }>(
+      `select c.relname
+         from pg_class c
+         join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'public' and c.relkind = 'r'
+          and c.relrowsecurity and c.relforcerowsecurity
+        order by c.relname`,
+    );
 
-  it('given the frozen allowlist then it contains exactly the four accepted tables', () => {
-    // 02 §23.4.4 / D-048 clause 5 as grown by D-051 clause 7. Silent extension is forbidden,
-    // so the list itself is asserted, not merely used.
+    // Both sides are sorted in JavaScript rather than compared in the database's order, so the
+    // assertion cannot become collation dependent.
+    expect(result.rows.map((row) => row.relname).sort()).toStrictEqual(
+      [...FORCE_RLS_MAINTENANCE_ALLOWLIST].sort(),
+    );
+    expect(result.rows).toHaveLength(6);
+  });
+});
+
+describe('the D-052 allowlist contract (02 §23.4.4, §23.4.4a; D-048 clause 5, D-052 part B)', () => {
+  it('given the PHASE 3 allowlist then it still contains exactly the four accepted tables', () => {
+    // 02 §23.4.4 / D-048 clause 5 as grown by D-051 clause 7. Phase 4 EXTENDS this list; it does
+    // NOT replace it (D-052 clause B.2), so the phase 3 four are asserted unchanged.
     expect([...PHASE_3_FORCE_RLS_ALLOWLIST]).toStrictEqual([
       'users',
       'practices',
       'practice_membership_roles',
       'platform_role_assignments',
     ]);
+    expect(PHASE_3_FORCE_RLS_ALLOWLIST).toHaveLength(4);
+  });
+
+  it('given the PHASE 4 extension then it contains exactly the two tables package 013 puts under FORCE', () => {
+    // 02 §23.4.4a / D-052 clause B.2. Authorised by D-052 part B AND by the explicit clause in
+    // section 5 of `013_rls_policies`. A silent extension is forbidden (08 §26.2).
+    expect([...PHASE_4_FORCE_RLS_ALLOWLIST]).toStrictEqual([
+      'practice_memberships',
+      'practice_settings',
+    ]);
+    expect(PHASE_4_FORCE_RLS_ALLOWLIST).toHaveLength(2);
+  });
+
+  it('given the EFFECTIVE allowlist then it is exactly the phase 3 four plus the phase 4 two', () => {
+    expect([...FORCE_RLS_MAINTENANCE_ALLOWLIST]).toStrictEqual([
+      ...PHASE_3_FORCE_RLS_ALLOWLIST,
+      ...PHASE_4_FORCE_RLS_ALLOWLIST,
+    ]);
+    expect(FORCE_RLS_MAINTENANCE_ALLOWLIST).toHaveLength(6);
+  });
+
+  it('given the EFFECTIVE allowlist then it holds no duplicate and no seventh table', () => {
+    const tables = [...FORCE_RLS_MAINTENANCE_ALLOWLIST];
+
+    expect(new Set(tables).size).toBe(tables.length);
+    expect(new Set(tables).size).toBe(6);
+
+    // Every entry has exactly ONE provenance: a table on both halves would make the phase in
+    // which it was authorised ambiguous.
+    for (const table of tables) {
+      const inPhase3 = (PHASE_3_FORCE_RLS_ALLOWLIST as readonly string[]).includes(table);
+      const inPhase4 = (PHASE_4_FORCE_RLS_ALLOWLIST as readonly string[]).includes(table);
+
+      expect(inPhase3 !== inPhase4).toBe(true);
+    }
+  });
+
+  it('given the effective allowlist then every entry is a real table that actually carries FORCE', async () => {
+    // Ties the constant to the catalogue: an allowlist entry naming a table without FORCE would
+    // be a window that turns protection OFF rather than one that works around it.
+    for (const table of FORCE_RLS_MAINTENANCE_ALLOWLIST) {
+      await expect(rowSecurityOf(table)).resolves.toStrictEqual({ enabled: true, forced: true });
+    }
   });
 });
 
@@ -245,9 +306,19 @@ describe('an interrupted window never leaves FORCE off (08 §21.6.2)', () => {
 });
 
 describe('allowlist enforcement (08 §21.6.2)', () => {
-  it.each(['practice_memberships', 'practice_settings', '_prisma_migrations', 'users; drop table'])(
-    'given the non-allowlisted target %s then it is rejected BEFORE any ALTER TABLE',
+  it.each([
+    '_prisma_migrations',
+    'users; drop table',
+    'PRACTICE_SETTINGS',
+    'public.practice_settings',
+    'review_decision_change_links',
+    '',
+  ])(
+    'given the non-allowlisted target "%s" then it is rejected BEFORE any ALTER TABLE',
     async (table) => {
+      // The list deliberately includes near-misses of the two tables phase 4 DID add: a different
+      // case and a schema-qualified spelling are NOT on the allowlist, because the check is an
+      // exact match against the frozen constants and never a normalisation.
       let dmlWasCalled = false;
 
       await expect(
@@ -263,19 +334,47 @@ describe('allowlist enforcement (08 §21.6.2)', () => {
 
   it('given a rejected target then no transaction was opened and no FORCE flag moved', async () => {
     await expect(
-      runInForceRlsMaintenanceWindow(migrator, 'practice_memberships', async () => {
+      runInForceRlsMaintenanceWindow(migrator, '_prisma_migrations', async () => {
         await Promise.resolve();
       }),
     ).rejects.toBeInstanceOf(TableNotAllowlistedError);
 
     // `VACUUM` cannot run inside a transaction block: PostgreSQL raises SQLSTATE 25001 when
     // one is open. It succeeding therefore proves the rejection happened before `begin`.
-    await expect(migrator.query('vacuum practice_memberships')).resolves.toBeDefined();
+    await expect(migrator.query('vacuum _prisma_migrations')).resolves.toBeDefined();
 
-    await expect(rowSecurityOf('practice_memberships')).resolves.toStrictEqual({
+    await expect(rowSecurityOf('_prisma_migrations')).resolves.toStrictEqual({
       enabled: false,
       forced: false,
     });
+
+    // And the two tables phase 4 DID add kept their FORCE throughout: a rejection elsewhere
+    // never disturbs an allowlisted table.
+    for (const table of PHASE_4_FORCE_RLS_ALLOWLIST) {
+      await expect(rowSecurityOf(table)).resolves.toStrictEqual({ enabled: true, forced: true });
+    }
+  });
+
+  it('given the two PHASE 4 tables then they are now ACCEPTED targets, and the window restores FORCE', async () => {
+    // The positive counterpart of the rejections above: D-052 part B is what changed, and the
+    // change is asserted rather than assumed. Each window writes nothing — the protocol itself
+    // is what is under test — and each table must come out of it `true`/`true`.
+    for (const table of PHASE_4_FORCE_RLS_ALLOWLIST) {
+      await runInForceRlsMaintenanceWindow(migrator, table, async (client) => {
+        const inside = await client.query<{ enabled: boolean; forced: boolean }>(
+          `select relrowsecurity as enabled, relforcerowsecurity as forced
+             from pg_class c
+             join pg_namespace n on n.oid = c.relnamespace
+            where n.nspname = 'public' and c.relname = $1`,
+          [table],
+        );
+
+        // RLS stays ENABLED throughout; only the FORCE attribute moves (02 §23.4.5).
+        expect(inside.rows[0]).toStrictEqual({ enabled: true, forced: false });
+      });
+
+      await expect(rowSecurityOf(table)).resolves.toStrictEqual({ enabled: true, forced: true });
+    }
   });
 });
 

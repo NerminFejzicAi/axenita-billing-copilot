@@ -14,6 +14,15 @@
  * to drift from this one and from the real adapter, which is exactly the failure mode these
  * specs exist to prevent.
  *
+ * IT MODELS THE TWO GUCS THE POLICIES READ. `app.user_id` and `app.practice_id` are held as
+ * session state and the reads apply the same predicates the accepted policies apply — most
+ * importantly the RESTRICTIVE narrowing of `practices` (`02` §17.6) and the tenant predicate on
+ * `practice_settings` (§17.1, package `013`). Without that, a unit spec could not observe the
+ * D-053 ordering requirement at all: a `practiceName` read after the first `set_request_context`
+ * would look perfectly fine here while losing every other membership's name against a real
+ * database. `set_request_context` reproduces the clear-before-validate order and the
+ * ACTIVE-membership requirement of `02` §16.2.3 for the same reason.
+ *
  * Real PostgreSQL semantics — RLS policies, transaction-local GUCs, column grants, request to
  * request isolation — are proven separately against a real database in
  * `test/phase3-identity-*.security.ts` and `test/phase3-practice-read.security.ts`. This module
@@ -125,9 +134,22 @@ export class RecordingDatabase implements IdentityDatabase {
     const world = this.world;
     const calls = this.calls;
 
+    // The two transaction-local GUCs the policies read. Modelling them is what lets a unit spec
+    // observe the SAME narrowing the database performs — most importantly that `practices` goes
+    // down to one row once `app.practice_id` exists (§17.6 RESTRICTIVE) and that
+    // `practice_settings` is unreadable until it does (§17.1).
+    let appUserId: string | undefined;
+    let appPracticeId: string | undefined;
+
+    /** `practices_context_narrow` (§17.6), RESTRICTIVE: no context, or exactly this practice. */
+    const narrowed = (id: string): boolean => appPracticeId === undefined || id === appPracticeId;
+
     return {
       setAuthSubjectContext: async (authSubject: string): Promise<void> => {
         calls.push(`set_auth_subject_context(${authSubject})`);
+        // 02 §16.2.4 — the function clears both downstream contexts.
+        appUserId = undefined;
+        appPracticeId = undefined;
         return Promise.resolve();
       },
       findUsersForVerifiedSubject: async (): Promise<readonly BootstrapUserRow[]> => {
@@ -136,6 +158,32 @@ export class RecordingDatabase implements IdentityDatabase {
       },
       setUserContext: async (userId: string): Promise<void> => {
         calls.push(`set_user_context(${userId})`);
+        appUserId = userId;
+        return Promise.resolve();
+      },
+      setRequestContext: async (practiceId: string): Promise<void> => {
+        calls.push(`set_request_context(${practiceId})`);
+
+        // CLEAR BEFORE VALIDATE, exactly as 02 §16.2.3 orders it (D-033 clause 10). A rejected
+        // target must not leave the previous practice active, and modelling that here is what
+        // makes "the application relies on the function to switch cleanly" testable.
+        appPracticeId = undefined;
+
+        if (appUserId === undefined) {
+          throw new Error('42501: User context is not established');
+        }
+
+        const eligible = world.memberships.some(
+          (row) => row.practiceId === practiceId && row.userId === appUserId && row.active === true,
+        );
+
+        if (!eligible) {
+          // The function raises 42501 for a foreign practice AND for an inactive membership
+          // (D-033 clause 11). A spec can therefore assert that `/me` never calls it for one.
+          throw new Error('42501: User is not a member of requested practice');
+        }
+
+        appPracticeId = practiceId;
         return Promise.resolve();
       },
       findMemberships: async (userId: string): Promise<readonly MembershipRow[]> => {
@@ -156,7 +204,7 @@ export class RecordingDatabase implements IdentityDatabase {
         calls.push(`select practices(${[...practiceIds].sort().join(',')})`);
         return Promise.resolve(
           world.practices
-            .filter((row) => practiceIds.includes(row.id))
+            .filter((row) => practiceIds.includes(row.id) && narrowed(row.id))
             // `GET /me` renders `practiceName` only, so the real query selects two columns.
             .map((row): PracticeRow => ({ id: row.id, name: row.name })),
         );
@@ -165,7 +213,9 @@ export class RecordingDatabase implements IdentityDatabase {
         practiceId: string,
       ): Promise<RequestedPracticeRow | undefined> => {
         calls.push(`select practice(${practiceId})`);
-        return Promise.resolve(world.practices.find((row) => row.id === practiceId));
+        return Promise.resolve(
+          world.practices.find((row) => row.id === practiceId && narrowed(row.id)),
+        );
       },
       findMembershipRoles: async (
         membershipIds: readonly string[],
@@ -179,8 +229,17 @@ export class RecordingDatabase implements IdentityDatabase {
         practiceIds: readonly string[],
       ): Promise<readonly ConditionalSettingsRow[]> => {
         calls.push(`select practice_settings(${[...practiceIds].sort().join(',')})`);
+        // `practice_settings_select` (§17.1, package `013`): the tenant predicate is the PRIMARY
+        // control. Without `app.practice_id` it is `practice_id = NULL` and no row is visible at
+        // all; with it, only that one practice's row is. The requested-id filter is applied on
+        // top, as the second barrier the real statement also keeps.
         return Promise.resolve(
-          world.settings.filter((row) => practiceIds.includes(row.practiceId)),
+          world.settings.filter(
+            (row) =>
+              appPracticeId !== undefined &&
+              row.practiceId === appPracticeId &&
+              practiceIds.includes(row.practiceId),
+          ),
         );
       },
       findCurrentPlatformRoles: async (userId: string): Promise<readonly PlatformRoleRow[]> => {

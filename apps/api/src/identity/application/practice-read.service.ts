@@ -36,11 +36,16 @@
  *
  * D-047 clause 10 places `set_request_context` at step 7, AFTER the practice-status check, so
  * that no non-`ACTIVE` practice ever obtains a tenant context and the privileged window has
- * length zero. In phase 3 that step DOES NOT EXIST: there is no `set_request_context`, no
- * `app.practice_id`, no `PracticeContextGuard` and no `TenantDatabaseService` (D-047 clause 16).
- * The practical meaning of the requirement here is the one this service implements — every
- * rejection happens strictly before the point where phase 4 will establish tenant context, so
- * adding that call later changes nothing about which requests are refused.
+ * length zero. THIS ROUTE does not perform that step yet: it establishes no `app.practice_id`,
+ * and neither `PracticeContextGuard` nor `TenantDatabaseService` exists (D-047 clause 16). The
+ * practical meaning of the requirement here is the one this service implements — every rejection
+ * happens strictly before the point where the tenant context would be established, so adding
+ * that call later changes nothing about which requests are refused.
+ *
+ * The function itself exists from package `013_rls_policies` onward and `GET /me` already calls
+ * it internally (D-053). Extending it to this route is a separate, later slice; nothing here
+ * depends on that having happened, because `practice.read` is an `ALLOW` cell and not a
+ * `CONDITIONAL` one, so the settings read below cannot change this route's decision.
  *
  * D-047 clause 18 is explicit that phase 3 performs the tenant narrowing for this route at the
  * APPLICATION layer, additionally to what RLS already does. This service therefore proves three

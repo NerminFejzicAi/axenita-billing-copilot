@@ -10,9 +10,14 @@
  * scoped to the transaction, so a read on any other connection would see no context at all and
  * would return zero rows rather than leaking data.
  *
- * `TenantDatabaseService`, `set_request_context` and `app.practice_id` are phase 4 concerns
- * (02 §16.2.3, §22.13, D-047 clause 16) and appear nowhere in this file. Phase 3 never
- * establishes a practice context.
+ * `set_request_context` (02 §16.2.3) is exposed here as ONE session method, because package
+ * `013_rls_policies` put `practice_settings` behind the §17.1 tenant policy and the conditional
+ * flags of `GET /me` are unreadable without an established `app.practice_id` (D-053). The
+ * function call is the ONLY way this file touches that GUC: there is no
+ * `set_config('app.practice_id', ...)` anywhere, so the clear-before-validate ordering and the
+ * ACTIVE-membership check of D-033 clauses 10-12 cannot be bypassed. `PracticeContextGuard` and
+ * `TenantDatabaseService` remain absent — they are general tenant-endpoint infrastructure
+ * (02 §22.13, D-047 clause 16) and `/me` needs none of it.
  *
  * All SQL is written by hand rather than through the Prisma model delegates, for two reasons
  * that are not stylistic:
@@ -78,6 +83,18 @@ class PrismaIdentityBootstrapSession implements IdentityBootstrapSession {
 
   public async setUserContext(userId: string): Promise<void> {
     await this.tx.$executeRaw`select app_security.set_user_context(${userId}::uuid)`;
+  }
+
+  public async setRequestContext(practiceId: string): Promise<void> {
+    // The accepted context-establishment path and nothing else. `set_config('app.practice_id',
+    // ...)` is deliberately not written here: the function clears the GUC first, re-derives the
+    // user from `app.user_id` and re-validates an ACTIVE membership before setting it again
+    // (02 §16.2.3, D-033 clauses 9-12). A direct assignment would have none of those properties.
+    //
+    // The parameter is bound, never interpolated — the tagged template produces `$1` — and it
+    // is cast to `uuid`, so a value that is not a UUID fails in the database rather than
+    // widening the statement.
+    await this.tx.$executeRaw`select app_security.set_request_context(${practiceId}::uuid)`;
   }
 
   public async findMemberships(userId: string): Promise<readonly MembershipRow[]> {
@@ -185,8 +202,13 @@ class PrismaIdentityBootstrapSession implements IdentityBootstrapSession {
     }
 
     // Exactly the three granted columns of 02 §20.2b, and an explicit filter on the practices
-    // the caller is a member of. `practice_settings` has broad row visibility in phase 3 —
-    // there is no policy on it — so this filter is the application side of D-049 clause 3.
+    // the caller is a member of.
+    //
+    // Since `013_rls_policies` the §17.1 tenant policy is the primary control: without
+    // `app.practice_id` this statement returns zero rows, and with it, at most the row of the
+    // established tenant. The explicit filter stays as the second barrier it became — it was
+    // the whole of D-049 clause 3 in phase 3 — and reading every row and filtering in memory
+    // remains forbidden.
     return this.tx.$queryRaw<ConditionalSettingsRow[]>`
       select
         "practice_id"                       as "practiceId",
