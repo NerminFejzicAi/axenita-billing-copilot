@@ -1109,11 +1109,22 @@ Nijedno od njih nije bloker zatvaranja i nijedno se ne rješava u ovom gateu.
 
 # 5. Faza 4 — Tenant/RLS
 
-Status: `IN_PROGRESS` — slice P4-5B (tenant request/context pipeline) je merged u kanonski `main`
-kroz PR #15 (`530295d`, implementacija `fdef469`). Faza **nije** završena: settings `GET`/`PATCH`
-nije započet, a preostale tenant tabele i slice-evi ostaju otvoreni.
+Status: `IN_PROGRESS`. Merged u kanonski `main`:
 
-Normativno: D-033, D-038, **D-049**, **D-051**, **D-052**, **D-053** i **D-054**; `02` §16.2,
+- **P4-5B** — tenant request/context pipeline, PR #15 (`530295d`, implementacija `fdef469`);
+- **P4-5R1** — vezivanje identiteta i hardening tenant pipelinea, PR #17 (`2229724`);
+- **P4-5C** — `GET /api/v1/practices/{practiceId}/settings`, PR #18 (`0411ae4`, merge `be675fd`).
+
+Faza **nije** završena. **Settings `PATCH` nije implementiran**: `If-Match` put, optimistički
+`UPDATE` i sve `428`/`409`/`400` ponašanje **ne postoje na `main`-u**. Preostale tenant tabele i
+slice-evi ostaju otvoreni.
+
+**Ugovor `PATCH`-a je zamrznut, ali nije implementiran.** Autoritet za slice **P4-5D** je
+**D-055** (HTTP validatori i optimistička konkurentnost), uz **D-053** kao bazni settings ugovor.
+Zamrznut ugovor **ne** dozvoljava označavanje ijedne `PATCH` stavke završenom (D-055, klauzula 33).
+
+Normativno: D-033, D-038, **D-049**, **D-051**, **D-052**, **D-053**, **D-054** i **D-055**;
+`02` §16.2,
 §17.0, §17.3, §18.1, §20.2, §20.2b, §22.13 i §23.4.4a; `03` §3.7, §5, §10 i §28.5; `04` §6.2,
 §6.4.1 i §6.4.2; `07` Faza 4.
 
@@ -1169,8 +1180,65 @@ usklađuju se u vlastitim gate-ovima.
 - [ ] **Konkretan `TenantDatabaseService` facade** — **NIJE** implementiran i **ne označava se**
       završenim. Koncept ostaje kanonski (D-054, klauzula 5); konkretna klasa se uvodi tek kada je
       stvarni tenant business modul zatraži, i tada mora dokazati klauzule 6–10.
-- [ ] **Uklanjanje `userId` seama** iz `TenantRequestPipeline.admit(...)` — obavezno **prije** nego
-      što se doda ijedna dodatna tenant ruta (D-054, klauzula 12).
+- [x] **Uklanjanje `userId` seama** iz `TenantRequestPipeline.admit(...)` — **RIJEŠENO** kroz
+      PR #17 (`2229724`). Kanonski potpis je sada `TenantRequestPipeline.admit(session, request)`;
+      identitet se izvodi **isključivo** iz `app.user_id` autentifikovane sesije, pa pogrešan
+      korisnik **nije izraziv**. Precondition D-054, klauzule 12 je ispoštovan: prva dodatna
+      tenant ruta (P4-5C) dodana je **tek nakon** toga (D-055, klauzula 32).
+
+## Slice P4-5C — settings `GET`
+
+**Normativno: D-053 (dio A), D-054 i D-055.** Merged u kanonski `main` kroz PR #18; implementacijski
+commit `0411ae4`, merge `be675fd`. Ova sekcija bilježi **isključivo** ono što je taj slice mehanički
+dokazao. **Nijedna `PATCH` stavka se ovdje ne označava** — `PATCH` ne postoji na `main`-u.
+
+- [x] **`GET /api/v1/practices/{practiceId}/settings` je registrovan** i odgovara kroz
+      `PracticeSettingsController` / `PracticeSettingsReadService`.
+- [x] **Ruta koristi prihvaćeni `TenantRequestPipeline`** — bez drugog pipelinea, bez druge
+      transakcije, bez drugog `PrismaClient`-a i bez rutno specifične tenant faze.
+- [x] **Tražena permisija je `practice.settings.read`**, izvedena kroz jedinstvenu aplikacijsku
+      reprezentaciju matrice `15`; **nema** hard-kodirane `PRACTICE_ADMIN` provjere.
+- [x] **Nema caller-supplied identiteta** — servis prima verifikovani auth **subject** i dvije
+      nepouzdane request vrijednosti; membership se izvodi iz `app.user_id` (D-054, klauzula 12).
+- [x] **Reprezentacija je tačno osam polja** iz D-053, klauzule A.1, građena polje po polje
+      (bez spreada), pa proširenje database projekcije ne može dodati polje u odgovor.
+- [x] **`version` se ne pojavljuje u JSON tijelu** `GET` odgovora.
+- [x] **`ETag` na `GET`-u je JAK i postavljen aplikacijski** — `"<version>"`, postavljen prije
+      serijalizacije tijela, čime istiskuje slab content-hashed tag koji bi Express inače generisao
+      (D-053, klauzula A.2).
+- [x] **`ETag` i tijelo potiču iz iste pročitane vrste**, pa header i tijelo ne mogu opisivati dva
+      različita čitanja.
+- [x] **Čitanje je devetokolonsko i strogo na koraku 11** — nakon `set_request_context` i nakon
+      odluke o permisiji.
+- [x] **Nedostajući `practice_settings` red nakon autorizacije daje `500 INTERNAL_ERROR`** sa
+      statičnim, neosjetljivim tijelom; **nije** `404`, `403`, prazne ni default postavke, i red se
+      **ne kreira i ne popravlja** (D-055, klauzule 7–9).
+- [x] **`PATCH` ruta NIJE registrovana** — ni kao stub; ostaje `404` (D-053, klauzula B.4).
+- [ ] **Autorizovan `304` na `If-None-Match`** — ponašanje **postoji** i **kanonizovano** je u
+      D-055, dijelu B, ali **namjenski `304` testovi nisu uvedeni** i ovim gateom **nisu**
+      ovlašteni (D-055, klauzula 6).
+
+## Slice P4-5D — settings `PATCH` — **NIJE IMPLEMENTIRAN**
+
+**Autoritet: D-055**, uz D-053 kao bazni ugovor. **Ugovor je zamrznut; implementacije nema.**
+Nijedna stavka ispod se **ne smije** označiti završenom na osnovu zamrznutog ugovora
+(D-055, klauzula 33).
+
+- [ ] `PATCH /api/v1/practices/{practiceId}/settings` **registrovan** — **NIJE**.
+- [ ] `If-Match` write put — **NIJE** implementiran.
+- [ ] Parser prihvaćene gramatike `"<N>"` (D-055, klauzula 11) — **NE POSTOJI**.
+- [ ] `428` / `400` / `409` razdvajanje (D-055, klauzula 12) — **NIJE** implementirano.
+- [ ] Jaka i tačna komparacija; `W/"N"` odbijen (D-055, klauzula 13) — **NIJE** implementirana.
+- [ ] `400 VALIDATION_ERROR` za prazno tijelo `{}` (D-055, klauzula 14) — **NIJE** implementirano.
+- [ ] Atomičan optimistic-concurrency `UPDATE` sa predikatom `practice_id` **i** `version`
+      (D-055, klauzule 15–18) — **NIJE** implementiran.
+- [ ] Zabrana aplikacijskog pre-reada (D-055, klauzula 16) — **nema koda koji bi je dokazao**.
+- [ ] `409 VERSION_CONFLICT` za nula pogođenih redova iz **oba** uzroka (D-055, klauzule 19–21) —
+      **NIJE** implementirano.
+- [ ] `200` sa istom osmopoljnom reprezentacijom i **novim** `ETag`-om iz istog
+      `UPDATE ... RETURNING` iskaza (D-055, klauzule 22–23) — **NIJE** implementirano.
+- [ ] Tražena permisija `practice.settings.manage` na `PATCH`-u (D-055, klauzula 28) — **NIJE**
+      implementirana.
 
 ## Schema i funkcije
 
@@ -1230,13 +1298,16 @@ D-049, klauzula 5.
 - [ ] `FORCE ROW LEVEL SECURITY`.
 - [ ] Standardna tenant politika `practice_id = app.practice_id`.
 - [ ] **Phase gate pada ako `UPDATE` grant postoji bez pripadajuće tenant politike.**
-- [ ] `GET /api/v1/practices/{practiceId}/settings` registrovan.
-- [ ] `PATCH /api/v1/practices/{practiceId}/settings` registrovan.
-- [ ] `ETag` vraćen na oba odgovora.
-- [ ] `If-Match` obavezan na `PATCH`.
-- [ ] `428 PRECONDITION_REQUIRED` bez `If-Match`.
-- [ ] `409 VERSION_CONFLICT` na stale `If-Match`.
-- [ ] `version` se inkrementira **atomično**.
+- [x] `GET /api/v1/practices/{practiceId}/settings` registrovan — **P4-5C, PR #18**.
+- [ ] `PATCH /api/v1/practices/{practiceId}/settings` registrovan — **NIJE** (P4-5D).
+- [ ] `ETag` vraćen na oba odgovora — **`GET` polovina je gotova** (jak, aplikacijski
+      postavljen tag, P4-5C); `PATCH` polovina **ne postoji**.
+- [ ] `If-Match` obavezan na `PATCH` — **NIJE** implementiran (D-055, klauzula 10).
+- [ ] `428 PRECONDITION_REQUIRED` bez `If-Match` — **NIJE** implementirano.
+- [ ] `400 VALIDATION_ERROR` na sintaksno neprihvaćen `If-Match` — **NIJE** implementirano
+      (D-055, klauzule 11–12).
+- [ ] `409 VERSION_CONFLICT` na stale `If-Match` — **NIJE** implementirano.
+- [ ] `version` se inkrementira **atomično** — **NIJE** implementirano.
 - [ ] `practice.settings.read` i `practice.settings.manage` ostaju **`PRACTICE_ADMIN` only**
       (D-044, nepromijenjeno; `15`).
 - [ ] Izloženost `PHASE 3 INTERMEDIATE NON-PILOT CONDITIONAL-SETTINGS READ EXPOSURE` je
@@ -1247,6 +1318,12 @@ D-049, klauzula 5.
 ### Zamrznuta settings reprezentacija — D-053, dio A
 
 Normativno: `03` §10 („Settings reprezentacija"); `02` §20.2b.1.
+
+**Stanje nakon P4-5C (PR #18).** `GET` polovina svake stavke ispod je **mehanički dokazana** i
+evidentirana u „Slice P4-5C" iznad: osmopoljna reprezentacija, jak `ETag: "<version>"`, odsustvo
+`version`-a u tijelu i odsustvo `updated_at`/`updated_by`/`configuration`. **Kućice ostaju
+neoznačene** jer svaka od njih tvrdi i **`PATCH`** polovinu, koja **ne postoji**. Označavaju se u
+gateu **P4-5D** (D-055).
 
 - [ ] `GET` i **uspješan** `PATCH` vraćaju **istu** reprezentaciju.
 - [ ] Reprezentacija ima **tačno osam** polja: `practiceId`, `billingReviewRequired`,
@@ -1283,6 +1360,13 @@ Normativno: `03` §10 („Settings reprezentacija"); `02` §20.2b.1.
 - [ ] **Nijedan novi triger nije uveden**; paket `014_immutability_triggers` je **nepromijenjen**.
 
 ### Mehanika optimističkog update-a — D-053, dio B
+
+**Autoritet za implementaciju: D-055.** Stavke ispod su **zamrznut ugovor, ne implementacija** —
+nijedna ne postoji na `main`-u. D-055 dodatno zamrzava ono što D-053 ne navodi: prihvaćenu
+gramatiku `"<N>"` (klauzula 11), razdvajanje `428`/`400`/`409` (klauzula 12), jaku i tačnu
+komparaciju (klauzula 13), `400` za prazno tijelo (klauzula 14), zabranu pre-reada (klauzula 16),
+`409` za nula redova iz **oba** uzroka (klauzule 19–21) i jedan izvor istine za uspješan odgovor
+(klauzule 22–23).
 
 - [ ] Očekivana verzija se izvodi **isključivo iz `If-Match`**.
 - [ ] Izvršava se **jedan atomičan SQL `UPDATE`**.
@@ -1737,14 +1821,18 @@ Role matrica conformance (vs docs/15):
 
 ## Prenesena zapažanja — P4-5BR
 
-Nezavisni review slice-a P4-5B (`0 MERGE_BLOCKERS`) prenio je sljedeća zapažanja. Nijedno **nije**
-riješeno; nijedno se **ne rješava** u gateu P4-5R1 (D-054, *Posljedice*). Sljedeći gate odlučuje
-koja od njih se moraju popraviti prije P4-5C.
+Nezavisni review slice-a P4-5B (`0 MERGE_BLOCKERS`) prenio je sljedeća zapažanja. U trenutku
+prenošenja nijedno **nije** bilo riješeno i nijedno se **nije rješavalo** u gateu P4-5R1 (D-054,
+*Posljedice*).
+
+**Stanje na kanonskom `main`-u (evidentirano u D-055, klauzuli 32):** **O4 je ZATVOREN** — riješen
+u PR #17, prije dodavanja prve dodatne tenant rute. **O2/O3, O5, O6 i O7 ostaju otvoreni** i vode
+se dalje u svojim klasifikacijama; nijedno od njih **nije** bloker za P4-5D.
 
 | Oznaka | Zapažanje | Klasifikacija |
 |---|---|---|
 | O2/O3 | Detekcija `42501` se u praksi oslanja na Prisma rendered error tekst; adapter nema namjenski unit spec | `HARDENING_BACKLOG` |
-| O4 | `TenantRequestPipeline.admit(session, userId, ...)` nosi budući wrong-user seam (D-054, klauzula 12) | `HARDENING_BACKLOG` |
+| O4 | `TenantRequestPipeline.admit(session, userId, ...)` nosi budući wrong-user seam (D-054, klauzula 12) | **`CLOSED`** — riješeno u PR #17 (`2229724`); potpis je sada `admit(session, request)` (D-055, klauzula 32) |
 | O5 | Citat dokumentacije uz aplikacijsko pooštravanje `ACTIVE` membershipa može biti precizniji | `DOCUMENTATION_BACKLOG` |
 | O6 | Recording test double ne modelira kompletno §17.6 membership visibility ponašanje | `HARDENING_BACKLOG` |
 | O7 | HTTP anti-enumeration jednakost se može ojačati set-wide | `HARDENING_BACKLOG` |

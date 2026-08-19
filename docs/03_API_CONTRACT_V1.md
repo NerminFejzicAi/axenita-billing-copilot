@@ -371,6 +371,13 @@ Pravila:
 - uspješan odgovor **uvijek** vraća novi `ETag`;
 - `400` se ne koristi za nedostajući `If-Match` (D-028, klauzula 2).
 
+**Nedostajući naspram neispravnog validatora (D-055, klauzula 12).** Pravilo iznad se odnosi
+**isključivo na odsustvo** headera. Header koji **jeste prisutan**, ali čiji oblik endpoint ne
+prihvata, je **format headera** i daje **`400 VALIDATION_ERROR`** po §9 — nikada `428` (header
+nije odsutan) i nikada `409` (nije poslana valjana verzija koja bi mogla biti zastarjela).
+Prihvaćeni oblik validatora je vlasništvo pojedinačnog endpointa; za settings rutu je zamrznut u
+D-055, klauzuli 11.
+
 ## 5.3 Ograničenje
 
 Optimistic locking se **ne primjenjuje na command-style POST endpointe**. Nijedan `POST`
@@ -839,6 +846,46 @@ važi za `practice.settings.manage` na `PATCH` ruti.
 
 Vraća reprezentaciju iznad i `ETag` za optimistic locking (§5.2).
 
+### Uslovni `GET` — `If-None-Match` i `304` (D-055, dio B)
+
+Jak verzijski `ETag` učestvuje u **običnoj HTTP `If-None-Match` revalidaciji**. Za **potpuno
+autentifikovan, admitiran i autorizovan** `GET`, podudaran validator **smije** dati:
+
+```http
+304 Not Modified
+```
+
+uz **prazno tijelo** i **zadržan tekući `ETag`**. Zamrznuta osmopoljna reprezentacija se na `304`
+**ne primjenjuje**, jer `304` po definiciji **ne nosi reprezentaciju**; to **nije** izuzetak od
+zamrznutog ugovora.
+
+**Revalidacija je strogo nakon cijelog redoslijeda §3.7.1, koraka 1–10.** `If-None-Match` **ne
+zaobilazi i ne preuređuje** autentifikaciju, tenant admisiju, provjeru `practices.status`, nijednu
+membership barijeru, uspostavu tenant konteksta ni evaluaciju `practice.settings.read`.
+Neautorizovan zahtjev zadržava **svoj kanonski ishod** — `401`, `403` ili `400` — **bez obzira** na
+prisustvo ili vrijednost headera. **Ne postoji vrijednost `If-None-Match`-a koja od odbijenog
+zahtjeva pravi `304`.**
+
+`If-None-Match` po HTTP-u koristi **slabu komparaciju**, pa validator u slabom obliku (`W/"3"`)
+**smije** poklopiti isti resursni tag pri `GET` revalidaciji. To je **očekivano** i **ne slabi** jak
+`ETag` koji server emituje, niti definiše `PATCH` konkurentnost (D-055, klauzule 5 i 13).
+
+### Nedostajući `practice_settings` red (D-055, dio C)
+
+Kada su autentifikacija, tenant admisija, **aktivan** membership, **`ACTIVE`** ordinacija,
+permisija `practice.settings.read` i tenant kontekst **svi uspješni**, a admitirana ordinacija
+**nema** `practice_settings` red, to je **interni data-integrity invarijant failure**:
+
+```text
+500 INTERNAL_ERROR
+```
+
+sa **statičnim, neosjetljivim** Problem Details tijelom (`09` §11).
+
+**Ne tumači se** kao `404`, `403`, prazne postavke ni default postavke. **Red se ne kreira i ne
+popravlja** — nijedna runtime rola nema `INSERT` nad `practice_settings` (`02` §20.2b.1; D-053,
+klauzula B.2).
+
 ## PATCH `/practices/{practiceId}/settings`
 
 **Faza 4** (D-049). Puni PATCH ostaje u **aktivnom v1 scopeu**; njegov **fazni** dio iz D-028,
@@ -899,7 +946,70 @@ Odgovor `200` vraća **zamrznutu osmopoljnu reprezentaciju** iz „Settings repr
 **novi `ETag`**; `version` je inkrementiran atomično.
 
 Greške: `428 PRECONDITION_REQUIRED` bez `If-Match`, `409 VERSION_CONFLICT` na stale
-`If-Match`.
+`If-Match`, `400 VALIDATION_ERROR` na sintaksno neprihvaćen `If-Match` ili prazno tijelo
+(D-055, dio D).
+
+### Prihvaćeni oblik `If-Match`-a (D-055, klauzula 11)
+
+Prihvata se **tačno jedan** kanonski **jak** verzijski tag, u **tačno onom obliku koji `GET`
+emituje**:
+
+```text
+"<N>"
+```
+
+gdje je `N` **kanonska nenegativna decimalna** cjelobrojna reprezentacija.
+
+| Prihvaćeno | Neprihvaćeno |
+|---|---|
+| `"0"` | `1` (bez navodnika) |
+| `"1"` | `W/"1"` (slab validator) |
+| `"27"` | `*` (wildcard) |
+| | `"01"` (nekanonska decimalna reprezentacija) |
+| | `"1", "2"` (više validatora) |
+| | `"abc"` (nije cijeli broj) |
+| | prazna vrijednost |
+| | neispravno navođenje |
+
+Endpoint **namjerno** koristi **užu aplikacijsku gramatiku** od pune generičke HTTP `If-Match`
+gramatike, jer je taj token **jedini kanal optimističke konkurentnosti** ovog resursa. Uža
+gramatika je **pooštrenje**, ne odstupanje.
+
+**Komparacija je jaka i tačna.** `W/"1"` **nikada** ne zadovoljava `If-Match: "1"`. Slaba
+komparacija dozvoljena na `GET` revalidaciji **nije presedan** za `PATCH`: obje rute dijele **isti
+emitovani token**, ali koriste **različitu HTTP precondition semantiku** (D-055, klauzula 13).
+
+### Normativno razdvajanje `428` / `400` / `409` (D-055, klauzula 12)
+
+| Slučaj | Status | Code |
+|---|---:|---|
+| `If-Match` **nedostaje** | **`428`** | `PRECONDITION_REQUIRED` |
+| `If-Match` je **sintaksno neprihvaćen** | **`400`** | `VALIDATION_ERROR` |
+| `If-Match` je **prihvaćen**, ali verzija **ne odgovara** tekućem stanju | **`409`** | `VERSION_CONFLICT` |
+
+- **`400`** = pozivalac **nije poslao valjan verzijski token**;
+- **`409`** = pozivalac **jeste** poslao valjan jak verzijski token, ali on **više ne odgovara**
+  perzistiranom stanju.
+
+Sintaksno neprihvaćen `If-Match` **nikada** ne postaje `409` ni `428`. Pravilo „`400` se ne koristi
+za nedostajući `If-Match`" (§5.2, D-028, klauzula 2) ostaje **na snazi** i odnosi se **isključivo**
+na **odsustvo** headera.
+
+### Prazno tijelo (D-055, klauzula 14)
+
+Tijelo mora sadržavati **najmanje jedno** od **tačno sedam** mutabilnih polja iz tabele iznad.
+Prazan JSON objekat:
+
+```json
+{}
+```
+
+daje **`400 VALIDATION_ERROR`**, uz **nikakav `UPDATE`**, **bez inkrementa `version`-a** i **bez
+promjene `updated_at`**. Prazno tijelo je **odsustvo zahtjeva za izmjenom** i ne smije potrošiti
+verziju.
+
+Nepoznata i neugovorna polja ostaju nevažeća po normalnim pravilima validacije zahtjeva; `version`,
+`updated_at` i `updated_by` se i dalje **ne primaju**.
 
 ### Mehanika optimističkog update-a (D-053, dio B)
 
@@ -912,6 +1022,42 @@ Greške: `428 PRECONDITION_REQUIRED` bez `If-Match`, `409 VERSION_CONFLICT` na s
   - nosi predikat `practice_id = <uspostavljeni tenant> and version = <očekivana verzija>`;
 - **nula pogođenih redova zbog zastarjele očekivane verzije → `409 VERSION_CONFLICT`**;
 - uspjeh vraća reprezentaciju i **novi** `ETag`.
+
+**Zabranjen aplikacijski pre-read (D-055, klauzula 16).** Nijedno aplikacijsko čitanje prije upisa
+ne smije se koristiti da odluči da li je verzija tekuća. Očekivana verzija dolazi **isključivo** iz
+`If-Match`-a, a njena tekućnost se utvrđuje **isključivo** predikatom iskaza.
+
+**Nula pogođenih redova ima jedan ishod (D-055, klauzule 19–21).** `409 VERSION_CONFLICT` važi
+**bez obzira** da li je nula redova nastala zbog **zastarjele verzije** ili zbog **nedostajućeg
+`practice_settings` reda**. Aplikacija **ne smije** izvesti dodatno čitanje da bi ta dva uzroka
+razlikovala.
+
+| Ruta | Nedostajući red nakon autorizacije | Ishod |
+|---|---|---:|
+| `GET` | otkriven **čitanjem** | **`500 INTERNAL_ERROR`** |
+| `PATCH` | otkriven **nulom pogođenih redova** | **`409 VERSION_CONFLICT`** |
+
+Asimetrija je **namjerna**: `PATCH` čuva jednoiskaznu atomičnu optimističku konkurentnost i **ne
+uvodi race-prone read-before-write diskriminator**.
+
+**Jedan izvor istine za uspješan odgovor (D-055, klauzule 22–23).** Uspjeh je **`200 OK`** sa
+**istom** zamrznutom osmopoljnom reprezentacijom kao `GET` i **novim jakim** `ETag: "<newVersion>"`,
+gdje je `newVersion = oldVersion + 1`. Reprezentacija **i** `ETag` se izvode iz reda koji vraća
+**isti** atomičan `UPDATE ... RETURNING` iskaz; **drugo čitanje postavki nije potrebno i ne smije se
+uvesti**, jer bi otvorilo prozor u kojem tijelo i validator opisuju dva različita stanja. `version`
+se **ne izlaže u tijelu**.
+
+**Razdvajanje conditional headera (D-055, klauzule 24–25).** `If-None-Match` je kanonizovan
+**isključivo** za `GET` revalidaciju i **ne smije** učestvovati u odluci o uspjehu `PATCH`-a;
+`If-Match` je **jedini** kanal optimističke konkurentnosti. U fazi 4 se **ne uvodi** nijedan
+dodatni precondition header.
+
+**Idempotency (D-055, klauzula 31).** Ova ruta **ne zahtijeva** `Idempotency-Key`; token
+optimističke konkurentnosti je `If-Match`/`version` (§5.3).
+
+**Cache politika (D-055, dio I).** Repozitorijski široka odluka o `Cache-Control`, `private`,
+`no-store` i `Vary: Authorization` je **odgođena u zaseban hardening/governance slice**;
+implementacija settings `PATCH`-a je **ne mijenja**.
 
 Runtime write površina baze je **tačno devet** `UPDATE` kolona — sedam poslovnih polja iz tabele
 iznad plus `version` i `updated_at` (`02` §20.2b.1). Runtime privilegija `UPDATE (version)` je
