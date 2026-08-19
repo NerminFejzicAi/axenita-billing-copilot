@@ -78,6 +78,7 @@ MUST DECIDE BEFORE <faza>
 - **Alternative:** application WHERE filter.
 - **Razlog:** defense in depth.
 - **Posljedice:** svi tenant business upiti moraju biti u interactive transactionu.
+- **Dopuna (D-054, 2026-08-17):** Imena **`PracticeContextGuard`** i **`TenantDatabaseService`** iz ove odluke su **koncepti**, ne obavezni framework artefakti, a historijski potpis `TenantDatabaseService.run(practiceId, userId, callback)` **nije normativan**. Sigurnosni **sadržaj** ove odluke — PracticeContext, tenant facade, RLS, composite FK i interaktivna transakcija — ostaje **nepromijenjen i ne slabi se**. Pri konfliktu imena i redoslijeda, zamrznuti redoslijed iz `03` §3.7.1 i D-047, klauzule 10 je **nadređen**. Obavezna svojstva svake buduće konkretne implementacije su D-054, klauzule 6–10. Vidi D-054.
 
 ---
 
@@ -2451,6 +2452,7 @@ D-023, D-029, D-033, D-038, D-046, D-047, D-048, D-049, D-050, D-051.
   ispustila. **D-041, D-044 i D-049, klauzula 3** ostaju nepromijenjeni u dijelu koji definiše
   uslovne permisije. Amandman obuhvata i svu izvedenu dokumentaciju o settings ugovoru,
   `practice_settings` grantovima, redoslijedu autorizacije i `GET /me` runtime putu.
+- **Dopuna (D-055, 2026-08-19):** Mehanika `If-Match`-a iz **dijela B** je **dopunjena, ne izmijenjena**. **D-055** dodaje ono što ova odluka ne navodi: prihvaćenu gramatiku jednog jakog verzijskog taga `"<N>"`, `400 VALIDATION_ERROR` za **sintaksno neprihvaćen** validator, jaku i tačnu komparaciju na `PATCH`-u, `400 VALIDATION_ERROR` za **prazno** tijelo, zabranu aplikacijskog pre-reada i `409 VERSION_CONFLICT` za **nula pogođenih redova iz oba uzroka**. `428` za **nedostajući** `If-Match` i `409` za **zastarjeli** ostaju **doslovno nepromijenjeni**, kao i osmopoljna reprezentacija iz dijela A i obje devetokolonske površine. **Nijedna klauzula ove odluke se ne opoziva.** D-055 dodatno kanonizuje autorizovan `304` na `GET` revalidaciji i invarijant nedostajućeg reda (`500 INTERNAL_ERROR`). Vidi D-055.
 - **Kontekst/problem:** Tri blokera i jedna dodatna regresija otkriveni su na gateu P4-1, prije
   autorizacije implementacije faze 4.
 
@@ -2901,6 +2903,7 @@ D-052.
   callback)`. Sigurnosni **sadržaj** oba zahtjeva ostaje nepromijenjen i ne slabi se. **D-047,
   klauzula 10** i **`03` §3.7.1** se **ne mijenjaju** — ova ih odluka izričito potvrđuje kao
   **nadređene** svakom izvedenom imenu artefakta. **D-049 i D-053** ostaju nepromijenjeni.
+- **Status klauzule 12 (evidentirano u D-055, 2026-08-19):** **RIJEŠENO na kanonskom `main`-u.** PR #17 (`2229724`) je merged; kanonski potpis je sada **`TenantRequestPipeline.admit(session, request)`**, pa `userId` seam iz klauzule 12 **više ne postoji** i pogrešan korisnik nije izraziv. Prva dodatna tenant ruta (P4-5C, PR #18) dodana je **tek nakon** toga, čime je precondition klauzule 12 ispoštovan. Zapažanje **O4** u `05`, Faza 4 je **ZATVORENO**. Obrazloženje i historija ove odluke se **ne mijenjaju** — bilježi se **ishod**, ne razlog.
 - **Kontekst/problem:** Nezavisni review gatea **P4-5BR** nad prihvaćenom implementacijom **P4-5B**
   (`fdef469`, merged u kanonski `main` kroz PR #15, `530295d`) mehanički je utvrdio da dva
   kanonska **imena** iz planske dokumentacije nemaju jednoznačno tumačenje, i da doslovno čitanje
@@ -3065,6 +3068,669 @@ Budući konkretan `TenantDatabaseService` mora ponovo dokazati klauzule 6–10 p
 ## Zavisnosti
 
 D-006, D-023, D-033, D-038, D-041, D-047, D-049, D-051, D-052, D-053.
+
+---
+
+# D-055 — HTTP validatori i optimistička konkurentnost `practice_settings` ruta
+
+- **Status:** ACCEPTED
+- **Datum:** 2026-08-19
+- **Amandman na:** **D-053, dio B** — isključivo u dijelu u kojem `If-Match` mehanika navodi
+  **nedostajući** i **zastarjeli** validator, ali **ne navodi prihvaćeni oblik** samog tokena, ne
+  razlikuje **sintaksno neispravan** validator od zastarjelog, i ne imenuje ishod **praznog**
+  `PATCH` tijela. Sve tri praznine se ovom odlukom **zatvaraju tačnim, prebrojivim pravilima**.
+  **Nijedna klauzula D-053 se ne opoziva**: `428` za nedostajući `If-Match` i `409
+  VERSION_CONFLICT` za zastarjeli ostaju **doslovno nepromijenjeni**. **D-047 (posebno klauzule 8,
+  10, 11 i 18), D-049 i D-054 ostaju nepromijenjeni**; ova ih odluka izričito potvrđuje kao
+  **nadređene**. `15` ostaje nepromijenjen.
+- **Kontekst/problem:** Slice **P4-5C** (`GET /api/v1/practices/{practiceId}/settings`) je merged u
+  kanonski `main` kroz **PR #18** (`0411ae4`, merge `be675fd`). Nezavisni review gatea **P4-5CR**
+  mehanički je utvrdio dva ponašanja koja **postoje na `main`-u**, a nijedan kanonski dokument ih
+  ne opisuje, i jedan skup ambiguiteta koji bi implementator **P4-5D** morao izmisliti.
+
+  **OD-1 — autorizovani `304` nije kanonizovan.** Ruta postavlja **jak** `ETag: "<version>"`
+  eksplicitno, prije serijalizacije tijela. Time taj validator ulazi u **običnu HTTP
+  revalidaciju**: potpuno autentifikovan, admitiran i autorizovan `GET` sa podudarajućim
+  `If-None-Match` headerom dobija **`304 Not Modified`** i **prazno tijelo**. Ponašanje je
+  ispravno i posljedica je jakog taga koji D-053, klauzula A.2 zahtijeva, ali `03` ga nigdje ne
+  navodi. Bez kanonizacije, sljedeći review bi ga mogao pročitati kao **curenje** zamrznute
+  osmopoljne reprezentacije ili kao **zaobilaženje** autorizacije, a implementator P4-5D bi ga
+  mogao „popraviti" i time slomiti ispravno ponašanje.
+
+  **OD-2 — invarijant nedostajućeg reda nije kanonizovan.** Vlasnička odluka gatea P4-5C —
+  nedostajući `practice_settings` red **nakon** uspješne autorizacije je **interni invarijant**,
+  ne autorizacijski ishod — implementirana je i pokrivena testovima, ali postoji **isključivo** u
+  komentaru izvornog koda i u commit poruci. Nijedan kanonski dokument ne kaže da ishod nije
+  `404` ni `403`.
+
+  **OD-3 — `PATCH` validator nije razriješen.** D-053, klauzula B.4 imenuje **nedostajući**
+  (`428`) i **zastarjeli** (`409`) `If-Match`, ali ne odgovara na četiri pitanja bez kojih P4-5D
+  nije izvodiv: (a) koji je **tačan prihvaćen oblik** tokena; (b) šta se dešava sa **sintaksno
+  neispravnim** validatorom, `W/"1"`, `*`, listom validatora ili praznom vrijednošću; (c) da li
+  slaba komparacija ikada zadovoljava `If-Match`; (d) šta je ishod **praznog** tijela `{}`.
+  Dodatno, `03` §5.2 kaže da se `400` **ne koristi za nedostajući** `If-Match`, što je bez izričite
+  distinkcije lako pročitati kao „`400` se uopšte ne koristi na ovoj ruti".
+
+  **OD-4 — nula pogođenih redova ima dva uzroka.** D-053, klauzula B.4 imenuje `409` za nula
+  redova **zbog zastarjele verzije**. Isti atomičan `UPDATE` daje nula redova i kada red **ne
+  postoji**. Bez odluke, implementator bi uveo **pre-read diskriminator** — dodatno čitanje prije
+  upisa, koje je po definiciji **race-prone** i koje bi razbilo jednoiskaznu optimističku
+  konkurentnost.
+
+  **OD-5 — cache politika.** P4-5CR je zapazio da autentifikovani tenant odgovori trenutno nemaju
+  eksplicitnu `Cache-Control` politiku. Zapažanje je stvarno, ali **nije** vlasništvo settings
+  slicea.
+
+## Odluka
+
+# Dio A — D-053 ostaje bazni settings ugovor
+
+### A.1 Klauzula 1 — reprezentacija i rute su nepromijenjene
+
+Ova odluka **ne mijenja** nijedno slovo zamrznutog ugovora:
+
+- `GET /api/v1/practices/{practiceId}/settings`;
+- `PATCH /api/v1/practices/{practiceId}/settings`;
+- zajednička uspješna reprezentacija je **tačno osam** javnih polja i nijedno drugo — `practiceId`,
+  `billingReviewRequired`, `allowMpaApproval`, `allowBillingSpecialistApproval`,
+  `requireReasonForManualChange`, `aiEnabled`, `axenitaExportEnabled`, `retentionPolicyCode`
+  (D-053, klauzula A.1).
+
+### A.2 Klauzula 2 — polja koja tijelo nikada ne nosi
+
+U javnom tijelu **ne postoje** i ovom odlukom se **ne uvode**:
+
+```text
+version
+id
+configuration
+updatedAt
+updatedBy
+```
+
+`ETag` ostaje **jedini javni kanal** tekuće verzije resursa (D-053, klauzula A.2). Nijedan validator
+kanonizovan ovom odlukom ne otvara drugi kanal.
+
+# Dio B — Uslovni `GET`, `If-None-Match` i `304`
+
+### B.1 Klauzula 3 — jak `ETag` učestvuje u običnoj revalidaciji
+
+Za **potpuno autentifikovan, admitiran i autorizovan** `GET /api/v1/practices/{practiceId}/settings`,
+jak verzijski `ETag` učestvuje u **običnoj HTTP `If-None-Match` revalidaciji**. Podudaran validator
+**smije** rezultirati:
+
+```http
+304 Not Modified
+```
+
+uz:
+
+- **prazno tijelo**;
+- **zadržan tekući `ETag`**;
+- **bez** zamrznute osmopoljne reprezentacije, jer `304` po definiciji **ne nosi reprezentaciju**.
+
+`304` **nije izuzetak** od klauzule A.1 — on je odgovor **bez** reprezentacije, pa je zamrznuta
+reprezentacija na njemu neprimjenjiva, a ne prekršena.
+
+### B.2 Klauzula 4 — revalidacija je strogo **nakon** cijelog D-047 pipelinea
+
+Ponašanje iz klauzule 3 nastupa **isključivo nakon** kompletnog redoslijeda `03` §3.7.1, koraci
+1–10. `If-None-Match` **ne smije** zaobići, skratiti ni preurediti:
+
+- autentifikaciju;
+- tenant admisiju;
+- provjeru `practices.status`;
+- obje membership barijere;
+- uspostavu tenant konteksta;
+- izvođenje i evaluaciju `practice.settings.read`.
+
+Neautorizovan zahtjev zadržava **svoj kanonski ishod** — `401`, `403` ili `400` — **bez obzira** na
+prisustvo, odsustvo ili vrijednost `If-None-Match` headera. **Ne postoji** `If-None-Match`
+vrijednost koja od odbijenog zahtjeva pravi `304`.
+
+### B.3 Klauzula 5 — slaba komparacija na `GET`-u je očekivana HTTP semantika
+
+`If-None-Match` po HTTP-u koristi **slabu komparaciju**. Zbog toga validator u slabom obliku
+(`W/"3"`) **smije** poklopiti isti resursni tag pri `GET` revalidaciji. To je **evidentirano kao
+očekivano**, a ne kao odstupanje.
+
+Ta činjenica:
+
+- **ne slabi** jak `ETag` koji server emituje — server i dalje emituje **isključivo** `"<version>"`
+  (D-053, klauzula A.2);
+- **ne definiše** `PATCH` konkurentnost ni na koji način (vidi dio D i klauzulu 13).
+
+### B.4 Klauzula 6 — ovaj gate ne ovlašćuje kod ni testove za `304`
+
+Ova odluka **kanonizuje zatečeno ponašanje**. Trajne izmjene aplikacijskog koda, novi `304` testovi
+i bilo kakva namjenska `304` grana **nisu ovlašteni** ovim governance gateom. Implementacija P4-5D
+**ne smije** uvesti novo `304` ponašanje, niti ukloniti postojeće.
+
+# Dio C — `GET` bez `practice_settings` reda
+
+### C.1 Klauzula 7 — nedostajući red je interni invarijant, ne autorizacijski ishod
+
+Kada su **svi** sljedeći uslovi ispunjeni:
+
+- autentifikacija;
+- tenant admisija;
+- **aktivan** membership;
+- **`ACTIVE`** ordinacija;
+- permisija `practice.settings.read`;
+- uspostavljen tenant kontekst;
+
+a admitirana ordinacija **nema** `practice_settings` red, to je **interni data-integrity invarijant
+failure**.
+
+Eksterni ishod je:
+
+```text
+500 INTERNAL_ERROR
+```
+
+sa **statičnim, neosjetljivim** Problem Details tijelom (`09` §11): bez imena ordinacije,
+membershipa, korisnika, tabele, kolone, iskaza i bez database poruke.
+
+### C.2 Klauzula 8 — zabranjena tumačenja
+
+Nedostajući red se **ne** tumači kao:
+
+```text
+404
+403
+prazne postavke
+default postavke
+```
+
+`403` bi zajedničku anti-enumeracijsku refuzaciju pretvorio u „ponekad smo pokvareni"; `404` bi
+novo otkrio da ordinacija postoji ali nema postavke; izmišljene default vrijednosti bi
+API-jem proizveden approval-konfiguracijski dokument predstavile kao **stvarne** postavke te
+ordinacije.
+
+### C.3 Klauzula 9 — ništa se ne kreira i ne popravlja
+
+Red se **ne kreira**, **ne popravlja** i **ne dopunjuje**. To nije samo zabranjeno nego i
+**neizrazivo**: nijedna runtime rola nema `INSERT` nad `practice_settings` (D-053, klauzula B.2;
+`02` §20.2b.1).
+
+# Dio D — `If-Match` na `PATCH`-u
+
+### D.1 Klauzula 10 — `If-Match` je obavezan kanal
+
+`PATCH` zahtijeva `If-Match`. Nedostajući header ostaje:
+
+```text
+428 PRECONDITION_REQUIRED
+```
+
+**Nepromijenjeno** iz D-053, klauzule B.4 i `03` §5.2.
+
+### D.2 Klauzula 11 — prihvaćena gramatika je tačno jedan jak verzijski tag
+
+Za P4-5D se prihvata **tačno jedan** kanonski jak verzijski `ETag`, u **tačno onom obliku koji
+`GET` emituje**:
+
+```text
+"<N>"
+```
+
+gdje je `N` **kanonska nenegativna decimalna** cjelobrojna reprezentacija.
+
+Prihvaćeni primjeri:
+
+```text
+"0"
+"1"
+"27"
+```
+
+**Neprihvaćeni** primjeri, imenovano:
+
+```text
+1                 (bez navodnika)
+W/"1"             (slab validator)
+*                 (wildcard)
+"01"              (nekanonska decimalna reprezentacija)
+"1", "2"          (više validatora)
+"abc"             (nije cijeli broj)
+                  (prazna vrijednost)
+"1                (neispravno navođenje)
+```
+
+Endpoint **namjerno** koristi **užu aplikacijsku gramatiku** od pune generičke HTTP `If-Match`
+gramatike, jer je taj token **jedini kanal optimističke konkurentnosti** ovog resursa. Uža
+gramatika je **pooštrenje**, ne odstupanje.
+
+### D.3 Klauzula 12 — normativna razlika `400` naspram `409` naspram `428`
+
+| Slučaj | Status | Code |
+|---|---:|---|
+| `If-Match` **nedostaje** | **`428`** | `PRECONDITION_REQUIRED` |
+| `If-Match` je **sintaksno neprihvaćen** po klauzuli 11 | **`400`** | `VALIDATION_ERROR` |
+| `If-Match` je **prihvaćen**, ali verzija **ne odgovara** tekućem stanju | **`409`** | `VERSION_CONFLICT` |
+
+Razlika je **normativna**:
+
+- **`400`** = pozivalac **nije poslao valjan verzijski token**;
+- **`409`** = pozivalac **jeste** poslao valjan jak verzijski token, ali on **više ne odgovara**
+  perzistiranom stanju.
+
+Sintaksno neprihvaćen `If-Match` **nikada** ne postaje `409 VERSION_CONFLICT` ni
+`428 PRECONDITION_REQUIRED`.
+
+**Odnos prema `03` §5.2.** Pravilo „`400` se ne koristi za **nedostajući** `If-Match`" (D-028,
+klauzula 2) ostaje **doslovno na snazi** i ovom se odlukom **ne dira**. Ono se odnosi **isključivo**
+na **odsustvo** headera. Prisutan ali neispravno formatiran header je **format headera**, dakle
+`400` po `03` §9. Dva pravila se **ne kose** i moraju se čitati zajedno.
+
+### D.4 Klauzula 13 — komparacija na `PATCH`-u je jaka i tačna
+
+`PATCH` komparacija je **jaka i tačna**. Slab validator:
+
+```text
+W/"1"
+```
+
+**nikada** ne zadovoljava:
+
+```http
+If-Match: "1"
+```
+
+i odbija se već po klauzuli 11, kao neprihvaćena gramatika.
+
+Ponašanje slabe komparacije iz klauzule 5 **nije presedan** za `PATCH`. `GET` i `PATCH` dijele
+**isti emitovani `ETag` token**, ali koriste **različitu HTTP precondition semantiku**: `GET`
+revalidira, `PATCH` autorizuje upis nad tačno jednom verzijom.
+
+### D.5 Klauzula 14 — prazno `PATCH` tijelo
+
+Tijelo mora sadržavati **najmanje jedno** prihvaćeno mutabilno polje. Skup mutabilnih polja ostaje
+**tačno sedam**, nepromijenjen iz D-053:
+
+```text
+billingReviewRequired
+allowMpaApproval
+allowBillingSpecialistApproval
+requireReasonForManualChange
+aiEnabled
+axenitaExportEnabled
+retentionPolicyCode
+```
+
+Prazan JSON objekat `{}` daje:
+
+```text
+400 VALIDATION_ERROR
+```
+
+i pri tome:
+
+- **nema `UPDATE`-a**;
+- **nema inkrementa `version`-a**;
+- **nema promjene `updated_at`**.
+
+Prazno tijelo je **odsustvo zahtjeva za izmjenom**, a ne izmjena koja slučajno ništa ne mijenja;
+zato se odbija **prije** ijednog upisa i ne smije potrošiti verziju. Ovaj ishod je
+**endpoint-specifičan i namjerno `400`**, u skladu sa `03` §9 („header/query/request format"), i
+**ne izvodi se** iz generičkog `422` puta `ValidationPipe` fabrike.
+
+Nepoznata i neugovorna polja ostaju nevažeća po **normalnim** pravilima validacije zahtjeva ovog
+repozitorija; ova odluka ta pravila **ne mijenja** i **ne uvodi** nijedno novo polje.
+
+`version`, `updated_at` i `updated_by` se u tijelu i dalje **ne primaju** (D-053, klauzula B.6).
+
+# Dio E — Atomičan optimistički `UPDATE`
+
+### E.1 Klauzula 15 — jedan iskaz, obavezan predikat
+
+Upis je **jedan atomičan optimistic-concurrency `UPDATE`**, sa obaveznim semantičkim predikatom:
+
+```text
+practice_id = <uspostavljena/admitirana tenant ordinacija>
+AND
+version     = <očekivana verzija iz If-Match>
+```
+
+### E.2 Klauzula 16 — zabranjen aplikacijski pre-read
+
+**Nijedno aplikacijsko čitanje prije upisa ne smije se koristiti da odluči da li je verzija
+tekuća.** Očekivana verzija dolazi **isključivo** iz `If-Match`, a njena tekućnost se utvrđuje
+**isključivo** predikatom iskaza.
+
+### E.3 Klauzula 17 — tačan skup kolona koje iskaz piše
+
+`UPDATE` postavlja:
+
+- **samo poslana** poslovna polja;
+- `version = version + 1`;
+- `updated_at` na **tekuće vrijeme baze**.
+
+`updated_by` ostaje **netaknut** (D-053, klauzula B.3).
+
+**Nema `INSERT`, nema `DELETE`, nema `upsert`.**
+
+### E.4 Klauzula 18 — `UPDATE` površina je nepromijenjena
+
+Prihvaćena `UPDATE` površina D-053, klauzule B.1 se **doslovno preslikava** i **ne proširuje**.
+Dozvoljene poslovne kolone:
+
+```text
+billing_review_required
+allow_mpa_approval
+allow_billing_specialist_approval
+require_reason_for_manual_change
+ai_enabled
+axenita_export_enabled
+retention_policy_code
+```
+
+plus:
+
+```text
+version
+updated_at
+```
+
+— **tačno devet** `UPDATE` kolona. **Ne pišu se** `practice_id`, `updated_by`, `id` ni
+`configuration`.
+
+# Dio F — Nula pogođenih redova
+
+### F.1 Klauzula 19 — jedan ishod za oba uzroka
+
+Ako atomičan `UPDATE` pogodi **nula redova**, ishod je:
+
+```text
+409 VERSION_CONFLICT
+```
+
+**bez obzira** da li je nula redova nastala zbog:
+
+- **zastarjele verzije**; ili
+- **nedostajućeg `practice_settings` reda**.
+
+### F.2 Klauzula 20 — zabranjen diskriminator
+
+Aplikacija **ne smije** izvesti dodatno čitanje da bi ta dva uzroka razlikovala.
+
+### F.3 Klauzula 21 — asimetrija `GET`/`PATCH` je namjerna
+
+| Ruta | Nedostajući red nakon autorizacije | Ishod |
+|---|---|---:|
+| `GET` | otkriven **čitanjem** | **`500 INTERNAL_ERROR`** (klauzula 7) |
+| `PATCH` | otkriven **nulom pogođenih redova** | **`409 VERSION_CONFLICT`** (klauzula 19) |
+
+Asimetrija je **namjerna i prihvaćena**: `PATCH` čuva **jednoiskaznu atomičnu optimističku
+konkurentnost** i **ne uvodi race-prone read-before-write diskriminator**. `GET` nema upis koji bi
+mu tu informaciju dao besplatno, pa je za njega nedostajući red **isključivo** invarijant.
+
+# Dio G — Uspješan `PATCH`
+
+### G.1 Klauzula 22 — status, reprezentacija i novi validator
+
+Uspješan `PATCH` vraća:
+
+```text
+200 OK
+```
+
+sa **istom zamrznutom osmopoljnom reprezentacijom** kao `GET` (klauzula 1) i **novim jakim**
+validatorom:
+
+```http
+ETag: "<newVersion>"
+```
+
+gdje je `newVersion = oldVersion + 1`.
+
+### G.2 Klauzula 23 — jedan izvor istine za odgovor
+
+Reprezentacija **i** `ETag` se izvode iz reda koji vraća **isti** atomičan
+`UPDATE ... RETURNING` iskaz. **Nijedno drugo čitanje postavki nije potrebno** za konstrukciju
+uspješnog odgovora, i ne smije se uvesti: drugi read bi otvorio prozor u kojem tijelo i validator
+opisuju dva različita stanja.
+
+`version` se **ne izlaže u tijelu** (klauzula 2).
+
+# Dio H — Razdvajanje conditional headera
+
+### H.1 Klauzula 24 — svaki header ima tačno jednu ulogu
+
+- `If-None-Match` je kanonizovan **isključivo** za `GET` revalidaciju (dio B);
+- `If-Match` je **jedini** kanal optimističke konkurentnosti za `PATCH` (dio D).
+
+Aplikacijski kod P4-5D **ne smije** koristiti `If-None-Match` da odluči o uspjehu `PATCH`-a.
+
+### H.2 Klauzula 25 — nema novih precondition headera
+
+U fazi 4 se **ne uvodi** nijedan dodatni precondition header.
+
+# Dio I — Cache politika je odgođena
+
+### I.1 Klauzula 26 — zapažanje je priznato, ali nije bloker
+
+Zapažanje P4-5CR da autentifikovani tenant odgovori trenutno nemaju eksplicitnu `Cache-Control`
+politiku je **priznato**. **Nije bloker** za implementaciju P4-5D.
+
+### I.2 Klauzula 27 — odgoda u zaseban slice
+
+Svaka repozitorijski široka odluka o:
+
+```text
+Cache-Control
+private
+no-store
+Vary: Authorization
+```
+
+se **odgađa u zaseban hardening/governance slice**. **P4-5D ne smije oportunistički mijenjati
+globalnu cache politiku**, ni na settings rutama ni bilo gdje drugo.
+
+# Dio J — Tenant i sigurnosni model su nepromijenjeni
+
+### J.1 Klauzula 28 — isti pipeline, ista permisija
+
+Budući `PATCH` mora koristiti **isti prihvaćeni** `TenantRequestPipeline`, kroz **isti**
+jedanaestokoračni redoslijed `03` §3.7.1.
+
+Tražena permisija je:
+
+```text
+practice.settings.manage
+```
+
+izvedena **isključivo** kroz jedinstvenu aplikacijsku reprezentaciju matrice `15`.
+
+### J.2 Klauzula 29 — imenovane zabrane
+
+**Zabranjeno je**, bez izuzetka:
+
+- hard-kodirana `PRACTICE_ADMIN` provjera;
+- `SYSTEM_ADMIN` tenant bypass;
+- caller-supplied `userId` u bilo kojem obliku;
+- drugi `PrismaClient`;
+- druga request transakcija.
+
+### J.3 Klauzula 30 — nema database promjene
+
+Ova odluka **ne zahtijeva i ne uvodi** nijednu promjenu RLS politika, grantova, schema objekata,
+`app_security` funkcija, migration paketa, permission matrice ni resolvera. Nijedan paket se ne
+uvodi i nijedan se ne renumeriše.
+
+# Dio K — Idempotency
+
+### K.1 Klauzula 31 — bez idempotency ključa
+
+`PATCH /practices/{practiceId}/settings` **ne zahtijeva** `Idempotency-Key`. Token optimističke
+konkurentnosti je **`If-Match`/`version`**, i on je jedini. **Nepromijenjeno** iz D-053 i `03` §5.3.
+
+# Dio L — Status D-054, klauzule 12
+
+### L.1 Klauzula 32 — `userId` seam je zatvoren na `main`-u
+
+Mehanički se evidentira, bez izmjene historijskog obrazloženja D-054:
+
+- **PR #17 je merged** u kanonski `main` (`2229724`);
+- kanonski potpis tenant pipelinea je sada **`TenantRequestPipeline.admit(session, request)`**;
+- **precondition D-054, klauzule 12 je RIJEŠEN** na `main`-u — dodatna tenant ruta (P4-5C) dodana
+  je **tek nakon** uklanjanja seama;
+- zapažanje **O4 je ZATVORENO** i tako se vodi u `05`, Faza 4.
+
+Historijsko obrazloženje D-054 se **ne briše i ne prepisuje**. Ova klauzula bilježi **ishod**, ne
+mijenja **razlog**.
+
+# Dio M — Ova odluka ništa ne implementira
+
+### M.1 Klauzula 33 — governance-only
+
+Ova odluka **evidencira ugovor**. Aplikacijski kod, testovi, `seed.ts`, Prisma schema, migracije i
+lokalna baza se **ovom odlukom ne mijenjaju**. Implementacija `PATCH`-a pripada **implementacijskom
+gateu P4-5D**, koji ova odluka **ne otvara** — ona ga samo čini izvodivim.
+
+**Zamrznut ugovor nije implementacija.** `05` **ne smije** označiti nijednu `PATCH` stavku
+završenom na osnovu ove odluke.
+
+## Razlog
+
+**Dio B.** Ponašanje već postoji na `main`-u i **posljedica je jakog taga koji ugovor zahtijeva**.
+Nekanonizovano ispravno ponašanje je governance dug: sljedeći review ga mora ili odobriti bez
+osnova ili prijaviti kao regresiju. Kanonizacija uz izričitu ogradu — **`304` tek nakon cijelog
+D-047 pipelinea** — čuva i ponašanje i sigurnosnu granicu, i sprečava da implementator P4-5D
+„popravi" nešto što nije pokvareno.
+
+**Dio C.** Nakon što je pozivalac autentifikovan, admitiran i autorizovan, a ordinacija dokazano
+`ACTIVE`, jedini preostali uzrok nula redova je **nekonzistentna baza**: `practice_id` je `NOT
+NULL` i `UNIQUE`, a red piše pouzdan seed put (`02` §6.4, §23.4). Odgovoriti `403` ili `404` znači
+**lagati o autorizaciji zbog interne greške**, i to na ruti čija refuzacija ima anti-enumeracijsko
+značenje.
+
+**Dio D.** Generička HTTP `If-Match` gramatika dopušta `*`, liste i slabe forme. Za resurs čiji je
+validator **cjelobrojna verzija**, svaka od tih formi je ili besmislena ili opasna: `*` bi značio
+„piši bez obzira na verziju", a to je **tačno suprotno** od optimističke konkurentnosti. Uža
+gramatika je jedini način da token ostane **jedini kanal verzije**. Razlika `400`/`409` je nužna
+jer nosi **različitu informaciju pozivaocu**: `400` traži ispravan token, `409` traži **ponovno
+čitanje resursa**. Spajanje ta dva ishoda naučilo bi klijente da na `409` ponavljaju isti neispravan
+zahtjev.
+
+**Dio E i F.** Jednoiskazna optimistička konkurentnost je **jedina** koja nema prozor između
+provjere i upisa. Svaki pre-read koji bi razlikovao „zastarjelo" od „ne postoji" taj prozor
+**stvara**, i to radi informacije koju pozivalac ne smije ni dobiti — postojanje reda je interno
+stanje, a ne dio ugovora. `409` za oba uzroka je **fail-safe**: kaže „tvoja pretpostavka o stanju ne
+vrijedi, pročitaj ponovo", što je istina u oba slučaja.
+
+**Dio G.** `UPDATE ... RETURNING` je jedini oblik koji garantuje da tijelo i `ETag` opisuju
+**isti red iste transakcije**. Drugi read bi mogao vidjeti sljedeću verziju.
+
+**Dio I.** Cache politika je **repozitorijski široka** odluka. Rješavanje unutar settings slicea
+značilo bi da jedna ruta dobija politiku koju ostale nemaju, i to bez ADR-a koji tu politiku
+definiše za sve.
+
+## Alternative
+
+- **`412 PRECONDITION_FAILED` za zastarjeli `If-Match`** — odbijeno: `03` §5.2 i D-009 zamrzavaju
+  `409 VERSION_CONFLICT` za svih šest resursa; uvođenje `412` na jednom bi razbilo jedinstvenu
+  semantiku i tabelu §8.1.
+- **`409` za sintaksno neispravan `If-Match`** — odbijeno: `409` znači „stanje se promijenilo" i
+  naveo bi klijenta da ponavlja isti neispravan zahtjev.
+- **`428` za sintaksno neispravan `If-Match`** — odbijeno: header **jeste** prisutan; `428` bi
+  klijenta uputio da doda ono što je već poslao.
+- **Puna generička HTTP `If-Match` gramatika, uključujući `*`** — odbijeno: `*` je semantički
+  „bezuslovni upis", što ukida optimističku konkurentnost koju ovaj token postoji da nosi.
+- **Prihvatiti `W/"N"` na `PATCH`-u „radi tolerancije"** — odbijeno: slaba komparacija tvrdi
+  semantičku ekvivalentnost, a upis zahtijeva **tačnu** verziju.
+- **`404` za nedostajući red na `PATCH`-u** — odbijeno: zahtijeva pre-read, otkriva interno stanje
+  i uvodi race.
+- **`500` za nula pogođenih redova na `PATCH`-u** — odbijeno: zahtijeva isti pre-read da bi se
+  uopšte razlikovalo od zastarjele verzije.
+- **`404` ili `403` za nedostajući red na `GET`-u** — odbijeno: laž o autorizaciji, i kontaminacija
+  anti-enumeracijskog značenja zajedničke refuzacije.
+- **Kreirati ili popraviti nedostajući red** — odbijeno: izmišljena approval konfiguracija
+  predstavljena kao stvarna, i bez `INSERT` granta neizvodiva.
+- **`204 No Content` za prazan `PATCH`** — odbijeno: sugeriše uspješan upis koji se nije dogodio.
+- **`200` sa nepromijenjenom reprezentacijom za prazan `PATCH`** — odbijeno: pozivalac ne bi
+  razlikovao „ništa nisi poslao" od „upisano".
+- **Ukloniti `304` ponašanje** — odbijeno: posljedica je jakog taga koji ugovor **zahtijeva**;
+  uklanjanje bi tražilo ili slab tag ili namjensko gušenje ispravne HTTP semantike.
+- **Riješiti `Cache-Control` u P4-5D** — odbijeno: repozitorijski široka odluka bez vlastitog ADR-a.
+
+## Posljedice
+
+- `03` §10 („GET/PATCH `/practices/{practiceId}/settings`") dobija: autorizovan `304`, invarijant
+  nedostajućeg reda, prihvaćenu `If-Match` gramatiku, tabelu `400`/`409`/`428`, prazno tijelo,
+  atomičnu `UPDATE` semantiku i uspješan `200` sa inkrementiranim `ETag`-om;
+- `03` §5.2 dobija **izričitu distinkciju** nedostajućeg naspram neispravnog `If-Match`-a, tako da
+  se D-028, klauzula 2 ne čita šire nego što glasi;
+- `05`, Faza 4 se **rekonsiliše sa stvarno merganim stanjem**: `GET` implementacija, jak `ETag` i
+  reprezentacija su **završeni**; O4 je **zatvoren**; `PATCH`, `If-Match` put i optimistički
+  `UPDATE` ostaju **neimplementirani**; faza ostaje `IN_PROGRESS`;
+- D-053 dobija usku back-referencu na ovu odluku; D-006 dobija ranije dugovanu back-referencu na
+  D-054;
+- **nijedan endpoint, permisija, rola, error code ni migration paket se ne uvodi**, i nijedan se ne
+  renumeriše; `15` ostaje nepromijenjen;
+- P4-5D dobija **izvodiv** ugovor: nijedna njegova odluka više nije prepuštena implementatoru.
+
+## Security/privacy uticaj
+
+**Strogo pozitivan ili neutralan.**
+
+- **Dio B** ne dodaje nijedan put do podataka. `304` nosi **prazno tijelo**, a nastupa **isključivo
+  nakon** pune autorizacije; klauzula 4 to čini izričitim, čime **zatvara** čitanje po kojem bi
+  conditional header mogao biti tretiran kao prečica.
+- **Dio C** sprečava dvije stvarne regresije: lažni `403` koji bi razvodnio anti-enumeracijsko
+  značenje zajedničke refuzacije, i `404` koji bi otkrio postojanje ordinacije bez postavki.
+  Statično `500` tijelo ne otkriva ništa.
+- **Dio D** **sužava** prihvaćeni ulaz u odnosu na generički HTTP: `*` i liste su izričito odbijeni,
+  pa ne postoji validator koji znači „piši bez obzira na verziju".
+- **Dio E i F** eliminišu **race prozor** koji bi pre-read diskriminator uveo, i uskraćuju
+  pozivaocu razlikovanje internog stanja.
+- **Dio J** ponavlja i pooštrava postojeće zabrane; nijedna se ne uklanja.
+- Površina baze se **ne mijenja** — devet `SELECT` i devet `UPDATE` kolona, bez `INSERT`-a i bez
+  `DELETE`-a.
+
+## Migration/rollout
+
+**Nijedna.** Bez schema objekta, bez migracije, bez DDL-a, bez DML-a, bez izmjene lokalne baze.
+Paket `013_rls_policies` ostaje **nepromijenjen**; paket `014_immutability_triggers` se **ne dira**.
+Isključivo governance/dokumentacija.
+
+## Test dokaz
+
+**Ovaj gate ne uvodi nijedan test.** Testovi ispod su **obavezan minimum gatea P4-5D**, i do tada se
+**ne tvrdi** da postoje.
+
+Već dokazano u P4-5C (merged, PR #18):
+
+- `GET` prolazi kompletan jedanaestokoračni redoslijed i vraća **tačno osam** polja;
+- `ETag` je **jak** i izveden iz `version`-a iste pročitane vrste;
+- `version` se **ne pojavljuje** u tijelu;
+- nedostajući red nakon autorizacije daje **`500 INTERNAL_ERROR`** sa statičnim tijelom;
+- `PATCH` ruta **nije registrovana**.
+
+Obavezan minimum za P4-5D:
+
+- `PATCH` bez `If-Match` → **`428`**;
+- `If-Match` u svakom neprihvaćenom obliku iz klauzule 11 → **`400 VALIDATION_ERROR`**, imenovano
+  najmanje: bez navodnika, `W/"N"`, `*`, `"01"`, lista validatora, ne-cjelobrojna vrijednost,
+  prazna vrijednost i neispravno navođenje;
+- `W/"N"` **nikada** ne zadovoljava `If-Match: "N"`;
+- prihvaćen ali zastarjeo `If-Match` → **`409 VERSION_CONFLICT`**;
+- prazno tijelo `{}` → **`400 VALIDATION_ERROR`**, uz dokaz da `version` i `updated_at` **nisu**
+  promijenjeni;
+- tačan `If-Match` → **`200`**, `version + 1`, **novi** `ETag`, **ista** osmopoljna reprezentacija,
+  bez `version`-a u tijelu;
+- upis je **jedan** iskaz sa predikatom `practice_id` **i** `version`; **nema** pre-reada;
+- nula pogođenih redova → **`409`**, i za zastarjelu verziju **i** za nedostajući red, **bez**
+  dodatnog čitanja;
+- `updated_by` je **nepromijenjen** nakon uspješnog `PATCH`-a;
+- `PATCH` bez `practice.settings.manage` → **`403 ACCESS_DENIED`**, bez upisa;
+- `If-None-Match` **ne pretvara** nijedan odbijen zahtjev u `304`;
+- **nijedna** globalna cache politika nije uvedena.
+
+## Zavisnosti
+
+D-006, D-009, D-028, D-029, D-033, D-038, D-041, D-044, D-047, D-049, D-051, D-052, **D-053**,
+**D-054**.
 
 ---
 
