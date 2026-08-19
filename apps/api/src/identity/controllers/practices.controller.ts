@@ -25,10 +25,13 @@ import { authenticationRequired } from '../identity.errors.js';
  * particular it does NOT validate `X-Practice-ID` here — `03` §3.7.1 puts that at step 3, after
  * the current user has been resolved and admitted, and the order may not be reordered.
  *
- * ONLY ONE ROUTE IS REGISTERED. `GET /practices/{practiceId}/settings` and
- * `PATCH /practices/{practiceId}/settings` belong to phase 4 and are not registered here, not
- * even as a stub (D-049); they stay `404`. `@Get(':practiceId')` matches a single segment, so
- * neither settings path can reach this handler.
+ * THIS CONTROLLER OWNS EXACTLY ONE ROUTE. `@Get(':practiceId')` matches a SINGLE path segment, so
+ * no settings path can reach this handler and this handler answers no settings path.
+ * `GET /practices/{practiceId}/settings` is registered by `PracticeSettingsController`, which is
+ * a separate class for exactly that reason: the accepted `GET /practices/{practiceId}` contract
+ * and its permission are not edited to carry a second resource beneath them.
+ * `PATCH /practices/{practiceId}/settings` belongs to a later slice and is registered nowhere,
+ * not even as a stub (D-053 clause B.4); it stays `404`.
  */
 @Controller({ path: 'practices', version: API_VERSION_1 })
 @UseGuards(DevelopmentAuthGuard)

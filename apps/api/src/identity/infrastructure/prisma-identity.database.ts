@@ -49,6 +49,7 @@ import {
   type MembershipRow,
   type PlatformRoleRow,
   type PracticeRow,
+  type PracticeSettingsRow,
   type RequestedPracticeRow,
 } from './identity-database.port.js';
 
@@ -368,6 +369,40 @@ class PrismaIdentityBootstrapSession implements IdentityBootstrapSession {
       where "practice_id" = any(${[...practiceIds]}::uuid[])
       order by "practice_id" asc
     `;
+  }
+
+  public async findPracticeSettings(practiceId: string): Promise<PracticeSettingsRow | undefined> {
+    // Exactly the nine granted columns of 02 §20.2b.1 and D-053 clause A.3, named one by one.
+    // `id`, `configuration`, `updated_at` and `updated_by` are absent here AND unreachable:
+    // they carry no SELECT grant, so a statement naming one fails with SQLSTATE 42501 even if
+    // it only used it in a predicate or an ORDER BY (D-053 clause A.4). There is no `select *`,
+    // and no Prisma model delegate is used — the delegate would emit the model's full column
+    // list and request exactly the four ungranted columns.
+    //
+    // This is the SECOND, separate practice_settings statement of the settings route.
+    // `findConditionalSettings` above stays at three columns and stays the step 9 permission
+    // input; this one is the step 11 representation and nothing else.
+    //
+    // The `02` §17.1 tenant policy is the primary control: reached before
+    // `set_request_context` it returns zero rows for every practice, and after it, only the
+    // admitted tenant's row. The explicit predicate is the second barrier and names the very
+    // practice the caller was admitted to, so both agree by construction.
+    const rows = await this.tx.$queryRaw<PracticeSettingsRow[]>`
+      select
+        "practice_id"                       as "practiceId",
+        "billing_review_required"           as "billingReviewRequired",
+        "allow_mpa_approval"                as "allowMpaApproval",
+        "allow_billing_specialist_approval" as "allowBillingSpecialistApproval",
+        "require_reason_for_manual_change"  as "requireReasonForManualChange",
+        "ai_enabled"                        as "aiEnabled",
+        "axenita_export_enabled"            as "axenitaExportEnabled",
+        "retention_policy_code"             as "retentionPolicyCode",
+        "version"
+      from "practice_settings"
+      where "practice_id" = ${practiceId}::uuid
+    `;
+
+    return rows[0];
   }
 
   public async findCurrentPlatformRoles(userId: string): Promise<readonly PlatformRoleRow[]> {

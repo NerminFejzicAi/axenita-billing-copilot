@@ -93,6 +93,39 @@ export interface ConditionalSettingsRow {
 }
 
 /**
+ * The nine columns `copilot_app` may read from `practice_settings` from package `013` onward
+ * (`02` §20.2b.1, D-053 clauses A.3 and A.4).
+ *
+ * Eight of them carry the frozen `GET /practices/{practiceId}/settings` representation of D-053
+ * clause A.1; the ninth, `version`, carries the `ETag` of clause A.2 and is the ONLY member here
+ * that never reaches the response body.
+ *
+ * THIS IS NOT A WIDENING OF {@link ConditionalSettingsRow}, AND THE TWO MUST NOT MERGE. The three
+ * column surface above is an INPUT to permission derivation, read at step 9 of `03` §3.7.1 to
+ * decide whether the caller may proceed at all; this one is an OUTPUT, read at step 11 to build a
+ * document the caller has already been authorised to receive. Deriving the authorisation input
+ * from the representation would mean a route computed its own permission from the very row it is
+ * about to return, which is the inversion `03` §28.5 forbids. They therefore stay two statements
+ * with two shapes and two call sites.
+ *
+ * `id`, `configuration`, `updated_at` and `updated_by` are absent here AND unreachable: they
+ * carry no `SELECT` grant, so naming one anywhere in a statement — including in a `WHERE`
+ * predicate or an `ORDER BY` — fails with SQLSTATE `42501` (D-053 clause A.4).
+ */
+export interface PracticeSettingsRow {
+  readonly practiceId: string;
+  readonly billingReviewRequired: boolean;
+  readonly allowMpaApproval: boolean;
+  readonly allowBillingSpecialistApproval: boolean;
+  readonly requireReasonForManualChange: boolean;
+  readonly aiEnabled: boolean;
+  readonly axenitaExportEnabled: boolean;
+  readonly retentionPolicyCode: string | null;
+  /** `practice_settings.version` (`02` §6.4) — the value of the strong `ETag`, never a field. */
+  readonly version: number;
+}
+
+/**
  * `app_security.set_request_context` refused to establish the tenant context.
  *
  * The function raises SQLSTATE `42501` for exactly three reasons (`02` §16.2.3, D-033 clauses
@@ -302,6 +335,35 @@ export interface IdentityBootstrapSession {
   findConditionalSettings(
     practiceIds: readonly string[],
   ): Promise<readonly ConditionalSettingsRow[]>;
+
+  /**
+   * Reads the SETTINGS REPRESENTATION of exactly one practice — step 11 of the settings route.
+   *
+   * A SECOND STATEMENT, DELIBERATELY. {@link findConditionalSettings} is not widened to serve
+   * both: it remains the three-column permission-derivation input of step 9, and this is the
+   * nine-column representation read of step 11. Merging them would make one query answer both
+   * "may the caller proceed?" and "what does the caller receive?", so a future change to the
+   * response surface would silently change an authorisation input.
+   *
+   * CALL ORDER IS LOAD-BEARING. `practice_settings_select` (`02` §17.1) is the primary tenant
+   * barrier and its predicate is `practice_id = app.practice_id`. Called before
+   * {@link setRequestContext}, the predicate is `practice_id = NULL` and the statement returns
+   * ZERO ROWS for every practice; called after it, it can only ever return the admitted tenant's
+   * row (D-049 clause 5, D-053 clause D.1). This method must therefore be called only for an
+   * already-admitted request, and `practiceId` must be that admitted practice — which is what
+   * makes the explicit predicate and the policy agree by construction.
+   *
+   * The explicit `practice_id` filter is kept on top of the policy as the second barrier, exactly
+   * as `findConditionalSettings` keeps it: the application must be able to state which practice it
+   * believes it is reading. Reading every row and filtering in memory remains forbidden.
+   *
+   * `undefined` means the admitted practice has NO settings row. It is not an authorisation
+   * outcome and must never be answered as one — see the invariant handling in the settings read
+   * service.
+   *
+   * At most one row can match: `practice_settings` carries `unique (practice_id)` (`02` §6.4).
+   */
+  findPracticeSettings(practiceId: string): Promise<PracticeSettingsRow | undefined>;
 
   /**
    * Reads the current platform role assignments of the authenticated user.
