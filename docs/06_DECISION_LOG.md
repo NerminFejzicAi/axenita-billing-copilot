@@ -4435,6 +4435,362 @@ D-038, D-046, D-047, D-049, D-051, **D-052**, D-053, D-054, D-055, **D-056**.
 
 ---
 
+# D-058 — Vlasništvo faza za odobravanje i opoziv odobrenja i dispozicija sedam redova `P4-013`
+
+- **Status:** ACCEPTED
+- **Datum:** 2026-08-20
+- **Tip:** governance dispozicija, gate `P4-013F`. **Dokumentacija isključivo.**
+- **Amandman na:** **nijednu odluku.** Ova odluka **primjenjuje** rubrik D-056, dio C na sedam
+  konkretno imenovanih redova i **premješta** žive obaveze po **precedentu D-052, A.7**. **Nijedna
+  klauzula D-041 se ne dira, ne slabi, ne opoziva ni ne prepisuje.**
+- **Vlasnička ratifikacija:** vlasnik je u gateu `P4-013F` izabrao politiku *„Faza 4 posjeduje i
+  dokazuje permission/authorization preduslove za buduće ponašanje odobravanja i opoziva, ali ne
+  mora implementirati produkt workflow odobravanja/opoziva koji inače nije u njenom
+  implementacijskom obuhvatu."* Ovaj zapis tu politiku **implementira**, ne izvodi.
+
+## Kontekst/problem — trigger
+
+### Trigger
+
+Drugi pokušaj retrospektivnog evidence audita, **`P4-013A` v2**, izvršen je nad kanonskim obuhvatom
+rebaziranim odlukom D-057 i završio je **bez izmišljenog rezultata**:
+
+```text
+P4_013A_V2_VERDICT           P4_013A_V2_COMPLETE_WITH_REQUIRED_GAPS
+P4_013_TOTAL_ROWS            398
+UNRESOLVED_REQUIRED          12
+SECURITY_CLOSURE_BLOCKERS    1
+```
+
+**`COMPLETE_WITH_REQUIRED_GAPS` nije `PASS`.** Audit je pokrio cijeli univerzum, ali je ostavio
+dvanaest redova bez dokaza i bez autoritetom potkrijepljene dispozicije, što ih po D-056, klauzuli
+14 čini `UNRESOLVED_REQUIRED` i blokerima zatvaranja Faze 4.
+
+Sedam od tih dvanaest redova čini **jedan governance-osjetljiv klaster** odobravanja i opoziva. Ta
+odluka nije bila auditorska — nije je smio donijeti evidence audit, jer traži **vlasničku ocjenu
+obuhvata faze**. Zato je audit te redove ostavio otvorenim i eskalirao ih ovom gateu.
+
+### Tačan predmet — sedam redova na kanonskom `main`-u
+
+Locirano strukturnim pravilom D-057, klauzule 3, nad `docs/05_IMPLEMENTATION_CHECKLIST.md` na
+commitu `01b9995`:
+
+| Red | Linija | Sekcija | Doslovan tekst | Kućica |
+|---|---:|---|---|---|
+| `R267` | 1843 | `Role matrica — prihvaćene dodjele` → `Uslovno odobravanje i opoziv` | Podobnost se evaluira **u trenutku opoziva**. | `[ ]` |
+| `R268` | 1844 | isto | **Opozivalac ne mora biti originalni odobravatelj.** | `[ ]` |
+| `R269` | 1845 | isto | `reason` je **obavezan**. | `[ ]` |
+| `R270` | 1846 | isto | Dokaz odobrenja se **nikada ne briše**. | `[ ]` |
+| `R271` | 1847 | isto | Approval historija ostaje **immutable**. | `[ ]` |
+| `R272` | 1848 | isto | **Revocation audit event** je emitovan. | `[ ]` |
+| `R303` | 1897 | `Endpoint authorization guards` → `Negativne provjere` | isključen approval flag → `403`. | `[ ]` |
+
+Preslikavanje na normativni izvor je **jedan-na-jedan** i potpuno:
+
+```text
+R267 -> D-041, klauzula 7    R270 -> D-041, klauzula 9
+R268 -> D-041, klauzula 6    R271 -> D-041, klauzula 10 (uz D-016)
+R269 -> D-041, klauzula 8    R272 -> D-041, klauzula 11
+R303 -> D-041, klauzule 1-5 (uslovne celije) uz D-038, klauzulu 18
+```
+
+### Uzrok — jedna sekcija nosi dvije različite klase obaveza
+
+`docs/05`, Faza 4, sekcija „Uslovno odobravanje i opoziv" preslikava **cijeli** D-041 — i matricu
+permisija (klauzule 1–5 i 12) **i pravila opoziva** (klauzule 6–11). Te dvije grupe nemaju isti
+vlasnik faze:
+
+- klauzule 1–5 i 12 opisuju **permission model** — ćelije matrice, uslovne flagove i kompoziciju.
+  To je **obuhvat Faze 4** i Faza 4 ga je **implementirala i dokazala**;
+- klauzule 6–11 opisuju **ponašanje write puta opoziva** — evaluaciju podobnosti u trenutku
+  opoziva, obavezan `reason`, neuništivost dokaza odobrenja, immutable historiju i revocation audit
+  event. To ponašanje **nema nosioca u Fazi 4**.
+
+Faza 4 taj write put **ne implementira i nije ovlaštena da ga implementira**:
+
+- tabelu `analysis_approvals` kreira paket **`009_review_approvals` u Fazi 10** (`02` §22.9;
+  `04` §12.2 i §12.3, aktivnost 13). U Fazi 4 **ne postoji**;
+- `04` §12.2 svrstava `revocation` u **obuhvat Faze 10**, a §12.3 kao **aktivnost 10 — `revoke`**;
+- `07`, Prompt — Faza 4 izričito zabranjuje: **„Ne kreiraj: … novi endpoint."**;
+- kanonsko stablo to potvrđuje: na `01b9995` postoje tačno četiri kontrolera
+  (`health`, `me`, `practices`, `practice-settings`), tri migraciona paketa
+  (`001_extensions_and_roles`, `002_identity_and_practices`, `013_rls_policies`) i **nijedan**
+  approval, revocation ni `analysis` schema objekat.
+
+To je **ista strukturna kontradikcija** koju je D-052 evidentirala kao **OD-1**: kanonska
+dokumentacija je fazi dodijelila obavezu nad objektom koji u toj fazi ne postoji, pa faza **ne bi
+mogla istinito zatvoriti**. D-052 ju je riješila **odgađanjem izvršne tačke uz doslovno očuvanje
+semantike**. Ova odluka primjenjuje isti postupak na ne-DB obaveze.
+
+## Odluka
+
+# Dio A — razdvajanje dvije klase obaveza
+
+### A.1 Klauzula 1 — normativno razdvajanje
+
+U svakoj fazi se razdvajaju dvije klase obaveza koje je ranija dokumentacija spajala:
+
+```text
+A. Faza-4 permission/security semantika    -> ostaje u Fazi 4, obavezna, nedirnuta
+B. Ponasanje workflowa odobravanja/opoziva -> Faza 10, uz ocuvanu obavezu
+```
+
+Razdvajanje je **kriterij izvodivosti, ne kriterij težine**: red pripada klasi B **isključivo** ako
+zahtijeva schema objekat, endpoint ili write put koji u fazi domaćinu **ne postoji**. Nijedan red
+ne prelazi u klasu B zato što ga je teško dokazati.
+
+### A.2 Klauzula 2 — Faza 4 zadržava svu permission i security semantiku
+
+**Nijedna Faza-4 sigurnosna semantika se ovom odlukom ne premješta, ne slabi ni ne odgađa.** U
+Fazi 4 **ostaju obavezni i nedirnuti**, uključujući ali ne ograničeno na:
+
+- ćelije `analysis.approve` i `analysis.approval.revoke` iz `15` §6 i D-041 (redovi `R259`–`R263`);
+- pravilo da **flag bez podobne role ne daje permisiju** (`R264`);
+- pravilo da je **rola bez uključenog flaga odbijena** (`R265`);
+- pravilo da je **neaktivan membership odbijen i kada je flag uključen** (`R266`);
+- identičnost matrice opoziva i matrice odobravanja (D-041, klauzula 12);
+- kompozicija efektivnih permisija i uslovna ćelija (D-038, klauzula 18);
+- tenant izolacija, cross-practice i cross-user izolacija i deny-by-default guard semantika
+  (`R296`–`R305`).
+
+### A.3 Klauzula 3 — Faza 10 posjeduje ponašanje workflowa
+
+**Vlasnik ponašanja odobravanja i opoziva je Faza 10 — Review/approval.** To je već stanje
+kanonske dokumentacije (`02` §22.9; `04` §12.2, §12.3 i §12.4; `05` Faza 10; `07` Prompt — Faza
+10); ova odluka to **eksplicira** i u nju **premješta** obaveze koje su do sada visjele u Fazi 4.
+
+**Konceptualno vlasništvo normativnog pravila ostaje D-041.** Premješta se **izvršna i dokazna
+tačka**, ne pravilo:
+
+```text
+normativno pravilo   -> D-041, klauzule 6-11   (nepromijenjeno)
+izvrsna/dokazna faza -> Faza 10                (eksplicirano ovom odlukom)
+```
+
+# Dio B — dispozicija red po red
+
+### B.1 Klauzula 4 — šest redova opoziva
+
+Iz zamrznutog rječnika terminalnih dispozicija (D-056, klauzula 11) primjenjuje se
+**`FUTURE_SCOPE`**, a **ne** `EXPLICITLY_DEFERRED`: te obaveze nikada nisu bile u
+implementacijskom obuhvatu Faze 4, pa nema izvršenja koje bi se odgađalo. Razlika je zabilježena
+namjerno i **ne slabi** obavezu — obje dispozicije po D-056, klauzuli 12 nose **istu** dužnost
+očuvanja.
+
+| Red | Dispozicija | Vlasnička faza | Autoritet |
+|---|---|---|---|
+| `R267` | `FUTURE_SCOPE` | **Faza 10** | D-058, klauzule 3–4; D-041, klauzula 7; D-052, A.7 |
+| `R268` | `FUTURE_SCOPE` | **Faza 10** | D-058, klauzule 3–4; D-041, klauzula 6; D-052, A.7 |
+| `R269` | `FUTURE_SCOPE` | **Faza 10** | D-058, klauzule 3–4; D-041, klauzula 8; D-052, A.7 |
+| `R270` | `FUTURE_SCOPE` | **Faza 10** | D-058, klauzule 3–4; D-041, klauzula 9; D-052, A.7 |
+| `R271` | `FUTURE_SCOPE` | **Faza 10** | D-058, klauzule 3–4; D-041, klauzula 10; D-016; D-052, A.7 |
+| `R272` | `FUTURE_SCOPE` | **Faza 10** | D-058, klauzule 3–4; D-041, klauzula 11; D-052, A.7 |
+
+### B.2 Klauzula 5 — `R303` je dokazan u Fazi 4 i **ne premješta se**
+
+`R303` — „isključen approval flag → `403`" — stoji u klasteru `Endpoint authorization guards →
+Negativne provjere` (`R296`–`R305`), čije susjedne tvrdnje Faza 4 dokazuje istim guard harnessom.
+Red traži **guard ishod pri isključenom flagu**, i taj ishod **postoji kao trajan mehanički dokaz**
+na kanonskom stablu:
+
+```text
+DISPOZICIJA        SATISFIED_BY_EVIDENCE
+EVIDENCE_DOMAIN    PERMISSION (ne-terminalna oznaka, D-057, klauzule 7-11)
+```
+
+Dokaz — **postojeći trajni testovi, bez ijednog novog testa** (put dopušten D-056, klauzulom 9):
+
+- `apps/api/src/identity/domain/effective-permissions.spec.ts`, blok
+  `F, G, H — conditional grants`: `withholds analysis.approve from MPA while allowMpaApproval is
+  false` i `withholds analysis.approval.revoke from MPA while allowMpaApproval is false`, iste
+  dvije tvrdnje za `BILLING_SPECIALIST`, unakrsni parovi „tuđi flag ne kvalifikuje rolu", te
+  `treats a non-boolean flag value as disabled` — resolver **uskraćuje** obje uslovne permisije dok
+  je flag isključen;
+- `apps/api/src/identity/application/tenant-request.pipeline.spec.ts`:
+  `never lets another practice's settings contribute` — `MPA` sa `allowMpaApproval = false` na
+  **traženoj** ordinaciji i tražena permisija `analysis.approve` daju **`403`**, i kada je isti
+  flag uključen u **drugoj** ordinaciji; ogledalski test
+  `grants a CONDITIONAL cell from the requested practice's own flag` dokazuje suprotni smjer.
+
+Zajedno daju tačno par koji `R303` traži: **flag isključen → `403`; flag uključen na vlastitoj
+ordinaciji → dopušteno.**
+
+### B.3 Klauzula 6 — rezidua `R303` na nivou endpointa se ipak očuvava
+
+Guard je dokazan; **konkretni endpointi odobravanja i opoziva iz `03` §10 i §20 u Fazi 4 ne
+postoje**, pa isti ishod na tim rutama Faza 4 **ne može** pokazati. Ta rezidua se **ne gubi**: u
+Fazi 10 se otvara zaseban red koji je traži nad stvarnim rutama.
+
+**Rezidua ne mijenja dispoziciju `R303`** i **ne vraća ga** u `UNRESOLVED_REQUIRED`. Ona je
+**proširenje pokrivenosti Faze 10**, ne relokacija iz Faze 4 — Faza 4 svoj sloj tog zahtjeva
+dokazuje u cijelosti.
+
+### B.4 Klauzula 7 — kućice se u ovom gateu **ne mijenjaju**
+
+`P4-013F` je **governance dispozicija**, ne checklist rekonsilijacija. Nijedna od sedam kućica se
+**ne označava**, a `273` retrospektivno dokazana reda iz `P4-013A` v2 se **ne diraju**.
+
+Razlog je auditabilnost: `[x]` u ovom repozitoriju znači **`SATISFIED_BY_EVIDENCE` uz citirani
+dokaz** (`00` §14). Označavanje reda koji nosi `FUTURE_SCOPE` **zamaglilo bi razliku** između
+implementacijskog dokaza i autoritetom potkrijepljene dispozicije, a upravo ta razlika je predmet
+D-056, dijela C. Označavanje se izvršava u namjenskom gateu **`P4-013B`**.
+
+# Dio C — mapa relokacije
+
+### C.1 Klauzula 8 — eksplicitna mapa jedan-na-jedan
+
+Svaki premješteni red dobija **tačno jedan** konkretan ciljni red. Redovi se **ne spajaju** i **ne
+sažimaju**:
+
+| Izvorni red | Izvorni zahtjev | Dispozicija | Ciljna faza | Ciljna sekcija | Ciljni red |
+|---|---|---|---|---|---|
+| `R267` | Podobnost se evaluira **u trenutku opoziva**. | `FUTURE_SCOPE` | Faza 10 | `Opoziv odobrenja — preuzeto iz Faze 4 (D-058)` | doslovno preuzet red |
+| `R268` | **Opozivalac ne mora biti originalni odobravatelj.** | `FUTURE_SCOPE` | Faza 10 | isto | doslovno preuzet red |
+| `R269` | `reason` je **obavezan**. | `FUTURE_SCOPE` | Faza 10 | isto | doslovno preuzet red |
+| `R270` | Dokaz odobrenja se **nikada ne briše**. | `FUTURE_SCOPE` | Faza 10 | isto | doslovno preuzet red |
+| `R271` | Approval historija ostaje **immutable**. | `FUTURE_SCOPE` | Faza 10 | isto | doslovno preuzet red |
+| `R272` | **Revocation audit event** je emitovan. | `FUTURE_SCOPE` | Faza 10 | isto | doslovno preuzet red |
+| `R303` | isključen approval flag → `403`. | `SATISFIED_BY_EVIDENCE` | **ostaje Faza 4** | — | — (rezidua nad rutama `03` §10/§20 dodana u Fazi 10, klauzula 6) |
+
+### C.2 Klauzula 9 — semantika se preuzima doslovno
+
+Ciljni redovi preuzimaju **doslovan tekst** izvornih redova. Formulacija se **ne skraćuje, ne
+generalizuje i ne ublažava** radi zatvaranja. Postojeći sažeti redovi Faze 10 (`revoke`,
+`revoke history preserved`, `immutable trigger`) su **djelimična pokrivenost** i **ne zamjenjuju**
+preuzete redove — oni ostaju, a preuzeti redovi se dodaju **uz** njih.
+
+### C.3 Klauzula 10 — zabrana tihog penzionisanja
+
+```text
+SILENT_RETIREMENTS = 0
+```
+
+Nijedan od sedam zahtjeva se ne briše, ne slabi, ne penzioniše implicitno niti proglašava `N/A`
+radi zatvaranja faze (D-056, klauzula 13). Šest premještenih redova **postoji u Fazi 10 nakon ovog
+gatea**; bez toga dispozicija `FUTURE_SCOPE` ne bi bila važeća (D-056, klauzula 12).
+
+# Dio D — obuhvat izvan ove odluke
+
+### D.1 Klauzula 11 — nikakva implementacija nije ovlaštena
+
+Ova odluka **ne ovlašćuje** nijednu izmjenu aplikacijskog koda, testova, fixtura, scheme, migracija
+ni seeda, i **ne ovlašćuje** izvršenje ijednog security testa. Gate `P4-013F` je **dokumentacija
+isključivo**.
+
+### D.2 Klauzula 12 — preostalih pet redova se **ne** dispozicionira
+
+Ova odluka dispozicionira **isključivo** `R267`–`R272` i `R303`. Preostali `UNRESOLVED_REQUIRED`
+redovi iz `P4-013A` v2 — verifikacijski klaster **`R347`, `R348`, `R369`, `R373`, `R382`**, u kojem
+je `R373` (`ALL RLS TESTS GREEN — required before phase 5`) jedini `SECURITY_CLOSURE_BLOCKER` —
+**ostaju otvoreni i nedirnuti** i pripadaju gateu **`P4-013V`**. Njihovo spajanje u ovu odluku bilo
+bi upravo ono što D-056, klauzula 13 zabranjuje.
+
+### D.3 Klauzula 13 — status faze i gatea
+
+```text
+PHASE_4_STATUS   IN_PROGRESS
+P4_013_STATUS    NOT COMPLETE
+P4_013A_V2       COMPLETE_WITH_REQUIRED_GAPS   (nije PASS)
+```
+
+Ova odluka **ne zatvara** Fazu 4, **ne završava** `P4-013` i **ne prepisuje** verdikt
+`P4-013A` v2 kao da je prošao.
+
+### D.4 Klauzula 14 — očekivano računovodstvo
+
+Ovaj gate **ne pokreće** ponovo audit nad 398 redova. Računa se **isključivo** delta koju
+proizvode sedam dispozicija iz dijela B:
+
+```text
+START_UNRESOLVED_REQUIRED                 12
+ROWS_RESOLVED_BY_THIS_GATE                 7   (R267-R272 FUTURE_SCOPE; R303 SATISFIED_BY_EVIDENCE)
+EXPECTED_UNRESOLVED_REQUIRED_AFTER_GATE    5
+EXPECTED_REMAINING_ROWS                    R347, R348, R369, R373, R382
+SECURITY_CLOSURE_BLOCKERS                  1   (R373, nepromijenjeno)
+```
+
+Brojka `5` je **očekivanje ove odluke, a ne izmjereni rezultat audita**. Mjerodavnu potvrdu daje
+`P4-013V`; ako se pri toj mjeri razlikuje, **mjera pobjeđuje**, a ne ovo očekivanje.
+
+## Razlog
+
+Sedam redova je bilo **istovremeno obavezno i nedokazivo** u fazi u kojoj su stajali. Rubrik
+D-056, dio C ne dopušta ni tiho brisanje ni proizvoljnu neoznačenu reziduu, pa je jedini legitiman
+izlaz bio **autoritetom potkrijepljena dispozicija uz očuvanje obaveze** — tačno postupak koji je
+D-052 već uspostavila za `review_decision_change_links`.
+
+Razdvajanje po **izvodivosti** čuva sigurnosnu vrijednost gatea: Faza 4 i dalje mora dokazati
+**svaki** preduslov permission modela nad kojim opoziv kasnije stoji — uslovne ćelije, odbijanje
+neaktivnog membershipa, izolaciju ordinacija i `403` pri isključenom flagu. Premješta se samo ono
+što traži tabelu i rute koje Faza 4 ne smije kreirati.
+
+## Alternative
+
+- **Ostaviti sedam redova `UNRESOLVED_REQUIRED`** — odbijeno: trajno blokira zatvaranje Faze 4 na
+  obavezama koje Faza 4 ne smije ispuniti, bez ijednog sigurnosnog dobitka.
+- **Označiti ih `[x]` jer D-041 postoji** — odbijeno: `[x]` znači dokaz (`00` §14). Odluka nije
+  dokaz ponašanja i to bi bilo tiho penzionisanje (D-056, klauzula 13).
+- **Proglasiti ih `NOT_APPLICABLE_IN_V1`** — odbijeno i **činjenično netačno**: opoziv **jeste** u
+  v1, u obuhvatu Faze 10 (`04` §12.2).
+- **`FUTURE_SCOPE` bez ciljnih redova u Fazi 10** — odbijeno: krši D-056, klauzulu 12 i proizvodi
+  tačno tiho penzionisanje koje D-056, klauzula 13 zabranjuje.
+- **Sažeti šest redova u jedan „opoziv po D-041" red Faze 10** — odbijeno: gubi auditabilnost po
+  zahtjevu; šest materijalno različitih obaveza ne bi imalo šest dokaza.
+- **Premjestiti i `R303`** — odbijeno: Faza 4 taj guard ishod **dokazuje**, a premještanje bi
+  oslabilo njen sigurnosni preduslov, protivno D-056, klauzuli 13.
+- **Dispozicionirati i preostalih pet redova ovdje** — odbijeno: drugačija priroda (izvršenje
+  verifikacije), pripadaju `P4-013V` (klauzula 12).
+
+## Posljedice
+
+- Sedam redova više nije bez autoriteta; očekivani `UNRESOLVED_REQUIRED` pada sa **12 na 5**.
+- Faza 10 dobija **sedam novih checklist redova** — šest preuzetih i jednu reziduu na nivou rute.
+- Broj checklist redova **Faze 4 ostaje `398`** — ovaj gate u sekciji Faze 4 dodaje **isključivo
+  prozu**, nijednu checklist stavku (D-057, klauzula 3 ostaje mjerljiva i nepromijenjena).
+- `P4-013` ostaje **obavezan i nezavršen**; **Faza 4 ostaje `IN_PROGRESS`**.
+- Sljedeći gate je **`P4-013V`** za preostalih pet redova, potom **`P4-013B`** za označavanje.
+
+## Security/privacy uticaj
+
+**Nijedan sigurnosni zahtjev nije uklonjen, oslabljen ni označen završenim.** Odobravanje i opoziv
+su po D-041 pravno najteže radnje u sistemu; sve njihove kontrole — obavezan `reason`,
+neuništivost dokaza odobrenja, immutable historija i revocation audit event — **preživljavaju
+doslovno**, u fazi koja ih jedina može izvršiti i dokazati.
+
+Faza 4 pritom **ne gubi nijedan preduslov**: uslovne ćelije, pravilo „flag bez role ne daje
+permisiju", pravilo „rola bez flaga je odbijena", odbijanje neaktivnog membershipa, cross-practice
+i cross-user izolacija i `403` pri isključenom flagu ostaju **obavezni u Fazi 4**, a `R303` je
+ovdje **dokazan**, ne premješten. Efekt na Fazu 10 je **strožiji**, jer sada nosi šest eksplicitnih
+redova umjesto tri sažeta.
+
+## Migration/rollout
+
+**Dokumentacija isključivo.** Nema schema, migracionih, seed, DDL/DML, fixture, test ni runtime
+promjena. Zahvaćeni su `docs/04_BACKEND_IMPLEMENTATION_PLAN_V1.md`,
+`docs/05_IMPLEMENTATION_CHECKLIST.md`, `docs/06_DECISION_LOG.md`,
+`docs/07_CURSOR_PHASE_PROMPTS.md`, `docs/11_DEFINITION_OF_DONE_AND_ACCEPTANCE.md` i `MANIFEST.md`.
+
+## Test dokaz
+
+**Nijedan novi test se ne uvodi i nijedan se ne izvršava u ovom gateu.** Dokaz klauzule 5 su
+**postojeći trajni testovi** citirani u dijelu B.2, prepoznati putem koji D-056, klauzula 9
+izričito dopušta. Dokaz klauzula 1–4 je **mehanički i reproducibilan** nad kanonskim stablom:
+odsustvo `analysis_approvals` u `apps/api/prisma/`, odsustvo approval i revocation kontrolera u
+`apps/api/src/`, i tri postojeća migraciona paketa.
+
+## Supersedes
+
+**Ne supersedira i ne amandmanira nijednu odluku.** D-041 ostaje **na snazi u cijelosti**;
+klauzule 6–11 se **ne mijenjaju** — mijenja se samo **faza u kojoj se izvršavaju i dokazuju**, po
+uzoru na D-052, A.5. Rubrik D-056, dio C i obuhvat iz D-057 ostaju **nepromijenjeni i nadređeni**;
+ova odluka ih **primjenjuje**.
+
+## Zavisnosti
+
+D-016, D-038, **D-041**, D-045, D-046, **D-052**, **D-056**, **D-057**.
+
+---
+
 # Otvorene odluke
 
 ## D-OPEN-001 — Produkcijski OIDC provider

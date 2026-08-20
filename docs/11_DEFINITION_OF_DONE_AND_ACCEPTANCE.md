@@ -214,6 +214,13 @@ Svaka checklist stavka koja pripada fazi mora biti **ili**:
 Za svaku dispoziciju koja ostavlja **živu obavezu za kasniji obuhvat**, ta obaveza mora biti
 **očuvana/premještena u sekciju faze koja je posjeduje**, prema precedentu D-052.
 
+Precedent D-052 pokriva **DB/RLS** obavezu; **D-058** ga proširuje na **ne-DB** obaveze (ponašanje
+endpointa i workflowa) i pokazuje traženi oblik: dispozicija je važeća **samo** ako vlasnička faza
+**nakon istog gatea** sadrži **konkretan ciljni red po izvornom redu**, sa doslovno preuzetim
+tekstom i mapom `izvorni red → ciljni red`. **Sažimanje više materijalno različitih zahtjeva u
+jedan neodređen budući red nije očuvanje** — gubi auditabilnost po zahtjevu i broji se kao tiho
+penzionisanje.
+
 Nijedan zahtjev se ne smije tiho izbrisati, oslabiti, implicitno penzionisati ni proglasiti `N/A`
 samo zato da bi se faza zatvorila. Stavka bez dokaza i bez eksplicitne, autoritetom potkrijepljene
 dispozicije je `UNRESOLVED_REQUIRED` i **blokira zatvaranje faze**. Proizvoljna neoznačena rezidua

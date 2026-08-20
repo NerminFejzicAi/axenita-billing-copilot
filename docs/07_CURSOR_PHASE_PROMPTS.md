@@ -855,6 +855,29 @@ USLOVNO ODOBRAVANJE I OPOZIV (D-041):
 Ne kreiraj: drugi approval flag; permisiju vezanu isključivo za originalnog odobravatelja;
 zasebnu revocation rolu; novi endpoint.
 
+VLASNIŠTVO ŠEST PRAVILA OPOZIVA — D-058 (2026-08-20). Posljednjih šest stavki gore (od
+"podobnost se evaluira u trenutku opoziva" do "revocation audit event je obavezan") opisuju
+PONAŠANJE WRITE PUTA OPOZIVA i NISU OBAVEZA OVE FAZE:
+- tabelu analysis_approvals kreira paket 009_review_approvals u FAZI 10 (docs/02 §22.9;
+  docs/04 §12.2, §12.3 aktivnost 13); u Fazi 4 ONA NE POSTOJI;
+- ista lista gore izričito zabranjuje kreiranje novog endpointa, pa Faza 4 ni ne bi imala
+  rutu na kojoj bi to ponašanje dokazala;
+- NE implementiraj revocation write put, revoke rutu, reason validaciju ni revocation audit
+  event u ovoj fazi;
+- NE tretiraj tih šest pravila kao checklist obaveze zatvaranja Faze 4;
+- premještene su u Fazu 10 uz DOSLOVNO OČUVAN TEKST — docs/05, Faza 10, "Opoziv odobrenja —
+  preuzeto iz Faze 4 (D-058)"; nijedna nije uklonjena, oslabljena ni označena završenom;
+- D-041 se NE MIJENJA — premješta se izvršna i dokazna tačka, ne norma.
+
+OVA FAZA I DALJE MORA IMPLEMENTIRATI I DOKAZATI SVE PREDUSLOVE (D-058, klauzule 2 i 5):
+- obje uslovne ćelije analysis.approve i analysis.approval.revoke iz docs/15 §6;
+- identičnost matrice opoziva i matrice odobravanja;
+- flag bez podobne role NE DAJE permisiju;
+- rola bez uključenog flaga JE ODBIJENA;
+- neaktivan membership JE ODBIJEN i kada je flag uključen;
+- isključen approval flag na guardu daje 403;
+- tuđi practice flag NIKADA ne doprinosi.
+
 PROFILI ROLA:
 - AUDITOR — audit.read ALLOW; audit.export ALLOW; sve ostale aktivne permisije DENY;
   practice.read DENY; bez discovery/listing endpointa;
@@ -1293,12 +1316,33 @@ ZABRANJENO — ne implementiraj ništa sa ove liste:
   API error kod ili migration paket;
 - spekulativni samostalni indeksi — prihvaćeni unique constrainti su dovoljni (docs/02 §21).
 
+OPOZIV ODOBRENJA — PREUZETO IZ FAZE 4 (D-058, po precedentu D-052 A.7; norma je D-041,
+klauzule 6–11, i D-016). Faza 4 ova pravila NIJE izvršila jer analysis_approvals tada nije
+postojala. Tekst je preuzet DOSLOVNO; nijedno pravilo nije oslabljeno ni sažeto:
+- podobnost se evaluira U TRENUTKU OPOZIVA, ne u trenutku odobrenja;
+- OPOZIVALAC NE MORA BITI ORIGINALNI ODOBRAVATELJ;
+- reason je OBAVEZAN;
+- dokaz odobrenja se NIKADA NE BRIŠE;
+- approval historija ostaje IMMUTABLE;
+- revocation audit event je OBAVEZAN;
+- ruta odobravanja i ruta opoziva iz docs/03 §10 i §20 daju 403 kada podobna rola nema uključen
+  odgovarajući practice flag (allow_mpa_approval, allow_billing_specialist_approval).
+Matricu podobnosti NE REDEFINIŠI — ona je obaveza Faze 4 (D-041, klauzula 12); ova faza je
+KORISTI. Opozivačka ovlast NIKADA ne prelazi ovlast odobravanja.
+
 Testiraj:
 - open blocker;
 - stale revision;
 - concurrent double approval;
 - edit after approval;
 - revoke history;
+- podobnost opoziva evaluiranu u trenutku opoziva;
+- uspješan opoziv od podobnog korisnika koji NIJE originalni odobravatelj;
+- odbijen opoziv bez reason;
+- dokaz odobrenja koji NIJE obrisan nakon opoziva;
+- immutable approval historiju nakon opoziva;
+- emitovan revocation audit event;
+- 403 na ruti odobravanja i na ruti opoziva kada je odgovarajući practice flag isključen;
 - approval payload immutability;
 - validan same-practice i same-analysis-run link;
 - odbijen cross-practice link;

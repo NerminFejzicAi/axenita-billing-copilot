@@ -1847,6 +1847,39 @@ Normativno: D-041; `03` §10 i §20; `15` §6.
 - [ ] Approval historija ostaje **immutable**.
 - [ ] **Revocation audit event** je emitovan.
 
+**Dispozicija posljednjih šest redova — D-058 (2026-08-20), gate `P4-013F`.** Šest redova iznad
+(`R267`–`R272` u ledgeru `P4-013`, od „Podobnost se evaluira **u trenutku opoziva**." do
+„**Revocation audit event** je emitovan.") preslikavaju **D-041, klauzule 6–11**, koje opisuju
+**ponašanje write puta opoziva**. Faza 4 taj put **ne implementira i nije ovlaštena da ga
+implementira**: tabelu `analysis_approvals` kreira paket `009_review_approvals` **u Fazi 10**
+(`02` §22.9; `04` §12.2 i §12.3), a `07`, Prompt — Faza 4 izričito zabranjuje kreiranje novog
+endpointa. Po **precedentu D-052, A.7** obaveze su **premještene uz doslovno očuvanje teksta**:
+
+| Red | Zahtjev | Dispozicija | Ciljna faza | Ciljni red | Autoritet |
+|---|---|---|---|---|---|
+| `R267` | Podobnost se evaluira **u trenutku opoziva**. | `FUTURE_SCOPE` | Faza 10 | doslovno preuzet red 1 | D-041, kl. 7; D-058, kl. 4 i 8 |
+| `R268` | **Opozivalac ne mora biti originalni odobravatelj.** | `FUTURE_SCOPE` | Faza 10 | doslovno preuzet red 2 | D-041, kl. 6; D-058, kl. 4 i 8 |
+| `R269` | `reason` je **obavezan**. | `FUTURE_SCOPE` | Faza 10 | doslovno preuzet red 3 | D-041, kl. 8; D-058, kl. 4 i 8 |
+| `R270` | Dokaz odobrenja se **nikada ne briše**. | `FUTURE_SCOPE` | Faza 10 | doslovno preuzet red 4 | D-041, kl. 9; D-058, kl. 4 i 8 |
+| `R271` | Approval historija ostaje **immutable**. | `FUTURE_SCOPE` | Faza 10 | doslovno preuzet red 5 | D-041, kl. 10; D-016; D-058, kl. 4 i 8 |
+| `R272` | **Revocation audit event** je emitovan. | `FUTURE_SCOPE` | Faza 10 | doslovno preuzet red 6 | D-041, kl. 11; D-058, kl. 4 i 8 |
+
+```text
+vlasnicka faza        Faza 10 - Review/approval
+ciljna sekcija        "Opoziv odobrenja - preuzeto iz Faze 4 (D-058)" (Faza 10 nize)
+preslikavanje         1:1, doslovan tekst, bez sazimanja
+SILENT_RETIREMENTS    0
+```
+
+**Kućice ostaju neoznačene i tekst se ne mijenja** (D-058, klauzula 7): `[x]` u ovom repozitoriju
+znači `SATISFIED_BY_EVIDENCE` uz citiran dokaz (`00` §14), a ovo je **autoritetom potkrijepljena
+dispozicija**, ne dokaz. Označavanje pripada gateu **`P4-013B`**.
+
+**Prvih osam redova ove sekcije se NE premješta.** Ćelije matrice, uslovni flagovi, pravilo „flag
+bez role ne daje permisiju", pravilo „rola bez flaga je odbijena" i odbijanje **neaktivnog
+membershipa** ostaju **obavezni zahtjevi Faze 4** (D-058, klauzula 2). Nijedna sigurnosna semantika
+Faze 4 nije oslabljena ni odgođena.
+
 ## Profili rola
 
 ### AUDITOR
@@ -1897,6 +1930,29 @@ Negativne provjere:
 - [ ] isključen approval flag → `403`.
 - [ ] cross-user curenje rola → odbijeno.
 - [ ] cross-practice curenje rola → odbijeno.
+
+**Dispozicija reda „isključen approval flag → `403`" — D-058, klauzula 5.** Taj red (`R303` u
+ledgeru `P4-013`) **ostaje u Fazi 4** i nosi dispoziciju **`SATISFIED_BY_EVIDENCE`**, dokazanu
+**postojećim trajnim testovima**, bez ijednog novog testa (put dopušten D-056, klauzulom 9):
+
+```text
+R303   dispozicija       SATISFIED_BY_EVIDENCE
+       EVIDENCE_DOMAIN   PERMISSION (ne-terminalna oznaka, D-057, klauzule 7-11)
+       autoritet         D-058, klauzula 5; D-041, klauzule 1-5; D-038, klauzula 18
+```
+
+- `apps/api/src/identity/domain/effective-permissions.spec.ts`, blok `F, G, H — conditional
+  grants` — resolver **uskraćuje** `analysis.approve` i `analysis.approval.revoke` dok je flag
+  isključen, za `MPA` i za `BILLING_SPECIALIST`, uključujući `treats a non-boolean flag value as
+  disabled`;
+- `apps/api/src/identity/application/tenant-request.pipeline.spec.ts` — `MPA` sa
+  `allowMpaApproval = false` na **traženoj** ordinaciji i tražena permisija `analysis.approve` daju
+  **`403`** (`never lets another practice's settings contribute`), a ogledalski test
+  `grants a CONDITIONAL cell from the requested practice's own flag` dokazuje suprotni smjer.
+
+**Kućica se u gateu `P4-013F` ne označava** (D-058, klauzula 7) — označavanje pripada `P4-013B`.
+Konkretne rute odobravanja i opoziva iz `03` §10 i §20 u Fazi 4 **ne postoje**; ta rezidua je
+**dodana kao zaseban red u Fazi 10** (D-058, klauzula 6) i **ne mijenja** ovu dispoziciju.
 
 ## Granice — izvan v1
 
@@ -2157,11 +2213,55 @@ mutacija baze u auditu            NO
 **iznova**, u svježem read-only gateu, protiv tog kanonskog commita; **ne nastavlja se** iz
 pokušaja 1 (D-057, klauzula 16).
 
+**Pokušaj 2 gatea `P4-013A` je izvršen** nad obuhvatom rebaziranim odlukom D-057 i evidentira se
+**kako se stvarno završio — `COMPLETE_WITH_REQUIRED_GAPS`, a NE `PASS`**:
+
+```text
+P4_013A_V2_VERDICT           P4_013A_V2_COMPLETE_WITH_REQUIRED_GAPS
+auditirani commit            890aee2 (obuhvat rebaziran D-057)
+P4_013_TOTAL_ROWS            398
+retrospektivno dokazano      273
+UNRESOLVED_REQUIRED          12
+SECURITY_CLOSURE_BLOCKERS    1
+mutacija repozitorija        NO
+mutacija baze                NO
+```
+
+**Gate `P4-013F` je dispozicionirao sedam od tih dvanaest redova — D-058 (2026-08-20).** Sedam
+governance-osjetljivih redova odobravanja i opoziva (`R267`–`R272` i `R303`) dobilo je
+**autoritetom potkrijepljenu dispoziciju**, uz **očuvanje svake žive obaveze**:
+
+```text
+R267-R272   FUTURE_SCOPE            -> Faza 10, "Opoziv odobrenja - preuzeto iz Faze 4 (D-058)"
+R303        SATISFIED_BY_EVIDENCE   -> ostaje Faza 4 (rezidua nad rutama dodana u Fazi 10)
+SILENT_RETIREMENTS = 0
+```
+
+Očekivano računovodstvo nakon `P4-013F` (D-058, klauzula 14) — **delta sedam redova, ne novi
+audit**:
+
+```text
+START_UNRESOLVED_REQUIRED                 12
+ROWS_RESOLVED_BY_P4_013F                   7
+EXPECTED_UNRESOLVED_REQUIRED_AFTER_GATE    5
+EXPECTED_REMAINING_ROWS                    R347, R348, R369, R373, R382
+SECURITY_CLOSURE_BLOCKERS                  1   (R373, nepromijenjeno)
+```
+
+**`P4-013F` nije izvršio ni rekonsilijaciju kućica ni ponovni audit.** Nijedna kućica nije
+promijenjena, `273` retrospektivno dokazana reda nisu dirana, a preostalih **pet** redova
+(`R347`, `R348`, `R369`, `R373`, `R382`) **ostaje otvoreno** i pripada gateu **`P4-013V`**;
+označavanje pripada gateu **`P4-013B`** (D-058, klauzule 7 i 12).
+
 Evidence:
 
 ```text
-P4-013 RETROSPECTIVE EVIDENCE AUDIT:  NOT STARTED — zaseban gate
-                                      obuhvat rebaziran na 398 (D-057); pokušaj 1 = HOLD
+P4-013 RETROSPECTIVE EVIDENCE AUDIT:  IN PROGRESS — zaseban gate, NIJE ZAVRŠEN
+                                      obuhvat rebaziran na 398 (D-057)
+                                      pokušaj 1 = HOLD; pokušaj 2 (v2) =
+                                        COMPLETE_WITH_REQUIRED_GAPS (nije PASS)
+                                      P4-013F = 7 redova dispozicionirano (D-058)
+                                      očekivano preostalo: 5 (P4-013V)
 ```
 
 ---
@@ -2504,6 +2604,47 @@ Normativno: `02` §13.2a.1; `04` §12.3.1; D-046, klauzule 34–52.
 - [ ] `POST /analyses/{id}/decisions` **ne prima** polje sa correction ID-evima.
 - [ ] Nema izmjene request ni response payloada.
 - [ ] D-029 `version` / `If-Match` ponašanje je **nepromijenjeno**.
+
+## Opoziv odobrenja — preuzeto iz Faze 4 (D-058)
+
+**Premješteno iz Faze 4 odlukom D-058 (2026-08-20), po precedentu D-052, A.7.** Ovih šest redova
+stajalo je u Fazi 4, sekcija „Uslovno odobravanje i opoziv" (`R267`–`R272` u ledgeru `P4-013`), a
+opisuju **ponašanje write puta opoziva** koje Faza 4 ne implementira: tabelu `analysis_approvals`
+kreira paket `009_review_approvals` **u ovoj fazi**. **Tekst je preuzet doslovno — nijedan zahtjev
+nije uklonjen, oslabljen, sažet ni označen završenim.**
+
+Normativno: D-041, klauzule 6–11; D-016; `03` §10 i §20; `15` §6; D-058, klauzule 3–4 i 8–9.
+
+Provenijencija reda po reda — ledger `P4-013` (Faza 4) → ovaj red (Faza 10):
+
+```text
+R267 -> red 1   podobnost u trenutku opoziva          (D-041, kl. 7)
+R268 -> red 2   opozivalac != originalni odobravatelj (D-041, kl. 6)
+R269 -> red 3   reason obavezan                       (D-041, kl. 8)
+R270 -> red 4   dokaz odobrenja se ne brise           (D-041, kl. 9)
+R271 -> red 5   immutable approval historija          (D-041, kl. 10; D-016)
+R272 -> red 6   revocation audit event                (D-041, kl. 11)
+R303 -> rezidua nad rutama, nize                      (D-058, kl. 6; ostaje dokazan u Fazi 4)
+```
+
+- [ ] Podobnost se evaluira **u trenutku opoziva**.
+- [ ] **Opozivalac ne mora biti originalni odobravatelj.**
+- [ ] `reason` je **obavezan**.
+- [ ] Dokaz odobrenja se **nikada ne briše**.
+- [ ] Approval historija ostaje **immutable**.
+- [ ] **Revocation audit event** je emitovan.
+
+Rezidua reda `R303` na nivou rute (D-058, klauzula 6) — Faza 4 dokazuje **guard** ishod pri
+isključenom flagu, ali konkretne rute odobravanja i opoziva u njoj ne postoje:
+
+- [ ] Ruta odobravanja i ruta opoziva iz `03` §10 i §20 daju **`403`** kada podobna rola nema
+      uključen odgovarajući practice flag (`allow_mpa_approval`,
+      `allow_billing_specialist_approval`).
+
+Postojeći sažeti redovi ove faze (`revoke`, `revoke history preserved`, `immutable trigger`,
+`approvals`) su **djelimična pokrivenost** i **ne zamjenjuju** redove iznad; oni ostaju na snazi
+**uz** njih (D-058, klauzula 9). **Matrica podobnosti se ne mijenja** — ona je i dalje obaveza
+Faze 4 (D-041, klauzula 12; D-058, klauzula 2), a ova faza je **koristi**, ne redefiniše.
 
 ## Verifikacija inventara — D-046
 
