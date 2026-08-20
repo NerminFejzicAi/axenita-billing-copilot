@@ -1456,17 +1456,39 @@ describe('GET /api/v1/practices/{practiceId}/settings', () => {
       expect((await readSettings(admin, PRACTICE_A)).status).toBe(200);
     });
 
-    it('registers NO PATCH /practices/{practiceId}/settings', async () => {
-      // The write slice is not this one. A stub would have to answer something, and every answer
-      // it could give would be a contract this phase has not accepted (D-053 clause B.4).
+    it('registers PATCH /practices/{practiceId}/settings behind its precondition', async () => {
+      // THE BOUNDARY THIS ASSERTION GUARDS HAS MOVED, AND IT MOVED DELIBERATELY.
+      //
+      // Until the write slice landed, this asserted that `PATCH` was `404` — the D-053 clause B.4
+      // statement that the write belonged to a later slice. That slice is now implemented, so the
+      // "PATCH is absent" assertion is REPLACED by the invariant that now governs the route
+      // rather than deleted: the property is stronger afterwards, not absent.
+      //
+      // What is asserted here is only that THIS suite's view of the route surface is current, and
+      // the sharpest single observation that proves it: an authorised `PATCH` carrying a body but
+      // NO `If-Match` answers `428 PRECONDITION_REQUIRED` (D-055 clause 10). `404` would mean the
+      // route vanished; `200` would mean the mandatory precondition was skipped; `422` would mean
+      // the body schema was evaluated before the precondition. Only `428` is the accepted answer,
+      // and it is unreachable without a registered, fully authorised route.
+      //
+      // The complete behaviour of the settings write — the `If-Match` grammar, the `400`/`409`
+      // separation, the empty-patch refusal, the atomic single-statement `UPDATE`, the version
+      // increment and the `409` for zero rows — is proven in
+      // `phase4-practice-settings-patch.security.ts`.
       const response = await request(app.getHttpServer())
         .patch(`/api/v1/practices/${PRACTICE_A}/settings`)
         .set('Authorization', developmentBearer(admin))
         .set(PRACTICE_HEADER, PRACTICE_A)
         .send({ aiEnabled: true });
 
-      expect(response.status).toBe(404);
-      expect([428, 409, 200, 204]).not.toContain(response.status);
+      expect(response.status).toBe(428);
+      expect(response.status).not.toBe(404);
+
+      // The refusal wrote nothing: the read this suite owns still renders the seeded document
+      // with the seeded version, so a `428` cannot have consumed one.
+      const after = await readSettings(admin, PRACTICE_A);
+      expect(after.status).toBe(200);
+      expect(after.etag).toBe(`"${String(VERSIONS.a)}"`);
     });
 
     it.each(['put', 'post', 'delete'] as const)(

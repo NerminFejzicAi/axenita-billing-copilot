@@ -1,14 +1,15 @@
 /**
- * `GET /api/v1/practices/{practiceId}/settings` response contract.
+ * The `practices/{practiceId}/settings` SUCCESS representation — shared by `GET` and `PATCH`.
  *
  * Normative sources: D-053 clauses A.1, A.2 and A.4 (the frozen representation, the `ETag`
  * channel and the columns that stay unreadable); `03` §10 and §28.5; `15` §5; D-044 and D-049
  * (the permission stays `PRACTICE_ADMIN` only); D-047 clause 10 and `03` §3.7.1 (the tenant
  * route class).
  *
- * `/practices/{practiceId}/settings` is a TENANT route (`03` §3.4): `X-Practice-ID` is mandatory,
- * the `practiceId` of the path must name the very same practice, and the required permission is
- * `practice.settings.read`.
+ * `/practices/{practiceId}/settings` is a TENANT route (`03` §3.4): `X-Practice-ID` is mandatory
+ * and the `practiceId` of the path must name the very same practice. The two methods differ in
+ * exactly one authorisation input — `GET` requires `practice.settings.read` and `PATCH` requires
+ * `practice.settings.manage` (D-055 clause 28) — and in nothing about the document below.
  *
  * EXACTLY EIGHT FIELDS, AND `version` IS NOT ONE OF THEM
  *
@@ -32,13 +33,24 @@
  * published here, so a widening of a column grant or of the Prisma model cannot reach a response
  * through this package.
  *
- * This file describes the `GET` document only. `PATCH /practices/{practiceId}/settings` — its
- * request body, its mandatory `If-Match`, `428 PRECONDITION_REQUIRED` and `409 VERSION_CONFLICT`
- * (D-053 clause B.4) — belongs to a later slice and is not declared here, not even as a stub.
+ * ONE DOCUMENT, TWO METHODS. D-055 clause 22 states that a successful `PATCH` returns the SAME
+ * frozen eight-field representation as `GET`, with a new strong `ETag` carrying the incremented
+ * version. There is therefore no second response type here and there must not be one: a
+ * `PracticeSettingsPatchResponseDto` would be free to drift from this one, and the drift is
+ * precisely what a frozen representation exists to prevent.
+ *
+ * WHAT IS STILL NOT DECLARED HERE. The `PATCH` REQUEST body is deliberately absent from this
+ * package. Its seven mutable fields are an INPUT shape validated inside the API — with the
+ * `class-validator` metadata that validation requires — and publishing an input type here would
+ * put a second, decorator-free copy of the same field set in a package that cannot enforce it.
+ * The precondition mechanics (`If-Match`, `428 PRECONDITION_REQUIRED`, `400 VALIDATION_ERROR`,
+ * `409 VERSION_CONFLICT`) are HTTP-level contract, described by `03` §5.2 and D-055 parts D to G,
+ * and are carried by headers and status codes rather than by any type in this file.
  */
 
 /**
- * The complete `GET /practices/{practiceId}/settings` document (D-053 clause A.1).
+ * The complete `/practices/{practiceId}/settings` success document (D-053 clause A.1), returned
+ * unchanged in shape by `GET` and by a successful `PATCH` (D-055 clauses 1 and 22).
  *
  * `practiceId` is the ADMITTED practice — the value in `app.practice_id` for the transaction
  * that produced this document, and therefore the practice of both the path and `X-Practice-ID`.

@@ -1068,8 +1068,9 @@ describe('GET /api/v1/practices/{practiceId}', () => {
      * registered at all — the D-049 statement that the settings routes belong to phase 4. Phase 4
      * has now implemented the READ half, so the "GET is absent" half of that boundary is replaced
      * by the invariants that now govern it rather than deleted; the security property is stronger
-     * afterwards, not absent. The WRITE half is untouched and stays asserted below: `PATCH`
-     * belongs to a later slice and must remain unregistered (D-053 clause B.4).
+     * afterwards, not absent. The WRITE half has since moved the same way: `PATCH` is now
+     * implemented (D-055 parts D to G) and is asserted below through the invariant that governs
+     * it, not through its absence.
      *
      * The complete behaviour of the settings read — the frozen eight-field representation, the
      * strong version `ETag`, the `15` §5 matrix, the missing-row invariant, multi-practice
@@ -1097,17 +1098,27 @@ describe('GET /api/v1/practices/{practiceId}', () => {
       expect(directory.status).toBe(404);
     });
 
-    it('registers NO settings WRITE route (D-053 clause B.4)', async () => {
-      // The one half of the old boundary that has NOT moved. `PATCH` carries `If-Match`, `428`,
-      // `409` and an atomic version increment, none of which this phase accepted, so it must not
-      // exist — not even as a stub that would have to answer something.
+    it('registers the settings WRITE behind its precondition (D-055 clause 10)', async () => {
+      // THE SECOND HALF OF THE OLD BOUNDARY HAS NOW MOVED TOO.
+      //
+      // This used to assert that `PATCH /practices/{id}/settings` was `404`. The write slice
+      // implemented it, so the "PATCH is absent" half is REPLACED by the invariant that now
+      // governs it rather than deleted — the same treatment the `GET` half received when the read
+      // slice landed, and for the same reason: the property must end up stronger, not absent.
+      //
+      // One observation proves the surface is current AND that the accepted order holds: a fully
+      // authorised `PATCH` that carries a body but NO `If-Match` answers `428`, never `404` (the
+      // route is gone), never `200` (the mandatory precondition was skipped) and never `422` (the
+      // body schema was evaluated before the precondition). The complete write contract is proven
+      // in `phase4-practice-settings-patch.security.ts`.
       const response = await request(app.getHttpServer())
         .patch(`/api/v1/practices/${MATRIX_PRACTICE}/settings`)
         .set('Authorization', developmentBearer(ROLE_CALLERS[0].subject))
         .set(PRACTICE_HEADER, MATRIX_PRACTICE)
         .send({ aiEnabled: true });
 
-      expect(response.status).toBe(404);
+      expect(response.status).toBe(428);
+      expect(response.status).not.toBe(404);
     });
   });
 });
