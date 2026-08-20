@@ -9,9 +9,9 @@
 
 | Polje | Vrijednost |
 |---|---|
-| Current phase | Faza 1 — `DONE`; Ecosystem Compatibility Audit `DONE`; Faza 2 — `DONE`; **D-OPEN-011 decision gate — `DONE` (D-047 prihvaćen 2026-08-12)**; **D-047 dokumentaciona rekonsilijacija — `DONE`, merged u kanonski `main` (PR #7)**; **D-048–D-051 governance gate — `DONE`, merged u kanonski `main` (PR #10)**; **Faza 3 — `DONE`, merged u kanonski `main` (PR #12, merge commit `5c2786d`) (§4)**; **Faza 4 — `IN_PROGRESS`, otvorena (§5)**; **P4-5D je `MERGED` u kanonski `main` (PR #20)**; faza **nije** zatvorena — preostaje retrospektivni evidence gate **P4-013** (§5, „Preostali gate zatvaranja Faze 4 — P4-013") |
+| Current phase | Faza 1 — `DONE`; Ecosystem Compatibility Audit `DONE`; Faza 2 — `DONE`; **D-OPEN-011 decision gate — `DONE` (D-047 prihvaćen 2026-08-12)**; **D-047 dokumentaciona rekonsilijacija — `DONE`, merged u kanonski `main` (PR #7)**; **D-048–D-051 governance gate — `DONE`, merged u kanonski `main` (PR #10)**; **Faza 3 — `DONE`, merged u kanonski `main` (PR #12, merge commit `5c2786d`) (§4)**; **Faza 4 — `IN_PROGRESS`, otvorena (§5)**; **P4-5D je `MERGED` u kanonski `main` (PR #20)**; **retrospektivni evidence gate `P4-013` — `COMPLETE`** (`UNRESOLVED_REQUIRED = 0`, `SECURITY_CLOSURE_BLOCKERS = 0`; §5, „Gate zatvaranja Faze 4 — P4-013 — `COMPLETE`"); faza **i dalje nije zatvorena** — prelazak `IN_PROGRESS → DONE` je zaseban, vlasnički pregledan gate zatvaranja Faze 4 |
 | Current branch | Faza 3 je merged u kanonski `main`; implementacijski branch `backend/03-identity-practices` (tehnička implementacija HEAD, Gate 3E = `9f60d32c66023c4aad5ac34df267658ddfe5d6b1`; zatvarački dokumentacioni checkpoint = `2c7d7778a9ec1dae92fd0a5683d1f4afc7b36950`; završni head prije merge-a = `5c1699a0ea4d98e2f540c6e8cd9ae84997896a42`) je time potrošen. **Kanonska remote grana je `origin/main`. Živi kanonski commit se rezolvira iz te reference i ovaj dokument ga ne ugrađuje** (D-056, klauzule 15–16); tačni SHA-ovi ispod su **nepromjenljivi historijski lifecycle događaji**, ne živi pokazivač. Implementacijski branch Faze 4 `backend/04-practice-settings-patch` nosio je slice P4-5D i **merged je** u kanonski `main` kroz **PR #20** (`3658c6e2d9c08e3ca3f0c306d8dbeaf41a6a01f5`), pa je time potrošen. Historijski: `0866e530b6086e7dba7f0bc0d98b19eee69ee0d5` (PR #19, kanonski `main` neposredno prije merge-a P4-5D), `5c2786d689b50f73f49bfca52d2335ea50ee52c2` (PR #12, kanonski `main` po zatvaranju Faze 3), `251544f0b10abb00ee818f1ff5183c95b0ed0d03` (PR #11, kanonski `main` neposredno prije merge-a Faze 3) i `65e2552e13520ead86092f75ca3cc75d206b9f35` (PR #10) |
-| Last completed phase | Faza 3 — Identity & Practices, `DONE` (posljednja faza merged u kanonski `main`, PR #12, `5c2786d`). Tekuća faza: Faza 4 — Tenant/RLS, `IN_PROGRESS` (§5); nije zatvorena — P4-5D je `MERGED` (PR #20, `3658c6e`), ali retrospektivni evidence gate **P4-013** ostaje otvoren |
+| Last completed phase | Faza 3 — Identity & Practices, `DONE` (posljednja faza merged u kanonski `main`, PR #12, `5c2786d`). Tekuća faza: Faza 4 — Tenant/RLS, `IN_PROGRESS` (§5); nije zatvorena — P4-5D je `MERGED` (PR #20, `3658c6e`), a retrospektivni evidence gate **P4-013** je `COMPLETE`; preostaje samo zaseban gate zatvaranja Faze 4 |
 | Last commit | `c4b89d0` (Phase 2 implementation), merged via `dae9649`; dokumentarno zatvaranje `98910b3`, merged via `d6b5efe`; D-047 rekonsilijacija `76dbc6d` + `dda7538`, merged via `ec7d100` (PR #7); dokumentaciona usklađivanja merged via `2befadc` i `5d38ba8` (PR #8, PR #9); D-048–D-051 rekonsilijacija `b2a99ce`, merged via `65e2552` (PR #10); dokumentaciono zatvaranje governancea merged via `251544f` (PR #11); **Faza 3 — sedam commitova branča `backend/03-identity-practices` (Gate 3A–3E, tehnička implementacija `HEAD` = `9f60d32`; zatvarački dokumentacioni checkpoint `2c7d777`; korekcija reference kanonskog `main`-a `5c1699a`), merged via `5c2786d` (PR #12)** (§4, „Gate checkpointi Faze 3"); historijski kanonski `main` prije P4-5D = `0866e530b6086e7dba7f0bc0d98b19eee69ee0d5` (PR #19); **PR #20 (slice P4-5D) je `MERGED`, merge commit `3658c6e2d9c08e3ca3f0c306d8dbeaf41a6a01f5`**. Živi kanonski commit se rezolvira iz `origin/main` i ovdje se **ne** upisuje (D-056, klauzule 15–16) |
 | Local environment owner | Nermin Fejzic |
 | Test DB | `copilot_test` @ `localhost:5433` (compose profil `test`); dokazi Faze 3 nad realnim PostgreSQL-om rade na **jednokratnim** bazama `copilot_gate3b_<suffix>` @ `localhost` |
@@ -1127,18 +1127,19 @@ Status: `IN_PROGRESS`. Merged u kanonski `main`:
   `3658c6e2d9c08e3ca3f0c306d8dbeaf41a6a01f5`, `MERGED` **2026-08-20T15:31:49Z** od
   **NerminFejzicAi**.
 
-**Aplikacijska implementacija Faze 4 je time kompletna i merged u kanonski `main`.** Faza ipak
-**nije** zatvorena: preostaje retrospektivni evidence gate **P4-013** (vidi „Preostali gate
-zatvaranja Faze 4 — P4-013" niže). Preostale tenant tabele i slice-evi ostaju otvoreni, a
-`013_rls_policies` sekcije niže i dalje čekaju taj gate.
+**Aplikacijska implementacija Faze 4 je time kompletna i merged u kanonski `main`.** Retrospektivni
+evidence gate **P4-013** je **`COMPLETE`** — `UNRESOLVED_REQUIRED = 0` i
+`SECURITY_CLOSURE_BLOCKERS = 0` (vidi „Gate zatvaranja Faze 4 — P4-013 — `COMPLETE`" niže). Faza
+ipak **nije** zatvorena: prelazak `IN_PROGRESS → DONE` je **zaseban, vlasnički pregledan gate
+zatvaranja Faze 4**, koji ovaj dokument **ne** izvršava.
 
 **Obuhvat `P4-013` je rebaziran na ovu, kanonsku Fazu 4 — D-057 (2026-08-20).** Pokušaj 1 gatea
 `P4-013A` zaustavljen je sa `P4_013_SCOPE_RECONCILIATION_FAILURE` jer je D-056, klauzula 20
 zamrznula zastarjeli obuhvat od **294** reda; kanonska Faza 4 nosi **398** checklist redova.
 Obuhvat je sada definisan **strukturnim pravilom** i pokriva **cijelu** ovu sekciju, a fiksna
 podjela `64 / 230` je **povučena kao ne-normativna**. **Nijedan red nije uklonjen iz obuhvata**, a
-`UNRESOLVED_REQUIRED = 0` ostaje **nepromijenjen**. Detalji su niže, u „Preostali gate zatvaranja
-Faze 4 — P4-013".
+`UNRESOLVED_REQUIRED = 0` ostaje **nepromijenjen**. Detalji su niže, u „Gate zatvaranja Faze 4
+— P4-013 — `COMPLETE`".
 
 **Autoritet za slice P4-5D** je **D-055** (HTTP validatori i optimistička konkurentnost), uz
 **D-053** kao bazni settings ugovor. D-055, klauzula 33 zabranjuje označavanje `PATCH` stavki na
@@ -1390,39 +1391,39 @@ Svaka označena stavka ispod ima **trajni test** koji je dokazuje. Dva komplemen
 
 ## Schema i funkcije
 
-- [ ] `app_security` schema.
-- [ ] `set_user_context(p_user_id uuid)`.
-- [ ] `set_request_context(p_practice_id uuid)` — tačno taj potpis.
-- [ ] `set_request_context` je **SECURITY INVOKER**.
-- [ ] `set_request_context` ne prima `p_user_id` ni bilo koji caller-provided identifikator korisnika.
-- [ ] fixed search path na obje funkcije.
-- [ ] public execute revoked na obje funkcije.
-- [ ] **SECURITY DEFINER se ne koristi za zaobilaženje `practice_memberships` RLS-a.**
+- [x] `app_security` schema.
+- [x] `set_user_context(p_user_id uuid)`.
+- [x] `set_request_context(p_practice_id uuid)` — tačno taj potpis.
+- [x] `set_request_context` je **SECURITY INVOKER**.
+- [x] `set_request_context` ne prima `p_user_id` ni bilo koji caller-provided identifikator korisnika.
+- [x] fixed search path na obje funkcije.
+- [x] public execute revoked na obje funkcije.
+- [x] **SECURITY DEFINER se ne koristi za zaobilaženje `practice_memberships` RLS-a.**
 
 ## Autentifikovani user context
 
-- [ ] Bearer token validiran prije tenant bootstrapa.
-- [ ] Autentifikovani aplikacijski korisnik rezolviran iz pouzdanih auth podataka.
-- [ ] Identitet korisnika uspostavljen u transakciji/sesiji prije poziva `set_request_context`.
-- [ ] Klijent ne može poslati ni pregaziti identitet korisnika kroz `set_request_context`.
-- [ ] `set_user_context` je isključivo korak pouzdanog identiteta i nikada se ne puni iz request bodyja, query parametra ni `X-Practice-ID`.
-- [ ] `set_user_context` se ne uklanja i ne preimenuje samo zato što `set_request_context` ne smije primati `user_id` — to su odvojene odgovornosti.
+- [x] Bearer token validiran prije tenant bootstrapa.
+- [x] Autentifikovani aplikacijski korisnik rezolviran iz pouzdanih auth podataka.
+- [x] Identitet korisnika uspostavljen u transakciji/sesiji prije poziva `set_request_context`.
+- [x] Klijent ne može poslati ni pregaziti identitet korisnika kroz `set_request_context`.
+- [x] `set_user_context` je isključivo korak pouzdanog identiteta i nikada se ne puni iz request bodyja, query parametra ni `X-Practice-ID`.
+- [x] `set_user_context` se ne uklanja i ne preimenuje samo zato što `set_request_context` ne smije primati `user_id` — to su odvojene odgovornosti.
 
 ## Membership validacija
 
-- [ ] `X-Practice-ID` se tretira samo kao nepouzdan traženi tenant identifikator.
-- [ ] Tražena practice se prihvata tek nakon pronađenog aktivnog membershipa.
-- [ ] Rezolucija membershipa koristi posebnu user-scoped `practice_memberships` bootstrap politiku.
-- [ ] Bootstrap radi prije nego `app.practice_id` postoji.
-- [ ] Normalna tenant RLS se ne koristi za bootstrap konteksta koji ta ista RLS zahtijeva.
-- [ ] Nepostojeći membership mapira se na `403`.
-- [ ] Neaktivan membership mapira se na `403`.
-- [ ] Neuspjeh bootstrapa ne ostavlja upotrebljiv tenant context.
-- [ ] **`practice_membership_roles` NIJE potreban** za provjeru postojanja membershipa (D-038, klauzule 20–21).
-- [ ] `set_request_context` **ne čita** `practice_membership_roles`.
-- [ ] `set_request_context` ne prima ni `user_id` ni rolu.
-- [ ] **Aktivan membership sa nula rola SMIJE uspostaviti tenant context.**
-- [ ] Takav membership dobija **`403`** na svakoj permission-gated tenant ruti.
+- [x] `X-Practice-ID` se tretira samo kao nepouzdan traženi tenant identifikator.
+- [x] Tražena practice se prihvata tek nakon pronađenog aktivnog membershipa.
+- [x] Rezolucija membershipa koristi posebnu user-scoped `practice_memberships` bootstrap politiku.
+- [x] Bootstrap radi prije nego `app.practice_id` postoji.
+- [x] Normalna tenant RLS se ne koristi za bootstrap konteksta koji ta ista RLS zahtijeva.
+- [x] Nepostojeći membership mapira se na `403`.
+- [x] Neaktivan membership mapira se na `403`.
+- [x] Neuspjeh bootstrapa ne ostavlja upotrebljiv tenant context.
+- [x] **`practice_membership_roles` NIJE potreban** za provjeru postojanja membershipa (D-038, klauzule 20–21).
+- [x] `set_request_context` **ne čita** `practice_membership_roles`.
+- [x] `set_request_context` ne prima ni `user_id` ni rolu.
+- [x] **Aktivan membership sa nula rola SMIJE uspostaviti tenant context.**
+- [x] Takav membership dobija **`403`** na svakoj permission-gated tenant ruti.
 
 ## RLS za `practice_membership_roles` i `platform_role_assignments` — premješteno u Fazu 3
 
@@ -1430,11 +1431,11 @@ Svaka označena stavka ispod ima **trajni test** koji je dokazuje. Dva komplemen
 `002_identity_and_practices` i Faza 3 su njihov **konačni vlasnik** (`02` §17.0, §17.2, §17.4,
 §22.2; §4 ovog dokumenta). Puna verifikaciona lista je u §4.
 
-- [ ] Paket `013_rls_policies` **ne sadrži nijedan** `CREATE POLICY`, `ENABLE ROW LEVEL SECURITY`
+- [x] Paket `013_rls_policies` **ne sadrži nijedan** `CREATE POLICY`, `ENABLE ROW LEVEL SECURITY`
       ni `FORCE ROW LEVEL SECURITY` za `practice_membership_roles` i `platform_role_assignments`.
-- [ ] Politike iz `02` §17.2 i §17.4 **nisu prepisane, oslabljene ni zamijenjene** u ovoj fazi.
-- [ ] Faza 4 ih smije **verifikovati i koristiti**, ali ne rekreirati.
-- [ ] Ove politike **nisu** riješile D-OPEN-011 i ne tumače se tako; access model je riješen
+- [x] Politike iz `02` §17.2 i §17.4 **nisu prepisane, oslabljene ni zamijenjene** u ovoj fazi.
+- [x] Faza 4 ih smije **verifikovati i koristiti**, ali ne rekreirati.
+- [x] Ove politike **nisu** riješile D-OPEN-011 i ne tumače se tako; access model je riješen
       odlukom **D-047** kroz `02` §17.5 i §17.6, već u Fazi 3.
 
 ## RLS i runtime put za `practice_settings` — D-049
@@ -1442,10 +1443,10 @@ Svaka označena stavka ispod ima **trajni test** koji je dokazuje. Dva komplemen
 Paket: `013_rls_policies`. Normativno: `02` §6.4, §18.1, §20.2b i §22.13; `03` §5 i §10;
 D-049, klauzula 5.
 
-- [ ] `ENABLE ROW LEVEL SECURITY`.
-- [ ] `FORCE ROW LEVEL SECURITY`.
-- [ ] Standardna tenant politika `practice_id = app.practice_id`.
-- [ ] **Phase gate pada ako `UPDATE` grant postoji bez pripadajuće tenant politike.**
+- [x] `ENABLE ROW LEVEL SECURITY`.
+- [x] `FORCE ROW LEVEL SECURITY`.
+- [x] Standardna tenant politika `practice_id = app.practice_id`.
+- [x] **Phase gate pada ako `UPDATE` grant postoji bez pripadajuće tenant politike.**
 - [x] `GET /api/v1/practices/{practiceId}/settings` registrovan — **P4-5C, PR #18**.
 - [x] `PATCH /api/v1/practices/{practiceId}/settings` registrovan — **P4-5D, PR #20**, merged u
       kanonski `main` (`3658c6e`).
@@ -1463,10 +1464,10 @@ D-049, klauzula 5.
 - [x] `practice.settings.read` i `practice.settings.manage` ostaju **`PRACTICE_ADMIN` only**
       (D-044, nepromijenjeno; `15`) — obje rute vožene kroz svih šest tenant rola, i kroz
       `SYSTEM_ADMIN` bez i sa tenant membershipom. Matrica **nije** mijenjana.
-- [ ] Izloženost `PHASE 3 INTERMEDIATE NON-PILOT CONDITIONAL-SETTINGS READ EXPOSURE` je
+- [x] Izloženost `PHASE 3 INTERMEDIATE NON-PILOT CONDITIONAL-SETTINGS READ EXPOSURE` je
       **zatvorena** — regresijski test dokazuje da `copilot_app` više ne vidi redove izvan tekućeg
       tenanta.
-- [ ] `copilot_system` **nema** nijedan grant; `PUBLIC` **nema** nijedan grant.
+- [x] `copilot_system` **nema** nijedan grant; `PUBLIC` **nema** nijedan grant.
 
 ### Zamrznuta settings reprezentacija — D-053, dio A
 
@@ -1493,24 +1494,24 @@ kopije reprezentacije više nisu izrazive.
 
 ### Tačna `SELECT` površina — D-053, dio A
 
-- [ ] `SELECT` grant obuhvata **tačno devet** kolona: `practice_id`, `billing_review_required`,
+- [x] `SELECT` grant obuhvata **tačno devet** kolona: `practice_id`, `billing_review_required`,
       `allow_mpa_approval`, `allow_billing_specialist_approval`,
       `require_reason_for_manual_change`, `ai_enabled`, `axenita_export_enabled`,
       `retention_policy_code`, `version`.
-- [ ] **Nema table-level `SELECT`.**
-- [ ] `id`, `configuration`, `updated_at` i `updated_by` ostaju **nečitljivi**.
-- [ ] Nedozvoljena kolona pada sa `42501` **i kada se koristi samo u `WHERE` ili `ORDER BY`**.
-- [ ] Trokolonska površina Faze 3 je **strogi podskup**; **nijedan grant nije opozvan**.
+- [x] **Nema table-level `SELECT`.**
+- [x] `id`, `configuration`, `updated_at` i `updated_by` ostaju **nečitljivi**.
+- [x] Nedozvoljena kolona pada sa `42501` **i kada se koristi samo u `WHERE` ili `ORDER BY`**.
+- [x] Trokolonska površina Faze 3 je **strogi podskup**; **nijedan grant nije opozvan**.
 
 ### Tačna `UPDATE` površina — D-053, dio B
 
-- [ ] `UPDATE` grant obuhvata **tačno devet** kolona: `billing_review_required`,
+- [x] `UPDATE` grant obuhvata **tačno devet** kolona: `billing_review_required`,
       `allow_mpa_approval`, `allow_billing_specialist_approval`,
       `require_reason_for_manual_change`, `ai_enabled`, `axenita_export_enabled`,
       `retention_policy_code`, `version`, `updated_at`.
-- [ ] **Nema table-level `UPDATE`.**
-- [ ] `practice_id`, `id`, `configuration` i `updated_by` ostaju **bez `UPDATE`-a**.
-- [ ] **Nema `INSERT` i nema `DELETE`** za runtime role.
+- [x] **Nema table-level `UPDATE`.**
+- [x] `practice_id`, `id`, `configuration` i `updated_by` ostaju **bez `UPDATE`-a**.
+- [x] **Nema `INSERT` i nema `DELETE`** za runtime role.
 - [x] **`updated_by` je nepromijenjen nakon uspješnog `PATCH`-a** i **nije** tretiran kao
       autoritativno audit polje — **P4-5D**. Iskaz kolonu **ne imenuje**, a fixture joj upisuje
       prepoznatljivu ne-`null` vrijednost, pa je tvrdnja stvarna, a ne „i dalje `null`". Čita se
@@ -1564,39 +1565,39 @@ uspješan odgovor (klauzule 22–23) — sve je implementirano i pokriveno trajn
 
 Normativno: `02` §17.1a; `03` §10. Faza 4 **adaptira aplikacijski put**, ne politiku.
 
-- [ ] Tenant politika nad `practice_settings` je **doslovno** `practice_id =
+- [x] Tenant politika nad `practice_settings` je **doslovno** `practice_id =
       nullif(current_setting('app.practice_id', true), '')::uuid` — **nepromijenjena**.
-- [ ] **Nije uveden** bootstrap/membership-wide izuzetak ni ijedno drugo slabljenje.
-- [ ] `GET /me` ostaje **neutralna, autentifikovana** ruta.
-- [ ] **`X-Practice-ID` nije uveden** na `/me`.
-- [ ] Zamrznuti `/me` ugovor iz `03` §10 je **nepromijenjen**.
-- [ ] Svaki `practice_id` za interni read dolazi **isključivo iz razriješenih membership redova**
+- [x] **Nije uveden** bootstrap/membership-wide izuzetak ni ijedno drugo slabljenje.
+- [x] `GET /me` ostaje **neutralna, autentifikovana** ruta.
+- [x] **`X-Practice-ID` nije uveden** na `/me`.
+- [x] Zamrznuti `/me` ugovor iz `03` §10 je **nepromijenjen**.
+- [x] Svaki `practice_id` za interni read dolazi **isključivo iz razriješenih membership redova**
       za `app.user_id`; **nijedna** vrijednost iz tijela, query parametra, headera ni putanje ne
       učestvuje.
-- [ ] **Neaktivan membership ne dobija tenant kontekst** i ostaje `permissions = []`.
-- [ ] Za **aktivan** membership kojem uslovne postavke trebaju, kontekst se uspostavlja **po
+- [x] **Neaktivan membership ne dobija tenant kontekst** i ostaje `permissions = []`.
+- [x] Za **aktivan** membership kojem uslovne postavke trebaju, kontekst se uspostavlja **po
       membershipu**, kroz prihvaćeni `set_request_context` put (`02` §16.2.3).
-- [ ] Read se izvršava **pod istom strogom tenant politikom**.
-- [ ] **Sva ne-tenant-scoped čitanja — uključujući `practiceName` za sve membershipe — završena su
+- [x] Read se izvršava **pod istom strogom tenant politikom**.
+- [x] **Sva ne-tenant-scoped čitanja — uključujući `practiceName` za sve membershipe — završena su
       prije prvog `set_request_context` poziva** (RESTRICTIVE politika `02` §17.6).
-- [ ] Postavke ordinacije A **ne doprinose** ordinaciji B; **nema unije** postavki ni rola preko
+- [x] Postavke ordinacije A **ne doprinose** ordinaciji B; **nema unije** postavki ni rola preko
       ordinacija.
-- [ ] **Nijedan novi mehanizam čišćenja konteksta nije uveden** — izolaciju daju brisanje unutar
+- [x] **Nijedan novi mehanizam čišćenja konteksta nije uveden** — izolaciju daju brisanje unutar
       `set_request_context` i kraj transakcije.
-- [ ] **Nema `SECURITY DEFINER`, `BYPASSRLS`, superuser puta ni zaobilaznice.**
-- [ ] Provjera `practices.status` iz koraka 4 §3.7.1 **nije uvedena na `/me`** (D-053, klauzula
+- [x] **Nema `SECURITY DEFINER`, `BYPASSRLS`, superuser puta ni zaobilaznice.**
+- [x] Provjera `practices.status` iz koraka 4 §3.7.1 **nije uvedena na `/me`** (D-053, klauzula
       D.10).
 
 ### `GET /me` regresijski dokaz — D-053, klauzula D.12
 
-- [ ] Iste kanonske `/me` fixture daju **iste** `memberships[].permissions` **prije i nakon**
+- [x] Iste kanonske `/me` fixture daju **iste** `memberships[].permissions` **prije i nakon**
       uvođenja `practice_settings` RLS-a.
-- [ ] Uslovno ponašanje `MPA` i `BILLING_SPECIALIST` je tačno za **oba** stanja **oba** flaga.
-- [ ] Neaktivan membership ostaje `permissions = []`.
-- [ ] Multi-practice membership koristi postavke **svoje** ordinacije, nezavisno.
-- [ ] `practiceName` je prisutan za **svaki** membership — dokaz redoslijeda čitanja.
-- [ ] **Nijedan tenant kontekst ne curi** nakon transakcije.
-- [ ] **Nijedan klijentski poslan practice identifikator** ne učestvuje u neutralnom `/me`.
+- [x] Uslovno ponašanje `MPA` i `BILLING_SPECIALIST` je tačno za **oba** stanja **oba** flaga.
+- [x] Neaktivan membership ostaje `permissions = []`.
+- [x] Multi-practice membership koristi postavke **svoje** ordinacije, nezavisno.
+- [x] `practiceName` je prisutan za **svaki** membership — dokaz redoslijeda čitanja.
+- [x] **Nijedan tenant kontekst ne curi** nakon transakcije.
+- [x] **Nijedan klijentski poslan practice identifikator** ne učestvuje u neutralnom `/me`.
 
 ## RLS za `review_decision_change_links` — odgođeno u Fazu 10
 
@@ -1610,15 +1611,15 @@ verifikaciona lista je u §11 („RLS i grants — D-046").
 
 U ovoj fazi provjerljivo je isključivo sljedeće:
 
-- [ ] Faza 4 **ne kreira** tabelu `review_decision_change_links`.
-- [ ] Paket `013_rls_policies` u Fazi 4 **ne sadrži nijedan** `CREATE POLICY`,
+- [x] Faza 4 **ne kreira** tabelu `review_decision_change_links`.
+- [x] Paket `013_rls_policies` u Fazi 4 **ne sadrži nijedan** `CREATE POLICY`,
       `ENABLE ROW LEVEL SECURITY`, `FORCE ROW LEVEL SECURITY` ni grant za
       `review_decision_change_links`.
-- [ ] Nijedna migracija, test ni aplikacijski artefakt Faze 4 **ne referencira** tu tabelu kao
+- [x] Nijedna migracija, test ni aplikacijski artefakt Faze 4 **ne referencira** tu tabelu kao
       postojeću.
-- [ ] Generički tenant RLS obrazac i test harness postoje i dokazani su nad `practice_settings`,
+- [x] Generički tenant RLS obrazac i test harness postoje i dokazani su nad `practice_settings`,
       tako da ih odgođeni slice Faze 10 samo proširuje (D-052, klauzula A.8).
-- [ ] **Ne uvodi se novi broj paketa i nijedan se ne renumeriše.**
+- [x] **Ne uvodi se novi broj paketa i nijedan se ne renumeriše.**
 
 ## Konkretan `TenantDatabaseService` facade — uslovno odgođen (D-056)
 
@@ -1650,12 +1651,12 @@ repozitorij već tako imenuje, ali dolazak broja faze sam po sebi obavezu **ne**
 
 U ovoj fazi provjerljivo je isključivo sljedeće:
 
-- [ ] Faza 4 **ne uvodi** konkretnu klasu `TenantDatabaseService`, ni kao stub, ni kao dummy.
-- [ ] Faza 4 **ne uvodi** drugi `PrismaClient`, drugi database sloj ni paralelan database stack.
-- [ ] Tenant database granica ostaje **jedna** pinovana interaktivna transakcija sa tenant
+- [x] Faza 4 **ne uvodi** konkretnu klasu `TenantDatabaseService`, ni kao stub, ni kao dummy.
+- [x] Faza 4 **ne uvodi** drugi `PrismaClient`, drugi database sloj ni paralelan database stack.
+- [x] Tenant database granica ostaje **jedna** pinovana interaktivna transakcija sa tenant
       kontekstom uspostavljenim u njoj.
-- [ ] **Nijedan caller-supplied identitet** nije granica povjerenja ni na jednoj tenant ruti.
-- [ ] D-054, klauzule 6–10 **ostaju binding** i moraju biti ponovo dokazane prije prihvatanja bilo
+- [x] **Nijedan caller-supplied identitet** nije granica povjerenja ni na jednoj tenant ruti.
+- [x] D-054, klauzule 6–10 **ostaju binding** i moraju biti ponovo dokazane prije prihvatanja bilo
       kojeg budućeg konkretnog facadea.
 
 ## Proširenje D-048 allowliste — D-052, dio B
@@ -1665,33 +1666,33 @@ Paket: `013_rls_policies`. Normativno: `02` §23.4.4a i §23.4.5; `08` §21.8; D
 Ova faza prvi put uvodi `FORCE RLS` nad `practice_memberships` i `practice_settings`, a pouzdani
 seed put upisuje u obje.
 
-- [ ] Allowlist je proširen **tačno** sa `practice_memberships` i `practice_settings`.
-- [ ] Proširenje je **eksplicitno** — tiho proširenje obara phase gate.
-- [ ] Allowlist faze 3 (`users`, `practices`, `practice_membership_roles`,
+- [x] Allowlist je proširen **tačno** sa `practice_memberships` i `practice_settings`.
+- [x] Proširenje je **eksplicitno** — tiho proširenje obara phase gate.
+- [x] Allowlist faze 3 (`users`, `practices`, `practice_membership_roles`,
       `platform_role_assignments`) je **nepromijenjena**; ukupno **šest** tabela.
-- [ ] `FORCE RLS` je **obnovljen nakon seeda** za obje tabele.
-- [ ] **Put neuspjeha obnavlja `FORCE RLS`.**
-- [ ] **Rollback obnavlja `FORCE RLS`** — prekinut seed nikada ne ostavlja `FORCE` isključenim.
-- [ ] **Nijedna rola nema `BYPASSRLS`.**
-- [ ] **Nijedna `SECURITY DEFINER` zaobilaznica** nije uvedena.
-- [ ] **Nijedan superuser runtime put** nije konfigurisan.
-- [ ] **`DISABLE ROW LEVEL SECURITY`** se ne pojavljuje u forward migraciji ni seedu.
-- [ ] **Nijedna trajna owner-write politika** ne postoji.
-- [ ] Testovi dokazuju steady-state `ENABLE` **i** `FORCE` **prije i nakon** seeda.
-- [ ] Upis izvan protokola iz `02` §23.4.3 **pada**.
+- [x] `FORCE RLS` je **obnovljen nakon seeda** za obje tabele.
+- [x] **Put neuspjeha obnavlja `FORCE RLS`.**
+- [x] **Rollback obnavlja `FORCE RLS`** — prekinut seed nikada ne ostavlja `FORCE` isključenim.
+- [x] **Nijedna rola nema `BYPASSRLS`.**
+- [x] **Nijedna `SECURITY DEFINER` zaobilaznica** nije uvedena.
+- [x] **Nijedan superuser runtime put** nije konfigurisan.
+- [x] **`DISABLE ROW LEVEL SECURITY`** se ne pojavljuje u forward migraciji ni seedu.
+- [x] **Nijedna trajna owner-write politika** ne postoji.
+- [x] Testovi dokazuju steady-state `ENABLE` **i** `FORCE` **prije i nakon** seeda.
+- [x] Upis izvan protokola iz `02` §23.4.3 **pada**.
 
 ## Database grants
 
 Normativno: `02` §20.2.
 
-- [ ] `copilot_migrator` je owner i kreira tabelu kroz migraciju.
-- [ ] `copilot_app` ima **isključivo** RLS-zaštićeni runtime SELECT.
-- [ ] `copilot_app` **nema** generički role-assignment mutation pristup.
-- [ ] `copilot_app` **nema** DELETE za uklanjanje role kroz trenutni runtime put.
-- [ ] `copilot_system` **nema** nijedan automatski grant nad tenant tabelom.
-- [ ] `PUBLIC` **nema** nijedan grant.
-- [ ] **Database role nisu aplikacijske role.**
-- [ ] **`SYSTEM_ADMIN` nije `copilot_system`** — platform aplikacijska rola naspram database role.
+- [x] `copilot_migrator` je owner i kreira tabelu kroz migraciju.
+- [x] `copilot_app` ima **isključivo** RLS-zaštićeni runtime SELECT.
+- [x] `copilot_app` **nema** generički role-assignment mutation pristup.
+- [x] `copilot_app` **nema** DELETE za uklanjanje role kroz trenutni runtime put.
+- [x] `copilot_system` **nema** nijedan automatski grant nad tenant tabelom.
+- [x] `PUBLIC` **nema** nijedan grant.
+- [x] **Database role nisu aplikacijske role.**
+- [x] **`SYSTEM_ADMIN` nije `copilot_system`** — platform aplikacijska rola naspram database role.
 
 ## Redoslijed autorizacije
 
@@ -1727,22 +1728,22 @@ Označeno stanje vrijedi za **jedinu postojeću tenant rutu**, `GET /api/v1/prac
 
 Normativno: D-038, klauzule 7–11 i 16–18; `03` §28.5; `04` §6.4.1.
 
-- [ ] Efektivne permisije se izvode iz **svih** rola dodijeljenih odabranom aktivnom membershipu.
-- [ ] Unija je ograničena na **jednu ordinaciju**.
-- [ ] `DENY` **ne doprinosi** grant.
-- [ ] `DENY` **ne poništava** `ALLOW` druge dodijeljene tenant role.
-- [ ] **Nema implicitnog nasljeđivanja rola.**
-- [ ] **Nema per-user permission overrida.**
-- [ ] Neaktivan membership doprinosi **nula** permisija.
-- [ ] Aktivan membership sa nula rola doprinosi **nula** permisija.
-- [ ] Autorizacija je **deny-by-default**.
-- [ ] Uslovna permisija zahtijeva podobnu tenant rolu **i** prihvaćenu practice postavku ili runtime uslov.
-- [ ] `platformRoles` **nikada** ne doprinose tenant permission uniji.
-- [ ] `SYSTEM_ADMIN` bez aktivnog tenant membershipa dobija **`403`** na tenant rutama.
-- [ ] **Svaki grant dolazi iz prihvaćene matrice u `15`**; resolver je učitava, a nijedan grant nije hard-kodiran izvan nje.
-- [ ] Duplirani grantovi iz dvije role **kolabiraju** u jednu efektivnu permisiju.
-- [ ] Trenutne role se učitavaju iz `practice_membership_roles` za **odabrani aktivni membership**.
-- [ ] **Caller-supplied rola se nikada ne prihvata.**
+- [x] Efektivne permisije se izvode iz **svih** rola dodijeljenih odabranom aktivnom membershipu.
+- [x] Unija je ograničena na **jednu ordinaciju**.
+- [x] `DENY` **ne doprinosi** grant.
+- [x] `DENY` **ne poništava** `ALLOW` druge dodijeljene tenant role.
+- [x] **Nema implicitnog nasljeđivanja rola.**
+- [x] **Nema per-user permission overrida.**
+- [x] Neaktivan membership doprinosi **nula** permisija.
+- [x] Aktivan membership sa nula rola doprinosi **nula** permisija.
+- [x] Autorizacija je **deny-by-default**.
+- [x] Uslovna permisija zahtijeva podobnu tenant rolu **i** prihvaćenu practice postavku ili runtime uslov.
+- [x] `platformRoles` **nikada** ne doprinose tenant permission uniji.
+- [x] `SYSTEM_ADMIN` bez aktivnog tenant membershipa dobija **`403`** na tenant rutama.
+- [x] **Svaki grant dolazi iz prihvaćene matrice u `15`**; resolver je učitava, a nijedan grant nije hard-kodiran izvan nje.
+- [x] Duplirani grantovi iz dvije role **kolabiraju** u jednu efektivnu permisiju.
+- [x] Trenutne role se učitavaju iz `practice_membership_roles` za **odabrani aktivni membership**.
+- [x] **Caller-supplied rola se nikada ne prihvata.**
 
 ## Transaction-local context
 
@@ -1759,30 +1760,30 @@ Dokazano slice-om P4-5B za tekuću tenant rutu (D-054, klauzula 11).
 
 ## Platform i tenant razdvajanje
 
-- [ ] `platformRoles` se obrađuju odvojeno od tenant membershipa.
-- [ ] `platformRoles` se ne pretvaraju automatski u tenant permisije.
-- [ ] Tenant membershipi i platform role se ne spajaju unijom.
-- [ ] Platform/system context se ne uspostavlja kroz `set_request_context`.
-- [ ] Tenant role dolaze **isključivo** iz `practice_membership_roles`.
-- [ ] `SYSTEM_ADMIN` sa aktivnim membershipom izvodi tenant permisije **samo** iz dodijeljenih tenant rola.
-- [ ] `tariff.manage` ostaje platform permisija i platform ruta.
-- [ ] `integration.read` ostaje tenant-scoped i ograničen na `PRACTICE_ADMIN`.
-- [ ] **Database grant nikada ne zamjenjuje permisiju endpointa.**
+- [x] `platformRoles` se obrađuju odvojeno od tenant membershipa.
+- [x] `platformRoles` se ne pretvaraju automatski u tenant permisije.
+- [x] Tenant membershipi i platform role se ne spajaju unijom.
+- [x] Platform/system context se ne uspostavlja kroz `set_request_context`.
+- [x] Tenant role dolaze **isključivo** iz `practice_membership_roles`.
+- [x] `SYSTEM_ADMIN` sa aktivnim membershipom izvodi tenant permisije **samo** iz dodijeljenih tenant rola.
+- [x] `tariff.manage` ostaje platform permisija i platform ruta.
+- [x] `integration.read` ostaje tenant-scoped i ograničen na `PRACTICE_ADMIN`.
+- [x] **Database grant nikada ne zamjenjuje permisiju endpointa.**
 
 ## Access model za `users` i `practices` u Fazi 4 — D-047
 
-- [ ] Politike nad `users` i `practices` iz paketa `002` **nisu prepisane, oslabljene ni
+- [x] Politike nad `users` i `practices` iz paketa `002` **nisu prepisane, oslabljene ni
       zamijenjene** — Faza 4 ih ne dira.
-- [ ] RESTRICTIVE politika `practices_context_narrow` **nije** pretvorena u permissive.
-- [ ] Nakon uvođenja `app.practice_id`, vidljivost `practices` sužava se na **tačno jednu**
+- [x] RESTRICTIVE politika `practices_context_narrow` **nije** pretvorena u permissive.
+- [x] Nakon uvođenja `app.practice_id`, vidljivost `practices` sužava se na **tačno jednu**
       ordinaciju, i kada upit nema `WHERE` klauzulu.
-- [ ] Nakon §17.3, `copilot_app` **više ne vidi** generičke `practice_memberships` redove — time je
+- [x] Nakon §17.3, `copilot_app` **više ne vidi** generičke `practice_memberships` redove — time je
       međustanje Faze 3 zatvoreno.
-- [ ] Politika nad `practices` daje **identičan** rezultat prije i nakon §17.3.
-- [ ] `practice_memberships` bootstrap pristup i dalje **nije** opšti runtime pristup nad `users`.
-- [ ] `practice_memberships` bootstrap pristup i dalje **nije** opšti runtime pristup nad `practices`.
-- [ ] Phase gate pada ako implementacija tiho uvede neograničen pristup nad bilo kojom od te dvije tabele.
-- [ ] Self-enumeracija vlastitih membership rola (§17.4) **nije** riješila D-OPEN-011 — to je učinio D-047.
+- [x] Politika nad `practices` daje **identičan** rezultat prije i nakon §17.3.
+- [x] `practice_memberships` bootstrap pristup i dalje **nije** opšti runtime pristup nad `users`.
+- [x] `practice_memberships` bootstrap pristup i dalje **nije** opšti runtime pristup nad `practices`.
+- [x] Phase gate pada ako implementacija tiho uvede neograničen pristup nad bilo kojom od te dvije tabele.
+- [x] Self-enumeracija vlastitih membership rola (§17.4) **nije** riješila D-OPEN-011 — to je učinio D-047.
 
 ## Role matrica — prihvaćene dodjele
 
@@ -1790,56 +1791,56 @@ Normativni izvor: `15` §5; izvorne odluke D-023, D-032 i D-039 do D-045.
 
 ### Dodjele sa najvećim rizikom
 
-- [ ] `integration.read` → `PRACTICE_ADMIN` only.
-- [ ] `tariff.manage` → `SYSTEM_ADMIN` only (platform).
-- [ ] `tariff.raw_result.read` → `PRACTICE_ADMIN` only.
-- [ ] `audit.read` → `PRACTICE_ADMIN` + `AUDITOR`.
-- [ ] `audit.export` → `PRACTICE_ADMIN` + `AUDITOR`.
-- [ ] `encounter.close` → `PRACTICE_ADMIN` + `PHYSICIAN` + `BILLING_SPECIALIST`.
-- [ ] `analysis.review_decision` → `PHYSICIAN` + `BILLING_SPECIALIST`.
-- [ ] `analysis.export` → `PHYSICIAN` + `BILLING_SPECIALIST`.
-- [ ] `analysis.export.read` → `PHYSICIAN` + `BILLING_SPECIALIST`.
-- [ ] `finding.resolve` → `PHYSICIAN` only.
-- [ ] `encounter.cancel` → `PHYSICIAN` only.
-- [ ] `analysis.cancel` → `PHYSICIAN` + `MPA`.
-- [ ] `encounter.document.archive` → `PHYSICIAN` only.
+- [x] `integration.read` → `PRACTICE_ADMIN` only.
+- [x] `tariff.manage` → `SYSTEM_ADMIN` only (platform).
+- [x] `tariff.raw_result.read` → `PRACTICE_ADMIN` only.
+- [x] `audit.read` → `PRACTICE_ADMIN` + `AUDITOR`.
+- [x] `audit.export` → `PRACTICE_ADMIN` + `AUDITOR`.
+- [x] `encounter.close` → `PRACTICE_ADMIN` + `PHYSICIAN` + `BILLING_SPECIALIST`.
+- [x] `analysis.review_decision` → `PHYSICIAN` + `BILLING_SPECIALIST`.
+- [x] `analysis.export` → `PHYSICIAN` + `BILLING_SPECIALIST`.
+- [x] `analysis.export.read` → `PHYSICIAN` + `BILLING_SPECIALIST`.
+- [x] `finding.resolve` → `PHYSICIAN` only.
+- [x] `encounter.cancel` → `PHYSICIAN` only.
+- [x] `analysis.cancel` → `PHYSICIAN` + `MPA`.
+- [x] `encounter.document.archive` → `PHYSICIAN` only.
 
 ### Negativne provjere
 
-- [ ] `PRACTICE_ADMIN` sam po sebi **nema nijednu kliničku ovlast**.
-- [ ] `AUDITOR` **ne pregleda** encountere, analize ni sirovi tarifni rezultat.
-- [ ] `READ_ONLY` ima **nula `ALLOW`** i **nula `CONDITIONAL`**.
-- [ ] `SYSTEM_ADMIN` **nema nijednu tenant permisiju** kroz platform rolu.
-- [ ] `MPA` **nema** `analysis.review_decision`.
-- [ ] `PRACTICE_ADMIN` sam po sebi **ne odobrava i ne opoziva** odobrenje.
+- [x] `PRACTICE_ADMIN` sam po sebi **nema nijednu kliničku ovlast**.
+- [x] `AUDITOR` **ne pregleda** encountere, analize ni sirovi tarifni rezultat.
+- [x] `READ_ONLY` ima **nula `ALLOW`** i **nula `CONDITIONAL`**.
+- [x] `SYSTEM_ADMIN` **nema nijednu tenant permisiju** kroz platform rolu.
+- [x] `MPA` **nema** `analysis.review_decision`.
+- [x] `PRACTICE_ADMIN` sam po sebi **ne odobrava i ne opoziva** odobrenje.
 
 ### Baseline workflow
 
 Vrijednosti se **mehanički porede** sa `15`; ne izvode se iz naziva role.
 
-- [ ] `patient_reference.read` odgovara `15`.
-- [ ] `patient_reference.create` odgovara `15`.
-- [ ] `encounter.read` odgovara `15`.
-- [ ] `encounter.create` odgovara `15`.
-- [ ] `encounter.update` odgovara `15`.
-- [ ] `encounter.document.list` odgovara `15`.
-- [ ] `encounter.document.read` odgovara `15`.
-- [ ] `encounter.document.create` odgovara `15`.
-- [ ] `analysis.read` odgovara `15`.
-- [ ] `analysis.run` odgovara `15`.
+- [x] `patient_reference.read` odgovara `15`.
+- [x] `patient_reference.create` odgovara `15`.
+- [x] `encounter.read` odgovara `15`.
+- [x] `encounter.create` odgovara `15`.
+- [x] `encounter.update` odgovara `15`.
+- [x] `encounter.document.list` odgovara `15`.
+- [x] `encounter.document.read` odgovara `15`.
+- [x] `encounter.document.create` odgovara `15`.
+- [x] `analysis.read` odgovara `15`.
+- [x] `analysis.run` odgovara `15`.
 
 ### Uslovno odobravanje i opoziv
 
 Normativno: D-041; `03` §10 i §20; `15` §6.
 
-- [ ] `analysis.approve` — `PHYSICIAN` `ALLOW`.
-- [ ] `analysis.approve` — `MPA` `CONDITIONAL` uz `allow_mpa_approval = true`.
-- [ ] `analysis.approve` — `BILLING_SPECIALIST` `CONDITIONAL` uz `allow_billing_specialist_approval = true`.
-- [ ] `analysis.approve` — sve ostale role `DENY`.
-- [ ] `analysis.approval.revoke` ima **identične role ćelije** kao `analysis.approve`.
-- [ ] Flag **bez** odgovarajuće role **ne daje** permisiju.
-- [ ] Rola **bez** uključenog flaga je **odbijena**.
-- [ ] **Neaktivan membership je odbijen** i kada je flag uključen.
+- [x] `analysis.approve` — `PHYSICIAN` `ALLOW`.
+- [x] `analysis.approve` — `MPA` `CONDITIONAL` uz `allow_mpa_approval = true`.
+- [x] `analysis.approve` — `BILLING_SPECIALIST` `CONDITIONAL` uz `allow_billing_specialist_approval = true`.
+- [x] `analysis.approve` — sve ostale role `DENY`.
+- [x] `analysis.approval.revoke` ima **identične role ćelije** kao `analysis.approve`.
+- [x] Flag **bez** odgovarajuće role **ne daje** permisiju.
+- [x] Rola **bez** uključenog flaga je **odbijena**.
+- [x] **Neaktivan membership je odbijen** i kada je flag uključen.
 - [ ] Podobnost se evaluira **u trenutku opoziva**.
 - [ ] **Opozivalac ne mora biti originalni odobravatelj.**
 - [ ] `reason` je **obavezan**.
@@ -1884,52 +1885,52 @@ Faze 4 nije oslabljena ni odgođena.
 
 ### AUDITOR
 
-- [ ] `audit.read` `ALLOW`.
-- [ ] `audit.export` `ALLOW`.
-- [ ] Sve ostale aktivne permisije `DENY`.
-- [ ] `practice.read` je **`DENY`** (D-047) — `AUDITOR` i dalje ima tačno dvije aktivne permisije.
-- [ ] **Nema discovery ni listing endpointa.**
+- [x] `audit.read` `ALLOW`.
+- [x] `audit.export` `ALLOW`.
+- [x] Sve ostale aktivne permisije `DENY`.
+- [x] `practice.read` je **`DENY`** (D-047) — `AUDITOR` i dalje ima tačno dvije aktivne permisije.
+- [x] **Nema discovery ni listing endpointa.**
 
 ### READ_ONLY
 
-- [ ] **Nula `ALLOW`.**
-- [ ] **Nula `CONDITIONAL`.**
-- [ ] `practice.read` je **`DENY`** (D-047) — invarijanta nula `ALLOW` ostaje na snazi.
-- [ ] Sve ostale aktivne permisije `DENY`.
+- [x] **Nula `ALLOW`.**
+- [x] **Nula `CONDITIONAL`.**
+- [x] `practice.read` je **`DENY`** (D-047) — invarijanta nula `ALLOW` ostaje na snazi.
+- [x] Sve ostale aktivne permisije `DENY`.
 
 ### PRACTICE_ADMIN
 
-- [ ] `practice.read` — **jedina rola koja ga dobija** (D-047); projekcija bez `zsrNumber`,
+- [x] `practice.read` — **jedina rola koja ga dobija** (D-047); projekcija bez `zsrNumber`,
       `glnNumber` i `legalName`.
-- [ ] `practice.settings.read`.
-- [ ] `practice.settings.manage`.
-- [ ] `encounter.close`.
-- [ ] `tariff.raw_result.read`.
-- [ ] `audit.read`.
-- [ ] `audit.export`.
-- [ ] `integration.read`.
-- [ ] **Nema kliničkog pristupa** osim ako je zasebno dodijeljena druga prihvaćena tenant rola.
+- [x] `practice.settings.read`.
+- [x] `practice.settings.manage`.
+- [x] `encounter.close`.
+- [x] `tariff.raw_result.read`.
+- [x] `audit.read`.
+- [x] `audit.export`.
+- [x] `integration.read`.
+- [x] **Nema kliničkog pristupa** osim ako je zasebno dodijeljena druga prihvaćena tenant rola.
 
 ## Endpoint authorization guards
 
-- [ ] Tražena permisija dolazi iz `03`.
-- [ ] Podobnost role dolazi iz `15`.
-- [ ] Guard koristi **centralizovani effective-permission resolver**.
-- [ ] Kod endpointa **ne hard-koduje** alternativnu listu rola.
-- [ ] Uslovi se provjeravaju **nakon** rezolucije membershipa i rola.
-- [ ] **RLS ostaje nezavisan drugi sloj**, ne zamjena za provjeru permisije.
+- [x] Tražena permisija dolazi iz `03`.
+- [x] Podobnost role dolazi iz `15`.
+- [x] Guard koristi **centralizovani effective-permission resolver**.
+- [x] Kod endpointa **ne hard-koduje** alternativnu listu rola.
+- [x] Uslovi se provjeravaju **nakon** rezolucije membershipa i rola.
+- [x] **RLS ostaje nezavisan drugi sloj**, ne zamjena za provjeru permisije.
 
 Negativne provjere:
 
-- [ ] nedostajuća permisija → `403`.
-- [ ] neaktivan membership → `403`.
-- [ ] membership sa nula rola → `403`.
-- [ ] samo `SYSTEM_ADMIN` na tenant ruti → `403`.
-- [ ] injekcija role → odbijena.
-- [ ] rola iz druge ordinacije → ne doprinosi.
-- [ ] isključen approval flag → `403`.
-- [ ] cross-user curenje rola → odbijeno.
-- [ ] cross-practice curenje rola → odbijeno.
+- [x] nedostajuća permisija → `403`.
+- [x] neaktivan membership → `403`.
+- [x] membership sa nula rola → `403`.
+- [x] samo `SYSTEM_ADMIN` na tenant ruti → `403`.
+- [x] injekcija role → odbijena.
+- [x] rola iz druge ordinacije → ne doprinosi.
+- [x] isključen approval flag → `403`.
+- [x] cross-user curenje rola → odbijeno.
+- [x] cross-practice curenje rola → odbijeno.
 
 **Dispozicija reda „isključen approval flag → `403`" — D-058, klauzula 5.** Taj red (`R303` u
 ledgeru `P4-013`) **ostaje u Fazi 4** i nosi dispoziciju **`SATISFIED_BY_EVIDENCE`**, dokazanu
@@ -1977,6 +1978,21 @@ Klasifikacija je prihvaćena u D-045. **Za ove stavke se ne otvaraju implementac
 - [ ] podjela `analysis.export.read`.
 - [ ] finija permisija za rješavanje findinga.
 
+**Terminalne dispozicije ove sekcije — `P4-013B` (rekonsilijacija pod D-045 i D-057).** Trinaest
+redova iznad nosi **autoritetom potkrijepljenu dispoziciju**, a **ne** implementacijski dokaz.
+Kućice zato **ostaju neoznačene**: `[x]` u ovom repozitoriju znači `SATISFIED_BY_EVIDENCE` uz
+citiran dokaz (`00` §14; D-058, klauzula 7), pa bi označavanje ovdje bilo **lažan dokaz
+implementacije**.
+
+| Red | Dispozicija | Autoritet | Vlasnik / uslov aktivacije |
+|---|---|---|---|
+| `R306`–`R313` (`OUT OF V1`) | `NOT_APPLICABLE_IN_V1` | D-045 | v1 ih **ne implementira**; nijedan implementacijski zadatak se ne otvara |
+| `R314`–`R318` (`REQUIRES NEW PERMISSION AND ADR`) | `FUTURE_SCOPE` | D-045 | aktivira se **tek** uz novu permisiju **i** prihvaćen ADR; do tada nema vlasničke faze |
+
+**Nijedan zahtjev nije tiho penzionisan.** `R306`–`R313` su **granica obuhvata v1**, ne odgođeni
+rad. `R314`–`R318` su **uslovno buduće** — njihov trigger je odluka (nova permisija + ADR), ne
+dolazak broja faze.
+
 ## Guard i servisi
 
 - [x] PracticeContext guard — **kao koncept**, realizovan `TenantRequestPipeline`-om za tekuću
@@ -1986,113 +2002,165 @@ Klasifikacija je prihvaćena u D-045. **Za ove stavke se ne otvaraju implementac
       (D-054, klauzula 5); **konkretan facade nije implementiran**, **ne označava se** završenim i
       **nije deliverable zatvaranja ove faze**. Uvodi se tek kada ga stvarni tenant business modul
       zatraži, uz ponovni dokaz D-054, klauzula 6–10. Živa obaveza je očuvana u §6.
-- [ ] RLS enabled.
-- [ ] FORCE RLS.
+- [x] RLS enabled.
+- [x] FORCE RLS.
 
 ## Testovi
 
-- [ ] Validan aktivan membership uspostavlja tenant context.
-- [ ] Nepostojeći membership vraća `403`.
-- [ ] Neaktivan membership vraća `403`.
-- [ ] Pozivalac ne može impersonirati drugog korisnika kroz parametar funkcije.
-- [ ] `X-Practice-ID` sam po sebi ne autorizuje tenant pristup.
-- [ ] Tenant-scoped upit prije bootstrapa pada.
-- [ ] SECURITY INVOKER ne zaobilazi membership RLS.
-- [ ] Neuspjeh bootstrapa ne ostavlja `app.practice_id`.
-- [ ] Context nestaje nakon završetka transakcije.
-- [ ] Pooled konekcija ne dobija context prethodnog requesta.
-- [ ] `platformRoles` ne kreiraju tenant membership.
-- [ ] Opšti runtime pristup nad `users`/`practices` **ne postoji** — potvrđeno negativnim
+- [x] Validan aktivan membership uspostavlja tenant context.
+- [x] Nepostojeći membership vraća `403`.
+- [x] Neaktivan membership vraća `403`.
+- [x] Pozivalac ne može impersonirati drugog korisnika kroz parametar funkcije.
+- [x] `X-Practice-ID` sam po sebi ne autorizuje tenant pristup.
+- [x] Tenant-scoped upit prije bootstrapa pada.
+- [x] SECURITY INVOKER ne zaobilazi membership RLS.
+- [x] Neuspjeh bootstrapa ne ostavlja `app.practice_id`.
+- [x] Context nestaje nakon završetka transakcije.
+- [x] Pooled konekcija ne dobija context prethodnog requesta.
+- [x] `platformRoles` ne kreiraju tenant membership.
+- [x] Opšti runtime pristup nad `users`/`practices` **ne postoji** — potvrđeno negativnim
       testovima iz `08` §21.5 (D-047).
-- [ ] no-context default deny.
-- [ ] pooled connection leakage test.
-- [ ] inactive membership denied.
-- [ ] Practice A/B read isolation.
-- [ ] Practice A/B write isolation.
-- [ ] runtime role cannot bypass.
+- [x] no-context default deny.
+- [x] pooled connection leakage test.
+- [x] inactive membership denied.
+- [x] Practice A/B read isolation.
+- [x] Practice A/B write isolation.
+- [x] runtime role cannot bypass.
 
 ## Fixtures — D-038
 
-- [ ] membership sa **nula** rola.
-- [ ] membership sa **jednom** rolom.
-- [ ] membership sa **više** rola.
-- [ ] korisnik sa `PRACTICE_ADMIN` **i** `PHYSICIAN` u istoj ordinaciji.
-- [ ] **isti korisnik sa drugačijim skupom rola** u drugoj ordinaciji.
-- [ ] neaktivan membership koji **zadržava** svoje role redove.
-- [ ] pokušaj duplirane dodjele iste role.
-- [ ] pokušaj cross-practice dodjele koji krši composite FK.
-- [ ] `SYSTEM_ADMIN` **bez** tenant membershipa.
-- [ ] `SYSTEM_ADMIN` **sa** zasebnim tenant membershipom.
-- [ ] korisnik **bez ijednog** membershipa.
-- [ ] `PRACTICE_ADMIN` **bez** `PHYSICIAN`.
-- [ ] `AUDITOR`.
-- [ ] `READ_ONLY`.
-- [ ] uslovni approval flagovi u oba stanja — uključeni i isključeni.
-- [ ] Fixture **ne zavise od redoslijeda izvršavanja**.
+- [x] membership sa **nula** rola.
+- [x] membership sa **jednom** rolom.
+- [x] membership sa **više** rola.
+- [x] korisnik sa `PRACTICE_ADMIN` **i** `PHYSICIAN` u istoj ordinaciji.
+- [x] **isti korisnik sa drugačijim skupom rola** u drugoj ordinaciji.
+- [x] neaktivan membership koji **zadržava** svoje role redove.
+- [x] pokušaj duplirane dodjele iste role.
+- [x] pokušaj cross-practice dodjele koji krši composite FK.
+- [x] `SYSTEM_ADMIN` **bez** tenant membershipa.
+- [x] `SYSTEM_ADMIN` **sa** zasebnim tenant membershipom.
+- [x] korisnik **bez ijednog** membershipa.
+- [x] `PRACTICE_ADMIN` **bez** `PHYSICIAN`.
+- [x] `AUDITOR`.
+- [x] `READ_ONLY`.
+- [x] uslovni approval flagovi u oba stanja — uključeni i isključeni.
+- [x] Fixture **ne zavise od redoslijeda izvršavanja**.
 
 ## Testovi — D-038
 
-- [ ] schema constraint testovi.
-- [ ] RLS self-enumeracija.
-- [ ] odbijanje pristupa rolama drugog korisnika.
-- [ ] odbijanje cross-practice pristupa.
-- [ ] **determinističan redoslijed `roles[]`**.
-- [ ] **odsustvo polja `memberships[].role`**.
-- [ ] unija permisija za membership sa više rola.
-- [ ] `DENY` u jednoj roli **ne poništava** `ALLOW` iz druge.
-- [ ] zero-role membership — **deny-by-default**.
-- [ ] neaktivan membership — odbijen na tenant rutama.
-- [ ] razdvajanje platform i tenant klase rola.
-- [ ] **odbijanje injekcije role** kroz request body, query parametar, header i argument database funkcije.
-- [ ] uklanjanje role, pa **uspješna ponovna dodjela** iste role.
+- [x] schema constraint testovi.
+- [x] RLS self-enumeracija.
+- [x] odbijanje pristupa rolama drugog korisnika.
+- [x] odbijanje cross-practice pristupa.
+- [x] **determinističan redoslijed `roles[]`**.
+- [x] **odsustvo polja `memberships[].role`**.
+- [x] unija permisija za membership sa više rola.
+- [x] `DENY` u jednoj roli **ne poništava** `ALLOW` iz druge.
+- [x] zero-role membership — **deny-by-default**.
+- [x] neaktivan membership — odbijen na tenant rutama.
+- [x] razdvajanje platform i tenant klase rola.
+- [x] **odbijanje injekcije role** kroz request body, query parametar, header i argument database funkcije.
+- [x] uklanjanje role, pa **uspješna ponovna dodjela** iste role.
 - [ ] zahtjevi za audit dokazom budućeg assignment/removal puta (`ASSIGNED` / `REMOVED`).
-- [ ] **conformance test** — implementacijska matrica se mehanički poredi sa `15` i **odstupanje obara test**.
-- [ ] testovi tvrde **isključivo prihvaćene ćelije iz `15`** i ništa izvan njih.
+- [x] **conformance test** — implementacijska matrica se mehanički poredi sa `15` i **odstupanje obara test**.
+- [x] testovi tvrde **isključivo prihvaćene ćelije iz `15`** i ništa izvan njih.
+
+**Dokaz redova `R347`, `R348` i `R369` — gate `P4-013V-B`, PR #23.** Ova tri reda i red `R382`
+(D-038 gate, niže) bili su posljednji `UNRESOLVED_REQUIRED` redovi obuhvata `P4-013` koji su
+tražili **izvršni** dokaz. Trajni testovi su dodani u PR #23 i **merged u kanonski `main`**:
+
+```text
+Test file:       apps/api/test/phase4-membership-role-assignment-constraints.security.ts
+Evidence commit: 111d91d385b87735772bda0aba8623f7a6a1ad94
+Kanonski merge:  58f83d49c524bef0434d0ba1d6d04079ca6ece52   (PR #23)
+Targeted run:    9 / 9 PASS
+Full security:   16 files | 579 tests | 579 passed | 0 failed | 0 skipped
+Typecheck:       PASS
+Lint (changed):  PASS
+```
+
+| Red | Zahtjev | Dokazano ponašanje | SQLSTATE / constraint |
+|---|---|---|---|
+| `R347` | pokušaj duplirane dodjele iste role | **stvarno** database odbijanje pri ponovnoj dodjeli iste role istom membershipu | `23505`, `practice_membership_roles_membership_role_key` |
+| `R348` | pokušaj cross-practice dodjele koji krši composite FK | **stvarno** database odbijanje dodjele membershipu ordinacije A pod ordinacijom B | `23503`, `practice_membership_roles_membership_fk` |
+| `R369` | uklanjanje role, pa **uspješna ponovna dodjela** iste role | `INSERT` → prisutan → `DELETE` → odsutan → ponovni `INSERT` iste logičke trojke → **tačno jedan** red | — (uniqueness slot se oslobađa; soft-delete/parcijalni unique bi pao na `23505`) |
+
+Testovi tvrde i **suprotni smjer** — druga rola istom membershipu je **prihvaćena**, a isti
+membership pod **vlastitom** ordinacijom je **prihvaćen** — pa odbijanje dokazano pripada
+**trojci** i **ordinaciji**, a ne membershipu kao takvom.
+
+**Dispozicija reda `R370` — `FUTURE_SCOPE` (D-045; D-038, klauzule 25–32).** Red traži audit dokaz
+**budućeg** assignment/removal puta (`ASSIGNED` / `REMOVED`). Taj write put Faza 4 **ne
+implementira i nije ovlaštena da ga implementira** — generička runtime administracija rola je
+`OUT OF V1` (`R309`–`R311`, sekcija „Granice — izvan v1"). Kućica **ostaje neoznačena**: dokaz ne
+postoji jer put ne postoji, a dispozicija nije dokaz. **Obaveza nije penzionisana** — aktivira se
+zajedno sa samim assignment/removal putem, kada ga prihvaćena odluka uvede.
 
 Gate:
 
-- [ ] **ALL RLS TESTS GREEN — required before phase 5.**
+- [x] **ALL RLS TESTS GREEN — required before phase 5.**
 
 D-038 gate — svaka stavka mora biti **dokazano ispunjena** prije nego što se faza smatra
 završenom. Nijedan checkbox se ne označava bez izvršene provjere.
 
-- [ ] singularna kolona `practice_memberships.role` **ne postoji**;
-- [ ] tabela `practice_membership_roles` i svi njeni constrainti **postoje**;
-- [ ] vlasništvo paketa je **identično** onome u `02` i `04`;
-- [ ] RLS self-enumeracija **ne izlaže** role redove drugog korisnika;
-- [ ] `GET /me` vraća `roles[]`, **nikada** `role`;
-- [ ] tenant i platform role se **ne spajaju** unijom;
-- [ ] membership sa nula rola **ne dobija** nijednu tenant permisiju;
-- [ ] neaktivan membership **ne autorizuje** nijednu tenant rutu;
-- [ ] duplirana i cross-practice dodjela role **padaju**;
-- [ ] injekcija role **nije moguća**;
-- [ ] generički `users`/`practices` pristup **nije implementiran**; politike i column grantovi iz
+- [x] singularna kolona `practice_memberships.role` **ne postoji**;
+- [x] tabela `practice_membership_roles` i svi njeni constrainti **postoje**;
+- [x] vlasništvo paketa je **identično** onome u `02` i `04`;
+- [x] RLS self-enumeracija **ne izlaže** role redove drugog korisnika;
+- [x] `GET /me` vraća `roles[]`, **nikada** `role`;
+- [x] tenant i platform role se **ne spajaju** unijom;
+- [x] membership sa nula rola **ne dobija** nijednu tenant permisiju;
+- [x] neaktivan membership **ne autorizuje** nijednu tenant rutu;
+- [x] duplirana i cross-practice dodjela role **padaju**;
+- [x] injekcija role **nije moguća**;
+- [x] generički `users`/`practices` pristup **nije implementiran**; politike i column grantovi iz
       D-047 su prisutni tačno kako su propisani;
-- [ ] implementacijska matrica **ne odstupa** od `15`;
-- [ ] broj aktivnih permisija je **32**;
-- [ ] broj rezervisanih permisija je **3**;
-- [ ] nijedna rezervisana permisija **nema grant**;
-- [ ] nijedan `Source` u matrici **ne nedostaje** i svaki je **prihvaćen**;
-- [ ] nijedna role ćelija nije **prazna ni nepoznata**;
-- [ ] `DENY` **ne poništava** `ALLOW`;
-- [ ] `platformRoles` **ne ulaze** u tenant uniju;
-- [ ] `READ_ONLY` **ne dobija** nijedan grant;
-- [ ] `AUDITOR` **ne dobija** treću permisiju;
-- [ ] `PRACTICE_ADMIN` **ne dobija** klinički pristup automatski;
-- [ ] podobnost za `analysis.approve` i `analysis.approval.revoke` je **identična**;
-- [ ] `encounter.close` ima **sve tri** prihvaćene role;
-- [ ] endpoint guardovi **ne odstupaju** od `03` ni od `15`.
+- [x] implementacijska matrica **ne odstupa** od `15`;
+- [x] broj aktivnih permisija je **32**;
+- [x] broj rezervisanih permisija je **3**;
+- [x] nijedna rezervisana permisija **nema grant**;
+- [x] nijedan `Source` u matrici **ne nedostaje** i svaki je **prihvaćen**;
+- [x] nijedna role ćelija nije **prazna ni nepoznata**;
+- [x] `DENY` **ne poništava** `ALLOW`;
+- [x] `platformRoles` **ne ulaze** u tenant uniju;
+- [x] `READ_ONLY` **ne dobija** nijedan grant;
+- [x] `AUDITOR` **ne dobija** treću permisiju;
+- [x] `PRACTICE_ADMIN` **ne dobija** klinički pristup automatski;
+- [x] podobnost za `analysis.approve` i `analysis.approval.revoke` je **identična**;
+- [x] `encounter.close` ima **sve tri** prihvaćene role;
+- [x] endpoint guardovi **ne odstupaju** od `03` ni od `15`.
 
 Evidence:
 
 ```text
-Policies:
-Tables:
+Policies:        02 §17.2, §17.4  (paket 002 / Faza 3 — Faza 4 ih verifikuje, ne rekreira)
+                 02 §18.1, §20.2b (practice_settings — paket 013_rls_policies, Faza 4)
+Tables:          practice_memberships, practice_membership_roles, platform_role_assignments,
+                 practice_settings, users, practices
 Migration paket: 013_rls_policies
-Test command:
-Test result:
+Test command:    pnpm test:security
+Test result:     16 files | 579 tests | 579 passed | 0 failed | 0 skipped
+                 kanonski merge   58f83d49c524bef0434d0ba1d6d04079ca6ece52 (PR #23)
+                 evidence commit  111d91d385b87735772bda0aba8623f7a6a1ad94
+                 prethodni kanonski run (P4-013V-A, SHA 4b48a008):
+                                  15 files | 570 tests | 570 passed | 0 failed | 0 skipped
 Role matrica conformance (vs docs/15):
+                 PASS — conformance test mehanicki poredi implementacijsku matricu sa 15;
+                 32 aktivne + 3 rezervisane permisije; odstupanje obara test.
+Disposable DB safety: dokazana; perzistentna baza mutirana = NE.
 ```
+
+**Gate red `R373` („ALL RLS TESTS GREEN — required before phase 5") — `SATISFIED_BY_EVIDENCE`
+(`P4-013V-A`).** Kanonski run na SHA `4b48a008c8ce78a2f432bb5a7af495f5642a4935` dao je
+**15 files / 570 tests / 570 passed / 0 failed / 0 skipped**, uz dokazanu disposable-DB sigurnost i
+**bez mutacije perzistentne baze**. Taj rezultat **direktno** zadovoljava zahtjev ovog reda.
+`SECURITY_CLOSURE_BLOCKERS` time prelazi `1 → 0`.
+
+**Gate red `R382` („duplirana i cross-practice dodjela role **padaju**") —
+`SATISFIED_BY_EVIDENCE` (`P4-013V-B`, PR #23).** Semantiku ovog gate reda u cijelosti dokazuju
+`R347` (duplikat → `23505`) i `R348` (cross-practice composite FK → `23503`) iz sekcije
+„Testovi — D-038" iznad; oba su **stvarna** database odbijanja, ne simulacija. Identitet reda je
+izveden **iz ovog dokumenta**, ne iz audit artefakta.
 
 ## Prenesena zapažanja — P4-5BR
 
@@ -2156,13 +2224,20 @@ Stavka **bez dokaza** i **bez eksplicitne, autoritetom potkrijepljene dispozicij
 **`UNRESOLVED_REQUIRED`** i **blokira zatvaranje faze**. **Proizvoljna neoznačena rezidua nije
 dopuštena.**
 
-## Preostali gate zatvaranja Faze 4 — P4-013
+## Gate zatvaranja Faze 4 — P4-013 — `COMPLETE`
 
 **Aplikacijska implementacija Faze 4 je kompletna i merged** (P4-5B, P4-5R1, P4-5C, P4-5D — PR #20,
-`3658c6e`). **Faza 4 ipak ostaje `IN_PROGRESS`**, jer preostaje jedan obavezan gate.
+`3658c6e`). **Retrospektivni evidence gate `P4-013` je sada `COMPLETE`** —
+`UNRESOLVED_REQUIRED = 0`, `SECURITY_CLOSURE_BLOCKERS = 0` (puno računovodstvo niže, u
+„Rekonsilijacija `P4-013B`"). **Faza 4 ipak ostaje `IN_PROGRESS`**: završetak `P4-013` je
+**nužan, ali ne i dovoljan** uslov zatvaranja, a sama odluka o zatvaranju pripada **zasebnom,
+vlasnički pregledanom gateu zatvaranja Faze 4**.
 
-**P4-013 retrospektivni evidence gate i dalje je obavezan.** Njegov obuhvat je **rebaziran na
-kanonsku Fazu 4** odlukom **D-057**:
+Ostatak ove sekcije bilježi **kako se do toga došlo** — obuhvat, oba pokušaja `P4-013A`,
+dispoziciju `P4-013F`/D-058 i verifikacije `P4-013V`. **Historijski zapisi ostaju historijski i
+ne prepisuju se**; tekuće stanje je iskazano odvojeno.
+
+**Obuhvat `P4-013` je rebaziran na kanonsku Fazu 4** odlukom **D-057**:
 
 ```text
 P4_013_GATE_TYPE                               READ_ONLY_RETROSPECTIVE_EVIDENCE_AUDIT
@@ -2253,16 +2328,171 @@ promijenjena, `273` retrospektivno dokazana reda nisu dirana, a preostalih **pet
 (`R347`, `R348`, `R369`, `R373`, `R382`) **ostaje otvoreno** i pripada gateu **`P4-013V`**;
 označavanje pripada gateu **`P4-013B`** (D-058, klauzule 7 i 12).
 
+**Gate `P4-013V-A` je dokazao red `R373` — sigurnosna zapreka zatvaranja je uklonjena.** Nad
+kanonskim `main`-om je izvršen puni sigurnosni paket:
+
+```text
+P4_013V_A_VERDICT   PASS
+kanonski SHA        4b48a008c8ce78a2f432bb5a7af495f5642a4935
+komanda             pnpm test:security
+rezultat            15 files | 570 tests | 570 passed | 0 failed | 0 skipped
+R373                SATISFIED_BY_EVIDENCE  ("ALL RLS TESTS GREEN - required before phase 5")
+disposable DB       sigurnost dokazana
+perzistentna baza   mutirana = NE
+SECURITY_CLOSURE_BLOCKERS   1 -> 0
+```
+
+**Gate `P4-013V-B` / PR #23 je dokazao redove `R347`, `R348`, `R369` i `R382`.** Trajni negativni
+constraint testovi su **merged u kanonski `main`** — dokaz je stalan, ne jednokratan:
+
+```text
+P4_013V_B_VERDICT   PASS
+evidence commit     111d91d385b87735772bda0aba8623f7a6a1ad94
+kanonski merge      58f83d49c524bef0434d0ba1d6d04079ca6ece52   (PR #23, MERGED)
+targeted            9 / 9 PASS
+full security       16 files | 579 tests | 579 passed | 0 failed | 0 skipped
+typecheck           PASS
+lint (changed)      PASS
+R347                SATISFIED_BY_EVIDENCE  23505 practice_membership_roles_membership_role_key
+R348                SATISFIED_BY_EVIDENCE  23503 practice_membership_roles_membership_fk
+R369                SATISFIED_BY_EVIDENCE  INSERT -> DELETE -> re-INSERT => tacno jedan red
+R382                SATISFIED_BY_EVIDENCE  D-038 gate red; semantiku nose R347 + R348
+```
+
+## Rekonsilijacija `P4-013B` — konačno računovodstvo 398 redova
+
+**Ovaj gate je dokumentaciona rekonsilijacija, ne novi audit.** Ne mijenja nijednu prihvaćenu
+dispoziciju (D-057, D-058), ne uvodi novi dokaz i ne pokreće pakete zbog ceremonije. Obuhvat je
+**ponovo izmjeren** po D-057, klauzuli 3, a identitet svakog reda **ponovo izveden iz ovog
+dokumenta** — ne iz audit artefakta (D-057, klauzula 6).
+
+```text
+P4_013B_AUDIT_COMMIT   58f83d49c524bef0434d0ba1d6d04079ca6ece52
+P4_013B_ROWS_FOUND     398          (= D-057 baseline; bez drifta)
+ROW_IDENTITY           13 / 13 ciljna reda jednoznacno mapirana na kanonski docs/05
+```
+
+**Konačne terminalne dispozicije — zbir je tačno 398:**
+
+| Terminalna dispozicija | Redova |
+|---|---:|
+| `SATISFIED_BY_EVIDENCE` | **375** |
+| `SUPERSEDED` | 0 |
+| `HISTORICAL` | 1 |
+| `NOT_APPLICABLE_IN_V1` | 8 |
+| `EXPLICITLY_DEFERRED` | 2 |
+| `FUTURE_SCOPE` | 12 |
+| **`UNRESOLVED_REQUIRED`** | **0** |
+| **UKUPNO** | **398** |
+
+Izvođenje iz `P4-013A v2` — **delta, ne novo mjerenje**:
+
+```text
+P4-013A v2:  SBE 369 | HIST 1 | NA_V1 8 | DEFERRED 2 | FUTURE 6  | UNRESOLVED 12   = 398
+  D-058:     R267-R272  UNRESOLVED -> FUTURE_SCOPE          (FUTURE  6 -> 12)
+  D-058:     R303       UNRESOLVED -> SATISFIED_BY_EVIDENCE (SBE   369 -> 370)
+  P4-013V-A: R373       UNRESOLVED -> SATISFIED_BY_EVIDENCE (SBE   370 -> 371)
+  P4-013V-B: R347 R348 R369 R382                            (SBE   371 -> 375)
+P4-013B:     SBE 375 | HIST 1 | NA_V1 8 | DEFERRED 2 | FUTURE 12 | UNRESOLVED  0   = 398
+```
+
+**Rekonsilijacija kućica.** `[x]` znači `SATISFIED_BY_EVIDENCE` uz citiran dokaz (`00` §14;
+D-058, klauzula 7). Dispozicija **nije** dokaz, pa se ne-dokazni redovi **ne označavaju**:
+
+```text
+CHECKBOXES_BEFORE        97   ([ ] 301)
+CHECKBOXES_AFTER        376   ([ ]  22)
+CHECKBOXES_FLIPPED_TO_X 279   = 273 retrospektivno dokazanih (P4-013A v2)
+                              +   1 R303  (D-058)
+                              +   1 R373  (P4-013V-A)
+                              +   4 R347 R348 R369 R382 (P4-013V-B)
+
+[x] + SATISFIED_BY_EVIDENCE   375
+[x] + NON_EVIDENCE_DISPOSITION  1   (R21 - HISTORICAL, obrazlozeno nize)
+[x] + UNRESOLVED_REQUIRED       0
+[ ] + SATISFIED_BY_EVIDENCE     0
+[ ] + NON_EVIDENCE_DISPOSITION 22
+[ ] + UNRESOLVED_REQUIRED       0
+
+FALSE_POSITIVE_CHECKED_ROWS     0
+```
+
+**Jedini `[x]` na ne-dokaznom redu je `R21`** (`PATCH` ruta NIJE registrovana, slice P4-5C) i
+**nije** lažan dokaz: taj red bilježi ono što je P4-5C **stvarno dokazao u svoje vrijeme**, a
+sekcija ga izričito označava kao **NADIĐENO GATEOM P4-5D** i kao historijski nalaz tog slicea.
+Živa obaveza nije nestala — nosi je `R23` (`PATCH` registrovan — P4-5D, PR #20), koji je
+`SATISFIED_BY_EVIDENCE`. Odznačavanje bi **izbrisalo istinit historijski nalaz**, pa se ne radi.
+
+## Registar dispozicija — svih 23 reda koja nisu `SATISFIED_BY_EVIDENCE`
+
+Registar postoji da bi se moglo provjeriti da **nijedna živa obaveza nije nestala** i da
+**nijedna dispozicija ne glumi implementacijski dokaz**.
+
+| Red(ovi) | Zahtjev | Dispozicija | Autoritet | Ciljna faza / red | Obrazloženje |
+|---|---|---|---|---|---|
+| `R21` | `PATCH` ruta NIJE registrovana (P4-5C) | `HISTORICAL` | P4-5C zapis; nadiđeno P4-5D (D-055; D-053, kl. B.4) | živa obaveza → `R23` (Faza 4, dokazana) | istinit nalaz slicea u svoje vrijeme; `[x]` zadržan kao historijski nalaz, ne kao tekuća tvrdnja |
+| `R9`, `R320` | konkretan `TenantDatabaseService` facade | `EXPLICITLY_DEFERRED` | D-056, dio A | §6 (Faza 5) — **uslovni**, ne fazni trigger | koncept ostaje kanonski i **binding**; tenant-database semantika (jedna pinovana transakcija, `set_request_context`, D-047 redoslijed, bez caller-supplied identiteta) ostaje **obavezna i dokazana** u Fazi 4 |
+| `R267`–`R272` | ponašanje write puta opoziva odobrenja | `FUTURE_SCOPE` | D-058, kl. 3–4 i 8–9; D-041, kl. 6–11 | Faza 10, sekcija „Opoziv odobrenja — preuzeto iz Faze 4 (D-058)", **1:1 doslovan tekst** | `analysis_approvals` kreira paket `009_review_approvals` u Fazi 10; Faza 4 taj put ne implementira niti je ovlaštena |
+| `R306`–`R313` | membership/role administracija, cross-practice support, otkazivanje export joba | `NOT_APPLICABLE_IN_V1` | D-045 | — (granica obuhvata v1) | v1 ih **ne implementira**; implementacijski zadatak se ne otvara |
+| `R314`–`R318` | generička platform administracija, `AUDITOR` discovery, podjele permisija | `FUTURE_SCOPE` | D-045 | uslovno — **nova permisija + prihvaćen ADR** | trigger je odluka, ne dolazak broja faze |
+| `R370` | audit dokaz **budućeg** assignment/removal puta (`ASSIGNED`/`REMOVED`) | `FUTURE_SCOPE` | D-045 (`R309`–`R311` = `OUT OF V1`); D-038, kl. 25–32 | zajedno sa samim assignment/removal putem | dokaz ne postoji jer **put** ne postoji; obaveza se aktivira sa putem |
+
+`R303` se u ovom registru **ne pojavljuje** — D-058, klauzula 5 ga drži u Fazi 4 kao
+`SATISFIED_BY_EVIDENCE`; njegova rezidua na nivou rute je **zaseban** red Faze 10 (D-058,
+klauzula 6) i **ne mijenja** tu dispoziciju.
+
+```text
+NON_EVIDENCE_DISPOSITION_ROWS   23   (1 HIST + 8 NA_V1 + 2 DEFERRED + 12 FUTURE_SCOPE)
+SILENT_RETIREMENTS               0
+TARGET_OWNERS_VERIFIED         YES   (R267-R272 -> 6 doslovnih redova u Fazi 10, provjereno 1:1)
+```
+
 Evidence:
 
 ```text
-P4-013 RETROSPECTIVE EVIDENCE AUDIT:  IN PROGRESS — zaseban gate, NIJE ZAVRŠEN
-                                      obuhvat rebaziran na 398 (D-057)
-                                      pokušaj 1 = HOLD; pokušaj 2 (v2) =
-                                        COMPLETE_WITH_REQUIRED_GAPS (nije PASS)
-                                      P4-013F = 7 redova dispozicionirano (D-058)
-                                      očekivano preostalo: 5 (P4-013V)
+P4-013 RETROSPECTIVE EVIDENCE AUDIT:  COMPLETE
+
+  obuhvat                 398 redova (D-057, strukturna ekstrakcija; klauzula 3)
+  auditirani commit       58f83d49c524bef0434d0ba1d6d04079ca6ece52
+  P4-013A pokusaj 1       HOLD  (P4_013_SCOPE_RECONCILIATION_FAILURE)
+  P4-013A pokusaj 2 (v2)  COMPLETE_WITH_REQUIRED_GAPS  (nije PASS)
+                          pocetni UNRESOLVED_REQUIRED = 12
+  P4-013F / D-058         7 redova rijeseno
+                            R267-R272 -> FUTURE_SCOPE  (Faza 10, 1:1)
+                            R303      -> SATISFIED_BY_EVIDENCE (ostaje Faza 4)
+  P4-013V-A               R373 -> SATISFIED_BY_EVIDENCE
+                            pnpm test:security  570 / 570 PASS   (SHA 4b48a008)
+                            SECURITY_CLOSURE_BLOCKERS 1 -> 0
+  P4-013V-B / PR #23      R347 R348 R369 R382 -> SATISFIED_BY_EVIDENCE
+                            targeted 9 / 9;  security 579 / 579 PASS
+                            evidence commit 111d91d;  kanonski merge 58f83d49
+  P4-013B                 rekonsilijacija dokumentacije
+                            279 kucica oznaceno;  376 [x] / 22 [ ]
+                            FALSE_POSITIVE_CHECKED_ROWS = 0
+
+  UNRESOLVED_REQUIRED         0
+  SECURITY_CLOSURE_BLOCKERS   0
+  P4_013_STATUS               COMPLETE
 ```
+
+## Granica zatvaranja — `P4-013 COMPLETE` nije `Faza 4 DONE`
+
+**`P4-013` je završen. Faza 4 nije zatvorena.**
+
+```text
+P4_013_STATUS               COMPLETE
+UNRESOLVED_REQUIRED         0
+SECURITY_CLOSURE_BLOCKERS   0
+
+PHASE_4_STATUS              IN_PROGRESS
+FINAL_PHASE_4_CLOSURE_GATE  REQUIRED
+```
+
+Rubrik zatvaranja faze (D-056, dio C) traži `UNRESOLVED_REQUIRED = 0` kao **nužan** uslov —
+**ne** kao samo zatvaranje. `P4-013B` je **dokumentaciona rekonsilijacija** i **nije ovlašten** da
+proglasi Fazu 4 `DONE`, da autorizuje Fazu 5 ni da donese odluku o zatvaranju. Prelazak
+`IN_PROGRESS → DONE` ostaje **zaseban, vlasnički pregledan gate zatvaranja Faze 4**, koji se
+pokreće **tek nakon** što je ova rekonsilijacija pregledana i merged u kanonski `main`.
 
 ---
 
