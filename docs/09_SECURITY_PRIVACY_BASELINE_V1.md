@@ -107,6 +107,13 @@ Defense in depth:
 9. audit;
 10. test.
 
+Sloj 5 imenuje **tenant database granicu** kao sigurnosnu odgovornost, ne obaveznu klasu (D-054,
+klauzule 5–10; D-056, dio A): jedan `PrismaService`, **jedna** pinovana interaktivna transakcija,
+`set_request_context` unutar nje, **nijedan** caller-supplied identitet i **nijedna** druga,
+ugniježdena ni paralelna transakcija. Na kanonskom `main`-u tu granicu nosi `TenantRequestPipeline`.
+**Konkretan `TenantDatabaseService` facade je uslovno odgođen** i postaje obavezan tek kada stvarni
+tenant business modul zatraži tu apstrakciju; sigurnosna svojstva sloja 5 se time **ne slabe**.
+
 Object storage key primjer:
 
 ```text

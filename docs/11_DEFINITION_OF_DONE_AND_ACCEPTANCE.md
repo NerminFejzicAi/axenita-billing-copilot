@@ -186,12 +186,38 @@ Ovaj dokument definiše kada se zadatak, faza, milestone ili pilot može smatrat
 
 Svaka faza je DONE samo kada:
 
-- svi checkboxi faze;
+- `UNRESOLVED_REQUIRED = 0` za tu fazu (rubrik ispod);
 - sve propisane komande;
 - nema BLOCKER/HIGH review nalaza;
 - dokumentacija;
 - branch commit;
 - working tree čist.
+
+## 11.1 Rubrik `UNRESOLVED_REQUIRED` — D-056, dio C
+
+**Doslovno „nula neoznačenih kućica" NIJE pravilo zatvaranja faze**
+(`ZERO_UNCHECKED_IS_NORMATIVE_REQUIREMENT = NO`). Raniju formulaciju „svi checkboxi faze" treba
+čitati kroz ovaj rubrik.
+
+Svaka checklist stavka koja pripada fazi mora biti **ili**:
+
+1. `SATISFIED_BY_EVIDENCE` — označena, uz citiranu komandu/test/dokaz prema `00` §14;
+
+**ili** nositi eksplicitnu dispoziciju potkrijepljenu **prihvaćenim autoritetom**:
+
+2. `SUPERSEDED`;
+3. `HISTORICAL`;
+4. `NOT_APPLICABLE_IN_V1`;
+5. `EXPLICITLY_DEFERRED`;
+6. `FUTURE_SCOPE`.
+
+Za svaku dispoziciju koja ostavlja **živu obavezu za kasniji obuhvat**, ta obaveza mora biti
+**očuvana/premještena u sekciju faze koja je posjeduje**, prema precedentu D-052.
+
+Nijedan zahtjev se ne smije tiho izbrisati, oslabiti, implicitno penzionisati ni proglasiti `N/A`
+samo zato da bi se faza zatvorila. Stavka bez dokaza i bez eksplicitne, autoritetom potkrijepljene
+dispozicije je `UNRESOLVED_REQUIRED` i **blokira zatvaranje faze**. Proizvoljna neoznačena rezidua
+nije dopuštena.
 
 ---
 

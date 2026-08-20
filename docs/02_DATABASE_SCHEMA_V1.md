@@ -2889,8 +2889,13 @@ Globalne tarifne tabele i `system_storage_objects` ne koriste nijedan od njih (�
 
 ## 17.0 Vlasništvo paketa i faza — normativna podjela
 
-**Normativne odluke: D-047 klauzula 16; D-049; D-051; D-052.** Nijedan drugi dokument ne smije
-kontradiktirati ovoj tabeli.
+**Normativne odluke: D-047 klauzula 16; D-049; D-051; D-052; D-056.**
+
+**Status ove tabele.** Ona je **restatement svojih citiranih, više rangiranih odluka**, a ne
+nezavisan izvor autoriteta. Dok stoji neizmijenjena, nijedan izvedeni dokument ne smije joj
+kontradiktirati. Kada prihvaćena odluka izmijeni ijedan njen red, **tabela se pomjera zajedno sa tim
+amandmanom** — mjerodavna je odluka, a tabela se usklađuje s njom. Pri sukobu su `03` §3.7.1 i
+D-047, klauzula 10 nadređeni svakom izvedenom imenu artefakta (D-054; D-056).
 
 | Obrazac / artefakt | Paket | Faza |
 |---|---|---|
@@ -2903,7 +2908,9 @@ kontradiktirati ovoj tabeli.
 | §17.3 `practice_memberships` — `ENABLE` + `FORCE RLS` i self politika | `013_rls_policies` | 4 |
 | `practice_settings` — `ENABLE` + `FORCE RLS`, tenant politika, `UPDATE` grant | `013_rls_policies` | 4 |
 | `app_security.set_request_context(uuid)` (§16.2.3) | `013_rls_policies` | 4 |
-| uspostava `app.practice_id`, `PracticeContextGuard`, `TenantDatabaseService` | `013_rls_policies` / aplikacijski sloj | 4 |
+| uspostava `app.practice_id` i tenant kontekst semantika (`set_request_context` **unutar** pinovane transakcije) | `013_rls_policies` / aplikacijski sloj | 4 |
+| `PracticeContextGuard` — **semantička odgovornost** tenant admisije i uspostave konteksta (naziv faze, ne obavezan NestJS `Guard`; D-054, klauzule 2–4) | aplikacijski sloj | 4 |
+| **konkretan `TenantDatabaseService` facade** — **`EXPLICITLY_DEFERRED` (D-056)**, uslovno na stvarni tenant business modul | aplikacijski sloj | **uslovno; najranije očekivano 5** |
 | §17.1 preostale tenant politike **nad tabelama koje u fazi 4 postoje** | `013_rls_policies` | 4 |
 | §17.1 tenant politika nad `review_decision_change_links` — **odgođeno izvršenje** | `013_rls_policies` | **10** |
 
@@ -2913,11 +2920,24 @@ artefakte koje sam posjeduje (§22.13).
 
 **Vlasništvo paketa nije izvršna faza (D-052).** Paket `013_rls_policies` posjeduje tenant RLS za
 **svih 30** tabela iz §18.1, ali se izvršava **isključivo nad tabelama koje u datoj fazi postoje**.
-Zadnji red iznad je jedini slice čije je izvršenje odgođeno: `review_decision_change_links` kreira
+Zadnji red iznad je jedini **RLS** slice čije je izvršenje odgođeno: `review_decision_change_links` kreira
 paket `009_review_approvals` u **fazi 10** (§22.9), pa **faza 4 tu tabelu ne kreira i nad njom ne
 piše nijedan RLS ni grant objekat**. Vlasništvo slicea ostaje `013_rls_policies`, a sigurnosna
 semantika iz §18.1 i D-046, klauzula 25–33, **ostaje nepromijenjena** — mijenja se isključivo
 tačka izvršenja (D-052, klauzule A.1–A.9).
+
+**Konkretan `TenantDatabaseService` facade — uslovno odgođen (D-056).** Sigurnosni **koncept**
+tenant database facadea **ostaje kanonski i obavezan** (D-006; D-054, klauzula 5). **Faza 4 zadržava
+tenant/kontekst sigurnosnu obavezu u cijelosti** — `set_request_context`, uspostavu
+`app.practice_id`, obje membership barijere, kanonski redoslijed iz `03` §3.7.1 i tenant RLS. Ono
+što **nije** deliverable zatvaranja faze 4 je **konkretna klasa**: tekući runtime već zadovoljava
+semantiku koncepta kroz jedan `PrismaService`, jednu pinovanu interaktivnu transakciju i
+`TenantRequestPipeline`, bez drugog klijenta, druge transakcije i caller-supplied identiteta.
+Konkretan facade postaje obavezan **tek kada stvarni tenant business modul zatraži tu apstrakciju**;
+faza 5 je najranija **očekivana**, ali ne i garantovana tačka. Svaki takav budući facade mora
+omotati **postojeću** pinovanu granicu i **ponovo dokazati D-054, klauzule 6–10** (D-056, dio A).
+**Nijedan sigurnosni zahtjev ovim nije uklonjen, oslabljen ni označen završenim**, i §17.1 se **ne
+mijenja**.
 
 **Nijedan novi broj migration paketa se ne uvodi.** Brojevi paketa u §22 su redoslijed zavisnosti,
 ne brojevi faza.

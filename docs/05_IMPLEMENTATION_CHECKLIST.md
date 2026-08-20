@@ -9,15 +9,15 @@
 
 | Polje | Vrijednost |
 |---|---|
-| Current phase | Faza 1 — `DONE`; Ecosystem Compatibility Audit `DONE`; Faza 2 — `DONE`; **D-OPEN-011 decision gate — `DONE` (D-047 prihvaćen 2026-08-12)**; **D-047 dokumentaciona rekonsilijacija — `DONE`, merged u kanonski `main` (PR #7)**; **D-048–D-051 governance gate — `DONE`, merged u kanonski `main` (PR #10)**; **Faza 3 — `DONE`, merged u kanonski `main` (PR #12, merge commit `5c2786d`) (§4)**; **Faza 4 — `IN_PROGRESS`, otvorena (§5)**; **P4-5D je implementiran na grani `backend/04-practice-settings-patch`, PR #20 je `OPEN` i nije merged**; faza nije zatvorena |
-| Current branch | Faza 3 je merged u kanonski `main`; implementacijski branch `backend/03-identity-practices` (tehnička implementacija HEAD, Gate 3E = `9f60d32c66023c4aad5ac34df267658ddfe5d6b1`; zatvarački dokumentacioni checkpoint = `2c7d7778a9ec1dae92fd0a5683d1f4afc7b36950`; završni head prije merge-a = `5c1699a0ea4d98e2f540c6e8cd9ae84997896a42`) je time potrošen. **Trenutni kanonski remote `main` = `origin/main` = `0866e530b6086e7dba7f0bc0d98b19eee69ee0d5`** (PR #19). Implementacijski branch Faze 4 `backend/04-practice-settings-patch` nosi slice P4-5D; PR #20 je `OPEN` i **nije** merged, pa ta grana **nije** kanonski `main`. Historijski: `5c2786d689b50f73f49bfca52d2335ea50ee52c2` (PR #12, kanonski `main` po zatvaranju Faze 3), `251544f0b10abb00ee818f1ff5183c95b0ed0d03` (PR #11, kanonski `main` neposredno prije merge-a Faze 3) i `65e2552e13520ead86092f75ca3cc75d206b9f35` (PR #10) |
-| Last completed phase | Faza 3 — Identity & Practices, `DONE` (posljednja faza merged u kanonski `main`, PR #12, `5c2786d`). Tekuća faza: Faza 4 — Tenant/RLS, `IN_PROGRESS` (§5); nije zatvorena — P4-5D je implementiran na grani `backend/04-practice-settings-patch`, PR #20 nije merged |
-| Last commit | `c4b89d0` (Phase 2 implementation), merged via `dae9649`; dokumentarno zatvaranje `98910b3`, merged via `d6b5efe`; D-047 rekonsilijacija `76dbc6d` + `dda7538`, merged via `ec7d100` (PR #7); dokumentaciona usklađivanja merged via `2befadc` i `5d38ba8` (PR #8, PR #9); D-048–D-051 rekonsilijacija `b2a99ce`, merged via `65e2552` (PR #10); dokumentaciono zatvaranje governancea merged via `251544f` (PR #11); **Faza 3 — sedam commitova branča `backend/03-identity-practices` (Gate 3A–3E, tehnička implementacija `HEAD` = `9f60d32`; zatvarački dokumentacioni checkpoint `2c7d777`; korekcija reference kanonskog `main`-a `5c1699a`), merged via `5c2786d` (PR #12)** (§4, „Gate checkpointi Faze 3"); **trenutni kanonski `main` = `origin/main` = `0866e530b6086e7dba7f0bc0d98b19eee69ee0d5` (PR #19)**; PR #20 (slice P4-5D) je `OPEN` i nije merged |
+| Current phase | Faza 1 — `DONE`; Ecosystem Compatibility Audit `DONE`; Faza 2 — `DONE`; **D-OPEN-011 decision gate — `DONE` (D-047 prihvaćen 2026-08-12)**; **D-047 dokumentaciona rekonsilijacija — `DONE`, merged u kanonski `main` (PR #7)**; **D-048–D-051 governance gate — `DONE`, merged u kanonski `main` (PR #10)**; **Faza 3 — `DONE`, merged u kanonski `main` (PR #12, merge commit `5c2786d`) (§4)**; **Faza 4 — `IN_PROGRESS`, otvorena (§5)**; **P4-5D je `MERGED` u kanonski `main` (PR #20)**; faza **nije** zatvorena — preostaje retrospektivni evidence gate **P4-013** (§5, „Preostali gate zatvaranja Faze 4 — P4-013") |
+| Current branch | Faza 3 je merged u kanonski `main`; implementacijski branch `backend/03-identity-practices` (tehnička implementacija HEAD, Gate 3E = `9f60d32c66023c4aad5ac34df267658ddfe5d6b1`; zatvarački dokumentacioni checkpoint = `2c7d7778a9ec1dae92fd0a5683d1f4afc7b36950`; završni head prije merge-a = `5c1699a0ea4d98e2f540c6e8cd9ae84997896a42`) je time potrošen. **Kanonska remote grana je `origin/main`. Živi kanonski commit se rezolvira iz te reference i ovaj dokument ga ne ugrađuje** (D-056, klauzule 15–16); tačni SHA-ovi ispod su **nepromjenljivi historijski lifecycle događaji**, ne živi pokazivač. Implementacijski branch Faze 4 `backend/04-practice-settings-patch` nosio je slice P4-5D i **merged je** u kanonski `main` kroz **PR #20** (`3658c6e2d9c08e3ca3f0c306d8dbeaf41a6a01f5`), pa je time potrošen. Historijski: `0866e530b6086e7dba7f0bc0d98b19eee69ee0d5` (PR #19, kanonski `main` neposredno prije merge-a P4-5D), `5c2786d689b50f73f49bfca52d2335ea50ee52c2` (PR #12, kanonski `main` po zatvaranju Faze 3), `251544f0b10abb00ee818f1ff5183c95b0ed0d03` (PR #11, kanonski `main` neposredno prije merge-a Faze 3) i `65e2552e13520ead86092f75ca3cc75d206b9f35` (PR #10) |
+| Last completed phase | Faza 3 — Identity & Practices, `DONE` (posljednja faza merged u kanonski `main`, PR #12, `5c2786d`). Tekuća faza: Faza 4 — Tenant/RLS, `IN_PROGRESS` (§5); nije zatvorena — P4-5D je `MERGED` (PR #20, `3658c6e`), ali retrospektivni evidence gate **P4-013** ostaje otvoren |
+| Last commit | `c4b89d0` (Phase 2 implementation), merged via `dae9649`; dokumentarno zatvaranje `98910b3`, merged via `d6b5efe`; D-047 rekonsilijacija `76dbc6d` + `dda7538`, merged via `ec7d100` (PR #7); dokumentaciona usklađivanja merged via `2befadc` i `5d38ba8` (PR #8, PR #9); D-048–D-051 rekonsilijacija `b2a99ce`, merged via `65e2552` (PR #10); dokumentaciono zatvaranje governancea merged via `251544f` (PR #11); **Faza 3 — sedam commitova branča `backend/03-identity-practices` (Gate 3A–3E, tehnička implementacija `HEAD` = `9f60d32`; zatvarački dokumentacioni checkpoint `2c7d777`; korekcija reference kanonskog `main`-a `5c1699a`), merged via `5c2786d` (PR #12)** (§4, „Gate checkpointi Faze 3"); historijski kanonski `main` prije P4-5D = `0866e530b6086e7dba7f0bc0d98b19eee69ee0d5` (PR #19); **PR #20 (slice P4-5D) je `MERGED`, merge commit `3658c6e2d9c08e3ca3f0c306d8dbeaf41a6a01f5`**. Živi kanonski commit se rezolvira iz `origin/main` i ovdje se **ne** upisuje (D-056, klauzule 15–16) |
 | Local environment owner | Nermin Fejzic |
 | Test DB | `copilot_test` @ `localhost:5433` (compose profil `test`); dokazi Faze 3 nad realnim PostgreSQL-om rade na **jednokratnim** bazama `copilot_gate3b_<suffix>` @ `localhost` |
 | Documentation version | 1.0 |
 | Last updated | 2026-08-20 |
-| **Faza 3** | **`PHASE 3 STATUS: DONE`** — zatvaranje je merged u kanonski `main`. Tehnička implementacija je bila kompletna **prije** merge-a, `TECHNICAL_IMPLEMENTATION_MISSING = 0`. Gate 3A–3E su commitovani, reviewovani i pushovani na `origin/backend/03-identity-practices`; tehnička implementacija HEAD (Gate 3E) = `9f60d32c66023c4aad5ac34df267658ddfe5d6b1`, zatvarački dokumentacioni checkpoint = `2c7d7778a9ec1dae92fd0a5683d1f4afc7b36950`. **PR #12 `feat(identity): complete Phase 3 identity and practices` — `MERGED` 2026-08-16T00:15:08Z; normalan merge commit `5c2786d689b50f73f49bfca52d2335ea50ee52c2` je time postao kanonski `main` (historijski; trenutni kanonski `main` je `0866e530b6086e7dba7f0bc0d98b19eee69ee0d5`, PR #19).** Time je ispunjen uslov da je `DONE` rezervisan za zatvaranje merged u kanonski `main`. Governance bloker D-048–D-051 bio je `RESOLVED` merge-om PR #10 (`65e2552`, 2026-08-15T00:50:43Z) **prije** nastavka implementacije — vidi §3b |
+| **Faza 3** | **`PHASE 3 STATUS: DONE`** — zatvaranje je merged u kanonski `main`. Tehnička implementacija je bila kompletna **prije** merge-a, `TECHNICAL_IMPLEMENTATION_MISSING = 0`. Gate 3A–3E su commitovani, reviewovani i pushovani na `origin/backend/03-identity-practices`; tehnička implementacija HEAD (Gate 3E) = `9f60d32c66023c4aad5ac34df267658ddfe5d6b1`, zatvarački dokumentacioni checkpoint = `2c7d7778a9ec1dae92fd0a5683d1f4afc7b36950`. **PR #12 `feat(identity): complete Phase 3 identity and practices` — `MERGED` 2026-08-16T00:15:08Z; normalan merge commit `5c2786d689b50f73f49bfca52d2335ea50ee52c2` je time postao kanonski `main` (historijski; kasniji historijski kanonski `main` je `0866e530b6086e7dba7f0bc0d98b19eee69ee0d5`, PR #19, a merge P4-5D je `3658c6e2d9c08e3ca3f0c306d8dbeaf41a6a01f5`, PR #20; živi kanonski commit se rezolvira iz `origin/main`).** Time je ispunjen uslov da je `DONE` rezervisan za zatvaranje merged u kanonski `main`. Governance bloker D-048–D-051 bio je `RESOLVED` merge-om PR #10 (`65e2552`, 2026-08-15T00:50:43Z) **prije** nastavka implementacije — vidi §3b |
 
 ---
 
@@ -188,6 +188,10 @@ Status: `DONE`
 - [x] runtime not owner. — `copilot_app` nije vlasnik nijednog objekta; `has_schema_privilege('copilot_app','public','CREATE') = f`.
 - [x] PrismaService singleton. — `PrismaService extends PrismaClient`, `OnModuleInit`/`OnModuleDestroy` sa ograničenim `connect`/`disconnect`; jedna instanca po procesu.
 - [x] DatabaseModule global. — `@Global()`, izvozi samo `PrismaService`; `TenantDatabaseService`/RLS ostaju Faza 4.
+      *(Historijski zapis Faze 1. Tenant/RLS semantika je i ostala Faza 4; **konkretna klasa
+      `TenantDatabaseService` je kasnije uslovno odgođena odlukom D-056** — vidi §5,
+      „Konkretan `TenantDatabaseService` facade — uslovno odgođen (D-056)". Modul i dalje
+      izvozi samo `PrismaService`.)*
 - [x] migration scripts. — `db:format`, `db:validate`, `db:generate`, `db:migrate:dev`, `db:migrate:deploy`, `db:migrate:status`; `postinstall` i `build` pokreću `prisma generate`.
 - [x] test database documented. — `TEST_DATABASE_URL`, `TEST_MIGRATION_DATABASE_URL`, `TEST_SYSTEM_DATABASE_URL` u `.env.example`; izolovana baza `copilot_test` @ `localhost:5433`.
 
@@ -414,9 +418,12 @@ kada su se pojavila četiri governance pitanja koja dokumentacija nije rješaval
       (2026-08-15T00:50:43Z) `main` = `origin/main` =
       `65e2552e13520ead86092f75ca3cc75d206b9f35`; MANIFEST integritet 19/19 bez odstupanja.
       *(Kanonski `origin/main` je otada pomjeren više puta — na `251544f0b10abb00ee818f1ff5183c95b0ed0d03`
-      merge-om PR #11, pa na `5c2786d689b50f73f49bfca52d2335ea50ee52c2` merge-om PR #12 (Faza 3), a
-      trenutni kanonski `origin/main` je `0866e530b6086e7dba7f0bc0d98b19eee69ee0d5` (PR #19);
-      ovaj red bilježi stanje u trenutku merge-a PR #10.)*
+      merge-om PR #11, na `5c2786d689b50f73f49bfca52d2335ea50ee52c2` merge-om PR #12 (Faza 3),
+      na `0866e530b6086e7dba7f0bc0d98b19eee69ee0d5` merge-om PR #19, pa na
+      `3658c6e2d9c08e3ca3f0c306d8dbeaf41a6a01f5` merge-om PR #20 (P4-5D). Svi ti SHA-ovi su
+      **historijski lifecycle događaji**; **živi kanonski commit se rezolvira iz `origin/main`** i
+      ovaj dokument ga ne ugrađuje (D-056, klauzule 15–16). Ovaj red bilježi stanje u trenutku
+      merge-a PR #10.)*
 
 ## Stanje implementacije Faze 3
 
@@ -1114,18 +1121,16 @@ Status: `IN_PROGRESS`. Merged u kanonski `main`:
 
 - **P4-5B** — tenant request/context pipeline, PR #15 (`530295d`, implementacija `fdef469`);
 - **P4-5R1** — vezivanje identiteta i hardening tenant pipelinea, PR #17 (`2229724`);
-- **P4-5C** — `GET /api/v1/practices/{practiceId}/settings`, PR #18 (`0411ae4`, merge `be675fd`).
-
-Implementirano na implementacijskoj grani **`backend/04-practice-settings-patch`**, **još nije
-merged**:
-
+- **P4-5C** — `GET /api/v1/practices/{practiceId}/settings`, PR #18 (`0411ae4`, merge `be675fd`);
 - **P4-5D** — `PATCH /api/v1/practices/{practiceId}/settings`, `If-Match` put i atomičan
-  optimistički `UPDATE`. Stavke označene u sekciji „Slice P4-5D" niže odnose se na **tu granu**;
-  označavaju se ovdje jer su **mehanički dokazane** trajnim testovima te grane, a ne zato što je
-  slice merged.
+  optimistički `UPDATE`, **PR #20**, merge commit
+  `3658c6e2d9c08e3ca3f0c306d8dbeaf41a6a01f5`, `MERGED` **2026-08-20T15:31:49Z** od
+  **NerminFejzicAi**.
 
-Faza **nije** završena. Preostale tenant tabele i slice-evi ostaju otvoreni, a `013_rls_policies`
-sekcije niže i dalje čekaju vlastiti gate.
+**Aplikacijska implementacija Faze 4 je time kompletna i merged u kanonski `main`.** Faza ipak
+**nije** zatvorena: preostaje retrospektivni evidence gate **P4-013** (vidi „Preostali gate
+zatvaranja Faze 4 — P4-013" niže). Preostale tenant tabele i slice-evi ostaju otvoreni, a
+`013_rls_policies` sekcije niže i dalje čekaju taj gate.
 
 **Autoritet za slice P4-5D** je **D-055** (HTTP validatori i optimistička konkurentnost), uz
 **D-053** kao bazni settings ugovor. D-055, klauzula 33 zabranjuje označavanje `PATCH` stavki na
@@ -1158,8 +1163,10 @@ ostaju u `002_identity_and_practices` (Faza 3). Ne uvodi se novi broj paketa.
 
 **Sužen obuhvat nakon D-051.** `02` §17.2 i §17.4 **više nisu u ovoj fazi** — konačni su u paketu
 `002` i Fazi 3. Ova faza zadržava `02` §17.3, `practice_settings` RLS i runtime put (D-049),
-`set_request_context`, uspostavu `app.practice_id`, `PracticeContextGuard`, `TenantDatabaseService`
-i preostale tenant tabele (`02` §17.0).
+`set_request_context`, uspostavu `app.practice_id`, `PracticeContextGuard` i preostale tenant
+tabele (`02` §17.0). **Konkretan `TenantDatabaseService` facade je odlukom D-056 izuzet iz obuhvata
+zatvaranja ove faze** — vidi „Konkretan `TenantDatabaseService` facade — uslovno odgođen (D-056)"
+niže; tenant database granica kao **sigurnosna semantika** ostaje obaveza ove faze i **ne slabi se**.
 
 **Dodatno sužen obuhvat nakon D-052.** RLS i grantovi nad `review_decision_change_links` **nisu u
 ovoj fazi** — tabelu kreira paket `009_review_approvals` u Fazi 10, pa u Fazi 4 ne postoji.
@@ -1173,6 +1180,11 @@ admisije i uspostave konteksta, ne obavezno NestJS `Guard`; za tekuću tenant ru
 `TenantRequestPipeline`-om. `TenantDatabaseService` ostaje **kanonski facade koncept** za tenant
 business module; njegov historijski potpis `run(practiceId, userId, callback)` **nije normativan**.
 Pri konfliktu, redoslijed iz `03` §3.7.1 i D-047, klauzule 10 je nadređen imenu artefakta.
+
+**Dopuna — D-056.** Konkretna klasa `TenantDatabaseService` **nije deliverable zatvaranja ove
+faze**. Ranije vlasništvo faze 4 nad **konkretnim facadeom** (D-047, klauzula 16; D-051,
+klauzula 5) je **nadiđeno**; koncept i njegova sigurnosna svojstva **ostaju nepromijenjeni**, a
+D-054, klauzule 6–10 **ostaju binding**.
 
 ## Slice P4-5B — tenant request/context pipeline
 
@@ -1202,9 +1214,15 @@ usklađuju se u vlastitim gate-ovima.
 - [x] **`42501` iz `set_request_context`** se prevodi u zajednički `403 ACCESS_DENIED`, bez
       otkrivanja SQLSTATE-a, iskaza, imena funkcije ni database poruke; **nema** globalnog
       prevođenja `42501`.
-- [ ] **Konkretan `TenantDatabaseService` facade** — **NIJE** implementiran i **ne označava se**
-      završenim. Koncept ostaje kanonski (D-054, klauzula 5); konkretna klasa se uvodi tek kada je
-      stvarni tenant business modul zatraži, i tada mora dokazati klauzule 6–10.
+- [ ] **Konkretan `TenantDatabaseService` facade** — **`EXPLICITLY_DEFERRED` — D-056.**
+      **Nije** implementiran, **ne označava se** završenim i **više nije neriješeni zahtjev ove
+      faze**. Koncept ostaje kanonski (D-054, klauzula 5; D-056, klauzula 3), a sigurnosnu semantiku
+      koju predstavlja tekući runtime već zadovoljava — jedan `PrismaService`, jedna pinovana
+      interaktivna transakcija, tenant kontekst na toj istoj sesiji, kanonski D-047 redoslijed i
+      nijedan caller-supplied identitetski seam (D-056, klauzula 2). **Živa obaveza je očuvana u
+      §6 („Konkretan `TenantDatabaseService` facade — prenesena obaveza (D-056)"), po precedentu
+      D-052.** Trigger je **uslovan**: prvi stvarni tenant business modul koji zatraži tu
+      apstrakciju, a ne dolazak broja faze.
 - [x] **Uklanjanje `userId` seama** iz `TenantRequestPipeline.admit(...)` — **RIJEŠENO** kroz
       PR #17 (`2229724`). Kanonski potpis je sada `TenantRequestPipeline.admit(session, request)`;
       identitet se izvodi **isključivo** iz `app.user_id` autentifikovane sesije, pa pogrešan
@@ -1215,7 +1233,9 @@ usklađuju se u vlastitim gate-ovima.
 
 **Normativno: D-053 (dio A), D-054 i D-055.** Merged u kanonski `main` kroz PR #18; implementacijski
 commit `0411ae4`, merge `be675fd`. Ova sekcija bilježi **isključivo** ono što je taj slice mehanički
-dokazao. **Nijedna `PATCH` stavka se ovdje ne označava** — `PATCH` ne postoji na `main`-u.
+dokazao. **Nijedna `PATCH` stavka se ovdje ne označava** — u vrijeme tog slicea `PATCH` nije
+postojao na `main`-u. *(Historijski kontekst: `PATCH` je na kanonski `main` došao tek slice-om
+P4-5D, PR #20.)*
 
 - [x] **`GET /api/v1/practices/{practiceId}/settings` je registrovan** i odgovara kroz
       `PracticeSettingsController` / `PracticeSettingsReadService`.
@@ -1244,17 +1264,48 @@ dokazao. **Nijedna `PATCH` stavka se ovdje ne označava** — `PATCH` ne postoji
       `backend/04-practice-settings-patch` je suprotno i namjerno: `PATCH` **jeste** registrovan,
       i tri testa koja su ranije tvrdila `404` **konvertovana su** u pozitivne invarijante
       (autorizovan `PATCH` bez `If-Match`-a daje `428`), a ne obrisana.
-- [ ] **Autorizovan `304` na `If-None-Match`** — ponašanje **postoji** i **kanonizovano** je u
-      D-055, dijelu B. **Namjenski `304` testovi i dalje nisu uvedeni** i D-055, klauzula 6 ih ne
-      ovlašćuje. P4-5D je dodao isključivo **non-regression** tvrdnju da je zatečeno ponašanje
-      **nepromijenjeno** — što klauzula 6 izričito zahtijeva („implementacija P4-5D **ne smije**
-      uvesti novo `304` ponašanje, niti ukloniti postojeće") — pa kućica ostaje neoznačena.
+- [x] **Autorizovan `304` na `If-None-Match`** — **`SATISFIED_BY_EVIDENCE` (D-056, dio B).**
+      Ponašanje **postoji**, **kanonizovano** je u D-055, dijelu B, i **mehanički je dokazano
+      trajnim testovima na kanonskom `main`-u**. Ranije obrazloženje ovog reda („namjenski `304`
+      testovi nisu uvedeni") bilo je **zastarjelo**: dokaz nije nedostajao, nego nije bio priznat.
+      Postojeći trajni dokaz pokriva sva četiri tražena ponašanja — autorizovan `GET` sa
+      **podudarajućim** `If-None-Match` daje **`304`** sa praznim tijelom; **nakon `PATCH`-a**
+      stari tag daje **`200`**; **novi** tag daje **`304`**; a **odbijen** `GET` **ne može** biti
+      pretvoren u `304` (zadržava `403`).
+      **D-055, klauzula 6 se ne opoziva** — ona je uskratila ovlaštenje za **novi** `304` rad
+      (kod, granu, nove namjenske testove) u svom gateu, a **nije** trajna zabrana prepoznavanja
+      **postojećeg** mehaničkog dokaza (D-056, klauzula 9). **Nijedan novi test nije uveden i
+      nijedna linija aplikacijskog koda nije promijenjena.**
 
-## Slice P4-5D — settings `PATCH` — **IMPLEMENTIRAN, NIJE MERGED**
+      Evidence:
+
+      ```text
+      Test file:    apps/api/test/phase4-practice-settings-patch.security.ts
+      Describe:     non-regression of everything this slice did not own
+      Test 1:       keeps the GET conditional 304 behaviour unchanged (D-055 clauses 3 and 6)
+                    -> autorizovan GET + podudarajuci If-None-Match => 304, prazno tijelo
+                    -> nakon PATCH-a: stari tag => 200; novi tag => 304
+      Test 2:       keeps an If-None-Match from turning a REFUSED GET into a 304 (clause 4)
+                    -> odbijen pozivalac + If-None-Match => 403, nikada 304
+      Novi testovi: 0
+      Izmjene aplikacijskog koda: 0
+      ```
+
+## Slice P4-5D — settings `PATCH` — **MERGED**
 
 **Autoritet: D-055**, uz D-053 kao bazni ugovor, i vlasničke ratifikacije **R1** i **R2** gatea
-P4-5D (vidi uvod Faze 4). Implementirano na grani `backend/04-practice-settings-patch`; **PR nije
-merged i ovaj gate merge ne ovlašćuje**.
+P4-5D (vidi uvod Faze 4). Implementirano na grani `backend/04-practice-settings-patch` i **merged u
+kanonski `main`** kroz **PR #20**:
+
+```text
+PULL REQUEST:  PR #20 „feat(settings): implement practice settings PATCH with optimistic
+               concurrency (P4-5D)" — MERGED
+MERGE COMMIT:  3658c6e2d9c08e3ca3f0c306d8dbeaf41a6a01f5
+MERGED AT:     2026-08-20T15:31:49Z
+MERGED BY:     NerminFejzicAi
+BASE:          main
+HEAD:          backend/04-practice-settings-patch
+```
 
 Svaka označena stavka ispod ima **trajni test** koji je dokazuje. Dva komplementarna sloja:
 
@@ -1388,8 +1439,8 @@ D-049, klauzula 5.
 - [ ] Standardna tenant politika `practice_id = app.practice_id`.
 - [ ] **Phase gate pada ako `UPDATE` grant postoji bez pripadajuće tenant politike.**
 - [x] `GET /api/v1/practices/{practiceId}/settings` registrovan — **P4-5C, PR #18**.
-- [x] `PATCH /api/v1/practices/{practiceId}/settings` registrovan — **P4-5D**, grana
-      `backend/04-practice-settings-patch` (nije merged).
+- [x] `PATCH /api/v1/practices/{practiceId}/settings` registrovan — **P4-5D, PR #20**, merged u
+      kanonski `main` (`3658c6e`).
 - [x] `ETag` vraćen na oba odgovora — jak, aplikacijski postavljen `"<version>"`; na `PATCH`-u je
       to **nova** verzija, izvedena iz reda koji je vratio isti `UPDATE ... RETURNING`.
 - [x] `If-Match` obavezan na `PATCH` — **P4-5D** (D-055, klauzula 10).
@@ -1414,7 +1465,7 @@ D-049, klauzula 5.
 Normativno: `03` §10 („Settings reprezentacija"); `02` §20.2b.1.
 
 **Stanje nakon P4-5D.** `GET` polovina svake stavke ispod dokazana je u P4-5C (PR #18); `PATCH`
-polovina je dokazana u P4-5D, na grani `backend/04-practice-settings-patch`. Kućice se označavaju
+polovina je dokazana u P4-5D (PR #20, merged u kanonski `main`). Kućice se označavaju
 ovdje jer sada **obje** polovine postoje i imaju trajne testove. Projekcija i tag su izdvojeni u
 **jedan zajednički modul** (`practice-settings-representation.ts`) koji obje rute uvoze, pa dvije
 kopije reprezentacije više nisu izrazive.
@@ -1461,8 +1512,8 @@ kopije reprezentacije više nisu izrazive.
 
 ### Mehanika optimističkog update-a — D-053, dio B
 
-**Autoritet za implementaciju: D-055.** Implementirano u gateu **P4-5D**, na grani
-`backend/04-practice-settings-patch` (nije merged). D-055 dodatno zamrzava ono što D-053 ne navodi:
+**Autoritet za implementaciju: D-055.** Implementirano u gateu **P4-5D** i merged u kanonski
+`main` kroz **PR #20** (`3658c6e`). D-055 dodatno zamrzava ono što D-053 ne navodi:
 prihvaćenu gramatiku `"<N>"` (klauzula 11), razdvajanje `428`/`400`/`409` (klauzula 12), jaku i
 tačnu komparaciju (klauzula 13), `400` za prazno tijelo (klauzula 14), zabranu pre-reada
 (klauzula 16), `409` za nula redova iz **oba** uzroka (klauzule 19–21) i jedan izvor istine za
@@ -1560,6 +1611,44 @@ U ovoj fazi provjerljivo je isključivo sljedeće:
 - [ ] Generički tenant RLS obrazac i test harness postoje i dokazani su nad `practice_settings`,
       tako da ih odgođeni slice Faze 10 samo proširuje (D-052, klauzula A.8).
 - [ ] **Ne uvodi se novi broj paketa i nijedan se ne renumeriše.**
+
+## Konkretan `TenantDatabaseService` facade — uslovno odgođen (D-056)
+
+**Ažurirano odlukom D-056 (2026-08-20).** Dispozicija: **`EXPLICITLY_DEFERRED`**.
+
+Konkretna klasa `TenantDatabaseService` **nije deliverable zatvaranja ove faze**. Ranije vlasništvo
+faze 4 nad **konkretnim facadeom** (D-047, klauzula 16; D-051, klauzula 5) je **nadiđeno**;
+odgođena je **isključivo konkretna klasa**, ne sigurnosna semantika.
+
+**Sigurnosni koncept ostaje kanonski i obavezan** (D-006; D-054, klauzula 5). Sigurnosnu semantiku
+koju koncept predstavlja tekući runtime na kanonskom `main`-u **već zadovoljava**, i to je dokazano
+trajnim testovima slice-eva P4-5B, P4-5R1, P4-5C i P4-5D:
+
+- jedan `PrismaService` i jedan `copilot_app` klijent;
+- **jedna** pinovana interaktivna transakcija po tenant zahtjevu;
+- tenant kontekst uspostavljen `set_request_context`-om **na toj istoj sesiji**;
+- kanonski D-047 redoslijed (`03` §3.7.1, koraci 1–11);
+- **nijedan** caller-supplied identitetski seam — `admit(session, request)`;
+- **nijedna** druga, ugniježdena ni paralelna transakcija;
+- **nijedan** izlazak iz transakcije;
+- tenant poslovne operacije **isključivo nakon** tenant admisije, pod RLS-om.
+
+**Nijedan sigurnosni zahtjev nije uklonjen, oslabljen ni označen završenim.** Živa obaveza za
+konkretan facade je **očuvana u §6 (Faza 5)**, po precedentu D-052.
+
+**Trigger je uslovan, ne fazni.** Obaveza se aktivira kada **stvarni tenant business
+repozitorij/modul zatraži tu apstrakciju**. Faza 5 je najranija **očekivana** takva faza jer je
+repozitorij već tako imenuje, ali dolazak broja faze sam po sebi obavezu **ne** stvara.
+
+U ovoj fazi provjerljivo je isključivo sljedeće:
+
+- [ ] Faza 4 **ne uvodi** konkretnu klasu `TenantDatabaseService`, ni kao stub, ni kao dummy.
+- [ ] Faza 4 **ne uvodi** drugi `PrismaClient`, drugi database sloj ni paralelan database stack.
+- [ ] Tenant database granica ostaje **jedna** pinovana interaktivna transakcija sa tenant
+      kontekstom uspostavljenim u njoj.
+- [ ] **Nijedan caller-supplied identitet** nije granica povjerenja ni na jednoj tenant ruti.
+- [ ] D-054, klauzule 6–10 **ostaju binding** i moraju biti ponovo dokazane prije prihvatanja bilo
+      kojeg budućeg konkretnog facadea.
 
 ## Proširenje D-048 allowliste — D-052, dio B
 
@@ -1829,9 +1918,10 @@ Klasifikacija je prihvaćena u D-045. **Za ove stavke se ne otvaraju implementac
 - [x] PracticeContext guard — **kao koncept**, realizovan `TenantRequestPipeline`-om za tekuću
       tenant rutu; **nije** NestJS `CanActivate` i ne smije to postati tamo gdje bi validirao
       tenant kontekst prije admisije korisnika (D-054, klauzule 2–4).
-- [ ] TenantDatabaseService — **koncept ostaje kanonski, konkretan facade nije implementiran** i
-      **ne označava se** završenim dok ga stvarni tenant business modul ne zatraži (D-054,
-      klauzule 5–10).
+- [ ] TenantDatabaseService — **`EXPLICITLY_DEFERRED` — D-056.** Koncept ostaje kanonski
+      (D-054, klauzula 5); **konkretan facade nije implementiran**, **ne označava se** završenim i
+      **nije deliverable zatvaranja ove faze**. Uvodi se tek kada ga stvarni tenant business modul
+      zatraži, uz ponovni dokaz D-054, klauzula 6–10. Živa obaveza je očuvana u §6.
 - [ ] RLS enabled.
 - [ ] FORCE RLS.
 
@@ -1958,11 +2048,125 @@ se dalje u svojim klasifikacijama; nijedno od njih **nije** bloker za P4-5D.
 | O6 | Recording test double ne modelira kompletno §17.6 membership visibility ponašanje | `HARDENING_BACKLOG` |
 | O7 | HTTP anti-enumeration jednakost se može ojačati set-wide | `HARDENING_BACKLOG` |
 
+## Prenesena zapažanja — P4-FC-GOV2
+
+Gate P4-FC-GOV2 (implementacija D-056) prenio je sljedeće zapažanje. **Nije bloker zatvaranja i ne
+rješava se u tom gateu** — izmjena `apps/**` nije bila ovlaštena (D-056, klauzula 22).
+
+| Zapažanje | Klasifikacija |
+|---|---|
+| Zastario komentar o `TenantDatabaseService`-u u `apps/api/src/database/database.module.ts` | `DOCUMENTATION_BACKLOG` |
+
+## Rubrik zatvaranja faze — D-056, dio C
+
+**Ovo je normativno pravilo zatvaranja faze u ovom repozitoriju.** Vrijedi za svaku fazu, a ovdje je
+zabilježeno jer ga je gate zatvaranja Faze 4 prvi zatražio. `11` §11 se čita kroz njega.
+
+```text
+ZERO_UNCHECKED_IS_NORMATIVE_REQUIREMENT   NO
+PHASE_CLOSURE_RULE                        UNRESOLVED_REQUIRED = 0
+```
+
+**Doslovno „nula neoznačenih kućica" NIJE pravilo.** Faza se smije zatvoriti kada je
+**`UNRESOLVED_REQUIRED = 0`**.
+
+Svaka checklist stavka koja pripada toj fazi mora biti **ili**:
+
+1. **`SATISFIED_BY_EVIDENCE`** — označena, uz **citiranu** komandu/test/dokaz prema `00` §14;
+
+**ili** nositi **eksplicitnu dispoziciju potkrijepljenu prihvaćenim autoritetom**:
+
+2. **`SUPERSEDED`**;
+3. **`HISTORICAL`**;
+4. **`NOT_APPLICABLE_IN_V1`**;
+5. **`EXPLICITLY_DEFERRED`**;
+6. **`FUTURE_SCOPE`**.
+
+Za svaku dispoziciju koja ostavlja **živu obavezu za kasniji obuhvat**, ta obaveza mora biti
+**očuvana/premještena u sekciju faze koja je posjeduje**, po **precedentu D-052**.
+
+Nijedan zahtjev se ne smije **tiho izbrisati**, **oslabiti**, **implicitno penzionisati** ni
+**proglasiti `N/A` samo zato da bi se faza zatvorila**.
+
+Stavka **bez dokaza** i **bez eksplicitne, autoritetom potkrijepljene dispozicije** je
+**`UNRESOLVED_REQUIRED`** i **blokira zatvaranje faze**. **Proizvoljna neoznačena rezidua nije
+dopuštena.**
+
+## Preostali gate zatvaranja Faze 4 — P4-013
+
+**Aplikacijska implementacija Faze 4 je kompletna i merged** (P4-5B, P4-5R1, P4-5C, P4-5D — PR #20,
+`3658c6e`). **Faza 4 ipak ostaje `IN_PROGRESS`**, jer preostaje jedan obavezan gate.
+
+**P4-013 retrospektivni evidence gate i dalje je obavezan.** Njegove činjenice su zamrznute
+(D-056, klauzula 20):
+
+```text
+P4_013_GATE_TYPE                               READ_ONLY_RETROSPECTIVE_EVIDENCE_AUDIT
+P4_013_CHECKLIST_ROWS_IN_SCOPE                 294
+  strogi DB/migration artefakt podskup         64
+  aplikacijski/permission/fixture/test ostatak 230
+P4_013_NEW_APPLICATION_IMPLEMENTATION_EXPECTED NO
+```
+
+**Taj gate se ovdje ne izvršava.** Uvođenje rubrika iz „Rubrik zatvaranja faze — D-056, dio C" **ne
+ovlašćuje** klasifikaciju, označavanje ni raspoređivanje tih 294 reda. Blok dokaza ispod se **ne
+popunjava** u ovom gateu.
+
+Evidence:
+
+```text
+P4-013 RETROSPECTIVE EVIDENCE AUDIT:  NOT STARTED — zaseban gate
+```
+
 ---
 
 # 6. Faza 5 — Encounter/documents
 
 Status: `NOT_STARTED`
+
+## Konkretan `TenantDatabaseService` facade — prenesena obaveza (D-056)
+
+**Premješteno iz Faze 4 odlukom D-056 (2026-08-20).** Ovo je **živa buduća obaveza**, ne odbačen
+zahtjev. Sigurnosni **koncept** tenant database facadea ostaje kanonski (D-006; D-054, klauzula 5),
+a njegovi invarijanti se **ne slabe**.
+
+**Trigger je uslovan, ne fazni.** Obaveza se aktivira **kada stvarni tenant business
+repozitorij/modul zatraži tu apstrakciju**. Faza 5 je **najranija očekivana** takva faza jer je
+repozitorij već tako imenuje, ali **dolazak broja faze sam po sebi obavezu ne stvara**; jednako,
+raniji tenant business modul obavezu aktivira **odmah**, u svojoj fazi.
+
+Kada se aktivira, konkretan facade mora **prije prihvatanja** dokazati sve niže navedeno. Lista je
+preuzeta iz D-054, klauzula 6–10 i D-056, klauzule 5 — **nijedan zahtjev nije uklonjen, oslabljen
+ni označen završenim**.
+
+- [ ] Facade **omotava postojeću** pinovanu sesijsku/transakcijsku granicu (`TenantRequestPipeline`)
+      — ne stvara novu.
+- [ ] Facade **ne posjeduje vlastiti `PrismaClient`** — runtime i dalje ima tačno jedan
+      `PrismaService` i tačno jedan `copilot_app` klijent (D-054, klauzula 7).
+- [ ] Facade **ne otvara drugu, ugniježdenu ni paralelnu** aplikacijsku transakciju
+      (D-054, klauzula 8).
+- [ ] Facade **ne postavlja `app.practice_id` prije** kanonskih provjera `practices.status` i
+      aktivnog membershipa (`03` §3.7.1, koraci 3–4; D-047, klauzula 10; D-054, klauzula 9).
+- [ ] Facade **ne prima caller-supplied identitet** i **nikada** ga ne tretira kao granicu
+      povjerenja — identitet dolazi isključivo iz `app.user_id` autentifikovanog admission/session
+      stanja (D-054, klauzula 10).
+- [ ] Facade **koristi postojeću** pinovanu transakciju/sesiju autentifikovanog zahtjeva
+      (D-054, klauzula 6).
+- [ ] `set_request_context` ostaje **unutar te iste** transakcije; tenant business komanda se
+      izvršava **tek nakon** uspostavljenog konteksta; bez konteksta vrijedi **default-deny**.
+- [ ] Facade ostaje **tanak** — **ne** postaje paralelan database stack (D-054, dio C.2).
+- [ ] **D-054, klauzule 6–10 su ponovo dokazane** trajnim testovima prije prihvatanja
+      (D-056, klauzula 5).
+
+Evidence:
+
+```text
+Trigger (tenant business modul):
+Implementacija:
+Test command:
+Test result:
+D-054 klauzule 6-10 ponovo dokazane:
+```
 
 ## Schema
 

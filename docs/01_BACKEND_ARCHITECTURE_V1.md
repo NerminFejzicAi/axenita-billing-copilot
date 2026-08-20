@@ -236,7 +236,10 @@ Ne smije postati "miscellaneous" folder za business logiku.
 ## 6.2 `database`
 
 - PrismaService;
-- TenantDatabaseService;
+- TenantDatabaseService — **kanonski facade koncept** tenant database granice. Konkretna klasa je
+  **uslovno odgođena (D-056, dio A)**: uvodi se tek kada stvarni tenant business modul zatraži tu
+  apstrakciju, i tada mora biti **tanak facade** nad postojećom pinovanom transakcijom, uz ponovni
+  dokaz D-054, klauzula 6–10. Do tada tu granicu nosi `TenantRequestPipeline`;
 - transaction helpers;
 - database health;
 - controlled raw SQL helpers.
@@ -514,6 +517,13 @@ Koristi se defense in depth:
 8. composite FK;
 9. integration test;
 10. audit.
+
+Slojevi 4 i 5 su **semantičke odgovornosti**, ne obavezna imena klasa (D-054, klauzule 2–5;
+D-056, dio A). Sloj 4 je faza tenant admisije i uspostave konteksta; sloj 5 je tenant database
+granica — jedan `PrismaService`, **jedna** pinovana interaktivna transakcija i `set_request_context`
+unutar nje. Na kanonskom `main`-u oba nosi `TenantRequestPipeline`. **Konkretna klasa
+`TenantDatabaseService` je uslovno odgođena** i postaje obavezna tek kada stvarni tenant business
+modul zatraži tu apstrakciju; nijedan sloj ovim nije uklonjen ni oslabljen.
 
 ## 10.1 Zašto RLS
 
@@ -826,7 +836,9 @@ Arhitektura je pravilno implementirana kada:
 - Axenita-specific DTO ne ulazi u core modele;
 - Tariff Engine se može zamijeniti mockom;
 - AI provider se može zamijeniti mockom;
-- tenant query ne može zaobići TenantDatabaseService u business modulima;
+- tenant query u business modulima ne može zaobići tenant database granicu — jednu pinovanu
+  interaktivnu transakciju sa uspostavljenim tenant kontekstom; tamo gdje business modul koristi
+  konkretan `TenantDatabaseService` facade, taj facade zadovoljava D-054, klauzule 6–10 (D-056);
 - RLS testovi prolaze;
 - HTTP command je odvojen od teškog workera;
 - approval snapshot je immutable;

@@ -71,7 +71,9 @@ prisma migrate deploy (D-050; docs/02 §26.3, docs/10 §7).
 Ne oslabljuj nijedan guard migracije 001.
 Ne mijenjaj primijenjene migracije.
 Ne resetuj bazu ili volume bez eksplicitne dozvole.
-Ne zaobilazi TenantDatabaseService za tenant podatke.
+Ne zaobilazi tenant database granicu za tenant podatke: jedna pinovana interaktivna transakcija sa
+tenant kontekstom uspostavljenim u njoj. To je sadržaj koncepta TenantDatabaseService; konkretna
+klasa je uslovno odgođena (D-056, dio A) i ne smije se izmisliti kao stub.
 Ne loguj medicinski sadržaj ili secrets.
 Ne označavaj zadatak završenim dok relevantni testovi ne prođu.
 Ne dodavaj nove API permisije ni endpointe.
@@ -526,7 +528,12 @@ Kreiraj:
 - effective-permission resolver;
 - PracticeContext guard;
 - X-Practice-ID validaciju kroz membership provjeru;
-- TenantDatabaseService sa Prisma interactive transactionom;
+- tenant database granicu sa Prisma interactive transactionom — jedan PrismaService, JEDNA pinovana
+  interaktivna transakcija, set_request_context unutar te iste transakcije, bez drugog klijenta,
+  bez ugniježdene ili paralelne transakcije i bez caller-supplied identiteta. KONKRETNA klasa
+  TenantDatabaseService NIJE deliverable ove faze — uslovno je odgođena (D-056, dio A) i uvodi se
+  tek kada stvarni tenant business modul zatraži tu apstrakciju, uz ponovni dokaz D-054
+  klauzula 6–10. NE kreiraj dummy klasu ni stub;
 - RLS pattern;
 - FORCE RLS;
 - A/B tenant integration test harness.
@@ -898,7 +905,10 @@ Vlasništvo faze i migration paketa (docs/02 §17.0):
 - generalizovani tenant endpoint authorization/enforcement pipeline — Faza 4, aplikacijski sloj,
   bez migration paketa;
 - set_request_context(p_practice_id uuid) — Faza 4, paket 013_rls_policies;
-- uspostava app.practice_id, PracticeContextGuard, TenantDatabaseService — Faza 4;
+- uspostava app.practice_id i tenant kontekst semantika — Faza 4;
+- PracticeContextGuard kao semantička odgovornost tenant admisije — Faza 4 (D-054, klauzule 2–4);
+- konkretan TenantDatabaseService facade — EXPLICITLY_DEFERRED (D-056), uslovno na stvarni tenant
+  business modul; najranije očekivano Faza 5, ali obaveza je uslovna, ne fazna;
 - set_user_context(p_user_id uuid) — Faza 3, paket 002_identity_and_practices; PREMJEŠTEN iz
   paketa 013 u paket 002 i već kreiran prije Faze 4, koja ga samo verifikuje i koristi
   (D-047, klauzula 17);
