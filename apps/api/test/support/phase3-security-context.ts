@@ -17,6 +17,18 @@ export const INSUFFICIENT_PRIVILEGE = '42501';
 /** SQLSTATE `object_not_in_prerequisite_state` — raised by the D-048 window assertions. */
 export const OBJECT_NOT_IN_PREREQUISITE_STATE = '55000';
 
+/**
+ * SQLSTATE `unique_violation` — the expected outcome of a duplicate role assignment
+ * (02 §22.2 `practice_membership_roles_membership_role_key`, D-038 clause 5).
+ */
+export const UNIQUE_VIOLATION = '23505';
+
+/**
+ * SQLSTATE `foreign_key_violation` — the expected outcome of a cross-practice role assignment
+ * (02 §22.2 `practice_membership_roles_membership_fk`, D-038).
+ */
+export const FOREIGN_KEY_VIOLATION = '23503';
+
 /** The disposable database created for this suite run. */
 export function securityDatabase(): DisposableDatabase {
   return disposableDatabaseUrls(inject('disposableDatabaseName'));
