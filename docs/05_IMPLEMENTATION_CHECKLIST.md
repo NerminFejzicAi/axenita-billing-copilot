@@ -10,14 +10,14 @@
 | Polje | Vrijednost |
 |---|---|
 | Current phase | Faza 1 — `DONE`; Ecosystem Compatibility Audit `DONE`; Faza 2 — `DONE`; **D-OPEN-011 decision gate — `DONE` (D-047 prihvaćen 2026-08-12)**; **D-047 dokumentaciona rekonsilijacija — `DONE`, merged u kanonski `main` (PR #7)**; **D-048–D-051 governance gate — `DONE`, merged u kanonski `main` (PR #10)**; **Faza 3 — `DONE`, merged u kanonski `main` (PR #12, merge commit `5c2786d`) (§4)**; **Faza 4 — `IN_PROGRESS`, otvorena (§5)**; **P4-5D je implementiran na grani `backend/04-practice-settings-patch`, PR #20 je `OPEN` i nije merged**; faza nije zatvorena |
-| Current branch | Faza 3 je merged u kanonski `main`; implementacijski branch `backend/03-identity-practices` (tehnička implementacija HEAD, Gate 3E = `9f60d32c66023c4aad5ac34df267658ddfe5d6b1`; zatvarački dokumentacioni checkpoint = `2c7d7778a9ec1dae92fd0a5683d1f4afc7b36950`; završni head prije merge-a = `5c1699a0ea4d98e2f540c6e8cd9ae84997896a42`) je time potrošen. **Trenutni kanonski remote `main` = `origin/main` = `5c2786d689b50f73f49bfca52d2335ea50ee52c2`** (PR #12). Historijski: `251544f0b10abb00ee818f1ff5183c95b0ed0d03` (PR #11, kanonski `main` neposredno prije merge-a Faze 3) i `65e2552e13520ead86092f75ca3cc75d206b9f35` (PR #10) |
+| Current branch | Faza 3 je merged u kanonski `main`; implementacijski branch `backend/03-identity-practices` (tehnička implementacija HEAD, Gate 3E = `9f60d32c66023c4aad5ac34df267658ddfe5d6b1`; zatvarački dokumentacioni checkpoint = `2c7d7778a9ec1dae92fd0a5683d1f4afc7b36950`; završni head prije merge-a = `5c1699a0ea4d98e2f540c6e8cd9ae84997896a42`) je time potrošen. **Trenutni kanonski remote `main` = `origin/main` = `0866e530b6086e7dba7f0bc0d98b19eee69ee0d5`** (PR #19). Implementacijski branch Faze 4 `backend/04-practice-settings-patch` nosi slice P4-5D; PR #20 je `OPEN` i **nije** merged, pa ta grana **nije** kanonski `main`. Historijski: `5c2786d689b50f73f49bfca52d2335ea50ee52c2` (PR #12, kanonski `main` po zatvaranju Faze 3), `251544f0b10abb00ee818f1ff5183c95b0ed0d03` (PR #11, kanonski `main` neposredno prije merge-a Faze 3) i `65e2552e13520ead86092f75ca3cc75d206b9f35` (PR #10) |
 | Last completed phase | Faza 3 — Identity & Practices, `DONE` (posljednja faza merged u kanonski `main`, PR #12, `5c2786d`). Tekuća faza: Faza 4 — Tenant/RLS, `IN_PROGRESS` (§5); nije zatvorena — P4-5D je implementiran na grani `backend/04-practice-settings-patch`, PR #20 nije merged |
-| Last commit | `c4b89d0` (Phase 2 implementation), merged via `dae9649`; dokumentarno zatvaranje `98910b3`, merged via `d6b5efe`; D-047 rekonsilijacija `76dbc6d` + `dda7538`, merged via `ec7d100` (PR #7); dokumentaciona usklađivanja merged via `2befadc` i `5d38ba8` (PR #8, PR #9); D-048–D-051 rekonsilijacija `b2a99ce`, merged via `65e2552` (PR #10); dokumentaciono zatvaranje governancea merged via `251544f` (PR #11); **Faza 3 — sedam commitova branča `backend/03-identity-practices` (Gate 3A–3E, tehnička implementacija `HEAD` = `9f60d32`; zatvarački dokumentacioni checkpoint `2c7d777`; korekcija reference kanonskog `main`-a `5c1699a`), merged via `5c2786d` (PR #12) — to je **trenutni** kanonski `main`** (§4, „Gate checkpointi Faze 3") |
+| Last commit | `c4b89d0` (Phase 2 implementation), merged via `dae9649`; dokumentarno zatvaranje `98910b3`, merged via `d6b5efe`; D-047 rekonsilijacija `76dbc6d` + `dda7538`, merged via `ec7d100` (PR #7); dokumentaciona usklađivanja merged via `2befadc` i `5d38ba8` (PR #8, PR #9); D-048–D-051 rekonsilijacija `b2a99ce`, merged via `65e2552` (PR #10); dokumentaciono zatvaranje governancea merged via `251544f` (PR #11); **Faza 3 — sedam commitova branča `backend/03-identity-practices` (Gate 3A–3E, tehnička implementacija `HEAD` = `9f60d32`; zatvarački dokumentacioni checkpoint `2c7d777`; korekcija reference kanonskog `main`-a `5c1699a`), merged via `5c2786d` (PR #12)** (§4, „Gate checkpointi Faze 3"); **trenutni kanonski `main` = `origin/main` = `0866e530b6086e7dba7f0bc0d98b19eee69ee0d5` (PR #19)**; PR #20 (slice P4-5D) je `OPEN` i nije merged |
 | Local environment owner | Nermin Fejzic |
 | Test DB | `copilot_test` @ `localhost:5433` (compose profil `test`); dokazi Faze 3 nad realnim PostgreSQL-om rade na **jednokratnim** bazama `copilot_gate3b_<suffix>` @ `localhost` |
 | Documentation version | 1.0 |
-| Last updated | 2026-08-16 |
-| **Faza 3** | **`PHASE 3 STATUS: DONE`** — zatvaranje je merged u kanonski `main`. Tehnička implementacija je bila kompletna **prije** merge-a, `TECHNICAL_IMPLEMENTATION_MISSING = 0`. Gate 3A–3E su commitovani, reviewovani i pushovani na `origin/backend/03-identity-practices`; tehnička implementacija HEAD (Gate 3E) = `9f60d32c66023c4aad5ac34df267658ddfe5d6b1`, zatvarački dokumentacioni checkpoint = `2c7d7778a9ec1dae92fd0a5683d1f4afc7b36950`. **PR #12 `feat(identity): complete Phase 3 identity and practices` — `MERGED` 2026-08-16T00:15:08Z; normalan merge commit `5c2786d689b50f73f49bfca52d2335ea50ee52c2` je trenutni kanonski `main`.** Time je ispunjen uslov da je `DONE` rezervisan za zatvaranje merged u kanonski `main`. Governance bloker D-048–D-051 bio je `RESOLVED` merge-om PR #10 (`65e2552`, 2026-08-15T00:50:43Z) **prije** nastavka implementacije — vidi §3b |
+| Last updated | 2026-08-20 |
+| **Faza 3** | **`PHASE 3 STATUS: DONE`** — zatvaranje je merged u kanonski `main`. Tehnička implementacija je bila kompletna **prije** merge-a, `TECHNICAL_IMPLEMENTATION_MISSING = 0`. Gate 3A–3E su commitovani, reviewovani i pushovani na `origin/backend/03-identity-practices`; tehnička implementacija HEAD (Gate 3E) = `9f60d32c66023c4aad5ac34df267658ddfe5d6b1`, zatvarački dokumentacioni checkpoint = `2c7d7778a9ec1dae92fd0a5683d1f4afc7b36950`. **PR #12 `feat(identity): complete Phase 3 identity and practices` — `MERGED` 2026-08-16T00:15:08Z; normalan merge commit `5c2786d689b50f73f49bfca52d2335ea50ee52c2` je time postao kanonski `main` (historijski; trenutni kanonski `main` je `0866e530b6086e7dba7f0bc0d98b19eee69ee0d5`, PR #19).** Time je ispunjen uslov da je `DONE` rezervisan za zatvaranje merged u kanonski `main`. Governance bloker D-048–D-051 bio je `RESOLVED` merge-om PR #10 (`65e2552`, 2026-08-15T00:50:43Z) **prije** nastavka implementacije — vidi §3b |
 
 ---
 
@@ -413,8 +413,9 @@ kada su se pojavila četiri governance pitanja koja dokumentacija nije rješaval
 - [x] Verifikacija kanonskog `main` nakon merge-a — **PASS**; u tom historijskom trenutku
       (2026-08-15T00:50:43Z) `main` = `origin/main` =
       `65e2552e13520ead86092f75ca3cc75d206b9f35`; MANIFEST integritet 19/19 bez odstupanja.
-      *(Kanonski `origin/main` je otada pomjeren dvaput — na `251544f0b10abb00ee818f1ff5183c95b0ed0d03`
-      merge-om PR #11, pa na `5c2786d689b50f73f49bfca52d2335ea50ee52c2` merge-om PR #12 (Faza 3);
+      *(Kanonski `origin/main` je otada pomjeren više puta — na `251544f0b10abb00ee818f1ff5183c95b0ed0d03`
+      merge-om PR #11, pa na `5c2786d689b50f73f49bfca52d2335ea50ee52c2` merge-om PR #12 (Faza 3), a
+      trenutni kanonski `origin/main` je `0866e530b6086e7dba7f0bc0d98b19eee69ee0d5` (PR #19);
       ovaj red bilježi stanje u trenutku merge-a PR #10.)*
 
 ## Stanje implementacije Faze 3
@@ -464,8 +465,8 @@ CANONICAL MAIN (PR #10, historijski):
                      65e2552e13520ead86092f75ca3cc75d206b9f35 — VERIFIED
 CANONICAL MAIN (PR #11, historijski — neposredno prije merge-a Faze 3):
                      251544f0b10abb00ee818f1ff5183c95b0ed0d03
-CURRENT CANONICAL REMOTE MAIN:
-                     5c2786d689b50f73f49bfca52d2335ea50ee52c2 (PR #12)
+CANONICAL MAIN (PR #12, historijski — po zatvaranju Faze 3):
+                     5c2786d689b50f73f49bfca52d2335ea50ee52c2
 GOVERNANCE BLOCKER:  RESOLVED
 PHASE 3 IMPLEMENTATION: AUTHORIZED
 PHASE 3 STATUS:      DONE (§4)
@@ -533,8 +534,8 @@ Mehanički provjereno: tehnička implementacija HEAD (Gate 3E) =
 `9f60d32c66023c4aad5ac34df267658ddfe5d6b1`; tadašnji kanonski `main` `65e2552` je predak Gatea 3A,
 a kanonski `main` neposredno prije merge-a Faze 3, `251544f0b10abb00ee818f1ff5183c95b0ed0d03`
 (PR #11), bio je predak branch `HEAD`-a. Svih sedam commitova branča — pet Gate checkpointa plus
-dva zatvaračka dokumentaciona commita (`2c7d777`, `5c1699a`) — očuvano je merge-om PR #12; trenutni
-kanonski `origin/main` je merge commit `5c2786d689b50f73f49bfca52d2335ea50ee52c2`.
+dva zatvaračka dokumentaciona commita (`2c7d777`, `5c1699a`) — očuvano je merge-om PR #12; kanonski
+`origin/main` je time postao merge commit `5c2786d689b50f73f49bfca52d2335ea50ee52c2` (historijski).
 
 | Gate | Puni SHA | Commit | Obuhvat |
 |---|---|---|---|
@@ -1071,7 +1072,7 @@ MERGE COMMIT:                      5c2786d689b50f73f49bfca52d2335ea50ee52c2
   parent 1:                        251544f0b10abb00ee818f1ff5183c95b0ed0d03 (PR #11, main prije merge-a)
   parent 2:                        5c1699a0ea4d98e2f540c6e8cd9ae84997896a42 (head Faze 3)
   dva parenta:                     VERIFIKOVANO; svih sedam commitova Faze 3 očuvano
-CURRENT CANONICAL REMOTE MAIN:     5c2786d689b50f73f49bfca52d2335ea50ee52c2 (PR #12) — VERIFIED
+KANONSKI MAIN PO MERGE-U (PR #12): 5c2786d689b50f73f49bfca52d2335ea50ee52c2 — VERIFIED (historijski)
 HISTORIJSKI MAIN (PR #11):         251544f0b10abb00ee818f1ff5183c95b0ed0d03
 HISTORIJSKI MAIN (PR #10):         65e2552e13520ead86092f75ca3cc75d206b9f35
 DEV DB copilot @ 5432:             migracija 001 primijenjena, 002 nije — operaterski korak,
@@ -1086,7 +1087,7 @@ validacija 639 testova / 0 failed) → normalan merge u kanonski `main` → veri
 merge-a — čime je Faza 3 prešla iz `IN_PROGRESS` u `DONE`. Faza 3 je time **i tehnički završena i
 zatvorena u kanonskom `main`-u**.
 
-Verifikacija kanonskog `main`-a nakon merge-a — **PASS**: `origin/main` =
+Verifikacija kanonskog `main`-a nakon merge-a — **PASS**: `origin/main` je tada bio
 `5c2786d689b50f73f49bfca52d2335ea50ee52c2`; merge commit ima tačno dva parenta
 (`251544f`, `5c1699a`); MANIFEST integritet 19/19 bez odstupanja. `DONE` označava lifecycle
 zatvaranje faze u repozitoriju, **ne** produkcijsku spremnost: OpenAPI ostaje Faza 12,
