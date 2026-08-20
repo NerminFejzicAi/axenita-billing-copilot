@@ -3969,6 +3969,17 @@ Budući merge SHA **ove** governance grane se **ne pogađa i ne upisuje**.
 Ova odluka **ne zatvara** fazu 4 i **ne označava** je `DONE`. Nakon nje faza 4 ostaje
 **`IN_PROGRESS`**, jer je preostao još jedan obavezan gate.
 
+**Anotacija (D-059, 2026-08-21) — tijelo klauzule se ne mijenja.** Gornja tvrdnja je
+**istinita za trenutak D-056** i ostaje historijski zapis: ova odluka zaista nije zatvorila
+fazu 4. Najavljeni preostali gate `P4-013` je u međuvremenu **`COMPLETE`**, a zaseban,
+vlasnički pregledan gate zatvaranja je **izvršen** odlukom **D-059**:
+
+```text
+PHASE_4_STATUS   IN_PROGRESS -> DONE   (D-059, 2026-08-21)
+```
+
+**Rubrik iz dijela C se ne mijenja** — D-059 ga **primjenjuje**, ne prepisuje. Vidi **D-059**.
+
 ### E.2 Klauzula 20 — preostali gate `P4-013`
 
 Preostali obavezan gate zatvaranja faze 4 je **retrospektivni evidence audit `P4-013`**, čije su
@@ -4779,6 +4790,20 @@ P4_013_STATUS         COMPLETE
 PHASE_4_STATUS        IN_PROGRESS     (zatvaranje je zaseban vlasnicki gate)
 ```
 
+**Anotacija (D-059, 2026-08-21) — ni tijelo odluke ni gornja anotacija se ne mijenjaju.**
+Najavljeni zaseban vlasnički gate zatvaranja je **izvršen**; `PHASE_4_STATUS` iz gornjeg
+bloka je **historijska vrijednost trenutka `P4-013B`**, a tekuće stanje je:
+
+```text
+PHASE_4_STATUS        DONE            (D-059, 2026-08-21)
+PHASE_5_STATUS        NOT_STARTED
+PHASE_10_STATUS       NOT_STARTED
+```
+
+Dispozicije ove odluke — `R267`–`R272` (`FUTURE_SCOPE`, Faza 10) i `R303`
+(`SATISFIED_BY_EVIDENCE`, Faza 4) — D-059 **ne preispituje i ne mijenja**; te obaveze
+**ostaju žive** u Fazi 10 i zatvaranjem Faze 4 **nisu retirirane**. Vidi **D-059**.
+
 Dispozicije `R267`–`R272` (`FUTURE_SCOPE`, Faza 10) i `R303` (`SATISFIED_BY_EVIDENCE`, Faza 4) iz
 ove odluke su u `P4-013B` **primijenjene doslovno i nepromijenjeno**; `P4-013B` ih **ne
 preispituje**.
@@ -4821,6 +4846,217 @@ ova odluka ih **primjenjuje**.
 ## Zavisnosti
 
 D-016, D-038, **D-041**, D-045, D-046, **D-052**, **D-056**, **D-057**.
+
+---
+
+# D-059 — Formalno zatvaranje Faze 4
+
+- **Status:** ACCEPTED
+- **Datum:** 2026-08-21
+- **Tip:** governance odluka o zatvaranju faze. **Dokumentacija isključivo.**
+- **Amandman na:** **nijednu odluku.** Ova odluka **primjenjuje** rubrik D-056, dio C na Fazu 4 i
+  **evidentira lifecycle prelazak**. **Nijedna klauzula D-056, D-057 ni D-058 se ne dira, ne
+  slabi, ne opoziva ni ne prepisuje**, i **nijedna dispozicija reda `P4-013` se ne preispituje.**
+- **Vlasnička ratifikacija:** vlasnik je prihvatio finalni **read-only** audit zatvaranja Faze 4 i
+  donio ruling: **„Faza 4 je autorizovana za formalno zatvaranje."**
+
+## Kontekst/problem — trigger
+
+Finalni **read-only** audit zatvaranja Faze 4, izvršen nad kanonskim `main`-om
+`9b8fcdd21a51935b7cc6cd810e0e91e44ec281e3`, vratio je:
+
+```text
+PHASE4_FINAL_CLOSURE_AUDIT_PASS
+PHASE4_READY_FOR_FORMAL_CLOSURE   YES
+```
+
+Taj audit **nije napravio nijednu izmjenu repozitorija**. Time je nestao posljednji uslov koji su
+D-056, klauzula 19 i `P4-013B` držali otvorenim: **završetak `P4-013` je bio nužan, ali ne i
+dovoljan** — sam prelazak `IN_PROGRESS → DONE` bio je rezervisan za **zaseban, vlasnički pregledan
+gate**. Ova odluka je taj gate.
+
+## Odluka
+
+# Dio A — autoritet zatvaranja
+
+Zatvaranje se oslanja **isključivo** na već prihvaćene autoritete; nijedan novi rubrik se ne uvodi:
+
+- **D-056, dio C** — normativni rubrik zatvaranja faze: faza se smije zatvoriti kada je
+  `UNRESOLVED_REQUIRED = 0`, uz očuvanje živih obaveza (klauzula 12) i zabrane iz klauzule 13;
+- **D-057** — kanonski **strukturni** obuhvat gatea `P4-013` (klauzule 3–6): **398** redova;
+- **D-058** — vlasništvo faza za odobravanje/opoziv i dispozicija sedam redova;
+- **`P4-013B`** — kanonska rekonsilijacija dokumentacije, merged kroz **PR #24**;
+- **finalni read-only audit zatvaranja** — `PASS`.
+
+# Dio B — konačno računovodstvo Faze 4
+
+Preuzeto iz `P4-013B` i **ponovo potvrđeno**, ne ponovo izvedeno. Puni ledger od 398 redova se
+**ne reprodukuje** ovdje; kanonski je u `05` §5.
+
+```text
+TOTAL_ROWS                  398
+
+SATISFIED_BY_EVIDENCE       375
+HISTORICAL                    1
+NOT_APPLICABLE_IN_V1          8
+EXPLICITLY_DEFERRED           2
+FUTURE_SCOPE                 12
+SUPERSEDED                    0
+UNRESOLVED_REQUIRED           0
+                            ---
+                            398
+
+SECURITY_CLOSURE_BLOCKERS     0
+OPEN_PHASE4_BLOCKERS          0
+SILENT_RETIREMENTS            0
+TARGET_OWNERS_VERIFIED      YES   (R267-R272 -> 6 doslovnih redova u Fazi 10, 1:1)
+```
+
+# Dio C — sigurnosni dokaz
+
+Pointeri, **bez reprodukcije logova**:
+
+```text
+P4-013V-A             pnpm test:security   570 / 570 PASS   (SHA 4b48a008)
+P4-013V-B / PR #23    pnpm test:security   579 / 579 PASS   (evidence commit 111d91d;
+                                                             kanonski merge 58f83d49)
+```
+
+`R373` (`ALL RLS TESTS GREEN — required before phase 5`) je bio **jedini**
+`SECURITY_CLOSURE_BLOCKER`; zatvoren je u `P4-013V-A`, čime je
+`SECURITY_CLOSURE_BLOCKERS 1 -> 0`.
+
+# Dio D — vlasnički ruling i status faze
+
+### D.1 Klauzula 1 — prelazak statusa
+
+```text
+PHASE_4_STATUS   IN_PROGRESS -> DONE
+```
+
+`DONE` je **postojeći kanonski status završene faze** ovog repozitorija (`05` §0: `NOT_STARTED`,
+`IN_PROGRESS`, `BLOCKED`, `DONE`), isti koji nose Faze 1–3. **Nijedna nova statusna riječ se ne
+uvodi.**
+
+### D.2 Klauzula 2 — `DONE` je rezervisani lifecycle status
+
+Kao što je `05` §4 utvrdio za Fazu 3, `DONE` je u ovom repozitoriju **rezervisan za lifecycle
+zatvaranja merged u kanonski `main`**. Ova odluka nastaje na **zatvaračkoj grani** i **postaje
+kanonska merge-om te grane u `origin/main`**, tačno po presedanu Faze 3 (`9af070d`, zatvaranje
+nakon merge-a PR #12). Do tog merge-a zapis je **vlasnički odobren, ali ne još kanonski**.
+
+### D.3 Klauzula 3 — šta `DONE` ne tvrdi
+
+`DONE` Faze 4 **ne** znači produkcijsku spremnost, **ne** znači pilot readiness i **ne**
+autorizuje nijednu narednu fazu.
+
+# Dio E — buduće obaveze se ne retiriraju
+
+### E.1 Klauzula 4 — zatvaranje ne zadovoljava nijednu odgođenu obavezu
+
+Zatvaranje Faze 4 **ne retirira, ne zadovoljava i ne slabi** nijednu `FUTURE_SCOPE` ni
+`EXPLICITLY_DEFERRED` obavezu. Sve ostaju **žive i u vlasništvu svojih kanonskih budućih faza**:
+
+- konkretan **`TenantDatabaseService` facade** (`R9`, `R320`) — `EXPLICITLY_DEFERRED` (D-056, dio
+  A); trigger je **uslovan, ne fazni**; najranije očekivano Faza 5 (`05` §6);
+- **`R267`–`R272`** — `FUTURE_SCOPE`, **Faza 10**, doslovno preuzeti redovi (D-058, kl. 3–4, 8–9);
+- **rezidua `R303` na nivou rute** — zaseban red **Faze 10** (D-058, kl. 6). Sam `R303` ostaje
+  `SATISFIED_BY_EVIDENCE` u Fazi 4 i njegova dispozicija se **ne mijenja** (D-058, kl. 5);
+- **`R314`–`R318`** i **`R370`** — `FUTURE_SCOPE`; **`R306`–`R313`** — `NOT_APPLICABLE_IN_V1`
+  (D-045).
+
+### E.2 Klauzula 5 — `SILENT_RETIREMENTS = 0` ostaje mjerljivo
+
+Registar dispozicija u `05` §5 i ciljni redovi Faze 10 ostaju **nepromijenjeni ovom odlukom**.
+Ovaj gate **nije dodao, uklonio ni označio nijednu checklist kućicu**.
+
+# Dio F — granica prema Fazi 5
+
+### F.1 Klauzula 6 — Faza 5 ostaje `NOT_STARTED`
+
+```text
+PHASE_5_STATUS    NOT_STARTED
+PHASE_10_STATUS   NOT_STARTED
+```
+
+Ova odluka zatvara **isključivo** Fazu 4. **Ne autorizuje** implementaciju Faze 5, ne otvara njen
+branch, ne izvršava njen prompt (`07`, „Prompt — Faza 5") i **ne označava nijednu njenu kućicu**.
+Pokretanje Faze 5 je **zaseban gate**.
+
+# Dio G — konačnost
+
+### G.1 Klauzula 7 — nema otvorene remedijacije
+
+Nijedna Faza-4 implementacijska remedijacija nije otvorena: `OPEN_PHASE4_BLOCKERS = 0`.
+
+### G.2 Klauzula 8 — zatvaranje se ne otvara tiho
+
+Svaka buduća izmjena **završenog ponašanja Faze 4** traži **novu, eksplicitnu
+odluku/governance putanju**. Ovaj zapis zatvaranja se **ne reinterpretira i ne otvara tiho**, i
+**ne smije** se koristiti kao autoritet za promjenu dispozicija `P4-013`.
+
+## Razlog
+
+Rubrik D-056, dio C je ispunjen i **izmjeren**, ne pretpostavljen: obuhvat je kanonski (D-057),
+svih 398 redova nosi ili dokaz ili autoritetom potkrijepljenu dispoziciju, `UNRESOLVED_REQUIRED` i
+`SECURITY_CLOSURE_BLOCKERS` su nula, a žive obaveze su **premještene, ne izbrisane**. Držati fazu
+`IN_PROGRESS` nakon toga značilo bi da rubrik zatvaranja nema izlaz — što bi ga učinilo
+neupotrebljivim.
+
+## Alternative
+
+- **Ostaviti Fazu 4 `IN_PROGRESS`** — odbijeno: svi uslovi rubrika D-056, dio C su ispunjeni i
+  izmjereni; status bi prestao da nosi informaciju.
+- **Uvesti novi status `CLOSED`** — odbijeno: `05` §0 zamrzava rječnik na `NOT_STARTED`,
+  `IN_PROGRESS`, `BLOCKED`, `DONE`; dvije riječi za isto stanje su governance šum.
+- **Zatvoriti Fazu 4 i istovremeno autorizovati Fazu 5** — odbijeno: to su **dva** gatea; spajanje
+  bi ponovilo grešku koju D-056, klauzula 13 zabranjuje u drugom obliku.
+- **Zatvoriti i proglasiti odgođene obaveze zadovoljenim** — odbijeno: to je tačno tiho
+  penzionisanje iz D-056, klauzule 13.
+- **Prepisati D-056/D-057/D-058 kao da je Faza 4 oduvijek bila zatvorena** — odbijeno: `06`
+  zabranjuje tihu izmjenu prihvaćene odluke; koristi se **anotacija**, po presedanu D-057 i
+  `P4-013B`.
+
+## Posljedice
+
+- **Faza 4 je `DONE`**; posljednja završena faza u `05` §0 je sada Faza 4.
+- `P4-013` ostaje **`COMPLETE`**; nijedna njegova dispozicija nije dirnuta.
+- **Faza 5 i Faza 10 ostaju `NOT_STARTED`**; broj označenih kućica u obje je **nepromijenjen**.
+- Odgođene i buduće obaveze ostaju **žive** u svojim fazama.
+- Naredni korak je **vlasnički pregled → objava grane → PR → merge → kanonska post-merge
+  atestacija**; tek merge čini `DONE` kanonskim.
+
+## Security/privacy uticaj
+
+**Nijedan sigurnosni zahtjev nije uklonjen, oslabljen ni označen završenim.** Zatvaranje je
+evidencijski čin nad već dokazanim stanjem: `SECURITY_CLOSURE_BLOCKERS = 0` je **izmjeren**
+(`P4-013V-A`, `P4-013V-B`), a ne pretpostavljen. Sigurnosni preduslovi Faze 4 — tenant izolacija,
+RLS i `FORCE RLS`, pinovana transakcijska granica sa `set_request_context`, odbijanje neaktivnog
+membershipa, cross-practice i cross-user izolacija i `403` pri isključenom flagu — ostaju
+**obavezni i dokazani**, i **ne smiju se oslabiti** pozivom na zatvorenost faze.
+
+## Migration/rollout
+
+**Dokumentacija isključivo.** Nema aplikacijskih, test, fixture, schema, migracionih, seed ni
+permission promjena, i nijedna implementaciona komanda nije izvršena. Zahvaćeni su
+`docs/05_IMPLEMENTATION_CHECKLIST.md`, `docs/06_DECISION_LOG.md` i `MANIFEST.md`.
+
+## Test dokaz
+
+**Nijedan novi test se ne uvodi i nijedan se ne izvršava u ovom gateu.** Dokaz su **postojeći,
+već izvršeni i citirani** rezultati iz dijela C (`570 / 570` i `579 / 579` PASS) i mehanička
+provjera računovodstva iz dijela B nad kanonskim `05` §5.
+
+## Supersedes
+
+**Ne supersedira nijednu odluku.** D-056, D-057 i D-058 ostaju **na snazi u cijelosti** i
+**nadređeni** su ovoj odluci; ona ih **primjenjuje**. Njihova tijela se **ne prepisuju** —
+dodaje se isključivo **anotacija tekućeg statusa**, po presedanu D-057 (nad D-056) i `P4-013B`
+(nad D-058).
+
+## Zavisnosti
+
+D-041, D-045, D-052, D-053, D-054, D-055, **D-056**, **D-057**, **D-058**.
 
 ---
 
