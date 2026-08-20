@@ -3985,6 +3985,19 @@ P4_013_NEW_APPLICATION_IMPLEMENTATION_EXPECTED NO
 Taj gate je **odvojen** i **ne izvršava se** ovom odlukom. Uvođenje rubrika iz dijela C **ne
 ovlašćuje** klasifikaciju ni označavanje tih 294 reda.
 
+**Anotacija (D-057, 2026-08-20) — nadiđena su isključivo polja obuhvata.** Zamrznuti blok iznad
+**ostaje historijski zapis i ne prepisuje se**, ali je **operativno nadiđen odlukom D-057**:
+`P4_013_CHECKLIST_ROWS_IN_SCOPE = 294` i podjela `64 / 230` **više nisu** obuhvat gatea `P4-013`.
+Broj **294** odgovara `docs/05` na commitu **`258f646`** i bio je zastario **već pri usvajanju ove
+odluke** — revizija koja je uvodi (`9b8ebc1`) nosi **398** checklist redova Faze 4. Obuhvat je
+**rebaziran na kanonski HEAD** i definisan **strukturnim pravilom** (D-057, klauzule 3–6), a fiksna
+binarna podjela `64 / 230` je **povučena kao ne-normativna auditorska pogodnost** (D-057, klauzule
+7–10) jer nije imala zapisano pravilo izvođenja i ne ulazi ni u jednu invarijantu zatvaranja. Isto
+vrijedi za svako spominjanje „**294 reda**" u klauzuli 21 i u sekciji *Alternative* ove odluke.
+**Nijedna druga klauzula ove odluke nije dirnuta**; `P4_013_GATE_TYPE`,
+`P4_013_NEW_APPLICATION_IMPLEMENTATION_EXPECTED = NO` i `UNRESOLVED_REQUIRED = 0` iz dijela C
+ostaju **nepromijenjeni**. Vidi **D-057**.
+
 # Dio F — obuhvat izvan ove odluke
 
 ### F.1 Klauzula 21 — šta ova odluka izričito ne radi
@@ -4083,6 +4096,342 @@ D-053, D-054 i D-055 se **ne prepisuju**; anotacije stoje izvan njih.
 ## Zavisnosti
 
 D-006, D-023, D-033, D-038, D-046, D-047, D-049, D-051, **D-052**, D-053, **D-054**, **D-055**.
+
+---
+
+# D-057 — Rebaziranje obuhvata `P4-013` na kanonsku Fazu 4 i pravilo izvođenja obuhvata
+
+- **Status:** ACCEPTED
+- **Datum:** 2026-08-20
+- **Amandman na:** **D-056, klauzulu 20** (dio E.2) — **isključivo** u poljima obuhvata
+  `P4_013_CHECKLIST_ROWS_IN_SCOPE = 294`, `strogi DB/migration artefakt podskup = 64` i
+  `aplikacijski/permission/fixture/test ostatak = 230`, te u svakom tekstu D-056 koji te brojeve
+  **operativno zahtijeva** (klauzula 21 i sekcija *Alternative*). **Nijedna druga klauzula D-056
+  se ne dira i ne slabi.** Rubrik zatvaranja faze (D-056, dio C), uslovno odgađanje konkretnog
+  `TenantDatabaseService` facadea (dio A), autorizovani `304` (dio B; D-055) i model kanonskog
+  pokazivača (dio D) ostaju **nepromijenjeni i nadređeni**.
+- **Vlasnička ratifikacija:** vlasnik je u gateu **P4-013-SCOPE** izabrao **OPCIJU 1 —
+  rebaziranje obuhvata `P4-013` na kanonski HEAD**. Ovaj zapis tu odluku **implementira**, ne
+  izvodi.
+
+## Kontekst/problem — zastario obuhvat je zaustavio audit
+
+### Trigger
+
+Prvi pokušaj retrospektivnog evidence audita, gate **`P4-013A`**, zaustavljen je **prije ijedne
+klasifikacije reda**, sa verdiktom:
+
+```text
+P4_013A_VERDICT = P4_013A_HOLD
+BLOCKER         = P4_013_SCOPE_RECONCILIATION_FAILURE
+```
+
+Razlog: D-056, klauzula 20 zamrzava obuhvat od **294** reda, dok kanonska Faza 4 na `main`-u nosi
+**398** checklist redova. Audit nad zamrznutim obuhvatom koji na kanonskom stablu ne postoji ne bi
+bio ni potpun ni reproducibilan, a tiho bi ispustio **104** živa zahtjeva.
+
+### Uzrok — mehanička rekonstrukcija
+
+Brojanje Faze 4 kroz historiju `docs/05_IMPLEMENTATION_CHECKLIST.md` daje:
+
+```text
+258f646  docs(governance): record D-052 and reconcile Phase-4 scope        294
+bba5092  docs(governance): record D-053 and freeze Phase-4 settings        345   (+51)
+41570d2  docs(governance): reconcile Phase 4 tenant context orchestration  355   (+10)
+b976346  docs(governance): freeze settings patch concurrency contract      379   (+24)
+f3ae77f  docs(governance): reconcile Phase 4 checklist with PATCH slice    393   (+14)
+9b8ebc1  docs(governance): adopt Phase 4 closure authority  (D-056)        398   (+5)
+```
+
+Broj **294** odgovara `docs/05` na commitu **`258f646`** (rekonsilijacija obuhvata uz D-052).
+**Revizija koja uvodi samu D-056 (`9b8ebc1`) već nosi 398 redova.** Broj 294 je, dakle, bio
+zastario **u trenutku usvajanja D-056** — nije postao zastario naknadno. Prenesen je iz ranije
+rekonsilijacije bez ponovnog mjerenja.
+
+Rast od **+104** reda **nije odbaciva buka**. Nose ga zamrzavanje settings ugovora (D-053),
+rekonsilijacija orkestracije tenant konteksta, zamrzavanje `PATCH` concurrency ugovora (D-055),
+rekonsilijacija **implementiranog i merged** `PATCH` slicea (P4-5D, PR #20) i sama D-056. To je
+**živi Faza-4 materijal**: tenant/RLS, `practice_settings` RLS i runtime put, autorizacija i
+dokazi merged slice-eva.
+
+### Uzrok — podjela bez pravila
+
+**Za podjelu `64 / 230` u repozitoriju ne postoji zapisano pravilo izvođenja.** Ni D-056 ni ijedan
+raniji zapis ne navode koje sekcije, redovi ili kriteriji čine „strogi DB/migration artefakt
+podskup". Podjela je neizvediva i neprovjerljiva kakva jeste.
+
+## Odluka
+
+# Dio A — obuhvat `P4-013` je kanonska Faza 4
+
+### Klauzula 1
+
+`P4-013` auditira **kanonsku Fazu 4 na `main`-u**, a ne historijski snapshot. Obuhvat se
+**rebazira** na kanonski HEAD.
+
+### Klauzula 2
+
+**Nijedan zahtjev Faze 4 ne smije izbjeći retrospektivni audit** samo zato što je dodan nakon
+snapshota od 294 reda. **Tiho isključenje živog reda iz obuhvata je zabranjeno** i obara gate.
+
+# Dio B — normativno pravilo izvođenja obuhvata
+
+### Klauzula 3 — strukturno pravilo
+
+Obuhvat je definisan **strukturno**, ne brojem:
+
+> Univerzum retrospektivnog evidence audita `P4-013` je **svaka Markdown checklist stavka** koja
+> odgovara regularnom izrazu `^\s*-\s\[[ xX]\]` unutar kanonske **top-level** sekcije
+> `# 5. Faza 4 — Tenant/RLS` dokumenta `docs/05_IMPLEMENTATION_CHECKLIST.md`, omeđene **sljedećim
+> top-level naslovom faze** (`# 6. Faza 5 — Encounter/documents`).
+
+Stavke unutar ograđenih blokova koda se **ne broje**. Na baseline reviziji takvih stavki ima
+**nula**, pa je pravilo tu neosjetljivo, ali ostaje normativno za buduća mjerenja.
+
+### Klauzula 4 — baseline
+
+```text
+P4_013_SCOPE_RULE               STRUCTURAL_EXTRACTION (klauzula 3)
+P4_013_CHECKLIST_ROWS_IN_SCOPE  398
+P4_013_BASELINE_COMMIT          890aee2270bf6824928a3c5dbc7ccf77adf6ebe4
+SUPERSEDED_D056_TOTAL           294
+SUPERSEDED_SCOPE_PROVENANCE     docs/05 na commitu 258f646
+```
+
+### Klauzula 5 — pravilo je normativno, broj je izmjerena vrijednost
+
+**Normativno je pravilo iz klauzule 3**; `398` je **izmjerena vrijednost tog pravila** na baseline
+commitu. Kasnija dokumentaciona promjena broja redova **ne redefinira tiho audit koji je u toku** i
+sama po sebi **ne mijenja** ovu odluku.
+
+### Klauzula 6 — svako izvršenje bilježi svoj commit
+
+Svako stvarno izvršenje `P4-013` **mora zabilježiti tačan kanonski commit SHA koji auditira** i
+**broj redova izmjeren na tom commitu**. Razlika u odnosu na `398` **nije automatski bloker**, ali
+mora biti **objašnjena i izvedena iz commit historije** prije nastavka. Svrha je
+**reproducibilnost**, ne oslanjanje na neobjašnjen broj.
+
+# Dio C — podjela DB/migration naspram ostatka
+
+### Klauzula 7 — binarna podjela po subsekcijama nije branjiva
+
+Gate P4-013-SCOPE je mehanički prošao svih **43** subsekcije Faze 4 koje nose redove i utvrdio da
+**podjela na nivou naslova subsekcije nije semantički branjiva**, jer su sekcije **interno
+heterogene na nivou reda**. Reprezentativno:
+
+- **„RLS i runtime put za `practice_settings` — D-049" (15 redova)** — u istoj sekciji stoje čisti
+  DDL redovi (`ENABLE`/`FORCE ROW LEVEL SECURITY`, standardna tenant politika), grant redovi
+  (`copilot_system`/`PUBLIC` bez grantova) i čisto HTTP/aplikacijski redovi (`ETag`, obavezan
+  `If-Match`, `428`, `409 VERSION_CONFLICT`, registracija ruta).
+- **„Guard i servisi" (4 reda)** — dva aplikacijska reda (guard kao koncept, odgođeni facade) i
+  dva čista DDL reda (`RLS enabled`, `FORCE RLS`).
+- **„Database grants" (8 redova)** — šest grant redova i dva **governance** reda o odnosu database
+  rola i aplikacijskih rola (`SYSTEM_ADMIN` nije `copilot_system`).
+- **„Membership validacija" (13 redova)** — bootstrap RLS politika (DB) i `403` mapiranje
+  (aplikacija) u istoj listi.
+- **„Proširenje D-048 allowliste — D-052, dio B" (13 redova)** — migracioni i seed DDL, protokol
+  seeda i **testni** dokazi steady-state stanja u istoj sekciji.
+- **„Testovi" (18) i „Testovi — D-038" (42)** — **artefakt** je test, ali **dokazani zahtjev** je
+  pretežno DB/RLS semantika. Podjela „po artefaktu" i podjela „po temi zahtjeva" ovdje daju
+  **različite** rezultate, a D-056 ne kaže koja se od te dvije primjenjuje.
+
+Svaka binarna dodjela **cijelih** ovih sekcija u jedan od dva podskupa **pogrešno klasifikuje**
+redove koje sekcija sadrži.
+
+### Klauzula 8 — podjela po tipu dokaza zahtijeva rad koji ovaj gate ne smije obaviti
+
+Oznaka iz D-056 — „strogi DB/migration **artefakt** podskup" naspram
+„aplikacijski/permission/fixture/test **ostatak**" — je podjela **po tipu dokaznog artefakta**, ne
+po temi zahtjeva. Tip dokaza za pojedini red **ne može se očitati iz strukture naslova**; utvrđuje
+se **tek pregledom dokaza za taj red**. To je **upravo posao koji `P4-013` treba da obavi**, a za
+koji gate obuhvata **nije ovlašten**. Zamrzavanje bilo kojeg novog broja ovdje bi, dakle, ili
+**ponovilo defekt D-056** (neizveden broj), ili izvršilo **neovlaštenu klasifikaciju**.
+
+Iz istog razloga se **odbija** i mehanička zamjena `64 / 230` sa `119 / 279` ili bilo kojim drugim
+parom izvedenim iz proporcije: to bi bio broj biran prije pravila.
+
+### Klauzula 9 — podjela nije invarijanta zatvaranja
+
+Podjela `64 / 230` **ne ulazi ni u jedno pravilo zatvaranja**. Rubrik zatvaranja faze (D-056, dio
+C) govori o **svakoj** stavci faze i o **`UNRESOLVED_REQUIRED = 0`**; nijedan zapis u repozitoriju
+ne računa sa `64` ni sa `230`. Podjela je bila **auditorska pogodnost**, a ne invarijanta
+zatvaranja.
+
+### Klauzula 10 — odluka o podjeli
+
+Fiksna binarna podjela `64 / 230` se **povlači kao ne-normativna**. `P4-013` klasifikuje **cijeli**
+univerzum iz klauzule 3 i **svakom** redu dodjeljuje **ne-terminalnu evidence-domain oznaku**:
+
+```text
+EVIDENCE_DOMAIN =
+  DB_MIGRATION | APPLICATION | PERMISSION | FIXTURE | TEST | GOVERNANCE | MIXED
+```
+
+Agregati po domenu su **izvještajni** i izvode se **iz klasifikacije**, a ne obrnuto.
+
+### Klauzula 11 — evidence-domain oznaka nije dispozicija
+
+`EVIDENCE_DOMAIN` je **ne-terminalna** oznaka tipa dokaza. Ona **ne mijenja, ne proširuje i ne
+zamjenjuje** zamrznuti rječnik **terminalnih dispozicija** iz D-056, dio C —
+`SATISFIED_BY_EVIDENCE`, `SUPERSEDED`, `HISTORICAL`, `NOT_APPLICABLE_IN_V1`,
+`EXPLICITLY_DEFERRED`, `FUTURE_SCOPE`. **Svaki red i dalje mora dobiti terminalnu dispoziciju**;
+`EVIDENCE_DOMAIN` bilježi samo **gdje se dokaz traži**. Oznaka domena **nikada** nije razlog za
+dispoziciju.
+
+# Dio D — granica nadilaženja D-056
+
+### Klauzula 12 — šta se nadilazi
+
+D-057 nadilazi **isključivo** ova polja i tekstove koji ih operativno zahtijevaju:
+
+```text
+P4_013_CHECKLIST_ROWS_IN_SCOPE                 294   -> 398 (strukturno pravilo, klauzula 3)
+  strogi DB/migration artefakt podskup         64    -> POVUČENO (klauzule 7-10)
+  aplikacijski/permission/fixture/test ostatak 230   -> POVUČENO (klauzule 7-10)
+```
+
+### Klauzula 13 — šta ostaje netaknuto
+
+Sve ostale odredbe D-056 ostaju **nadređene i nepromijenjene**, izričito uključujući:
+
+- **`UNRESOLVED_REQUIRED = 0`** kao kriterij zatvaranja faze (dio C);
+- **zamrznuti rječnik terminalnih dispozicija** (dio C);
+- zabranu **tihog penzionisanja** žive obaveze i obavezu njenog **očuvanja/premještanja** po
+  precedentu D-052 (dio C);
+- **uslovno odgađanje konkretnog `TenantDatabaseService` facadea** (dio A) — nepromijenjeno;
+- **očuvanje tenant-database semantike** i D-054, klauzula 6–10 kao binding (dio A);
+- **autorizovani `304` `SATISFIED_BY_EVIDENCE`** (dio B; D-055, klauzule 3, 6 i 10);
+- **model kanonskog pokazivača** u `05` (dio D);
+- `P4_013_GATE_TYPE = READ_ONLY_RETROSPECTIVE_EVIDENCE_AUDIT` i
+  `P4_013_NEW_APPLICATION_IMPLEMENTATION_EXPECTED = NO`;
+- **Faza 4 ostaje `IN_PROGRESS`** dok `P4-013` i zahtjevi zatvaranja nisu zadovoljeni.
+
+Historijsko tijelo D-056 se **ne prepisuje**; anotacija stoji izvan njega.
+
+# Dio E — invarijanta zatvaranja
+
+### Klauzula 14
+
+Kriterij zatvaranja se **ne mijenja**:
+
+```text
+UNRESOLVED_REQUIRED = 0
+```
+
+Rebaziranje **proširuje** obuhvat sa 294 na 398 reda, pa se kriterij zatvaranja time
+**pooštrava**, a nikako ne slabi. **Nijedan red nije uklonjen iz obuhvata ovom odlukom.**
+
+# Dio F — status `P4-013` i pravilo ponovnog pokretanja
+
+### Klauzula 15 — evidentiran neuspjeli pokušaj
+
+Pokušaj 1 gatea `P4-013A` bilježi se **kako se stvarno završio**, bez izmišljenog rezultata:
+
+```text
+P4_013A_ATTEMPT_1                 HOLD
+BLOCKER                           P4_013_SCOPE_RECONCILIATION_FAILURE
+očekivano po D-056                294 / 64 / 230
+kanonski ukupno pronađeno         398
+porijeklo historijskog 294        258f646
+izvršena klasifikacija redova     NO
+mutacija repozitorija u auditu    NO
+mutacija baze u auditu            NO
+```
+
+```text
+P4-013   NOT COMPLETE
+Faza 4   IN_PROGRESS
+```
+
+### Klauzula 16 — pravilo ponovnog pokretanja
+
+Nakon što D-057 bude merged u kanonski `main`, `P4-013A` se pokreće **iznova**, u **svježem
+read-only gateu**, protiv **tačno tog kanonskog commita**. Audit se **ne nastavlja** iz pokušaja 1
+— nijedan red nije validno klasifikovan, pa nema djelimičnog rezultata koji bi se preuzeo.
+
+### Klauzula 17 — šta ova odluka ne radi
+
+Ova odluka **ne**:
+
+- izvršava `P4-013` i **ne** klasifikuje nijedan od tih 398 redova;
+- dodjeljuje ijednu terminalnu dispoziciju ijednom redu;
+- označava, odznačava ni premješta ijedan checklist red zato što izgleda zadovoljeno;
+- mijenja aplikacijski kod, testove, fixture, Prisma schemu, migracije, seed, RLS ni grantove;
+- mijenja stanje ijedne baze;
+- zatvara fazu 4 i **ne** je označava `DONE`.
+
+## Razlog
+
+Audit obuhvata koji na kanonskom stablu ne postoji nije audit. Alternativa — zadržati 294 —
+zahtijevala bi da **104 živa zahtjeva Faze 4**, uključujući dokaze merged tenant/RLS i settings
+slice-eva, **nikada ne prođu retrospektivni evidence gate**, i to bez ijedne vlasničke odluke o
+njihovom penzionisanju. To bi bilo **tiho slabljenje** zatvaranja faze, što D-056, dio C izričito
+zabranjuje.
+
+Strukturno pravilo je izabrano umjesto novog fiksnog broja jer je **broj bez pravila izvođenja**
+upravo defekt koji je zaustavio `P4-013A`. Pravilo je mehanički izvršivo, reproducibilno nad bilo
+kojim commitom i **ne zavisi od željenog ukupnog zbira**.
+
+## Alternative
+
+- **Zadržati obuhvat od 294 reda** — odbijeno: tiho isključuje 104 živa zahtjeva Faze 4 i slabi
+  zatvaranje; protivno D-056, dio C.
+- **Vratiti `docs/05` na stanje od `258f646` da bi 294 opet važilo** — odbijeno: brisanje merged
+  evidence materijala i normativnih ugovora (D-053, D-055) radi očuvanja zastarjelog broja.
+- **Zamijeniti `64 / 230` sa `119 / 279` ili sličnim parom** — odbijeno: reprodukuje defekt D-056
+  (broj bez izvođenja) i bira brojeve prije pravila (klauzula 8).
+- **Izvesti binarnu podjelu po naslovima subsekcija** — odbijeno: sekcije su interno heterogene na
+  nivou reda, pa je svaka takva podjela pogrešna za dio redova (klauzula 7).
+- **Izvesti binarnu podjelu klasifikacijom red-po-red u ovom gateu** — odbijeno: to je posao
+  `P4-013`, za koji gate obuhvata nije ovlašten (klauzula 8).
+- **Ukinuti `P4-013`** — odbijeno: nije predloženo i ukinulo bi obavezan gate zatvaranja.
+
+## Posljedice
+
+- Obuhvat `P4-013` je **398 redova** na baseline commitu, izveden **strukturnim pravilom**.
+- Fiksna podjela `64 / 230` **više ne postoji** kao normativno polje.
+- `P4-013A` se pokreće **iznova** nakon merge-a ove odluke, protiv kanonskog commita.
+- **Faza 4 ostaje `IN_PROGRESS`**; `P4-013` ostaje **obavezan i nezavršen**.
+- Buduće izvršenje mora zabilježiti **commit i izmjereni broj redova**.
+
+## Security/privacy uticaj
+
+**Nijedan sigurnosni zahtjev nije uklonjen, oslabljen ni označen završenim.** Efekt je **suprotan**
+slabljenju: obuhvat obaveznog retrospektivnog evidence audita **raste** za 104 reda, među kojima su
+tenant/RLS i `practice_settings` RLS i runtime dokazi. Tenant-database semantika (D-006; D-054,
+klauzule 5–10), RESTRICTIVE politike nad `practices`, `FORCE RLS` allowlist disciplina i
+deny-by-default autorizacija ostaju **nepromijenjeni i nadređeni**. Odgađanje konkretnog
+`TenantDatabaseService` facadea ostaje **tačno onakvo kakvim ga je D-056 odredila**.
+
+## Migration/rollout
+
+**Dokumentacija isključivo.** Nema schema, migracionih, seed, DDL/DML ni runtime promjena.
+Zahvaćeni su `docs/05_IMPLEMENTATION_CHECKLIST.md`, `docs/06_DECISION_LOG.md` i `MANIFEST.md`.
+
+## Test dokaz
+
+**Nijedan novi test se ne uvodi.** Dokaz ove odluke je **mehanički i reproducibilan** nad Git
+historijom: brojanje po pravilu iz klauzule 3 daje `398` na `890aee2` i `294` na `258f646`, uz
+tabelu porijekla iz sekcije *Uzrok*. Provjera je ponovljiva postupkom koji izdvaja top-level
+sekciju `# 5. Faza 4 — Tenant/RLS` do sljedećeg top-level naslova faze i broji stavke izvan
+ograđenih blokova koda.
+
+## Supersedes
+
+**Ne supersedira nijednu odluku u cijelosti.** Amandmanski nadilazi **isključivo**:
+
+- **D-056, klauzulu 20** (dio E.2) — u poljima `P4_013_CHECKLIST_ROWS_IN_SCOPE = 294`,
+  `strogi DB/migration artefakt podskup = 64` i
+  `aplikacijski/permission/fixture/test ostatak = 230`;
+- **D-056, klauzulu 21** i sekciju *Alternative* D-056 — **isključivo** u dijelu koji obuhvat
+  `P4-013` navodi kao „294 reda".
+
+**Svaka druga odredba D-056 ostaje na snazi** (klauzula 13). Historijska tijela D-052, D-053,
+D-054, D-055 i D-056 se **ne prepisuju**; anotacije stoje izvan njih.
+
+## Zavisnosti
+
+D-038, D-046, D-047, D-049, D-051, **D-052**, D-053, D-054, D-055, **D-056**.
 
 ---
 

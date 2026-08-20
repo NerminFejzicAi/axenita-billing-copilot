@@ -1132,6 +1132,14 @@ Status: `IN_PROGRESS`. Merged u kanonski `main`:
 zatvaranja Faze 4 — P4-013" niže). Preostale tenant tabele i slice-evi ostaju otvoreni, a
 `013_rls_policies` sekcije niže i dalje čekaju taj gate.
 
+**Obuhvat `P4-013` je rebaziran na ovu, kanonsku Fazu 4 — D-057 (2026-08-20).** Pokušaj 1 gatea
+`P4-013A` zaustavljen je sa `P4_013_SCOPE_RECONCILIATION_FAILURE` jer je D-056, klauzula 20
+zamrznula zastarjeli obuhvat od **294** reda; kanonska Faza 4 nosi **398** checklist redova.
+Obuhvat je sada definisan **strukturnim pravilom** i pokriva **cijelu** ovu sekciju, a fiksna
+podjela `64 / 230` je **povučena kao ne-normativna**. **Nijedan red nije uklonjen iz obuhvata**, a
+`UNRESOLVED_REQUIRED = 0` ostaje **nepromijenjen**. Detalji su niže, u „Preostali gate zatvaranja
+Faze 4 — P4-013".
+
 **Autoritet za slice P4-5D** je **D-055** (HTTP validatori i optimistička konkurentnost), uz
 **D-053** kao bazni settings ugovor. D-055, klauzula 33 zabranjuje označavanje `PATCH` stavki na
 osnovu **zamrznutog ugovora**; ono što ih ovdje otključava je **implementacija sa dokazom**, ne
@@ -2097,25 +2105,63 @@ dopuštena.**
 **Aplikacijska implementacija Faze 4 je kompletna i merged** (P4-5B, P4-5R1, P4-5C, P4-5D — PR #20,
 `3658c6e`). **Faza 4 ipak ostaje `IN_PROGRESS`**, jer preostaje jedan obavezan gate.
 
-**P4-013 retrospektivni evidence gate i dalje je obavezan.** Njegove činjenice su zamrznute
-(D-056, klauzula 20):
+**P4-013 retrospektivni evidence gate i dalje je obavezan.** Njegov obuhvat je **rebaziran na
+kanonsku Fazu 4** odlukom **D-057**:
 
 ```text
 P4_013_GATE_TYPE                               READ_ONLY_RETROSPECTIVE_EVIDENCE_AUDIT
-P4_013_CHECKLIST_ROWS_IN_SCOPE                 294
-  strogi DB/migration artefakt podskup         64
-  aplikacijski/permission/fixture/test ostatak 230
+P4_013_SCOPE_RULE                              STRUCTURAL_EXTRACTION (D-057, klauzula 3)
+P4_013_CHECKLIST_ROWS_IN_SCOPE                 398   (baseline commit 890aee2)
+P4_013_ROW_PARTITION                           CIJELI UNIVERZUM + EVIDENCE_DOMAIN oznaka
 P4_013_NEW_APPLICATION_IMPLEMENTATION_EXPECTED NO
 ```
 
-**Taj gate se ovdje ne izvršava.** Uvođenje rubrika iz „Rubrik zatvaranja faze — D-056, dio C" **ne
-ovlašćuje** klasifikaciju, označavanje ni raspoređivanje tih 294 reda. Blok dokaza ispod se **ne
-popunjava** u ovom gateu.
+**Normativno pravilo obuhvata (D-057, klauzula 3).** Univerzum je **svaka** Markdown checklist
+stavka koja odgovara regularnom izrazu `^\s*-\s\[[ xX]\]` unutar ove top-level sekcije
+(`# 5. Faza 4 — Tenant/RLS`), omeđene sljedećim top-level naslovom faze
+(`# 6. Faza 5 — Encounter/documents`); stavke unutar ograđenih blokova koda se ne broje.
+**Pravilo je normativno, a `398` je njegova izmjerena vrijednost** na baseline commitu. Svako
+izvršenje bilježi commit koji auditira i broj izmjeren na njemu (D-057, klauzule 5–6).
+
+**Podjela redova (D-057, klauzule 7–11).** Fiksna binarna podjela je **povučena**. Auditira se
+**cijeli** univerzum, a svaki red uz terminalnu dispoziciju nosi i **ne-terminalnu**
+`EVIDENCE_DOMAIN` oznaku (`DB_MIGRATION`, `APPLICATION`, `PERMISSION`, `FIXTURE`, `TEST`,
+`GOVERNANCE`, `MIXED`). Ta oznaka **ne mijenja** zamrznuti rječnik terminalnih dispozicija iz
+„Rubrik zatvaranja faze — D-056, dio C" i **nikada** nije razlog za dispoziciju.
+
+**Nadiđeno odlukom D-057 (historijski zapis, ne briše se).** D-056, klauzula 20 je zamrznula
+`294 / 64 / 230`. Broj **294** odgovara `docs/05` na commitu **`258f646`** i bio je **zastario već
+pri usvajanju D-056** — revizija koja uvodi D-056 (`9b8ebc1`) nosi **398** redova. Podjela
+`64 / 230` nije imala zapisano pravilo izvođenja i ne ulazi ni u jednu invarijantu zatvaranja, pa
+je povučena kao **ne-normativna auditorska pogodnost**. **Kriterij zatvaranja
+`UNRESOLVED_REQUIRED = 0` ostaje nepromijenjen**; rebaziranje ga **pooštrava**, jer obuhvat raste
+sa 294 na 398 reda i **nijedan red nije uklonjen**.
+
+**Pokušaj 1 gatea `P4-013A` je zaustavljen** i to se ovdje evidentira **bez izmišljenog rezultata**
+(D-057, klauzula 15):
+
+```text
+P4_013A_ATTEMPT_1                 HOLD
+BLOCKER                           P4_013_SCOPE_RECONCILIATION_FAILURE
+očekivano po D-056                294 / 64 / 230
+kanonski ukupno pronađeno         398
+porijeklo historijskog 294        258f646
+izvršena klasifikacija redova     NO
+mutacija repozitorija u auditu    NO
+mutacija baze u auditu            NO
+```
+
+**Taj gate se ovdje ne izvršava.** Ni rubrik iz „Rubrik zatvaranja faze — D-056, dio C" ni D-057
+**ne ovlašćuju** klasifikaciju, označavanje ni raspoređivanje tih 398 redova. Blok dokaza ispod se
+**ne popunjava** u ovom gateu. Nakon merge-a D-057 u kanonski `main`, `P4-013A` se pokreće
+**iznova**, u svježem read-only gateu, protiv tog kanonskog commita; **ne nastavlja se** iz
+pokušaja 1 (D-057, klauzula 16).
 
 Evidence:
 
 ```text
 P4-013 RETROSPECTIVE EVIDENCE AUDIT:  NOT STARTED — zaseban gate
+                                      obuhvat rebaziran na 398 (D-057); pokušaj 1 = HOLD
 ```
 
 ---
