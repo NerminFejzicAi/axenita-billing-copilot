@@ -40,6 +40,7 @@ import {
   type PlatformRoleRow,
   type PracticeRow,
   type PracticeSettingsRow,
+  type PracticeSettingsUpdate,
   type RequestedPracticeRow,
 } from '../../src/identity/infrastructure/identity-database.port.js';
 
@@ -379,6 +380,100 @@ export class RecordingDatabase implements IdentityDatabase {
           axenitaExportEnabled: complete.axenitaExportEnabled === true,
           retentionPolicyCode: complete.retentionPolicyCode ?? null,
           version: complete.version ?? 1,
+        });
+      },
+      updatePracticeSettings: async (
+        update: PracticeSettingsUpdate,
+      ): Promise<PracticeSettingsRow | undefined> => {
+        // Recorded with the FULL shape of the statement, because that is what the write specs are
+        // about: which practice, which expected version, and which columns the `SET` list names,
+        // in the order the application built them. A recorder that logged only the method name
+        // could not tell "one field was assigned" from "all seven were", and could not prove that
+        // an omitted field produced NO assignment at all.
+        const assigned = update.assignments
+          .map((assignment) => `${assignment.field}=${JSON.stringify(assignment.value)}`)
+          .join(',');
+
+        calls.push(
+          `update settings(${update.practiceId},v=${String(update.expectedVersion)},[${assigned}])`,
+        );
+
+        // The `02` §17.1 tenant predicate, applied exactly as it is to the two read statements:
+        // without `app.practice_id` the policy predicate is `practice_id = NULL` and the statement
+        // matches NOTHING, so a write attempted before `set_request_context` is zero rows here
+        // just as it would be in the database. The explicit practice predicate of the real
+        // statement is the second barrier and is applied on top.
+        if (appPracticeId === undefined || update.practiceId !== appPracticeId) {
+          return Promise.resolve(undefined);
+        }
+
+        const index = world.settings.findIndex((entry) => entry.practiceId === update.practiceId);
+        const stored = world.settings[index];
+
+        if (stored === undefined) {
+          // A missing row is ZERO ROWS, exactly like a stale version, and the double must not
+          // distinguish them either — the whole point of D-055 clauses 19 to 21 is that nothing
+          // downstream can.
+          return Promise.resolve(undefined);
+        }
+
+        const current = settingsRow(stored.practiceId, stored);
+        const currentVersion = current.version ?? 1;
+
+        // THE OPTIMISTIC PREDICATE. A mismatch matches no row and returns `undefined`; it does
+        // NOT throw, and it does not mutate. This is the modelled half of `409`.
+        if (currentVersion !== update.expectedVersion) {
+          return Promise.resolve(undefined);
+        }
+
+        // Only the SUBMITTED fields are applied, one by one, through an EXHAUSTIVE switch over
+        // the same closed union the real adapter switches on. A dynamic `row[field] = value`
+        // would model the write as "assign whatever key came in", which is precisely the shape
+        // the union exists to make unexpressible — and it would let a spec pass against an
+        // assignment the production `switch` could not compile.
+        let next: SettingsRow = { ...current, version: currentVersion + 1 };
+
+        for (const assignment of update.assignments) {
+          switch (assignment.field) {
+            case 'billingReviewRequired':
+              next = { ...next, billingReviewRequired: assignment.value };
+              break;
+            case 'allowMpaApproval':
+              next = { ...next, allowMpaApproval: assignment.value };
+              break;
+            case 'allowBillingSpecialistApproval':
+              next = { ...next, allowBillingSpecialistApproval: assignment.value };
+              break;
+            case 'requireReasonForManualChange':
+              next = { ...next, requireReasonForManualChange: assignment.value };
+              break;
+            case 'aiEnabled':
+              next = { ...next, aiEnabled: assignment.value };
+              break;
+            case 'axenitaExportEnabled':
+              next = { ...next, axenitaExportEnabled: assignment.value };
+              break;
+            case 'retentionPolicyCode':
+              next = { ...next, retentionPolicyCode: assignment.value };
+              break;
+          }
+        }
+
+        world.settings[index] = next;
+
+        // Projected to exactly the nine granted columns the real `RETURNING` names. `updated_at`
+        // is absent here as it is there: the column is writable and NOT readable, so a double
+        // that returned it would let a spec pass against a statement the database would refuse.
+        return Promise.resolve({
+          practiceId: next.practiceId,
+          billingReviewRequired: next.billingReviewRequired === true,
+          allowMpaApproval: next.allowMpaApproval,
+          allowBillingSpecialistApproval: next.allowBillingSpecialistApproval,
+          requireReasonForManualChange: next.requireReasonForManualChange === true,
+          aiEnabled: next.aiEnabled === true,
+          axenitaExportEnabled: next.axenitaExportEnabled === true,
+          retentionPolicyCode: next.retentionPolicyCode ?? null,
+          version: next.version ?? 1,
         });
       },
       findCurrentPlatformRoles: async (userId: string): Promise<readonly PlatformRoleRow[]> => {

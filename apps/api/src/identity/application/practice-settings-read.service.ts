@@ -53,11 +53,19 @@
  * matrix currently grants `practice.settings.read` to that role alone: the matrix is the oracle,
  * and a hard-coded role check would silently survive a change to it.
  *
- * NO WRITE BEHAVIOUR
+ * NO WRITE BEHAVIOUR LIVES HERE
  *
- * `PATCH /practices/{practiceId}/settings` is a later slice. This file contains no `If-Match`
- * handling, no `428`, no `409`, no version comparison, no `UPDATE` and no idempotency key
- * (D-053 clause B.4). It reads `version` for exactly one purpose — the `ETag` of clause A.2.
+ * `PATCH /practices/{practiceId}/settings` now exists, and it is NOT implemented in this file.
+ * `PracticeSettingsWriteService` owns the whole of it: the `If-Match` parse, `428`, `400`, the
+ * delayed body validation, the atomic `UPDATE` and `409` (D-055 parts D to G). This service
+ * still contains no `If-Match` handling, no version comparison, no `UPDATE` and no idempotency
+ * key, and it reads `version` for exactly one purpose — the `ETag` of D-053 clause A.2.
+ *
+ * The two routes share exactly ONE thing, and share it by import rather than by copy: the
+ * eight-field projection and the strong tag of {@link projectPracticeSettings} and
+ * {@link entityTagOf}, which used to be defined at the bottom of this file and now live in
+ * `practice-settings-representation.ts`. Nothing about this route's behaviour changed with the
+ * move.
  */
 
 import { Injectable } from '@nestjs/common';
@@ -70,6 +78,7 @@ import {
   type PracticeSettingsRow,
 } from '../infrastructure/identity-database.port.js';
 import { IdentityBootstrapService } from './identity-bootstrap.service.js';
+import { entityTagOf, projectPracticeSettings } from './practice-settings-representation.js';
 import { TenantRequestPipeline } from './tenant-request.pipeline.js';
 
 /**
@@ -143,7 +152,7 @@ export class PracticeSettingsReadService {
         const settings = await this.readAdmittedSettings(session, admitted.practiceId);
 
         return Object.freeze({
-          settings: project(settings),
+          settings: projectPracticeSettings(settings),
           etag: entityTagOf(settings.version),
         });
       },
@@ -203,47 +212,4 @@ export class PracticeSettingsReadService {
 
     return settings;
   }
-}
-
-/**
- * The strong entity tag of D-053 clause A.2 — the row's integer `version`, quoted.
- *
- * STRONG, AND SET BY THE APPLICATION. `W/"3"` is not this value: a weak tag asserts only
- * semantic equivalence, while `version` is the exact token the optimistic-locking contract of
- * `03` §5.2 compares an `If-Match` against, and a later `PATCH` slice must be able to treat a
- * returned tag as an exact version. Express would otherwise generate a WEAK, CONTENT-HASHED tag
- * of its own for this response — a tag that changes when the rendering changes and stays equal
- * when only `version` moved, which is precisely the wrong equality. The canonical tag is
- * therefore always set explicitly, and Express leaves an already-set `ETag` alone.
- *
- * `version` is an `integer` column (`02` §6.4), so the rendering is exact and needs no escaping:
- * the tag can only ever be a quoted run of digits.
- */
-function entityTagOf(version: number): string {
-  return `"${String(version)}"`;
-}
-
-/**
- * The accepted response projection — exactly eight fields, written out one by one.
- *
- * The row is never spread and never returned as-is. Building the document member by member is
- * what guarantees that a future widening of the database projection, of a column grant or of the
- * Prisma model cannot add a field to the HTTP response by accident.
- *
- * `version` IS DELIBERATELY NOT COPIED. It is present on the row — it is the ninth granted column
- * and this route reads it on purpose — and it stops here, at the one place where a row becomes a
- * document. D-053 clause A.2 allows exactly one channel for the current version, and that channel
- * is the `ETag`. A spread would have published it silently; this projection cannot.
- */
-function project(settings: PracticeSettingsRow): PracticeSettingsResponseDto {
-  return {
-    practiceId: settings.practiceId,
-    billingReviewRequired: settings.billingReviewRequired,
-    allowMpaApproval: settings.allowMpaApproval,
-    allowBillingSpecialistApproval: settings.allowBillingSpecialistApproval,
-    requireReasonForManualChange: settings.requireReasonForManualChange,
-    aiEnabled: settings.aiEnabled,
-    axenitaExportEnabled: settings.axenitaExportEnabled,
-    retentionPolicyCode: settings.retentionPolicyCode,
-  };
 }

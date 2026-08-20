@@ -4,9 +4,9 @@ import helmet from 'helmet';
 
 import { API_GLOBAL_PREFIX } from '@axenita/contracts';
 
-import { createValidationException } from '../common/errors/validation-exception.factory.js';
 import { REQUEST_ID_HEADER_NAME } from '../common/request-context/request-context.constants.js';
 import { requestIdMiddleware } from '../common/request-context/request-id.middleware.js';
+import { API_VALIDATION_PIPE_OPTIONS } from '../common/validation/validation-pipe-options.js';
 import { AppConfigService } from '../config/app-config.service.js';
 import { resolveLogLevels } from './log-levels.js';
 
@@ -77,18 +77,13 @@ export function configureApplication(app: NestExpressApplication): void {
   });
 
   // 00 §8.4 — whitelist, reject unknown fields, no implicit type coercion.
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      forbidNonWhitelisted: true,
-      forbidUnknownValues: true,
-      transform: true,
-      transformOptions: { enableImplicitConversion: false },
-      stopAtFirstError: false,
-      validationError: { target: false, value: false },
-      exceptionFactory: createValidationException,
-    }),
-  );
+  //
+  // The option literal itself lives in `API_VALIDATION_PIPE_OPTIONS` because a SECOND pipe is
+  // built from it: the settings write path may validate its body only after the caller has been
+  // authorised, which a global parameter pipe cannot express (`03` §3.7.1). Sharing one frozen
+  // object is what keeps "valid request body" from meaning two different things in one process.
+  // Nothing about the global pipe changed when it was extracted.
+  app.useGlobalPipes(new ValidationPipe(API_VALIDATION_PIPE_OPTIONS));
 
   app.enableShutdownHooks();
 }

@@ -126,6 +126,70 @@ export interface PracticeSettingsRow {
 }
 
 /**
+ * ONE assignment of ONE accepted mutable `practice_settings` column — a CLOSED discriminated
+ * union over the seven business fields of D-053 clause B.1 and D-055 clauses 14 and 18.
+ *
+ * WHY A UNION AND NOT `Partial<PracticeSettingsRow>`
+ *
+ * A partial record cannot distinguish "the caller omitted this field" from "the caller submitted
+ * `undefined`", because both are `undefined` at the type level and both are `undefined` at
+ * runtime. On a write path that difference is the whole contract: an omitted field must not be
+ * assigned AT ALL (D-055 clause 17 — the statement sets only the SUBMITTED business fields),
+ * while a value bound as `undefined` would reach the database as SQL `NULL` and silently blank a
+ * `NOT NULL boolean` column or erase a retention code nobody asked to erase.
+ *
+ * This shape makes that mistake unexpressible rather than merely forbidden:
+ *
+ * - a boolean member can carry ONLY a `boolean` — never `null`, never `undefined`;
+ * - `retentionPolicyCode` is the one member whose column is nullable, so it alone carries
+ *   `string | null`, and `null` there is a REQUESTED SQL `NULL` rather than an absence;
+ * - `undefined` is not a member of any variant, so an omitted field has no representation and
+ *   simply is not in the collection.
+ *
+ * The `field` discriminant is a literal from a fixed set, which is also what lets the database
+ * adapter select a COLUMN SQL FRAGMENT by an exhaustive `switch` over source-code literals. No
+ * client string ever becomes an identifier.
+ */
+export type PracticeSettingsAssignment =
+  | { readonly field: 'billingReviewRequired'; readonly value: boolean }
+  | { readonly field: 'allowMpaApproval'; readonly value: boolean }
+  | { readonly field: 'allowBillingSpecialistApproval'; readonly value: boolean }
+  | { readonly field: 'requireReasonForManualChange'; readonly value: boolean }
+  | { readonly field: 'aiEnabled'; readonly value: boolean }
+  | { readonly field: 'axenitaExportEnabled'; readonly value: boolean }
+  | { readonly field: 'retentionPolicyCode'; readonly value: string | null };
+
+/**
+ * A STRUCTURALLY NON-EMPTY collection of assignments.
+ *
+ * The empty patch of D-055 clause 14 is refused in the application layer, before any write, and
+ * this type is what stops that refusal from being a rule someone can forget. An `UPDATE` built
+ * from zero business assignments would still set `version = version + 1` and `updated_at`, so it
+ * would consume a version for a request that asked for nothing — exactly what clause 14 forbids.
+ * A non-empty tuple type means such a call does not type-check.
+ */
+export type PracticeSettingsAssignments = readonly [
+  PracticeSettingsAssignment,
+  ...PracticeSettingsAssignment[],
+];
+
+/** Everything the ONE optimistic-concurrency statement of D-055 clause 15 needs. */
+export interface PracticeSettingsUpdate {
+  /**
+   * The ADMITTED practice — the value already in `app.practice_id` for this transaction, never a
+   * path segment, a header or a body member that has not been through the tenant pipeline.
+   */
+  readonly practiceId: string;
+  /**
+   * The version the caller asserted through `If-Match`, already proven to be a non-negative
+   * integer within PostgreSQL `int4`.
+   */
+  readonly expectedVersion: number;
+  /** The submitted business fields, and only those. */
+  readonly assignments: PracticeSettingsAssignments;
+}
+
+/**
  * `app_security.set_request_context` refused to establish the tenant context.
  *
  * The function raises SQLSTATE `42501` for exactly three reasons (`02` §16.2.3, D-033 clauses
@@ -364,6 +428,43 @@ export interface IdentityBootstrapSession {
    * At most one row can match: `practice_settings` carries `unique (practice_id)` (`02` §6.4).
    */
   findPracticeSettings(practiceId: string): Promise<PracticeSettingsRow | undefined>;
+
+  /**
+   * The ONE optimistic-concurrency write of `practice_settings` — D-055 clauses 15 to 23.
+   *
+   * EXACTLY ONE STATEMENT, AND IT IS AN `UPDATE ... RETURNING`. There is no read before it and no
+   * read after it. The expected version comes only from `If-Match` and its currency is decided
+   * only by the statement's own predicate (clause 16), so no window exists between checking a
+   * version and writing against it. The success representation and the new `ETag` are both built
+   * from the row this statement returns (clause 23), so the body and the validator can never
+   * describe two different states.
+   *
+   * THE PREDICATE IS `practice_id = <admitted> AND version = <expected>` (clause 15). Both halves
+   * are mandatory. The `02` §17.1 tenant policy is the primary control — without
+   * `app.practice_id` the policy predicate is `practice_id = NULL` and the statement matches
+   * nothing at all — and the explicit `practice_id` term is the second barrier, exactly as both
+   * read statements keep it.
+   *
+   * WHAT IT WRITES: the submitted business fields, `version = version + 1` and `updated_at`
+   * (clause 17). `updated_by`, `practice_id`, `id` and `configuration` are NOT written; the first
+   * two are named by clause 17 and clause 18, and the last two carry no `UPDATE` grant at all
+   * (`02` §20.2b.1), so naming one fails with SQLSTATE `42501`.
+   *
+   * WHAT IT RETURNS: exactly the nine SELECT-granted columns of {@link PracticeSettingsRow}.
+   * `updated_at` is deliberately NOT among them — it carries an `UPDATE` grant but no `SELECT`
+   * grant, so `RETURNING updated_at` would fail with `42501`.
+   *
+   * `undefined` MEANS "ZERO ROWS", AND NOTHING MORE SPECIFIC. It is the outcome of a stale
+   * version, of an absent `practice_settings` row and of a row the tenant policy does not expose,
+   * and the port deliberately cannot tell the caller which. D-055 clauses 19 to 21 give all three
+   * the same `409 VERSION_CONFLICT` and forbid the second read that would discriminate them: that
+   * read is race-prone by construction and would disclose internal state the contract never
+   * promised.
+   *
+   * At most one row can match, because `practice_settings` carries `unique (practice_id)`
+   * (`02` §6.4).
+   */
+  updatePracticeSettings(update: PracticeSettingsUpdate): Promise<PracticeSettingsRow | undefined>;
 
   /**
    * Reads the current platform role assignments of the authenticated user.

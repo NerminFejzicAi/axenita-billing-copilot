@@ -505,24 +505,31 @@ describe('GET /api/v1/me', () => {
       }
     });
 
-    it('registers no settings WRITE route, and still no practice directory (D-053 clause B.4)', async () => {
-      // THE PHASE BOUNDARY THIS ASSERTION GUARDS HAS MOVED, AND ONLY HALF OF IT.
+    it('registers the settings WRITE, and still no practice directory (D-055, D-047 clause 11)', async () => {
+      // THE PHASE BOUNDARY THIS ASSERTION GUARDS HAS NOW MOVED IN BOTH HALVES.
       //
       // In phase 3 both settings routes were normatively forbidden (D-049), and this asserted
-      // that both were `404`. Phase 4 implemented the READ half, so that half is now owned by
-      // `phase4-practice-settings-read.security.ts` and asserted there in full — the property is
-      // stronger afterwards, not absent. The WRITE half has not moved: `PATCH` carries `If-Match`,
-      // `428`, `409` and an atomic version increment, none of which has been accepted for
-      // implementation, so it must remain unregistered — not even as a stub.
+      // that both were `404`. Phase 4 implemented the READ half first — owned in full by
+      // `phase4-practice-settings-read.security.ts` — and has now implemented the WRITE half,
+      // owned in full by `phase4-practice-settings-patch.security.ts`. Each half's `404`
+      // assertion is REPLACED by the invariant that governs it rather than deleted, so the
+      // property this suite holds is stronger afterwards, not absent.
       //
-      // A list or directory of practices does not exist at all (D-047 clause 11).
+      // What is asserted here is only that THIS suite's view of the route surface is current: a
+      // fully authorised `PATCH` with a body and NO `If-Match` answers `428` (D-055 clause 10).
+      // `404` would mean the route vanished, `200` would mean the mandatory precondition was
+      // skipped, and `422` would mean the body schema ran before it.
+      //
+      // A list or directory of practices still does not exist at all (D-047 clause 11), and that
+      // half of the assertion is untouched.
       const patch = await request(app.getHttpServer())
         .patch(`/api/v1/practices/${PHASE_3_SEED_IDS.practiceDemo}/settings`)
         .set('Authorization', developmentBearer(PHASE_3_SEED_SUBJECTS.practiceAdmin))
         .set('X-Practice-ID', PHASE_3_SEED_IDS.practiceDemo)
         .send({ aiEnabled: true });
 
-      expect(patch.status).toBe(404);
+      expect(patch.status).toBe(428);
+      expect(patch.status).not.toBe(404);
 
       const directory = await request(app.getHttpServer())
         .get('/api/v1/practices')

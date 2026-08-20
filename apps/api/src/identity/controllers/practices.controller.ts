@@ -30,8 +30,8 @@ import { authenticationRequired } from '../identity.errors.js';
  * `GET /practices/{practiceId}/settings` is registered by `PracticeSettingsController`, which is
  * a separate class for exactly that reason: the accepted `GET /practices/{practiceId}` contract
  * and its permission are not edited to carry a second resource beneath them.
- * `PATCH /practices/{practiceId}/settings` belongs to a later slice and is registered nowhere,
- * not even as a stub (D-053 clause B.4); it stays `404`.
+ * `PATCH /practices/{practiceId}/settings` is registered by that same separate class and is
+ * likewise unreachable from here, for the same single-segment reason.
  */
 @Controller({ path: 'practices', version: API_VERSION_1 })
 @UseGuards(DevelopmentAuthGuard)

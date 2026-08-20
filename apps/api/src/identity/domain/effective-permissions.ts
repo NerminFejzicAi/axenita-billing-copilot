@@ -38,8 +38,11 @@ import {
 /**
  * The already-resolved practice settings that gate conditional grants (`03` §10, D-041).
  *
- * The resolver takes the settings as input rather than reading them. Phase 3 introduces no
- * settings route, no `PATCH`, no `If-Match` and no version mutation (D-049).
+ * The resolver takes the settings as input rather than reading them, and that separation is what
+ * survived the settings routes arriving. Phase 4 added `GET` and then `PATCH
+ * /practices/{practiceId}/settings`, and this resolver gained nothing from either: it still
+ * receives already-resolved flags, still performs no read, and still knows nothing about
+ * `If-Match`, versions or the `UPDATE` that moves them (D-041, D-049, D-055).
  */
 export type ConditionalPermissionSettings = Readonly<Record<ConditionalApprovalFlag, boolean>>;
 

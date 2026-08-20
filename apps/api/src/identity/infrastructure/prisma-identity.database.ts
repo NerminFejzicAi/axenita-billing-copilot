@@ -49,7 +49,9 @@ import {
   type MembershipRow,
   type PlatformRoleRow,
   type PracticeRow,
+  type PracticeSettingsAssignment,
   type PracticeSettingsRow,
+  type PracticeSettingsUpdate,
   type RequestedPracticeRow,
 } from './identity-database.port.js';
 
@@ -174,6 +176,57 @@ function rendersInsufficientPrivilege(error: unknown): boolean {
  */
 function isInsufficientPrivilege(error: unknown): boolean {
   return hasInsufficientPrivilegeSqlState(error) || rendersInsufficientPrivilege(error);
+}
+
+/**
+ * The SQL of ONE accepted assignment — column identifier, `=`, bound parameter, explicit cast.
+ *
+ * THIS IS THE WHOLE OF THE SQL-INJECTION ARGUMENT FOR THE SETTINGS WRITE, so it is worth being
+ * precise about what is and is not derived from the request:
+ *
+ * - the COLUMN NAME is a source-code literal inside this function, selected by an exhaustive
+ *   `switch` over a closed union of seven `field` discriminants. No client string reaches an
+ *   identifier position, and there is no `Prisma.raw`, no `$queryRawUnsafe`, no
+ *   `$executeRawUnsafe` and no string concatenation of SQL anywhere on this path. Building the
+ *   `SET` list from `Object.keys(body)` — the shape this design exists to prevent — would put a
+ *   client-controlled string exactly where the identifier goes;
+ * - the VALUE is always a BOUND PARAMETER. `Prisma.sql` is the `sql-template-tag` tag, so every
+ *   interpolation becomes a placeholder and its value travels out of band. That is as true of the
+ *   retention string as of the booleans;
+ * - the union is CLOSED, so adding an eighth mutable field is a compile error here rather than a
+ *   silent widening of the accepted `UPDATE` surface (D-055 clause 18).
+ *
+ * WHY THE RETENTION CAST IS `::text` AND NOT `::varchar(100)`
+ *
+ * A `varchar(n)` CAST in PostgreSQL truncates silently — `select 'abcd'::varchar(3)` yields
+ * `abc` with no error — whereas ASSIGNING an over-long value into a `varchar(100)` COLUMN raises
+ * `22001` (`string_data_right_truncation`). Casting the parameter to `varchar(100)` would
+ * therefore defeat the database's own last line of defence and quietly persist a truncated
+ * retention code the caller never sent. `::text` preserves the value exactly and leaves the
+ * column assignment to enforce the bound. The application's `@MaxLength(100)` is the normal
+ * barrier and refuses such an input as `422` long before this statement; the column stays the
+ * backstop it was designed to be.
+ *
+ * The boolean casts are `::boolean` for the same reason every read here casts: the parameter type
+ * is pinned in the statement rather than inferred from the driver's serialisation.
+ */
+function assignmentSql(assignment: PracticeSettingsAssignment): Prisma.Sql {
+  switch (assignment.field) {
+    case 'billingReviewRequired':
+      return Prisma.sql`"billing_review_required" = ${assignment.value}::boolean`;
+    case 'allowMpaApproval':
+      return Prisma.sql`"allow_mpa_approval" = ${assignment.value}::boolean`;
+    case 'allowBillingSpecialistApproval':
+      return Prisma.sql`"allow_billing_specialist_approval" = ${assignment.value}::boolean`;
+    case 'requireReasonForManualChange':
+      return Prisma.sql`"require_reason_for_manual_change" = ${assignment.value}::boolean`;
+    case 'aiEnabled':
+      return Prisma.sql`"ai_enabled" = ${assignment.value}::boolean`;
+    case 'axenitaExportEnabled':
+      return Prisma.sql`"axenita_export_enabled" = ${assignment.value}::boolean`;
+    case 'retentionPolicyCode':
+      return Prisma.sql`"retention_policy_code" = ${assignment.value}::text`;
+  }
 }
 
 /**
@@ -402,6 +455,87 @@ class PrismaIdentityBootstrapSession implements IdentityBootstrapSession {
       where "practice_id" = ${practiceId}::uuid
     `;
 
+    return rows[0];
+  }
+
+  public async updatePracticeSettings(
+    update: PracticeSettingsUpdate,
+  ): Promise<PracticeSettingsRow | undefined> {
+    // THE ONE OPTIMISTIC-CONCURRENCY STATEMENT OF D-055 CLAUSES 15 TO 23.
+    //
+    // There is no `select` before it and none after it. The expected version arrives only from
+    // `If-Match`, and its currency is established ONLY by this statement's own predicate
+    // (clause 16), so no window exists between deciding that a version is current and writing
+    // against it. A pre-read that distinguished "stale" from "no such row" would create exactly
+    // that window, and would do so for information the caller is not entitled to (clauses 19-21).
+    //
+    // `$queryRaw` rather than `$executeRaw`, because the success representation AND the new
+    // `ETag` are both built from the row this statement RETURNS (clause 23). A second read would
+    // be free to observe a later version than the one just written, and the body and the
+    // validator would then describe two different states.
+    //
+    // WHAT IS WRITTEN (clause 17): the submitted business fields, then `version + 1` and
+    // `updated_at`. Nothing else. `updated_by` is left untouched by name (D-053 clause B.3),
+    // `practice_id` is untouched because a row's tenant may not move, and `id` and
+    // `configuration` carry no `UPDATE` grant at all (`02` §20.2b.1) — naming either would fail
+    // with SQLSTATE 42501.
+    //
+    // `"version" + 1` IS THE ONLY WAY THE VERSION MOVES, and it moves once per matched row. It is
+    // computed by the database from the row being updated, never from a value the application
+    // read and sent back, so two concurrent transactions cannot both write the same successor:
+    // once the first commits, the second's `version = <expected>` predicate no longer matches and
+    // it updates zero rows.
+    //
+    // OWNER RATIFICATION R2 — THE INT4 CEILING. A row already at `2147483647` whose caller sends
+    // the matching `If-Match: "2147483647"` reaches this line with a valid and CURRENT version,
+    // and `"version" + 1` then raises PostgreSQL `22003` (`numeric_value_out_of_range`). That is
+    // accepted and deliberately NOT special-cased: no pre-read, no clamp, no rejection of the
+    // maximum in the parser, no dedicated schema constraint and no `catch` for this edge. The
+    // error propagates like any other database failure, the transaction rolls back and discards
+    // every transaction-local `app.*` setting, and the single Problem Details filter renders the
+    // generic static `500 INTERNAL_ERROR`. Turning it into `400` would misdescribe a well-formed
+    // and current token; `409` would tell the caller to re-read and retry a request that can
+    // never succeed.
+    //
+    // `updated_at = now()` is the transaction's current time, matching the `CURRENT_TIMESTAMP` /
+    // `now()` convention the rest of this schema uses. `clock_timestamp()` is deliberately not
+    // introduced: within a single statement the distinction is unobservable, and the convention
+    // is the thing worth keeping stable.
+    //
+    // `RETURNING` NAMES EXACTLY THE NINE `SELECT`-GRANTED COLUMNS. `updated_at` is deliberately
+    // NOT among them even though this very statement just wrote it: the column carries an
+    // `UPDATE` grant and no `SELECT` grant, so `returning "updated_at"` fails with SQLSTATE 42501
+    // (`02` §20.2b.1, D-053 clause A.4). `updated_by`, `id` and `configuration` are absent and
+    // unreachable for the same reason.
+    //
+    // BOTH PREDICATE HALVES ARE MANDATORY (clause 15). The `02` §17.1 tenant policy is the
+    // primary control — reached without `app.practice_id` the policy predicate is
+    // `practice_id = NULL` and this statement matches nothing at all — and the explicit
+    // `practice_id` term is the second barrier both read statements also keep. `practiceId` is
+    // the ADMITTED practice, so policy and predicate agree by construction and a cross-tenant
+    // write is not expressible here.
+    const rows = await this.tx.$queryRaw<PracticeSettingsRow[]>`
+      update "practice_settings"
+      set ${Prisma.join(update.assignments.map(assignmentSql), ', ')},
+          "version"    = "version" + 1,
+          "updated_at" = now()
+      where "practice_id" = ${update.practiceId}::uuid
+        and "version"     = ${update.expectedVersion}::integer
+      returning
+        "practice_id"                       as "practiceId",
+        "billing_review_required"           as "billingReviewRequired",
+        "allow_mpa_approval"                as "allowMpaApproval",
+        "allow_billing_specialist_approval" as "allowBillingSpecialistApproval",
+        "require_reason_for_manual_change"  as "requireReasonForManualChange",
+        "ai_enabled"                        as "aiEnabled",
+        "axenita_export_enabled"            as "axenitaExportEnabled",
+        "retention_policy_code"             as "retentionPolicyCode",
+        "version"
+    `;
+
+    // Zero rows becomes `undefined` and carries NO cause. A stale version, an absent row and a
+    // row the tenant policy does not expose are ONE outcome here and ONE outcome to the client
+    // (D-055 clauses 19 to 21).
     return rows[0];
   }
 
