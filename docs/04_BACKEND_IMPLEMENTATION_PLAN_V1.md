@@ -567,6 +567,8 @@ Pojašnjenja (D-038, klauzule 20–21):
 ### 6.2.3 Vlasništvo faze i migration paketa
 
 **Ažurirano odlukom D-047, klauzule 16–17, te odlukama D-049 i D-051 (2026-08-14).**
+**Dopunjeno odlukom D-056 (2026-08-20)** — razdvaja tenant kontekst semantiku, koja **ostaje**
+obaveza faze 4, od **konkretnog `TenantDatabaseService` facadea**, koji je **uslovno odgođen**.
 
 | Artefakt | Faza | Migration paket (`02` §22) |
 |---|---|---|
@@ -589,7 +591,9 @@ Pojašnjenja (D-038, klauzule 20–21):
 | regresijski dokaz `GET /me` prije i nakon `practice_settings` RLS-a (D-053, klauzula D.12) | **Faza 4** | — (test sloj) |
 | generalizovani tenant endpoint authorization/enforcement pipeline (§6.4.1) | Faza 4 | — (aplikacijski sloj) |
 | `set_request_context(p_practice_id uuid)` | Faza 4 | `013_rls_policies` |
-| uspostava `app.practice_id`, `PracticeContextGuard`, `TenantDatabaseService` | Faza 4 | `013_rls_policies` / aplikacijski sloj |
+| uspostava `app.practice_id` i tenant kontekst semantika (`set_request_context` unutar pinovane transakcije) | Faza 4 | `013_rls_policies` / aplikacijski sloj |
+| `PracticeContextGuard` — semantička odgovornost tenant admisije (naziv faze, ne obavezan NestJS `Guard`; D-054, klauzule 2–4) | Faza 4 | — (aplikacijski sloj) |
+| **konkretan `TenantDatabaseService` facade** — **`EXPLICITLY_DEFERRED` (D-056)**, uslovno na stvarni tenant business modul | **uslovno; najranije očekivano Faza 5** | — (aplikacijski sloj) |
 | transakcijski lokalne tenant varijable | Faza 4 | `013_rls_policies` |
 | proširenje D-048 allowliste na `practice_memberships` i `practice_settings` (`02` §23.4.4a, D-052) | **Faza 4** | `013_rls_policies` |
 | `ENABLE` + `FORCE RLS` i tenant politika nad `review_decision_change_links` (D-046) — **odgođeno izvršenje (D-052)** | **Faza 10** | `013_rls_policies` |
@@ -631,8 +635,15 @@ postojeća numeracija.
 - **adaptacija `GET /me` uslovnog reada pod `practice_settings` RLS-om** — `02` §17.1a; `03` §10
   (D-053, dio D);
 - generalizovani tenant endpoint authorization/enforcement pipeline (§6.4.1);
-- PracticeContext guard;
-- TenantDatabaseService;
+- PracticeContext guard — **kao semantička faza** tenant admisije i uspostave konteksta, ne
+  obavezno NestJS `CanActivate` (D-054, klauzule 2–4);
+- **tenant database granica** — jedan `PrismaService`, **jedna** pinovana interaktivna transakcija,
+  `set_request_context` unutar te iste transakcije, **nijedan** caller-supplied identitet i
+  **nijedna** druga, ugniježdena ni paralelna transakcija. To je **obavezan** sadržaj faze 4.
+  **Konkretna klasa `TenantDatabaseService` NIJE deliverable ove faze** — koncept ostaje kanonski,
+  ali je konkretan facade **uslovno odgođen** (`EXPLICITLY_DEFERRED`, D-056, dio A) i postaje
+  obavezan tek kada ga stvarni tenant business repozitorij/modul zatraži, uz ponovni dokaz D-054,
+  klauzula 6–10;
 - RLS policy za postojeće tenant tabele;
 - force RLS;
 - **eksplicitno proširenje D-048 allowliste** na `practice_memberships` i `practice_settings` —
@@ -907,7 +918,12 @@ Obavezni negativni testovi — direktan pristup endpointu pada kada:
 - bez contexta 0 row/default deny;
 - invalid membership ne može setovati context;
 - context se ne prenosi na drugi pooled request;
-- business repository koristi TenantDatabaseService;
+- tenant pristup se izvršava **isključivo** kroz prihvaćenu tenant database granicu — jedna
+  pinovana interaktivna transakcija sa tenant kontekstom uspostavljenim u njoj; **ako u fazi
+  postoji stvarni tenant business repozitorij, on tu granicu koristi kroz konkretan
+  `TenantDatabaseService` facade**, koji tada mora zadovoljiti D-054, klauzule 6–10. Dok takav
+  repozitorij ne postoji, konkretan facade je **uslovno odgođen** i **nije** kriterij
+  prihvatanja ove faze (D-056, dio A);
 - test dokazuje istu transakciju.
 
 Obavezni D-033 testovi:

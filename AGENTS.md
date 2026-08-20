@@ -158,6 +158,13 @@ Normativna odluka za autorstvo migracija je **D-050** (`docs/02` §26.3, `docs/1
   provjera statusa ordinacije i aktivnog membershipa; i **nikada** ne tretirati caller-supplied
   `userId` kao granicu povjerenja — identitet dolazi isključivo iz autentifikovanog
   admission/session stanja.
+- **Konkretan `TenantDatabaseService` facade je uslovno odgođen (D-056, dio A).** Konkretna klasa
+  **nije** deliverable zatvaranja faze 4; uvodi se **tek kada stvarni tenant business modul zatraži
+  tu apstrakciju**, a ne dolaskom bilo kojeg broja faze. Do tada tenant database granicu nosi
+  postojeći `TenantRequestPipeline` unutar jedne pinovane interaktivne transakcije, i **svi
+  sigurnosni invarijanti iz prethodne dvije stavke važe nepromijenjeno**. Uvođenje dummy klase ili
+  stuba **nije ovlašteno**; svaki budući konkretan facade mora **ponovo dokazati D-054, klauzule
+  6–10** prije prihvatanja.
 - `PracticeContextGuard` je **naziv faze** tenant admisije i uspostave konteksta, ne obavezno
   NestJS `Guard`. **Zabranjen je** `CanActivate` koji bi validirao tenant kontekst **prije**
   admisije autentifikovanog korisnika (D-054, klauzule 2–4).

@@ -474,7 +474,8 @@ Provjeriti:
 
 - X-Practice-ID;
 - active membership;
-- TenantDatabaseService;
+- tenant database granica — upit ide kroz istu pinovanu interaktivnu transakciju kao i uspostava
+  tenant konteksta (koncept `TenantDatabaseService`; konkretna klasa je uslovno odgođena, D-056);
 - context unutar iste transakcije.
 
 ## RLS unexpectedly bypassed

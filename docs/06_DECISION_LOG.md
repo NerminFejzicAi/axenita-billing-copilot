@@ -1637,6 +1637,17 @@ D-002, D-005, D-006, D-023, D-024, D-028, D-029, D-033, D-038, D-044, D-045.
   `002`**, autorisan kroz `prisma migrate diff`. Redoslijed artefakata, njihov sadržaj, rollback
   plan i pravilo da se očekivani drift **ne ispravlja** ostaju **nepromijenjeni**. Vidi D-050,
   klauzulu 4.
+- **Amandman (D-056, 2026-08-20) — klauzula 16, dio o `TenantDatabaseService`-u:** Sigurnosni
+  **koncept** `TenantDatabaseService`-a **ostaje kanonski i nepromijenjen**. **Nadiđeno je
+  isključivo vlasništvo faze 4 nad konkretnom klasom**: konkretan facade **nije** deliverable
+  zatvaranja faze 4. On je **uslovno odgođen** (`EXPLICITLY_DEFERRED`) i postaje obavezan **tek
+  kada stvarni tenant business modul zatraži tu apstrakciju** — a ne dolaskom bilo kojeg broja
+  faze; faza 5 je evidentirana samo kao **najranija očekivana** business-modul faza. Tenant
+  kontekst semantika iz ove klauzule — uspostava `app.practice_id`, `set_request_context`,
+  `PracticeContextGuard` kao naziv faze admisije, `practice_memberships` §17.3 i
+  `practice_settings` RLS — **ostaje u fazi 4 i ne slabi se**. **D-054, klauzule 6–10 ostaju
+  binding** i moraju biti ponovo dokazane prije prihvatanja bilo kojeg budućeg konkretnog facadea.
+  Klauzula 10 ove odluke i `03` §3.7.1 ostaju **nadređeni**. Vidi D-056, dio A.
 
 ---
 
@@ -2147,6 +2158,15 @@ uspostava app.practice_id        -> faza 4
 PracticeContextGuard             -> faza 4
 TenantDatabaseService            -> faza 4
 ```
+
+**Anotacija (D-056, 2026-08-20) — nadiđen isključivo red `TenantDatabaseService`.** Blok iznad je
+**historijski i ostaje nepromijenjen**. Njegov posljednji red — `TenantDatabaseService -> faza 4` —
+**nadiđen je odlukom D-056, dio A**: konkretan facade **nije** deliverable zatvaranja faze 4, nego
+je **uslovno odgođen** dok ga stvarni tenant business modul ne zatraži. **Preostalih pet redova
+bloka ostaje na snazi u cijelosti** — `practice_memberships` §17.3 RLS, `practice_settings` RLS,
+`set_request_context` i uspostava `app.practice_id` ostaju u fazi 4, a `PracticeContextGuard` ostaje
+naziv faze tenant admisije (D-054, klauzule 2–4). **Nijedan sigurnosni zahtjev ovog bloka nije
+uklonjen ni oslabljen.** Vidi D-056.
 
 ### 6. Vlasništvo paketa
 
@@ -3731,6 +3751,338 @@ Obavezan minimum za P4-5D:
 
 D-006, D-009, D-028, D-029, D-033, D-038, D-041, D-044, D-047, D-049, D-051, D-052, **D-053**,
 **D-054**.
+
+---
+
+# D-056 — Autoritet zatvaranja faze 4, uslovno odgađanje konkretnog `TenantDatabaseService` facadea i model kanonskog pokazivača u `05`
+
+- **Status:** ACCEPTED
+- **Datum:** 2026-08-20
+- **Amandman na:** **D-047, klauzulu 16** (kako ju je izmijenio **D-051**), **D-051, klauzulu 5**,
+  **tumačenje D-054, klauzule 5** i svu izvedenu dokumentaciju koja iz njih izvodi **bezuslovno
+  vlasništvo faze 4 nad konkretnom klasom** `TenantDatabaseService` (`02` §17.0, `04` §6.2.3, §6.3
+  i §6.5, `07` Faza 4, `05` Faza 4). **Sigurnosni sadržaj** tih odluka se **ne mijenja i ne
+  slabi**. **D-047, klauzula 10**, **`03` §3.7.1**, **D-049**, **D-053**, **D-054, klauzule 6–10**
+  i **D-055** ostaju **nepromijenjeni**; ova ih odluka izričito potvrđuje kao nadređene.
+- **Vlasnička ratifikacija:** četiri ovdje evidentirane odluke (**OD-1**–**OD-4**) donio je i
+  zamrznuo **project owner** u gateu **P4-FC-GOV1**; ovaj zapis ih **implementira**, ne izvodi.
+
+## Kontekst/problem — sukob autoriteta
+
+Gate **P4-FC** (`BLOCKED_PHASE_4_CLOSURE`) i njegov nastavak **P4-FC-GOV1** mehanički su utvrdili
+da faza 4 ne može biti ni zatvorena ni odbijena bez odluke vlasnika, i to iz četiri nezavisna
+razloga.
+
+**C1 — konkretan `TenantDatabaseService` je bezuslovni deliverable faze 4 u prihvaćenom
+autoritetu.** D-047, klauzula 16, kako ju je D-051, klauzula 5 potvrdila i suzila, doslovno vodi
+`TenantDatabaseService -> faza 4`. `02` §17.0, `04` §6.2.3 i `07` Faza 4 to restatiraju.
+
+**C2 — konkretna klasa na kanonskom `main`-u ne postoji.** Runtime faze 4 realizovan je
+`TenantRequestPipeline`-om, unutar jedne pinovane interaktivne transakcije.
+
+**C3 — D-054, klauzula 5 zadržava koncept kao kanonski**, a klauzule 6–10 propisuju obavezna
+svojstva svake buduće konkretne implementacije, ali **ne** presuđuju u kojoj fazi ta klasa mora
+nastati.
+
+**C4 — checklist faze 4 nosi neoznačene redove** koji nisu ni dokazani ni raspoređeni pod ijednu
+prihvaćenu dispoziciju, pa nijedan mehanički kriterij nije mogao odlučiti zatvara li se faza.
+
+**C5 — `05` je nosio samoreferentni metapodatak** koji pokušava sadržavati tačan **živi** SHA
+vlastitog `origin/main` stanja. Takvo polje postaje **neistinito u trenutku vlastitog merge-a**, pa
+dokumentacija strukturno ne može biti tačna.
+
+Uz to, jedan neoznačen red faze 4 — autorizovan `304` na `If-None-Match` — nosio je obrazloženje
+koje je **zastarjelo**: opisivao je odsustvo namjenskih testova, dok trajni testovi na kanonskom
+`main`-u to ponašanje već dokazuju.
+
+## Odluka
+
+# Dio A — konkretan `TenantDatabaseService` facade
+
+### A.1 Klauzula 1 — ruling `T2_FORMALLY_DEFER`
+
+Konkretna klasa `TenantDatabaseService` **nije deliverable zatvaranja faze 4**. Vlasništvo faze 4
+nad **konkretnim facadeom**, izvedeno iz D-047, klauzule 16 i D-051, klauzule 5, je **nadiđeno**.
+
+### A.2 Klauzula 2 — sigurnosna semantika koncepta je već zadovoljena
+
+Tekući runtime na kanonskom `main`-u već zadovoljava sigurnosnu semantiku koju koncept predstavlja:
+
+- **jedan** Prisma klijent;
+- **jedna** pinovana interaktivna transakcija;
+- tenant kontekst uspostavljen **na toj istoj sesiji**;
+- kanonski **D-047 redoslijed** (`03` §3.7.1, koraci 1–11);
+- **nijedan** caller-supplied identitetski seam;
+- **nijedna** druga, ugniježdena ni paralelna transakcija;
+- **nijedan** izlazak iz transakcije;
+- tenant poslovne operacije se izvršavaju **isključivo nakon** tenant admisije, pod RLS-om.
+
+Ova klauzula **ne** proglašava konkretnu klasu implementiranom. Ona konstatuje da su **svojstva**
+koja koncept štiti **već dokazana** drugim, prihvaćenim artefaktom.
+
+### A.3 Klauzula 3 — koncept ostaje kanonski
+
+`TenantDatabaseService` **ostaje kanonski facade koncept** za tenant business module (D-006;
+D-054, klauzula 5; `01` §6.2 i §10; `09` §4). Ova odluka ga **ne ukida**, **ne slabi** i **ne
+pretvara** u opcionu preporuku.
+
+### A.4 Klauzula 4 — uslovno odgađanje, ne fazno
+
+Konkretan facade je **uslovno odgođen** (`EXPLICITLY_DEFERRED`). Obaveza se aktivira **kada stvarni
+tenant business modul zatraži tu apstrakciju**, a **ne** dolaskom bilo kojeg broja faze.
+
+**Faza 5** se smije evidentirati kao **najranija očekivana** business-modul faza — repozitorij je
+već tako imenuje — ali obaveza ostaje **uslovna**, a ne zagarantovana brojem faze. Dolazak faze 5
+sam po sebi **ne** stvara obavezu ako nijedan tenant business modul ne zatraži facade; jednako,
+raniji tenant business modul obavezu aktivira **odmah**.
+
+### A.5 Klauzula 5 — obavezna svojstva svakog budućeg konkretnog facadea
+
+Svaki budući konkretan `TenantDatabaseService` mora:
+
+1. **omotati postojeću** pinovanu sesijsku/transakcijsku granicu (`TenantRequestPipeline`);
+2. **ne posjedovati** vlastiti `PrismaClient`;
+3. **ne otvarati** drugu, ugniježdenu ni paralelnu transakciju;
+4. **ne uspostavljati** `app.practice_id` prije kanonske admisije (`03` §3.7.1, koraci 3–4;
+   D-047, klauzula 10);
+5. **ne primati** caller-supplied identitet;
+6. **ponovo dokazati D-054, klauzule 6–10** prije prihvatanja.
+
+**D-054, klauzule 6–10 ostaju binding u cijelosti.** Ova klauzula ih **ne zamjenjuje** nego ih
+mehanički ponavlja kao uslov prihvatanja.
+
+### A.6 Klauzula 6 — šta ova odluka ne ovlašćuje
+
+Ova odluka **ne ovlašćuje** implementaciju konkretne klase, **ne ovlašćuje** dummy klasu ni stub,
+**ne ovlašćuje** novi database sloj i **ne ovlašćuje** ijednu izmjenu aplikacijskog ponašanja.
+Označavanje konkretnog facadea završenim **ostaje zabranjeno** dok ne postoji, sa dokazom.
+
+# Dio B — autorizovan `304` red faze 4
+
+### B.1 Klauzula 7 — dispozicija `SATISFIED`
+
+Neoznačen red faze 4 „**Autorizovan `304` na `If-None-Match`**" dobija dispoziciju
+**`SATISFIED_BY_EVIDENCE`**. Njegovo dotadašnje obrazloženje bilo je **zastarjelo**.
+
+### B.2 Klauzula 8 — postojeći trajni dokaz
+
+Trajni testovi na kanonskom `main`-u već dokazuju sva četiri tražena ponašanja:
+
+- autorizovan `GET` sa **podudarajućim** `If-None-Match` daje **`304`** sa praznim tijelom;
+- **nakon `PATCH`-a** stari tag **više ne** revalidira — daje **`200`**;
+- **novi** tag daje **`304`**;
+- **odbijen/neautorizovan** `GET` **ne može** biti pretvoren u `304` — zadržava `403`.
+
+Izvor: `apps/api/test/phase4-practice-settings-patch.security.ts`, blok
+`non-regression of everything this slice did not own` — testovi
+`keeps the GET conditional 304 behaviour unchanged (D-055 clauses 3 and 6)` i
+`keeps an If-None-Match from turning a REFUSED GET into a 304 (clause 4)`.
+
+### B.3 Klauzula 9 — odnos prema D-055, klauzuli 6
+
+**D-055, klauzula 6 se ne opoziva.** Ona je **uskratila ovlaštenje** za **novi** `304` rad u
+**svom** gateu — novi aplikacijski kod, novu `304` granu i **nove namjenske testove**. Ona **nije**
+i nikada nije bila **trajna zabrana prepoznavanja postojećeg mehaničkog dokaza**.
+
+Iz toga slijedi: red se označava **citiranjem postojećih trajnih testova**, i to je jedini dopušten
+put. **Nijedan novi test se ne uvodi. Nijedna izmjena aplikacijskog koda se ne uvodi.**
+
+# Dio C — normativni rubrik zatvaranja faze
+
+### C.1 Klauzula 10 — `ZERO_UNCHECKED_IS_NORMATIVE_REQUIREMENT = NO`
+
+Doslovno „nula neoznačenih kućica" **nije** normativno pravilo zatvaranja faze. Svaki dokument koji
+ga je tako čitao čita se od sada kroz ovu odluku.
+
+### C.2 Klauzula 11 — prihvaćeno pravilo
+
+**Faza se smije zatvoriti kada je `UNRESOLVED_REQUIRED = 0`.**
+
+Svaka checklist stavka koja pripada toj fazi mora biti **ili**:
+
+1. **`SATISFIED_BY_EVIDENCE`** — označena, uz citiranu komandu/test/dokaz prema `00` §14;
+
+**ili** nositi eksplicitnu dispoziciju potkrijepljenu **prihvaćenim autoritetom**:
+
+2. **`SUPERSEDED`**;
+3. **`HISTORICAL`**;
+4. **`NOT_APPLICABLE_IN_V1`**;
+5. **`EXPLICITLY_DEFERRED`**;
+6. **`FUTURE_SCOPE`**.
+
+### C.3 Klauzula 12 — očuvanje živih obaveza
+
+Za svaku dispoziciju koja ostavlja **živu obavezu za kasniji obuhvat**, ta obaveza mora biti
+**očuvana/premještena u sekciju faze koja je posjeduje**, prema **precedentu D-052**.
+
+### C.4 Klauzula 13 — zabrane
+
+Nijedan zahtjev se ne smije:
+
+- tiho izbrisati;
+- oslabiti;
+- implicitno penzionisati;
+- proglasiti `N/A` **samo zato** da bi se faza zatvorila.
+
+### C.5 Klauzula 14 — definicija blokera
+
+Svaka stavka **bez dokaza** i **bez eksplicitne dispozicije potkrijepljene prihvaćenim
+autoritetom** je **`UNRESOLVED_REQUIRED`** i **blokira zatvaranje faze**. Proizvoljna neoznačena
+rezidua **nije dopuštena**.
+
+# Dio D — model kanonskog pokazivača u `05`
+
+### D.1 Klauzula 15 — samoreferentni živi SHA se ukida
+
+`05` **ne smije** pokušavati sadržavati tačan **živi** SHA vlastitog tekućeg `origin/main` stanja u
+polju koje postaje **neistinito** čim taj dokument bude merged.
+
+### D.2 Klauzula 16 — prihvaćeni model
+
+- **kanonska remote grana** je **`origin/main`**;
+- **živi kanonski commit se rezolvira iz te reference**, a ne prepisuje u dokument;
+- ova **samoverzionisana** checklista **ne ugrađuje SHA vlastitog budućeg merge commita**;
+- **tačni SHA-ovi se bilježe isključivo kao nepromjenljivi lifecycle/historijski događaji**.
+
+### D.3 Klauzula 17 — evidentiran lifecycle događaj
+
+Merge implementacije faze 4 **prije** ove governance rekonsilijacije:
+
+```text
+PR #20      MERGED
+MERGE SHA   3658c6e2d9c08e3ca3f0c306d8dbeaf41a6a01f5
+MERGED AT   2026-08-20T15:31:49Z
+MERGED BY   NerminFejzicAi
+SLICE       P4-5D — settings PATCH
+```
+
+Historijska provenijencija **PR #19** i **PR #12** ostaje **netaknuta**.
+
+### D.4 Klauzula 18 — zabrana pogađanja
+
+Budući merge SHA **ove** governance grane se **ne pogađa i ne upisuje**.
+
+# Dio E — status faze 4
+
+### E.1 Klauzula 19 — faza 4 ostaje `IN_PROGRESS`
+
+Ova odluka **ne zatvara** fazu 4 i **ne označava** je `DONE`. Nakon nje faza 4 ostaje
+**`IN_PROGRESS`**, jer je preostao još jedan obavezan gate.
+
+### E.2 Klauzula 20 — preostali gate `P4-013`
+
+Preostali obavezan gate zatvaranja faze 4 je **retrospektivni evidence audit `P4-013`**, čije su
+činjenice zamrznute:
+
+```text
+P4_013_GATE_TYPE                               READ_ONLY_RETROSPECTIVE_EVIDENCE_AUDIT
+P4_013_CHECKLIST_ROWS_IN_SCOPE                 294
+  strogi DB/migration artefakt podskup         64
+  aplikacijski/permission/fixture/test ostatak 230
+P4_013_NEW_APPLICATION_IMPLEMENTATION_EXPECTED NO
+```
+
+Taj gate je **odvojen** i **ne izvršava se** ovom odlukom. Uvođenje rubrika iz dijela C **ne
+ovlašćuje** klasifikaciju ni označavanje tih 294 reda.
+
+# Dio F — obuhvat izvan ove odluke
+
+### F.1 Klauzula 21 — šta ova odluka izričito ne radi
+
+Ova odluka **ne**:
+
+- implementira `TenantDatabaseService`;
+- mijenja aplikacijsko ponašanje, testove, schemu, migracije, seed, RLS ni grantove;
+- izvršava `P4-013` audit i **ne** klasifikuje njegova 294 reda;
+- zatvara fazu 4 i **ne** je označava `DONE`;
+- mijenja stanje ijedne baze.
+
+### F.2 Klauzula 22 — hygiene backlog
+
+Zastario komentar u `apps/api/src/database/database.module.ts` je **`NON_BLOCKING`** i klasifikuje
+se kao **`DOCUMENTATION_BACKLOG`**. Njegova izmjena **nije ovlaštena** ovom odlukom.
+
+## Razlog
+
+Sva četiri problema su **problemi autoriteta**, ne implementacije. C1/C2 su sukob između
+prihvaćenog vlasništva faze i stvarnog, prihvaćenog runtimea koji istu sigurnosnu semantiku već
+zadovoljava — sukob koji se ne smije riješiti ni tihom implementacijom klase koju nijedan poslovni
+modul još ne treba, ni tihim brisanjem zahtjeva. C4 je posljedica toga što repozitorij nikada nije
+imao **mehanički kriterij** zatvaranja faze: „svi checkboxi" je neprovodivo za fazu koja legitimno
+sadrži odgođene, historijske i izvan-v1 redove, a bez kriterija je svaka odluka o zatvaranju
+proizvoljna. C5 je strukturna nemogućnost — polje koje sadrži vlastiti budući merge SHA ne može
+biti tačno ni u jednom trenutku nakon merge-a.
+
+Zastarjelo obrazloženje `304` reda je poseban slučaj iste bolesti: red je ostao neoznačen zato što
+je njegov tekst opisivao stanje koje je u međuvremenu prestalo važiti.
+
+## Alternative
+
+- **`T1` — implementirati konkretan `TenantDatabaseService` u fazi 4** — odbijeno: uvela bi
+  apstrakciju koju nijedan postojeći poslovni modul ne koristi, na granici koja je već dokazana,
+  čime bi se povećala površina bez ijedne nove sigurnosne garancije.
+- **`T3` — obrisati zahtjev za konkretnim facadeom** — odbijeno: to je tiho penzionisanje
+  prihvaćenog sigurnosnog zahtjeva, izričito zabranjeno klauzulom 13.
+- **Zadržati doslovno „nula neoznačenih" pravilo** — odbijeno: nijedna faza sa legitimno odgođenim
+  ili izvan-v1 redovima ne bi mogla biti zatvorena, pa bi pravilo bilo ili neprovodivo ili bi
+  poticalo lažno označavanje.
+- **Napisati novi `304` test da bi se red označio** — odbijeno: D-055, klauzula 6 to ne ovlašćuje,
+  a postojeći trajni dokaz je već potpun.
+- **Zadržati živi SHA pokazivač i ručno ga ispravljati nakon svakog merge-a** — odbijeno:
+  dokument bi bio neistinit između merge-a i sljedeće korekcije, a korekcija bi ponovo bila
+  samoreferentna.
+- **Izvršiti `P4-013` audit u istom gateu** — odbijeno: to je read-only retrospektivni audit nad
+  294 reda i zahtijeva vlastiti gate.
+
+## Posljedice
+
+- `02` §17.0, `04` §6.2.3, §6.3 i §6.5, `07` Faza 4 i `05` Faza 4 **razdvajaju** tenant kontekst
+  semantiku (ostaje obaveza faze 4) od **konkretnog facadea** (uslovno odgođen).
+- U `05` **nijedan red faze 4 više nije neriješeni zahtjev za konkretnim facadeom**; živa obaveza
+  je **očuvana u sekciji faze 5** prema precedentu D-052.
+- `05` dobija zabilježen rubrik zatvaranja iz dijela C; `11` §11 se čita kroz njega.
+- `304` red faze 4 je označen citiranjem **postojećih** testova; **nijedan test nije dodan**.
+- Lifecycle metapodaci `05` za **PR #20** su ispravljeni u `MERGED`; samoreferentni živi SHA
+  pokazivač je uklonjen.
+- **Faza 4 ostaje `IN_PROGRESS`**; `P4-013` ostaje obavezan.
+
+## Security/privacy uticaj
+
+**Neutralan po konstrukciji.** Nijedna politika, nijedan grant, nijedna RLS semantika, nijedan
+redoslijed autorizacije i nijedno aplikacijsko ponašanje se ne mijenja. `02` §17.1 se **ne
+oslabljuje**. D-047, klauzula 10 i `03` §3.7.1 ostaju nadređeni. D-054, klauzule 6–10 ostaju
+binding i **moraju** biti ponovo dokazane prije prihvatanja bilo kojeg budućeg konkretnog facadea.
+Sigurnosna svojstva koja koncept štiti već su dokazana na kanonskom `main`-u (klauzula 2), pa
+odgađanje **ne otvara** nijedan prozor.
+
+## Migration/rollout
+
+**Nema.** Ovo je governance/dokumentaciona odluka. Nijedna migracija, nijedna schema promjena,
+nijedan seed, nijedan grant i nijedna izmjena baze. `apps/**`, `packages/**`, `tests/**` i
+`prisma/**` ostaju **netaknuti**.
+
+## Test dokaz
+
+**Nijedan novi test se ne uvodi.** Dokaz za dio B su **postojeći trajni testovi** citirani u
+klauzuli 8. Dokaz za dio A, klauzulu 2 su postojeći trajni testovi tenant pipelinea i settings ruta
+iz slice-eva P4-5B, P4-5R1, P4-5C i P4-5D (`05`, Faza 4). Dio C je normativno pravilo i nema
+testni artefakt. Dio D je metapodatkovni model i verifikuje se rezolucijom `origin/main`.
+
+## Supersedes
+
+**Ne supersedira nijednu odluku u cijelosti.** Amandmanski nadilazi **isključivo**:
+
+- **D-047, klauzulu 16** (kako ju je izmijenio D-051) — u dijelu koji konkretnu klasu
+  `TenantDatabaseService` vodi kao **bezuslovni** artefakt faze 4;
+- **D-051, klauzulu 5** — u redu `TenantDatabaseService -> faza 4`;
+- **tumačenje D-054, klauzule 5** — u dijelu iz kojeg se izvodi fazno vlasništvo konkretne klase.
+
+**D-054, klauzule 6–10 se ne diraju.** Historijska tijela D-006, D-047, D-049, D-051, D-052,
+D-053, D-054 i D-055 se **ne prepisuju**; anotacije stoje izvan njih.
+
+## Zavisnosti
+
+D-006, D-023, D-033, D-038, D-046, D-047, D-049, D-051, **D-052**, D-053, **D-054**, **D-055**.
 
 ---
 
