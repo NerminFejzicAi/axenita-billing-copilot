@@ -832,6 +832,25 @@ Implementacija opoziva mora sprovesti:
 **Ne kreirati:** permisiju vezanu isključivo za originalnog odobravatelja; novi flag; novi
 endpoint; novu rolu.
 
+**Vlasništvo faza — D-058 (2026-08-20).** Ova subsekcija nosi **dvije klase obaveza** i one nemaju
+istog vlasnika faze:
+
+```text
+matrica, uslovni flagovi, kompozicija (D-041, kl. 1-5 i 12)  -> Faza 4   (implementirano i dokazano)
+sest pravila opoziva iznad (D-041, kl. 6-11)                 -> Faza 10  (§12.2, §12.3 akt. 10, §12.4)
+```
+
+Šest pravila iz „Implementacija opoziva mora sprovesti" zahtijeva tabelu `analysis_approvals`, koju
+kreira paket `009_review_approvals` **u Fazi 10** (`02` §22.9; §12.3, aktivnost 13), pa ih Faza 4
+**ne može izvršiti ni dokazati**. Odlukom **D-058** su, po precedentu **D-052, A.7**, premještena u
+Fazu 10 uz **doslovno očuvan tekst** — `05`, Faza 10, „Opoziv odobrenja — preuzeto iz Faze 4
+(D-058)". **Nijedno pravilo nije uklonjeno, oslabljeno ni označeno završenim**, a **D-041 se ne
+mijenja**: premješta se izvršna i dokazna tačka, ne norma.
+
+**Faza 4 zadržava sve preduslove** — uslovne ćelije, pravilo „flag bez podobne role ne daje
+permisiju", pravilo „rola bez uključenog flaga je odbijena", odbijanje **neaktivnog membershipa** i
+guard ishod **`403` pri isključenom flagu** (D-058, klauzule 2 i 5).
+
 #### 6.4.1.2 Prihvaćene dodjele sa najvećim rizikom
 
 Normativni izvor je `15`; ova lista je podsjetnik, ne druga matrica.
@@ -1524,6 +1543,15 @@ prihvaćenim unique constraintom. Već prihvaćeno idempotency ponašanje ostaje
 - candidate modification after approval fail;
 - revoke ne briše history;
 - export readiness false after revoke;
+- podobnost opoziva se evaluira **u trenutku opoziva** (D-041, klauzula 7; D-058);
+- opoziv od podobnog korisnika koji **nije** originalni odobravatelj **uspijeva** (D-041,
+  klauzula 6; D-058);
+- opoziv **bez** `reason` je odbijen (D-041, klauzula 8; D-058);
+- dokaz odobrenja **nije obrisan** ni nakon opoziva (D-041, klauzula 9; D-058);
+- approval historija ostaje **immutable** nakon opoziva (D-041, klauzula 10; D-016; D-058);
+- opoziv emituje **revocation audit event** (D-041, klauzula 11; D-058);
+- ruta odobravanja i ruta opoziva iz `03` §10 i §20 daju **`403`** kada podobna rola nema uključen
+  odgovarajući practice flag (D-058, klauzula 6);
 - korekcija je perzistirana **prije i bez** ijedne review odluke;
 - odluka sa **nula** povezanih korekcija je validna;
 - korekcija već povezana sa ranijom odlukom **ponovo se povezuje** sa kasnijom odlukom za isti
