@@ -4394,6 +4394,23 @@ kojim commitom i **ne zavisi od željenog ukupnog zbira**.
 - **Faza 4 ostaje `IN_PROGRESS`**; `P4-013` ostaje **obavezan i nezavršen**.
 - Buduće izvršenje mora zabilježiti **commit i izmjereni broj redova**.
 
+**Status posljedica (anotacija `P4-013B`, 2026-08-21) — tijelo odluke se ne mijenja.** Strukturno
+pravilo iz klauzule 3 je **ponovo primijenjeno** na kanonskom `main`-u i dalo je **isti** broj, pa
+obuhvat nije driftovao:
+
+```text
+P4_013B_AUDIT_COMMIT   58f83d49c524bef0434d0ba1d6d04079ca6ece52
+P4_013B_ROWS_FOUND     398          (= baseline 890aee2; bez drifta)
+P4-013A v2             COMPLETE_WITH_REQUIRED_GAPS, UNRESOLVED_REQUIRED = 12
+D-058 / P4-013V        12 -> 0
+P4_013_STATUS          COMPLETE
+PHASE_4_STATUS         IN_PROGRESS   (zatvaranje je zaseban vlasnicki gate)
+```
+
+Posljedica „`P4-013` ostaje obavezan i nezavršen" je bila **tačna na dan odluke** i ostaje
+historijski zapis; obaveza je od tada **ispunjena**, a ne ukinuta. Klauzula 6 (svako izvršenje
+bilježi commit i izmjereni broj) je ovim ispoštovana.
+
 ## Security/privacy uticaj
 
 **Nijedan sigurnosni zahtjev nije uklonjen, oslabljen ni označen završenim.** Efekt je **suprotan**
@@ -4749,6 +4766,22 @@ neaktivnog membershipa, izolaciju ordinacija i `403` pri isključenom flagu. Pre
   prozu**, nijednu checklist stavku (D-057, klauzula 3 ostaje mjerljiva i nepromijenjena).
 - `P4-013` ostaje **obavezan i nezavršen**; **Faza 4 ostaje `IN_PROGRESS`**.
 - Sljedeći gate je **`P4-013V`** za preostalih pet redova, potom **`P4-013B`** za označavanje.
+
+**Status posljedica (anotacija `P4-013B`, 2026-08-21) — tijelo odluke se ne mijenja.** Oba
+najavljena gatea su izvršena, pa su gornje posljedice **ispunjene**, a ne opozvane:
+
+```text
+P4-013V-A   R373                     -> SATISFIED_BY_EVIDENCE  (570 / 570 PASS, SHA 4b48a008)
+P4-013V-B   R347 R348 R369 R382      -> SATISFIED_BY_EVIDENCE  (PR #23, 579 / 579 PASS)
+P4-013B     oznacavanje izvrseno     -> 279 kucica; 376 [x] / 22 [ ]
+UNRESOLVED_REQUIRED   12 -> 5 (D-058: 7 redova) -> 0 (P4-013V: 5 redova)
+P4_013_STATUS         COMPLETE
+PHASE_4_STATUS        IN_PROGRESS     (zatvaranje je zaseban vlasnicki gate)
+```
+
+Dispozicije `R267`–`R272` (`FUTURE_SCOPE`, Faza 10) i `R303` (`SATISFIED_BY_EVIDENCE`, Faza 4) iz
+ove odluke su u `P4-013B` **primijenjene doslovno i nepromijenjeno**; `P4-013B` ih **ne
+preispituje**.
 
 ## Security/privacy uticaj
 
