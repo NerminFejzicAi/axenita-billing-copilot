@@ -1115,13 +1115,37 @@ Status: `IN_PROGRESS`. Merged u kanonski `main`:
 - **P4-5R1** — vezivanje identiteta i hardening tenant pipelinea, PR #17 (`2229724`);
 - **P4-5C** — `GET /api/v1/practices/{practiceId}/settings`, PR #18 (`0411ae4`, merge `be675fd`).
 
-Faza **nije** završena. **Settings `PATCH` nije implementiran**: `If-Match` put, optimistički
-`UPDATE` i sve `428`/`409`/`400` ponašanje **ne postoje na `main`-u**. Preostale tenant tabele i
-slice-evi ostaju otvoreni.
+Implementirano na implementacijskoj grani **`backend/04-practice-settings-patch`**, **još nije
+merged**:
 
-**Ugovor `PATCH`-a je zamrznut, ali nije implementiran.** Autoritet za slice **P4-5D** je
-**D-055** (HTTP validatori i optimistička konkurentnost), uz **D-053** kao bazni settings ugovor.
-Zamrznut ugovor **ne** dozvoljava označavanje ijedne `PATCH` stavke završenom (D-055, klauzula 33).
+- **P4-5D** — `PATCH /api/v1/practices/{practiceId}/settings`, `If-Match` put i atomičan
+  optimistički `UPDATE`. Stavke označene u sekciji „Slice P4-5D" niže odnose se na **tu granu**;
+  označavaju se ovdje jer su **mehanički dokazane** trajnim testovima te grane, a ne zato što je
+  slice merged.
+
+Faza **nije** završena. Preostale tenant tabele i slice-evi ostaju otvoreni, a `013_rls_policies`
+sekcije niže i dalje čekaju vlastiti gate.
+
+**Autoritet za slice P4-5D** je **D-055** (HTTP validatori i optimistička konkurentnost), uz
+**D-053** kao bazni settings ugovor. D-055, klauzula 33 zabranjuje označavanje `PATCH` stavki na
+osnovu **zamrznutog ugovora**; ono što ih ovdje otključava je **implementacija sa dokazom**, ne
+odluka.
+
+**Vlasničke ratifikacije gatea P4-5D**, evidentirane usko i bez izmjene D-055:
+
+- **R1 — domen `If-Match` tokena.** Prihvaćeni aplikacijski token mora biti predstavljiv kolonom
+  `practice_settings.version`, koja je PostgreSQL `integer`. Gramatika ostaje `"<N>"` iz D-055,
+  klauzule 11; maksimalna prihvaćena vrijednost je **`2147483647`**. Svaki sintaksno decimalan
+  token **veći** od te vrijednosti daje **`400 VALIDATION_ERROR`**, i to **prije** nego što
+  vrijednost ikada bude vezana ili kastovana u PostgreSQL-u. `"0"` ostaje sintaksno valjan i
+  **ne** dobija poseban tretman — pošto je perzistirana verzija `>= 1`, prolazi običnim
+  nula-redova putem do `409`.
+- **R2 — prelijevanje na `int4` maksimumu.** Ako red već nosi `version = 2147483647`, a pozivalac
+  pošalje podudarajući `If-Match: "2147483647"`, `version = version + 1` unutar iskaza podiže
+  PostgreSQL `22003`. Prihvaćeno ponašanje je **generičko `500 INTERNAL_ERROR`** sa statičnim,
+  neosjetljivim Problem Details tijelom i **`ROLLBACK`**-om. **Ne** pretvara se u `400` ni `409`,
+  **nema** pre-reada, clampa, odbijanja `2147483647` u parseru, posebnog schema constrainta ni
+  namjenskog `catch`-a.
 
 Normativno: D-033, D-038, **D-049**, **D-051**, **D-052**, **D-053**, **D-054** i **D-055**;
 `02` §16.2,
@@ -1214,31 +1238,95 @@ dokazao. **Nijedna `PATCH` stavka se ovdje ne označava** — `PATCH` ne postoji
       statičnim, neosjetljivim tijelom; **nije** `404`, `403`, prazne ni default postavke, i red se
       **ne kreira i ne popravlja** (D-055, klauzule 7–9).
 - [x] **`PATCH` ruta NIJE registrovana** — ni kao stub; ostaje `404` (D-053, klauzula B.4).
+      **NADIĐENO GATEOM P4-5D.** Ova stavka bilježi ono što je P4-5C dokazao **u svoje vrijeme**
+      i ostaje označena kao historijski nalaz tog slicea. Tekuće stanje grane
+      `backend/04-practice-settings-patch` je suprotno i namjerno: `PATCH` **jeste** registrovan,
+      i tri testa koja su ranije tvrdila `404` **konvertovana su** u pozitivne invarijante
+      (autorizovan `PATCH` bez `If-Match`-a daje `428`), a ne obrisana.
 - [ ] **Autorizovan `304` na `If-None-Match`** — ponašanje **postoji** i **kanonizovano** je u
-      D-055, dijelu B, ali **namjenski `304` testovi nisu uvedeni** i ovim gateom **nisu**
-      ovlašteni (D-055, klauzula 6).
+      D-055, dijelu B. **Namjenski `304` testovi i dalje nisu uvedeni** i D-055, klauzula 6 ih ne
+      ovlašćuje. P4-5D je dodao isključivo **non-regression** tvrdnju da je zatečeno ponašanje
+      **nepromijenjeno** — što klauzula 6 izričito zahtijeva („implementacija P4-5D **ne smije**
+      uvesti novo `304` ponašanje, niti ukloniti postojeće") — pa kućica ostaje neoznačena.
 
-## Slice P4-5D — settings `PATCH` — **NIJE IMPLEMENTIRAN**
+## Slice P4-5D — settings `PATCH` — **IMPLEMENTIRAN, NIJE MERGED**
 
-**Autoritet: D-055**, uz D-053 kao bazni ugovor. **Ugovor je zamrznut; implementacije nema.**
-Nijedna stavka ispod se **ne smije** označiti završenom na osnovu zamrznutog ugovora
-(D-055, klauzula 33).
+**Autoritet: D-055**, uz D-053 kao bazni ugovor, i vlasničke ratifikacije **R1** i **R2** gatea
+P4-5D (vidi uvod Faze 4). Implementirano na grani `backend/04-practice-settings-patch`; **PR nije
+merged i ovaj gate merge ne ovlašćuje**.
 
-- [ ] `PATCH /api/v1/practices/{practiceId}/settings` **registrovan** — **NIJE**.
-- [ ] `If-Match` write put — **NIJE** implementiran.
-- [ ] Parser prihvaćene gramatike `"<N>"` (D-055, klauzula 11) — **NE POSTOJI**.
-- [ ] `428` / `400` / `409` razdvajanje (D-055, klauzula 12) — **NIJE** implementirano.
-- [ ] Jaka i tačna komparacija; `W/"N"` odbijen (D-055, klauzula 13) — **NIJE** implementirana.
-- [ ] `400 VALIDATION_ERROR` za prazno tijelo `{}` (D-055, klauzula 14) — **NIJE** implementirano.
-- [ ] Atomičan optimistic-concurrency `UPDATE` sa predikatom `practice_id` **i** `version`
-      (D-055, klauzule 15–18) — **NIJE** implementiran.
-- [ ] Zabrana aplikacijskog pre-reada (D-055, klauzula 16) — **nema koda koji bi je dokazao**.
-- [ ] `409 VERSION_CONFLICT` za nula pogođenih redova iz **oba** uzroka (D-055, klauzule 19–21) —
-      **NIJE** implementirano.
-- [ ] `200` sa istom osmopoljnom reprezentacijom i **novim** `ETag`-om iz istog
-      `UPDATE ... RETURNING` iskaza (D-055, klauzule 22–23) — **NIJE** implementirano.
-- [ ] Tražena permisija `practice.settings.manage` na `PATCH`-u (D-055, klauzula 28) — **NIJE**
-      implementirana.
+Svaka označena stavka ispod ima **trajni test** koji je dokazuje. Dva komplementarna sloja:
+
+- **`src/identity/application/practice-settings-write.service.spec.ts`** — vlasnik **redoslijeda i
+  broja iskaza**: kompletan snimljeni call log svakog ishoda, tačno **jedan** `UPDATE`, **nijedan**
+  settings read prije ni poslije njega, i `SET` lista koja sadrži isključivo poslana polja. To su
+  pitanja o tome **koji su iskazi izvršeni**, na koja se stvarnoj bazi izvana ne može odgovoriti.
+- **`test/phase4-practice-settings-patch.security.ts`** — vlasnik **ponašanja stvarne baze**:
+  `02` §17.1 politika, devetokolonski grantovi, `updated_at` koji je upisiv a nečitljiv, stvarna
+  konkurentnost dva pisca sa istim `ETag`-om, stvaran `int4` overflow i stvaran `ROLLBACK`.
+
+- [x] `PATCH /api/v1/practices/{practiceId}/settings` **registrovan** — `@Patch(':practiceId/settings')`
+      u postojećem `PracticeSettingsController`; `PUT`, `POST`, `DELETE` i svaka dublja ruta ispod
+      `settings` ostaju `404`.
+- [x] **Ruta koristi prihvaćeni `TenantRequestPipeline`** — bez drugog pipelinea, bez druge
+      transakcije, bez drugog `PrismaClient`-a i bez rutno specifične tenant faze (D-055,
+      klauzule 28–29).
+- [x] **Kanonski D-047 redoslijed je očuvan** — tijelo se validira **tek nakon** cijelog
+      `03` §3.7.1, koraka 1–10. Nepoznat/neaktivan korisnik, nedostajući ili neispravan
+      `X-Practice-ID`, path/header nesklad, odsutan ili neaktivan membership, neaktivna ordinacija
+      i nedovoljna permisija dobijaju **kanonsku refuzaciju bez ijednog `errors[]` polja**, i to sa
+      namjerno neispravnim tijelom u zahtjevu.
+- [x] **Standardni `@Body()` DTO se NE koristi** na ovoj ruti — globalni Nest parameter pipe se
+      izvršava **prije** tijela kontroler metode, dakle prije nego što tenant transakcija uopšte
+      postoji; kontroler prosljeđuje **sirovo** tijelo, a validacija se izvršava unutar servisa.
+- [x] `If-Match` write put — implementiran, i **prije** validacije tijela (vlasnički prihvaćena
+      preferencija).
+- [x] Parser prihvaćene gramatike `"<N>"` (D-055, klauzula 11) — `practice-settings-if-match.ts`;
+      bez `trim`-a, sa usidrenim regexom, ograničenjem dužine prije `BigInt`-a i `int4` granicom
+      (ratifikacija **R1**).
+- [x] `428` / `400` / `409` razdvajanje (D-055, klauzula 12) — implementirano, uključujući
+      razliku **odsutan** (`428`) naspram **prisutan ali prazan** (`400`) header.
+- [x] Jaka i tačna komparacija; `W/"N"` odbijen (D-055, klauzula 13) — `W/"<tekuća verzija>"` je
+      `400` i **nikada** ne zadovoljava `If-Match`.
+- [x] `400 VALIDATION_ERROR` za prazno tijelo `{}` (D-055, klauzula 14) — bez `errors[]`, bez
+      `UPDATE`-a, bez inkrementa `version`-a i **bez promjene `updated_at`** (posljednje dokazano
+      privilegovanim fixture čitanjem). Isti put pokrivaju i tijelo koje uopšte nije poslano i
+      **`[]`** korijen (vlasnička korekcija **C2**).
+- [x] **Tijelo koje nosi samo nepoznata polja daje `422 UNKNOWN_FIELD`**, a **ne** prazan patch —
+      schema se izvršava prije brojanja poslanih polja.
+- [x] Atomičan optimistic-concurrency `UPDATE` sa predikatom `practice_id` **i** `version`
+      (D-055, klauzule 15–18) — jedan `UPDATE ... RETURNING`, `Prisma.sql`/`Prisma.join`, sve
+      klijentske vrijednosti vezane kao parametri, imena kolona isključivo iz izvornih literala
+      zatvorene unije.
+- [x] Zabrana aplikacijskog pre-reada (D-055, klauzula 16) — dokazana snimljenim call logom: ni
+      `findPracticeSettings` prije, ni ijedno settings čitanje poslije `UPDATE`-a.
+- [x] `409 VERSION_CONFLICT` za nula pogođenih redova iz **oba** uzroka (D-055, klauzule 19–21) —
+      zastarjela verzija i **nepostojeći red** daju isti status, isti `code`, isti `title` i isti
+      `detail`; nema drugog čitanja i nema diskriminatora.
+- [x] `200` sa istom osmopoljnom reprezentacijom i **novim** `ETag`-om iz istog
+      `UPDATE ... RETURNING` iskaza (D-055, klauzule 22–23) — reprezentacija i tag su izdvojeni u
+      **jedan zajednički modul** koji `GET` i `PATCH` uvoze.
+- [x] Tražena permisija `practice.settings.manage` na `PATCH`-u (D-055, klauzula 28) — izvedena
+      kroz jedinstvenu aplikacijsku reprezentaciju matrice `15`; **nema** hard-kodirane
+      `PRACTICE_ADMIN` provjere. `PRACTICE_ADMIN` prolazi, preostalih pet tenant rola ne.
+- [x] **`SYSTEM_ADMIN` sam po sebi nema tenant bypass** — `403`; korisnik sa istom platform rolom
+      ali i sa stvarnim `ACTIVE` `PRACTICE_ADMIN` membershipom prolazi, dakle grant dolazi iz
+      tenant permisije, a ne iz platform role.
+- [x] **Ratifikacija R1 dokazana** — `"2147483647"` je prihvaćen token, `"2147483648"` i svaki
+      duži decimalni token daju `400`, i **nijedan** klijentski `If-Match` ne može proizvesti
+      PostgreSQL `22003`.
+- [x] **Ratifikacija R2 dokazana** — red parkiran na `int4` maksimumu sa podudarajućim `If-Match`
+      daje `500 INTERNAL_ERROR` sa statičnim tijelom, potpun `ROLLBACK` (verzija, poslovna polja,
+      `updated_at` i `updated_by` nepromijenjeni) i **bez GUC rezidue**.
+- [x] **Pre-auth parsiranje JSON-a je nepromijenjeno** — neispravan JSON na sada registrovanoj
+      `PATCH` ruti i dalje daje isti **statični** `400` bez `errors[]`, identičan onome na putanji
+      koja uopšte nije registrovana. Ponašanje je transport-level i route-independent; `03` §9 ga
+      klasifikuje kao `400`, i ovaj slice ga **ne mijenja**.
+- [x] **Nema rezidue tenant konteksta** ni nakon jednog ishoda — `200`, `428`, `400` (`If-Match`),
+      `422`, `400` (prazan patch), `409` i `500`.
+- [x] **`If-None-Match` se na `PATCH`-u ne čita** (D-055, klauzula 24) — ne zamjenjuje `If-Match`
+      i ne mijenja nijedan ishod; `GET` `304` ponašanje je non-regression dokazano nepromijenjenim.
+- [x] **Nijedna globalna cache politika nije promijenjena** (D-055, klauzule 26–27).
 
 ## Schema i funkcije
 
@@ -1299,17 +1387,22 @@ D-049, klauzula 5.
 - [ ] Standardna tenant politika `practice_id = app.practice_id`.
 - [ ] **Phase gate pada ako `UPDATE` grant postoji bez pripadajuće tenant politike.**
 - [x] `GET /api/v1/practices/{practiceId}/settings` registrovan — **P4-5C, PR #18**.
-- [ ] `PATCH /api/v1/practices/{practiceId}/settings` registrovan — **NIJE** (P4-5D).
-- [ ] `ETag` vraćen na oba odgovora — **`GET` polovina je gotova** (jak, aplikacijski
-      postavljen tag, P4-5C); `PATCH` polovina **ne postoji**.
-- [ ] `If-Match` obavezan na `PATCH` — **NIJE** implementiran (D-055, klauzula 10).
-- [ ] `428 PRECONDITION_REQUIRED` bez `If-Match` — **NIJE** implementirano.
-- [ ] `400 VALIDATION_ERROR` na sintaksno neprihvaćen `If-Match` — **NIJE** implementirano
-      (D-055, klauzule 11–12).
-- [ ] `409 VERSION_CONFLICT` na stale `If-Match` — **NIJE** implementirano.
-- [ ] `version` se inkrementira **atomično** — **NIJE** implementirano.
-- [ ] `practice.settings.read` i `practice.settings.manage` ostaju **`PRACTICE_ADMIN` only**
-      (D-044, nepromijenjeno; `15`).
+- [x] `PATCH /api/v1/practices/{practiceId}/settings` registrovan — **P4-5D**, grana
+      `backend/04-practice-settings-patch` (nije merged).
+- [x] `ETag` vraćen na oba odgovora — jak, aplikacijski postavljen `"<version>"`; na `PATCH`-u je
+      to **nova** verzija, izvedena iz reda koji je vratio isti `UPDATE ... RETURNING`.
+- [x] `If-Match` obavezan na `PATCH` — **P4-5D** (D-055, klauzula 10).
+- [x] `428 PRECONDITION_REQUIRED` bez `If-Match` — **P4-5D**; **prisutan ali prazan** header je
+      `400`, ne `428`.
+- [x] `400 VALIDATION_ERROR` na sintaksno neprihvaćen `If-Match` — **P4-5D**
+      (D-055, klauzule 11–12; ratifikacija R1 za `int4` granicu).
+- [x] `409 VERSION_CONFLICT` na stale `If-Match` — **P4-5D**; isti ishod i za nepostojeći red.
+- [x] `version` se inkrementira **atomično** — `version = version + 1` unutar jednog iskaza, sa
+      predikatom `version = <očekivana>`; dokazano stvarnom konkurentnošću (pet istovremenih
+      pisaca sa istim `ETag`-om → tačno jedan `200`, četiri `409`, tačno jedan inkrement).
+- [x] `practice.settings.read` i `practice.settings.manage` ostaju **`PRACTICE_ADMIN` only**
+      (D-044, nepromijenjeno; `15`) — obje rute vožene kroz svih šest tenant rola, i kroz
+      `SYSTEM_ADMIN` bez i sa tenant membershipom. Matrica **nije** mijenjana.
 - [ ] Izloženost `PHASE 3 INTERMEDIATE NON-PILOT CONDITIONAL-SETTINGS READ EXPOSURE` je
       **zatvorena** — regresijski test dokazuje da `copilot_app` više ne vidi redove izvan tekućeg
       tenanta.
@@ -1319,21 +1412,24 @@ D-049, klauzula 5.
 
 Normativno: `03` §10 („Settings reprezentacija"); `02` §20.2b.1.
 
-**Stanje nakon P4-5C (PR #18).** `GET` polovina svake stavke ispod je **mehanički dokazana** i
-evidentirana u „Slice P4-5C" iznad: osmopoljna reprezentacija, jak `ETag: "<version>"`, odsustvo
-`version`-a u tijelu i odsustvo `updated_at`/`updated_by`/`configuration`. **Kućice ostaju
-neoznačene** jer svaka od njih tvrdi i **`PATCH`** polovinu, koja **ne postoji**. Označavaju se u
-gateu **P4-5D** (D-055).
+**Stanje nakon P4-5D.** `GET` polovina svake stavke ispod dokazana je u P4-5C (PR #18); `PATCH`
+polovina je dokazana u P4-5D, na grani `backend/04-practice-settings-patch`. Kućice se označavaju
+ovdje jer sada **obje** polovine postoje i imaju trajne testove. Projekcija i tag su izdvojeni u
+**jedan zajednički modul** (`practice-settings-representation.ts`) koji obje rute uvoze, pa dvije
+kopije reprezentacije više nisu izrazive.
 
-- [ ] `GET` i **uspješan** `PATCH` vraćaju **istu** reprezentaciju.
-- [ ] Reprezentacija ima **tačno osam** polja: `practiceId`, `billingReviewRequired`,
+- [x] `GET` i **uspješan** `PATCH` vraćaju **istu** reprezentaciju.
+- [x] Reprezentacija ima **tačno osam** polja: `practiceId`, `billingReviewRequired`,
       `allowMpaApproval`, `allowBillingSpecialistApproval`, `requireReasonForManualChange`,
       `aiEnabled`, `axenitaExportEnabled`, `retentionPolicyCode`.
-- [ ] `retentionPolicyCode` je `string|null`; preostalih šest su `boolean`; `practiceId` je `uuid`.
-- [ ] Oba odgovora nose `ETag: "<version>"`, izveden iz `practice_settings.version`.
-- [ ] **`version` se ne pojavljuje kao polje JSON tijela** — ni u `GET`, ni u `PATCH` odgovoru, ni
-      u `PATCH` zahtjevu.
-- [ ] `updated_at`, `updated_by` i `configuration` se **ne vraćaju**.
+- [x] `retentionPolicyCode` je `string|null`; preostalih šest su `boolean`; `practiceId` je `uuid`.
+      `null` se **renderuje** kao `null`, a ne izostavlja, pa je skup ključeva istih osam imena i
+      kad kolona nosi `NULL`; prazan string ostaje legalan i **ne** stapa se u `null`.
+- [x] Oba odgovora nose `ETag: "<version>"`, izveden iz `practice_settings.version`.
+- [x] **`version` se ne pojavljuje kao polje JSON tijela** — ni u `GET`, ni u `PATCH` odgovoru, ni
+      u `PATCH` zahtjevu (`version` u tijelu zahtjeva je `422 UNKNOWN_FIELD`).
+- [x] `updated_at`, `updated_by` i `configuration` se **ne vraćaju** — ni na `GET`-u ni na
+      `PATCH`-u; `RETURNING` imenuje isključivo devet `SELECT`-granted kolona.
 
 ### Tačna `SELECT` površina — D-053, dio A
 
@@ -1355,30 +1451,54 @@ gateu **P4-5D** (D-055).
 - [ ] **Nema table-level `UPDATE`.**
 - [ ] `practice_id`, `id`, `configuration` i `updated_by` ostaju **bez `UPDATE`-a**.
 - [ ] **Nema `INSERT` i nema `DELETE`** za runtime role.
-- [ ] **`updated_by` je nepromijenjen nakon uspješnog `PATCH`-a** i **nije** tretiran kao
-      autoritativno audit polje.
-- [ ] **Nijedan novi triger nije uveden**; paket `014_immutability_triggers` je **nepromijenjen**.
+- [x] **`updated_by` je nepromijenjen nakon uspješnog `PATCH`-a** i **nije** tretiran kao
+      autoritativno audit polje — **P4-5D**. Iskaz kolonu **ne imenuje**, a fixture joj upisuje
+      prepoznatljivu ne-`null` vrijednost, pa je tvrdnja stvarna, a ne „i dalje `null`". Čita se
+      privilegovano, kroz D-048 maintenance prozor, jer runtime rola nema `SELECT` nad njom.
+- [x] **Nijedan novi triger nije uveden**; paket `014_immutability_triggers` je **nepromijenjen**
+      — P4-5D ne dira nijedan `prisma/` put.
 
 ### Mehanika optimističkog update-a — D-053, dio B
 
-**Autoritet za implementaciju: D-055.** Stavke ispod su **zamrznut ugovor, ne implementacija** —
-nijedna ne postoji na `main`-u. D-055 dodatno zamrzava ono što D-053 ne navodi: prihvaćenu
-gramatiku `"<N>"` (klauzula 11), razdvajanje `428`/`400`/`409` (klauzula 12), jaku i tačnu
-komparaciju (klauzula 13), `400` za prazno tijelo (klauzula 14), zabranu pre-reada (klauzula 16),
-`409` za nula redova iz **oba** uzroka (klauzule 19–21) i jedan izvor istine za uspješan odgovor
-(klauzule 22–23).
+**Autoritet za implementaciju: D-055.** Implementirano u gateu **P4-5D**, na grani
+`backend/04-practice-settings-patch` (nije merged). D-055 dodatno zamrzava ono što D-053 ne navodi:
+prihvaćenu gramatiku `"<N>"` (klauzula 11), razdvajanje `428`/`400`/`409` (klauzula 12), jaku i
+tačnu komparaciju (klauzula 13), `400` za prazno tijelo (klauzula 14), zabranu pre-reada
+(klauzula 16), `409` za nula redova iz **oba** uzroka (klauzule 19–21) i jedan izvor istine za
+uspješan odgovor (klauzule 22–23) — sve je implementirano i pokriveno trajnim testovima.
 
-- [ ] Očekivana verzija se izvodi **isključivo iz `If-Match`**.
-- [ ] Izvršava se **jedan atomičan SQL `UPDATE`**.
-- [ ] `UPDATE` postavlja **samo poslana** poslovna polja.
-- [ ] `UPDATE` postavlja `version = version + 1`.
-- [ ] `UPDATE` postavlja `updated_at` na **tekuće vrijeme baze**.
-- [ ] Predikat je `practice_id = <uspostavljeni tenant> and version = <očekivana verzija>`.
-- [ ] Nula pogođenih redova zbog zastarjele verzije → **`409 VERSION_CONFLICT`**.
-- [ ] Uspjeh vraća reprezentaciju i **novi** `ETag`.
-- [ ] Pozivalac **nikada** ne šalje `version`, `updated_at` ni `updated_by`; poslano se **odbija**.
-- [ ] **Nije uveden**: triger nad `version`, `SECURITY DEFINER`, privilegovana helper funkcija,
-      izmjena paketa `014`, novi migration paket, API polje za proizvoljnu verziju.
+- [x] Očekivana verzija se izvodi **isključivo iz `If-Match`** — nema drugog izvora i nema
+      podrazumijevane vrijednosti.
+- [x] Izvršava se **jedan atomičan SQL `UPDATE`** — dokazano snimljenim call logom; nijedno
+      settings čitanje ne prethodi mu niti ga slijedi.
+- [x] `UPDATE` postavlja **samo poslana** poslovna polja — prisutnost se izvodi iz
+      `Object.hasOwn` nad sirovim tijelom, pa su `false` i `retentionPolicyCode: null` **poslane
+      vrijednosti**, a izostavljeno polje nema nikakvu dodjelu.
+- [x] `UPDATE` postavlja `version = version + 1` — tačno jednom po pogođenom redu, izračunato u
+      bazi iz reda koji se ažurira.
+- [x] `UPDATE` postavlja `updated_at` na **tekuće vrijeme baze** (`now()`), bez učešća
+      aplikacijskog sata.
+- [x] Predikat je `practice_id = <uspostavljeni tenant> and version = <očekivana verzija>`.
+- [x] Nula pogođenih redova zbog zastarjele verzije → **`409 VERSION_CONFLICT`**; isti ishod i
+      zbog nepostojećeg reda, bez ijednog diskriminatora.
+- [x] Uspjeh vraća reprezentaciju i **novi** `ETag`, oba iz istog `UPDATE ... RETURNING` reda.
+- [x] Pozivalac **nikada** ne šalje `version`, `updated_at` ni `updated_by`; poslano se **odbija**
+      sa `422 UNKNOWN_FIELD`.
+- [x] **Nije uveden**: triger nad `version`, `SECURITY DEFINER`, privilegovana helper funkcija,
+      izmjena paketa `014`, novi migration paket, API polje za proizvoljnu verziju. Nijedan
+      `prisma/` put nije dodirnut.
+- [x] **Isti-vrijednost patch je stvaran patch** — poslana vrijednost jednaka perzistiranoj i
+      dalje izvršava `UPDATE`, inkrementira `version` i vraća novi `ETag`. **Nema** no-op
+      detekcije i **nema** `IS DISTINCT FROM` predikata.
+- [x] **SQL sigurnost** — `Prisma.sql` / `Prisma.join`; sve klijentske vrijednosti su vezani
+      parametri; imena kolona dolaze isključivo iz izvornih literala odabranih iscrpnim `switch`-em
+      nad zatvorenom unijom. **Nema** `Prisma.raw(clientInput)`, `$queryRawUnsafe`,
+      `$executeRawUnsafe`, konkatenacije SQL-a ni `Object.keys(body)` u poziciji identifikatora.
+- [x] **Cast `retentionPolicyCode`-a je `::text`, a NE `::varchar(100)`** (vlasnička korekcija
+      **C1**) — eksplicitan `varchar(n)` cast u PostgreSQL-u **tiho skraćuje**, čime bi poništio
+      `22001` odbranu same kolone. Aplikacijski `@MaxLength(100)` je normalna barijera (`422
+      INVALID_LENGTH`), a kolona ostaje backstop; test dokazuje da vrijednost od tačno 100 znakova
+      preživi **bajt po bajt**.
 
 ### `GET /me` nakon `practice_settings` RLS-a — D-053, dio D
 
