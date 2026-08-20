@@ -9,15 +9,16 @@
 
 | Polje | Vrijednost |
 |---|---|
-| Current phase | Faza 1 — `DONE`; Ecosystem Compatibility Audit `DONE`; Faza 2 — `DONE`; **D-OPEN-011 decision gate — `DONE` (D-047 prihvaćen 2026-08-12)**; **D-047 dokumentaciona rekonsilijacija — `DONE`, merged u kanonski `main` (PR #7)**; **D-048–D-051 governance gate — `DONE`, merged u kanonski `main` (PR #10)**; **Faza 3 — `DONE`, merged u kanonski `main` (PR #12, merge commit `5c2786d`) (§4)**; **Faza 4 — `IN_PROGRESS`, otvorena (§5)**; **P4-5D je `MERGED` u kanonski `main` (PR #20)**; **retrospektivni evidence gate `P4-013` — `COMPLETE`** (`UNRESOLVED_REQUIRED = 0`, `SECURITY_CLOSURE_BLOCKERS = 0`; §5, „Gate zatvaranja Faze 4 — P4-013 — `COMPLETE`"); faza **i dalje nije zatvorena** — prelazak `IN_PROGRESS → DONE` je zaseban, vlasnički pregledan gate zatvaranja Faze 4 |
+| Current phase | Faza 1 — `DONE`; Ecosystem Compatibility Audit `DONE`; Faza 2 — `DONE`; **D-OPEN-011 decision gate — `DONE` (D-047 prihvaćen 2026-08-12)**; **D-047 dokumentaciona rekonsilijacija — `DONE`, merged u kanonski `main` (PR #7)**; **D-048–D-051 governance gate — `DONE`, merged u kanonski `main` (PR #10)**; **Faza 3 — `DONE`, merged u kanonski `main` (PR #12, merge commit `5c2786d`) (§4)**; **Faza 4 — `DONE`, zatvorena (§5)**; **P4-5D je `MERGED` u kanonski `main` (PR #20)**; **retrospektivni evidence gate `P4-013` — `COMPLETE`** (`UNRESOLVED_REQUIRED = 0`, `SECURITY_CLOSURE_BLOCKERS = 0`; §5, „Gate zatvaranja Faze 4 — P4-013 — `COMPLETE`"); **prelazak `IN_PROGRESS → DONE` je izvršen zasebnim, vlasnički pregledanim gateom zatvaranja Faze 4 — odluka D-059** (§5, „Zatvaranje Faze 4 — D-059"). `DONE` je ovdje **rezervisani lifecycle status** i postaje kanonski **merge-om ove zatvaračke grane u `origin/main`**, po presedanu Faze 3 (`9af070d`); **Faza 5 ostaje `NOT_STARTED`** |
 | Current branch | Faza 3 je merged u kanonski `main`; implementacijski branch `backend/03-identity-practices` (tehnička implementacija HEAD, Gate 3E = `9f60d32c66023c4aad5ac34df267658ddfe5d6b1`; zatvarački dokumentacioni checkpoint = `2c7d7778a9ec1dae92fd0a5683d1f4afc7b36950`; završni head prije merge-a = `5c1699a0ea4d98e2f540c6e8cd9ae84997896a42`) je time potrošen. **Kanonska remote grana je `origin/main`. Živi kanonski commit se rezolvira iz te reference i ovaj dokument ga ne ugrađuje** (D-056, klauzule 15–16); tačni SHA-ovi ispod su **nepromjenljivi historijski lifecycle događaji**, ne živi pokazivač. Implementacijski branch Faze 4 `backend/04-practice-settings-patch` nosio je slice P4-5D i **merged je** u kanonski `main` kroz **PR #20** (`3658c6e2d9c08e3ca3f0c306d8dbeaf41a6a01f5`), pa je time potrošen. Historijski: `0866e530b6086e7dba7f0bc0d98b19eee69ee0d5` (PR #19, kanonski `main` neposredno prije merge-a P4-5D), `5c2786d689b50f73f49bfca52d2335ea50ee52c2` (PR #12, kanonski `main` po zatvaranju Faze 3), `251544f0b10abb00ee818f1ff5183c95b0ed0d03` (PR #11, kanonski `main` neposredno prije merge-a Faze 3) i `65e2552e13520ead86092f75ca3cc75d206b9f35` (PR #10) |
-| Last completed phase | Faza 3 — Identity & Practices, `DONE` (posljednja faza merged u kanonski `main`, PR #12, `5c2786d`). Tekuća faza: Faza 4 — Tenant/RLS, `IN_PROGRESS` (§5); nije zatvorena — P4-5D je `MERGED` (PR #20, `3658c6e`), a retrospektivni evidence gate **P4-013** je `COMPLETE`; preostaje samo zaseban gate zatvaranja Faze 4 |
+| Last completed phase | **Faza 4 — Tenant/RLS, `DONE`** — zatvorena odlukom **D-059** (§5, „Zatvaranje Faze 4 — D-059"); aplikacija merged kroz PR #20 (`3658c6e`), retrospektivni evidence gate **P4-013** `COMPLETE`, `UNRESOLVED_REQUIRED = 0`. Prethodna: Faza 3 — Identity & Practices, `DONE` (PR #12, `5c2786d`). **Naredna faza — Faza 5 — Encounter/documents — je `NOT_STARTED` i ovim zatvaranjem nije autorizovana** (§6) |
 | Last commit | `c4b89d0` (Phase 2 implementation), merged via `dae9649`; dokumentarno zatvaranje `98910b3`, merged via `d6b5efe`; D-047 rekonsilijacija `76dbc6d` + `dda7538`, merged via `ec7d100` (PR #7); dokumentaciona usklađivanja merged via `2befadc` i `5d38ba8` (PR #8, PR #9); D-048–D-051 rekonsilijacija `b2a99ce`, merged via `65e2552` (PR #10); dokumentaciono zatvaranje governancea merged via `251544f` (PR #11); **Faza 3 — sedam commitova branča `backend/03-identity-practices` (Gate 3A–3E, tehnička implementacija `HEAD` = `9f60d32`; zatvarački dokumentacioni checkpoint `2c7d777`; korekcija reference kanonskog `main`-a `5c1699a`), merged via `5c2786d` (PR #12)** (§4, „Gate checkpointi Faze 3"); historijski kanonski `main` prije P4-5D = `0866e530b6086e7dba7f0bc0d98b19eee69ee0d5` (PR #19); **PR #20 (slice P4-5D) je `MERGED`, merge commit `3658c6e2d9c08e3ca3f0c306d8dbeaf41a6a01f5`**. Živi kanonski commit se rezolvira iz `origin/main` i ovdje se **ne** upisuje (D-056, klauzule 15–16) |
 | Local environment owner | Nermin Fejzic |
 | Test DB | `copilot_test` @ `localhost:5433` (compose profil `test`); dokazi Faze 3 nad realnim PostgreSQL-om rade na **jednokratnim** bazama `copilot_gate3b_<suffix>` @ `localhost` |
 | Documentation version | 1.0 |
-| Last updated | 2026-08-20 |
+| Last updated | 2026-08-21 |
 | **Faza 3** | **`PHASE 3 STATUS: DONE`** — zatvaranje je merged u kanonski `main`. Tehnička implementacija je bila kompletna **prije** merge-a, `TECHNICAL_IMPLEMENTATION_MISSING = 0`. Gate 3A–3E su commitovani, reviewovani i pushovani na `origin/backend/03-identity-practices`; tehnička implementacija HEAD (Gate 3E) = `9f60d32c66023c4aad5ac34df267658ddfe5d6b1`, zatvarački dokumentacioni checkpoint = `2c7d7778a9ec1dae92fd0a5683d1f4afc7b36950`. **PR #12 `feat(identity): complete Phase 3 identity and practices` — `MERGED` 2026-08-16T00:15:08Z; normalan merge commit `5c2786d689b50f73f49bfca52d2335ea50ee52c2` je time postao kanonski `main` (historijski; kasniji historijski kanonski `main` je `0866e530b6086e7dba7f0bc0d98b19eee69ee0d5`, PR #19, a merge P4-5D je `3658c6e2d9c08e3ca3f0c306d8dbeaf41a6a01f5`, PR #20; živi kanonski commit se rezolvira iz `origin/main`).** Time je ispunjen uslov da je `DONE` rezervisan za zatvaranje merged u kanonski `main`. Governance bloker D-048–D-051 bio je `RESOLVED` merge-om PR #10 (`65e2552`, 2026-08-15T00:50:43Z) **prije** nastavka implementacije — vidi §3b |
+| **Faza 4** | **`PHASE 4 STATUS: DONE`** — zatvorena **odlukom D-059** (2026-08-21) nakon što je finalni read-only audit zatvaranja nad kanonskim `9b8fcdd21a51935b7cc6cd810e0e91e44ec281e3` vratio `PHASE4_FINAL_CLOSURE_AUDIT_PASS` i `PHASE4_READY_FOR_FORMAL_CLOSURE = YES`. Aplikacijska implementacija je bila kompletna i merged **prije** zatvaranja (P4-5B, P4-5R1, P4-5C, P4-5D — **PR #20**, `3658c6e2d9c08e3ca3f0c306d8dbeaf41a6a01f5`), a retrospektivni evidence gate **P4-013** je `COMPLETE`: **398** redova, `SATISFIED_BY_EVIDENCE 375`, `HISTORICAL 1`, `NOT_APPLICABLE_IN_V1 8`, `EXPLICITLY_DEFERRED 2`, `FUTURE_SCOPE 12`, `SUPERSEDED 0`, **`UNRESOLVED_REQUIRED = 0`**, **`SECURITY_CLOSURE_BLOCKERS = 0`**, `SILENT_RETIREMENTS = 0` (§5). Kao i kod Faze 3, `DONE` je **rezervisan za lifecycle zatvaranja merged u kanonski `main`**: ovaj zapis je nastao na zatvaračkoj grani `docs/phase4-formal-closure` i postaje kanonski **merge-om te grane u `origin/main`** (presedan `9af070d`, Faza 3). Ono što `DONE` **ne** tvrdi: nije produkcijska spremnost, **ne autorizuje Fazu 5**, i **ne retirira nijednu `FUTURE_SCOPE` ni `EXPLICITLY_DEFERRED` obavezu** — `TenantDatabaseService` facade (§6) te `R267`–`R272` i rezidua `R303` (Faza 10, §11) ostaju **žive i u vlasništvu svojih budućih faza**. |
 
 ---
 
@@ -1117,7 +1118,8 @@ Nijedno od njih nije bloker zatvaranja i nijedno se ne rješava u ovom gateu.
 
 # 5. Faza 4 — Tenant/RLS
 
-Status: `IN_PROGRESS`. Merged u kanonski `main`:
+Status: `DONE` — **zatvorena odlukom D-059** (2026-08-21); vidi
+„Zatvaranje Faze 4 — D-059" na kraju ove sekcije. Merged u kanonski `main`:
 
 - **P4-5B** — tenant request/context pipeline, PR #15 (`530295d`, implementacija `fdef469`);
 - **P4-5R1** — vezivanje identiteta i hardening tenant pipelinea, PR #17 (`2229724`);
@@ -1129,9 +1131,11 @@ Status: `IN_PROGRESS`. Merged u kanonski `main`:
 
 **Aplikacijska implementacija Faze 4 je time kompletna i merged u kanonski `main`.** Retrospektivni
 evidence gate **P4-013** je **`COMPLETE`** — `UNRESOLVED_REQUIRED = 0` i
-`SECURITY_CLOSURE_BLOCKERS = 0` (vidi „Gate zatvaranja Faze 4 — P4-013 — `COMPLETE`" niže). Faza
-ipak **nije** zatvorena: prelazak `IN_PROGRESS → DONE` je **zaseban, vlasnički pregledan gate
-zatvaranja Faze 4**, koji ovaj dokument **ne** izvršava.
+`SECURITY_CLOSURE_BLOCKERS = 0` (vidi „Gate zatvaranja Faze 4 — P4-013 — `COMPLETE`" niže).
+**Faza je zatvorena.** Prelazak `IN_PROGRESS → DONE` izvršen je **zasebnim, vlasnički pregledanim
+gateom zatvaranja Faze 4** — odlukom **D-059** (2026-08-21), nakon `PHASE4_FINAL_CLOSURE_AUDIT_PASS`
+nad kanonskim `9b8fcdd21a51935b7cc6cd810e0e91e44ec281e3`. Vidi „Zatvaranje Faze 4 — D-059" na
+kraju ove sekcije. **Zatvaranje ne autorizuje Fazu 5**, koja ostaje `NOT_STARTED` (§6).
 
 **Obuhvat `P4-013` je rebaziran na ovu, kanonsku Fazu 4 — D-057 (2026-08-20).** Pokušaj 1 gatea
 `P4-013A` zaustavljen je sa `P4_013_SCOPE_RECONCILIATION_FAILURE` jer je D-056, klauzula 20
@@ -2229,9 +2233,11 @@ dopuštena.**
 **Aplikacijska implementacija Faze 4 je kompletna i merged** (P4-5B, P4-5R1, P4-5C, P4-5D — PR #20,
 `3658c6e`). **Retrospektivni evidence gate `P4-013` je sada `COMPLETE`** —
 `UNRESOLVED_REQUIRED = 0`, `SECURITY_CLOSURE_BLOCKERS = 0` (puno računovodstvo niže, u
-„Rekonsilijacija `P4-013B`"). **Faza 4 ipak ostaje `IN_PROGRESS`**: završetak `P4-013` je
-**nužan, ali ne i dovoljan** uslov zatvaranja, a sama odluka o zatvaranju pripada **zasebnom,
-vlasnički pregledanom gateu zatvaranja Faze 4**.
+„Rekonsilijacija `P4-013B`"). Završetak `P4-013` je bio **nužan, ali ne i dovoljan** uslov
+zatvaranja, a sama odluka o zatvaranju pripadala je **zasebnom, vlasnički pregledanom gateu
+zatvaranja Faze 4**. **Taj gate je izvršen: Faza 4 je `DONE` odlukom D-059** (2026-08-21) — vidi
+„Zatvaranje Faze 4 — D-059" na kraju ove sekcije. Ova sekcija ostaje zapis gatea `P4-013` i
+**njegove dispozicije se ovim zatvaranjem ne mijenjaju**.
 
 Ostatak ove sekcije bilježi **kako se do toga došlo** — obuhvat, oba pokušaja `P4-013A`,
 dispoziciju `P4-013F`/D-058 i verifikacije `P4-013V`. **Historijski zapisi ostaju historijski i
@@ -2477,6 +2483,9 @@ P4-013 RETROSPECTIVE EVIDENCE AUDIT:  COMPLETE
 
 ## Granica zatvaranja — `P4-013 COMPLETE` nije `Faza 4 DONE`
 
+**Historijski zapis stanja na kraju gatea `P4-013B` (2026-08-21). Tekuće stanje je niže, u
+„Zatvaranje Faze 4 — D-059".**
+
 **`P4-013` je završen. Faza 4 nije zatvorena.**
 
 ```text
@@ -2493,6 +2502,71 @@ Rubrik zatvaranja faze (D-056, dio C) traži `UNRESOLVED_REQUIRED = 0` kao **nu�
 proglasi Fazu 4 `DONE`, da autorizuje Fazu 5 ni da donese odluku o zatvaranju. Prelazak
 `IN_PROGRESS → DONE` ostaje **zaseban, vlasnički pregledan gate zatvaranja Faze 4**, koji se
 pokreće **tek nakon** što je ova rekonsilijacija pregledana i merged u kanonski `main`.
+
+**Anotacija (D-059, 2026-08-21) — gornji blok se ne prepisuje.** Uslov iz posljednje rečenice je
+**ispunjen**: rekonsilijacija `P4-013B` je pregledana i merged u kanonski `main` kroz **PR #24**
+(`9b8fcdd21a51935b7cc6cd810e0e91e44ec281e3`), nakon čega je zaseban gate zatvaranja **izvršen**.
+`PHASE_4_STATUS` iz ovog bloka je **historijska vrijednost tog trenutka**, a ne tekući status.
+
+## Zatvaranje Faze 4 — D-059
+
+**Faza 4 je zatvorena.** Finalni **read-only** audit zatvaranja izvršen je nad kanonskim
+`main`-om i **nije napravio nijednu izmjenu repozitorija**; vlasnik ga je prihvatio i donio odluku
+**D-059 — Formalno zatvaranje Faze 4** (`ACCEPTED`, 2026-08-21).
+
+```text
+FINAL_CLOSURE_AUDIT                 PASS
+FINAL_CLOSURE_AUDIT_CANONICAL_SHA   9b8fcdd21a51935b7cc6cd810e0e91e44ec281e3
+PHASE4_READY_FOR_FORMAL_CLOSURE     YES
+FORMAL_CLOSURE_DECISION             D-059
+
+P4_013_STATUS                       COMPLETE
+P4_013_ROWS                         398
+UNRESOLVED_REQUIRED                 0
+SECURITY_CLOSURE_BLOCKERS           0
+OPEN_PHASE4_BLOCKERS                0
+SILENT_RETIREMENTS                  0
+TARGET_OWNERS_VERIFIED              YES
+
+PHASE_4_STATUS                      IN_PROGRESS -> DONE
+PHASE_5_STATUS                      NOT_STARTED
+PHASE_10_STATUS                     NOT_STARTED
+```
+
+**Autoritet zatvaranja:** rubrik **D-056, dio C** (`UNRESOLVED_REQUIRED = 0` kao pravilo
+zatvaranja); **D-057** (kanonski strukturni obuhvat `P4-013` — 398 redova); **D-058** (vlasništvo
+faza za odobravanje/opoziv i dispozicija sedam redova); **`P4-013B`** (kanonska rekonsilijacija,
+PR #24); i **finalni read-only audit zatvaranja**.
+
+**Sigurnosni dokaz (sažeto; puni logovi se ne reprodukuju):**
+
+```text
+P4-013V-A         pnpm test:security   570 / 570 PASS   (SHA 4b48a008)
+P4-013V-B / PR #23  pnpm test:security 579 / 579 PASS   (evidence commit 111d91d)
+```
+
+**`DONE` je rezervisani lifecycle status.** Kao i kod Faze 3 (§0, red **Faza 3**; presedan
+`9af070d`), `DONE` u ovom repozitoriju znači **lifecycle zatvaranje merged u kanonski `main`**.
+Ovaj zapis nastaje na zatvaračkoj grani i **postaje kanonski merge-om te grane u `origin/main`**.
+`DONE` **ne** tvrdi produkcijsku spremnost proizvoda.
+
+**Zatvaranje ne retirira nijednu buduću obavezu.** Sve dispozicije iz registra ostaju
+**nepromijenjene i žive u svojim vlasničkim fazama**:
+
+- konkretan **`TenantDatabaseService` facade** (`R9`, `R320`) — `EXPLICITLY_DEFERRED` (D-056, dio
+  A), **uslovni** trigger, najranije očekivano Faza 5 (§6);
+- **`R267`–`R272`** — `FUTURE_SCOPE`, **Faza 10**, doslovno preuzeti redovi (D-058, kl. 3–4, 8–9);
+- **rezidua `R303` na nivou rute** — zaseban red **Faze 10** (D-058, kl. 6); sam `R303` ostaje
+  `SATISFIED_BY_EVIDENCE` u Fazi 4 i **ne mijenja dispoziciju**;
+- **`R314`–`R318`, `R370`** — `FUTURE_SCOPE`; **`R306`–`R313`** — `NOT_APPLICABLE_IN_V1`.
+
+**Granica prema Fazi 5.** D-059 zatvara **isključivo** Fazu 4. **Faza 5 ostaje `NOT_STARTED`**
+(§6) i **nije autorizovana** ovom odlukom; nijedna njena kućica nije označena. Pokretanje Faze 5
+je **zaseban gate**.
+
+**Konačnost.** Nijedna Faza-4 implementacijska remedijacija nije otvorena. Svaka buduća izmjena
+završenog ponašanja Faze 4 traži **novu, eksplicitnu odluku/governance putanju** — ovaj zapis
+zatvaranja se **ne otvara tiho**.
 
 ---
 
