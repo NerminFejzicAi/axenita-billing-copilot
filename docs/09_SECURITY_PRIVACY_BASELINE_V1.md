@@ -30,6 +30,11 @@
 - billing draft povezan sa osobom;
 - AI raw payload sa medicinskim kontekstom.
 
+**Redigovani tekst je i dalje Class A (D-060, klauzula 23).** Deterministička redakcija Faze 5 nije
+anonimizacija ni de-identifikacija; `redaction_status = COMPLETED` ne mijenja klasu podatka. Class A
+kontrole — minimalan pristup, aplikacijska enkripcija, audit čitanja, zabrana logovanja, zabrana
+Redisa, retention i kontrolisan export — važe za **normalizovani i redigovani** tekst jednako.
+
 Kontrole:
 
 - minimal access;
@@ -57,6 +62,18 @@ Kontrole:
 - hashes;
 - status;
 - metrics bez sadržaja.
+
+**Class C nije sinonim za „loggable" (D-060, klauzule 38–39).** Dvije stavke iz ove liste su
+izričito **izuzete iz allowliste tehničkog loga** (§11):
+
+- **`patient pseudonym`** — Class C, ali **nije** dozvoljen log atribut; korelacija u logu ide
+  isključivo preko internih UUID-eva;
+- **deterministički lookup token eksternog ID-a** (`*_ref_hash`) — iako je formalno „hash", to je
+  **keyed, linkabilan** token stabilan po pacijentu i ordinaciji, pa se tretira kao **osjetljiv**:
+  nikada se ne logira, ne vraća u API odgovoru i ne pojavljuje u Problem Details tijelu.
+
+Stavka „hashes" u ovoj listi odnosi se na **hasheve integriteta sadržaja** (approval payload, paket,
+audit lanac), ne na keyed lookup token.
 
 ## Class D — javno/konfiguraciono
 
@@ -257,6 +274,62 @@ Primjene:
 - approval canonical payload: SHA-256;
 - audit chain: SHA-256.
 
+## 8.1 Deterministički lookup token eksternog ID-a (D-060)
+
+Normativno: D-060, dijelovi A i B; `02` §2.8.
+
+- **Algoritam:** HMAC-SHA256; **encoding:** lowercase hex, 64 znaka; **perzistirani oblik:**
+  `h1.<hex64>` u postojećem `varchar(128)`.
+- **Namjenski ključ.** Token koristi **`K_hmac`**, ključ **odvojen od AES-GCM ključa podataka
+  `K_enc`** (§7.3, D-025). **`K_hmac` ne smije biti jednak `K_enc` niti direktno izveden iz njega.**
+  Razlog nije stilski: D-025, klauzula 7 propisuje da rotacija enkripcijskog ključa **ne mijenja
+  `*_hash` kolone**, pa bi HMAC nad `K_enc` značio da rotacija razbija deterministički lookup
+  identitet postojećih redova. Budući startup guard mora odbiti start pri `K_hmac == K_enc`.
+- **Domenska separacija.** HMAC poruka je kanonski UTF-8 string sa LF separatorima koji sadrži
+  verziju formata, **domen tokena**, `practice_id`, `source_system` i normalizovanu vrijednost. Bez
+  `practice_id` u poruci jednakost tokena bi postala **cross-tenant orakl**.
+- **Normalizacija.** Ulaz prolazi profil `MANUAL` v1 (NFC, vanjski trim, odbijanje kontrolnih
+  znakova; **bez `NFKC`, bez case-foldinga, bez uklanjanja vodećih nula**), verzionisan **odvojeno**
+  od generacijskog markera `h1`.
+- **Osjetljivost.** Token je **linkabilan i osjetljiv**. **Nikada se ne logira**, **nikada ne vraća
+  u API odgovoru** i **nikada ne pojavljuje u Problem Details tijelu** (§2, §11).
+- **Ključni materijal.** Ni `K_hmac`, ni njegova referenca, ni verzija ne ulaze u bazu, log,
+  odgovor ni test snapshot (§9). Produkcijski životni ciklus `K_hmac` pada pod isti otvoreni
+  produkcijski gate kao i `K_enc` (D-OPEN-004a).
+
+## 8.2 Hash normalizovanog i redigovanog teksta (D-060)
+
+`source_text_hash` je lowercase hex SHA-256 UTF-8 kodiranja **kanonski normalizovanog,
+neredigovanog** teksta, računat **prije** enkripcije, pa je **reproducibilan iz perzistiranog
+ciphertexta** nakon ovlaštene dekripcije. `redacted_text_hash` se računa istim postupkom nad
+redigovanim tekstom. Sirovi pre-normalizacioni tekst se **ne perzistira** i **druga hash kolona za
+njega ne postoji** (`02` §2.10).
+
+Ova dva hasha su hashevi integriteta sadržaja, ne keyed tokeni — ali su **izvedeni iz Class A
+sadržaja** i **ne pojavljuju se u logu**.
+
+## 8.3 Redakcija nije sigurnosna granica (D-060, klauzula 41)
+
+Deterministička redakcija Faze 5 je **pomoć pri egressu i minimizaciji podataka**, ne sigurnosna
+granica i **ne kontrola pristupa**.
+
+- Sigurnosne granice ostaju: autentifikacija, permisije, tenant izolacija/RLS i aplikacijska
+  enkripcija. **Nijedna se ne smije oslabiti** pozivom na to da je tekst redigovan.
+- **`redaction_status = COMPLETED` znači isključivo** da je konfigurisani deterministički ruleset
+  (`phase5-basic-v1`) izvršen uspješno. **Ne tvrdi** anonimizaciju, de-identifikaciju, odsustvo svih
+  identifikatora ni sigurnost za neograničeno otkrivanje. **Rezultat ostaje Class A** (§2).
+- Ruleset Faze 5 **ne uklanja** imena, adrese, dijagnoze, simptome, lijekove, doziranja, mjerenja,
+  medicinski nužne datume ni kliničke nalaze. Nijedan dokument, test ni komentar **ne smije tvrditi
+  suprotno**.
+- Prepoznavanje telefonskih brojeva je **namjerno strogo**; kad je signal dvosmislen, **ne rediguje
+  se**. Lažno negativni rezultati su prihvaćeni i dokumentovani za Fazu 5, jer lažno pozitivna
+  redakcija doziranja ili laboratorijske vrijednosti nosi **kliničku** štetu.
+- Zamjenski token je **konstantan po klasi** (npr. `[REDACTED:EMAIL]`) i **ne smije** sadržavati
+  hash, prefiks, sufiks, skraćeni original ni bilo koji stabilan derivat uklonjene vrijednosti —
+  takav derivat bi vratio linkabilnost.
+- Pri `redaction_status = FAILED` `view=redacted` **ne smije** pasti nazad na normalizovani ni
+  originalni tekst; fallback bi bio tiho zaobilaženje `encounter.document.read_original` (D-043).
+
 ---
 
 # 9. Secrets
@@ -294,6 +367,19 @@ Prije AI poziva:
 5. ne uključivati nepotrebnu practice identifikaciju;
 6. request ID ne smije biti identifikator pacijenta;
 7. provider retention/training politika mora biti odobrena.
+
+**Doseg koraka 2 u Fazi 5 (D-060, klauzule 24–26).** Korak „ukloniti direct identifiers" je **cilj
+kontrole**, a ne opis onoga što deterministički ruleset Faze 5 (`phase5-basic-v1`) stvarno postiže.
+Taj ruleset uklanja **usku, validiranu klasu** identifikatora — e-mail, URL, validiran AHV/AVS,
+validiran IBAN, kanonski definisan identifikator osiguranja, eksternu referenciju pacijenta iz
+tekućeg zahtjeva i **strogo prepoznat** švicarski telefon. **Ne uklanja** imena, adrese, dijagnoze,
+simptome, lijekove, doziranja, mjerenja, medicinski nužne datume ni kliničke nalaze.
+
+Posljedica je normativna: **redigovani AI input Faze 5 i dalje sadrži klinički sadržaj i ostaje
+Class A** (§2, §8.3). Prije nego što se korak 2 smije smatrati ispunjenim u punom značenju, potrebna
+je **viša klasa redakcije/NER logike**, koja **nije obuhvat Faze 5**. Do tada teret nose koraci 1, 4,
+5 i 7 — izbor minimalnog dokumenta, odobren prompt template, izostavljanje nepotrebne identifikacije
+i **odobrena provider retention/training politika** — a ne redakcija.
 
 Prompt injection:
 
@@ -362,7 +448,31 @@ raw AI prompt/response
 raw Axenita response
 auth_subject
 ZSR / GLN
+external ref HMAC token
+patient pseudonym
+normalized document text
+redacted document text
+source_text_hash / redacted_text_hash
+encryption IV / auth tag
+odbijena PHI vrijednost iz validacije
 ```
+
+**PHI dopuna allowliste (D-060, klauzule 38–40).** Uz postojeće zabrane:
+
+- **deterministički lookup token eksternog ID-a** (`h1.<hex64>`) je keyed i linkabilan i **nije**
+  dozvoljen log atribut, iako se kolona zove `*_hash`;
+- **`patient pseudonym`** je Class C, ali **nije** na allowlisti — korelacija ide preko internih
+  UUID-eva;
+- **tekst dokumenta je zabranjen u svakom obliku** — izvorni, normalizovani i **redigovani**;
+  redakcija **ne** čini tekst loggable;
+- **ciphertext, ključevi, IV i auth tag** se nikada ne logiraju;
+- **sporna PHI vrijednost koja je pala validaciju se nikada ne logira** — ni cijela, ni skraćena,
+  ni kao prefiks/sufiks.
+
+**Problem Details poruke.** Validacione poruke za PHI i eksterne identifikatore koriste **sigurne
+generičke poruke**. Polje `errors[].message` (`03` §8) **ne smije** citirati odbijenu vrijednost,
+njen prefiks, sufiks ni bilo koji njen derivat. Prekoračenje maksimuma manuelnog teksta
+(`422 VALIDATION_ERROR`, `03` §13.1) **ne smije** vratiti nijedan dio poslanog teksta.
 
 Error adapter mora prevesti external error u safe code/message.
 

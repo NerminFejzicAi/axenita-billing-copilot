@@ -497,6 +497,123 @@ Dodatno:
 - unsupported MIME 415;
 - hash mismatch fail.
 
+Stavke `oversized upload 413` i `unsupported MIME 415` pripadaju **isključivo DEFERRED upload
+putanji** (`03` §13.2) i nisu dostižne dok je aktivna document putanja samo tekstualna. Prekoračenje
+maksimuma **manuelnog teksta** testira se kao `422 VALIDATION_ERROR` (§12.4), ne kao `413`.
+
+## 12.0 Status obaveza Faze 5 (D-060)
+
+Sekcije §12.1–§12.7 su **dokumentovane, još neizvršene** test obaveze objavljene odlukom **D-060**.
+
+- **Nijedan test iz ovih sekcija nije implementiran ni izvršen**, i njihovo postojanje **ne**
+  označava nijednu kućicu Faze 5 (`05` §6).
+- Kada Faza 5 bude autorizovana, ove obaveze su **obavezan izvršiv ugovor** po istom pravilu kao
+  §21.6 i §21.7 (§26.2) i **ne izostavljaju se tiho**.
+- Ugovori koje testovi štite su **immutable čim postoji prvi perzistirani red**: normalizacija,
+  hashing i deterministički token nisu naknadno preračunljivi.
+
+## 12.1 HMAC eksternog ID-a
+
+- isti ulaz, isti domen, ista ordinacija i isti `source_system` → **isti** token (determinizam);
+- **druga ordinacija** → drugi token;
+- **drugi `source_system`** → drugi token;
+- **druga domena** (`patient_external_ref` vs `encounter_external_ref` vs
+  `document_external_ref`) → drugi token;
+- **`K_hmac` i `K_enc` ne smiju biti jednaki** — konfiguracija u kojoj jesu mora pasti;
+- token prati format `h1.<64 lowercase hex>` i staje u `varchar(128)`;
+- **malformisan ili nepoznat generacijski prefiks** se odbija **sigurno** — bez izlaganja tokena,
+  ulazne vrijednosti ni materijala ključa u poruci greške;
+- lookup preko više generacija (kad ijedna druga generacija bude postojala) vraća isti red;
+- **nijedan HMAC token se ne pojavljuje u logu, odgovoru ni Problem Details tijelu.**
+
+## 12.2 Normalizacija eksternog ID-a (profil `MANUAL` v1)
+
+- **NFC** se primjenjuje (kompozitni i dekompozitni oblik daju isti token);
+- **vanjski trim** se primjenjuje;
+- **vodeće nule su očuvane** — `0012` i `12` daju **različite** tokene;
+- **veličina slova je očuvana** — `abc` i `ABC` daju **različite** tokene;
+- **unutrašnji whitespace je očuvan**;
+- **`NFKC` se ne primjenjuje** — znakovi koje bi `NFKC` presložio ostaju različiti;
+- `NUL`, C0/C1 kontrolni znakovi, prazan ulaz i ulaz prazan nakon normalizacije se **odbijaju**;
+- vodeći `U+FEFF` se uklanja;
+- prekoračena dužina identifikatora se odbija.
+
+## 12.3 Pseudonim
+
+- format: `P-` + tačno 10 velikih Crockford Base32 znakova;
+- **izvor entropije je CSPRNG**, kroz **mockabilan seam** — test smije determinisati generator, a
+  produkcijski put ne smije imati determinističku granu;
+- **kolizija** na `unique (practice_id, pseudonym)` pokreće **ograničen** retry; iscrpljeni pokušaji
+  **padaju**, bez determinističkog fallbacka;
+- perzistirana vrijednost je **velikim slovima**;
+- **query put:** `patientPseudonym` u malim slovima → kanonizacija u velika → **obična jednakost**
+  vraća isti red; **nijedan `LOWER()`, `citext` ni posebna kolacija se ne koriste**;
+- pseudonim **nije izveden** iz eksternog ID-a: isti eksterni ID u dva reda/ordinacije daje
+  **različite** pseudonime;
+- pseudonim je **immutable** nakon kreiranja;
+- **pseudonim se ne pojavljuje u logu.**
+
+## 12.4 Normalizacija kliničkog teksta
+
+- `CRLF` i samostalni `CR` → `LF`;
+- **NFC** se primjenjuje; **`NFKC` se ne primjenjuje**;
+- **tabovi su očuvani**;
+- **unutrašnji whitespace, prazni redovi i interpunkcija su očuvani**;
+- klinički sadržaj je očuvan doslovno: decimalni zarezi i tačke, jedinice, doziranja, datumi,
+  nazivi lijekova, ICD kodovi i simboli;
+- vanjski trim se primjenjuje **isključivo na nivou cijelog dokumenta**;
+- `NUL` i C0/C1 kontrolni znakovi osim `LF`/`TAB` se odbijaju;
+- prazan tekst nakon normalizacije se odbija;
+- **maksimum 256 KiB**: ulaz iznad maksimuma → **`422 VALIDATION_ERROR`**;
+- **tekst se nikada ne skraćuje** — ni ulaz, ni izlaz normalizacije;
+- **validacioni odgovor ne sadrži nijedan dio poslanog teksta.**
+
+## 12.5 Deterministička redakcija (`phase5-basic-v1`)
+
+- pozitivan slučaj po **svakoj podržanoj klasi**: e-mail; `http`/`https`/`www.` URL; **validiran**
+  AHV/AVS; **validiran** IBAN; kanonski definisan identifikator osiguranja; eksterna referenca
+  pacijenta iz tekućeg zahtjeva;
+- **telefon — strogi negativni slučajevi:** brojevi doziranja, laboratorijske vrijednosti, tarifni i
+  ICD kodovi, datumi i mjerenja **ne smiju** biti redigovani; dvosmislen numerički niz **ostaje
+  neredigovan**;
+- AHV/IBAN sa **neispravnom kontrolnom cifrom/checksumom ostaju neredigovani** (validacija je uslov,
+  ne heuristika);
+- **imena, adrese, dijagnoze, simptomi, lijekovi, doziranja, mjerenja, medicinski nužni datumi i
+  klinički nalazi se NE rediguju** — test tvrdi upravo to, i **nijedan test ne smije tvrditi** da su
+  te klase pokrivene;
+- **zamjenski token je konstantan po klasi** i **ne sadrži** hash, prefiks, sufiks, skraćeni original
+  ni bilo koji stabilan derivat uklonjene vrijednosti;
+- redakcija je **deterministička**: isti ulaz i ista verzija ruleseta daju identičan izlaz;
+- **semantika `COMPLETED`:** status potvrđuje **isključivo** uspješno izvršenje konfigurisanog
+  ruleseta i **ne tvrdi** anonimizaciju ni odsustvo identifikatora;
+- **pri `redaction_status = FAILED` `view=redacted` NE vraća normalizovani ni originalni tekst** —
+  ovo je najkritičniji negativni test cijele sekcije;
+- ponovni pokušaj redakcije pod istom verzijom ruleseta koristi **svjež IV** (D-025, klauzula 6);
+- **nijedan dio teksta — izvornog, normalizovanog ni redigovanog — ne pojavljuje se u logu ni u
+  poruci greške.**
+
+## 12.6 Hashevi
+
+- `source_text_hash` je **reproducibilan**: dekripcija perzistiranog `normalized_text` i ponovni
+  SHA-256 daju **istu** vrijednost;
+- `redacted_text_hash` je reproducibilan iz dekriptovanog `redacted_text`;
+- promjena bilo kojeg koraka normalizacije mijenja hash — test brani **redoslijed operacija** kao
+  dio ugovora;
+- rotacija enkripcijskog ključa (D-025, klauzula 7) **ne mijenja** nijedan `*_hash`.
+
+## 12.7 API semantika Faze 5
+
+- `redactBeforeAiProcessing = false` → **`422 VALIDATION_ERROR`**; `true` → prihvaćeno;
+- `processingStatus` ∈ {`READY`, `FAILED`}; `redactionStatus` ∈ {`COMPLETED`, `FAILED`}; nijedna
+  druga vrijednost se ne prihvata niti proizvodi;
+- `view=original` vraća **dekriptovan, neredigovan, kanonski normalizovan** tekst i traži
+  `encounter.document.read_original` uz `DOCUMENT_VIEWED` audit (D-043);
+- `view=redacted` bez te permisije radi normalno; **fallback na originalni tekst ne postoji ni u
+  jednom slučaju**;
+- **čisti eksterni ID nije u nijednom odgovoru** i **nije u logu**;
+- Problem Details poruke za PHI i eksterne identifikatore su **generičke** i ne citiraju odbijenu
+  vrijednost.
+
 ---
 
 # 13. Analysis/outbox/queue
