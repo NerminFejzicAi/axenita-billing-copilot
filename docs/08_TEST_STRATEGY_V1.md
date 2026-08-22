@@ -410,6 +410,26 @@ EXPORT_PENDING        → APPROVED
 EXPORTED              → CLOSED
 ```
 
+**Dosežni podskup Faze 5 — tačno 4 od 15 (D-062, Dio F; `03` §29.1a).** Faza 5 nema analizu,
+approval ni export rute, pa su u njoj dosežne isključivo:
+
+```text
+(kreiranje)           → DRAFT
+DRAFT                 → READY_FOR_ANALYSIS
+DRAFT                 → CANCELLED
+READY_FOR_ANALYSIS    → CANCELLED
+```
+
+**Preostalih 11 kanonskih tranzicija mora u Fazi 5 biti testirano kao eksplicitno zabranjeno** →
+`409 INVALID_STATE_TRANSITION`. Prećutno odsustvo koda **nije** ispunjenje ovog ugovora: table-driven
+test ide nad **cijelom** mašinom, a ne samo nad dosežnim podskupom.
+
+Dodatno se u Fazi 5 testira: `DRAFT → READY_FOR_ANALYSIS` je **idempotentan** (ponovljeni unos
+dokumenta nad već `READY_FOR_ANALYSIS` encounterom je **no-op, ne greška**), **ne inkrementira
+`version`** (istovremeni `PATCH` sa važećim `ETag`-om ne pada), i emituje **vlastiti** audit događaj
+`ENCOUNTER_READY_FOR_ANALYSIS`; unos dokumenta nad `CANCELLED` encounterom daje
+`409 INVALID_STATE_TRANSITION`.
+
 Zabranjeno je **svako** drugo uparivanje stanja. Eksplicitno testirati barem:
 
 ```text
@@ -501,10 +521,11 @@ Stavke `oversized upload 413` i `unsupported MIME 415` pripadaju **isključivo D
 putanji** (`03` §13.2) i nisu dostižne dok je aktivna document putanja samo tekstualna. Prekoračenje
 maksimuma **manuelnog teksta** testira se kao `422 VALIDATION_ERROR` (§12.4), ne kao `413`.
 
-## 12.0 Status obaveza Faze 5 (D-060, D-061)
+## 12.0 Status obaveza Faze 5 (D-060, D-061, D-062)
 
 Sekcije §12.1–§12.7 su **dokumentovane, još neizvršene** test obaveze objavljene odlukom **D-060**;
-sekcija **§12.8** je isto takva obaveza objavljena odlukom **D-061**. Isto pravilo važi za sve njih.
+sekcija **§12.8** je isto takva obaveza objavljena odlukom **D-061**; sekcija **§12.9** odlukom
+**D-062**. Isto pravilo važi za sve njih.
 
 - **Nijedan test iz ovih sekcija nije implementiran ni izvršen**, i njihovo postojanje **ne**
   označava nijednu kućicu Faze 5 (`05` §6).
@@ -661,6 +682,110 @@ Dodatno, kao dokaz da drugi put nije otvoren posrednim mehanizmom:
 `BEFORE PHASE 5 CO-MEMBER DISPLAY NAME ACCESS`, a taj se otvara prije prvog stvarnog konzumenta
 tuđeg `display_name`-a — tekuće `GET /analyses/{analysisId}/workspace` (Faza 8), ili raniji
 konzument, **šta prije nastupi** (D-061, klauzule 14–16).
+
+## 12.9 Schema, referencijalni integritet i validacija odgovornog ljekara (D-062)
+
+Ove obaveze su **dokumentovane i još neizvršene**, po istom pravilu kao §12.0. **Nijedan test iz
+ove sekcije nije implementiran ni izvršen** i njihovo postojanje **ne označava nijednu kućicu**
+Faze 5 (`05` §6).
+
+### 12.9.1 `★` RI-naspram-RLS dokaz — **blokirajući prije encounter jezgra**
+
+**Ovo je najvažniji test cijele Faze 5 i tvrdi preduslov za slice `P5-I5`.**
+
+Ratifikovani mehanizam validacije `responsiblePhysicianId` (D-062, Dio D) je **composite foreign
+key** prema `practice_memberships (practice_id, user_id)`. On počiva na jednoj nosećoj pretpostavci:
+**PostgreSQL provjere referencijalnog integriteta zaobilaze row-level security**. Ta pretpostavka je
+dokumentovano ponašanje i već je izvršena u ovom repozitoriju kroz
+`practice_membership_roles_membership_fk`, ali **nije dokazana nad Faza-5 schemom**.
+
+**Dokaz se izvršava u slice-u `P5-I2`, nad stvarnim PostgreSQL-om, pod stvarnim runtime rolama, u
+jednoj transakciji, pod `copilot_app` i uspostavljenim tenant kontekstom:**
+
+1. `INSERT` u `encounters` koji u `responsible_physician_id` imenuje `user_id` **co-membera** — dakle
+   **ne** pozivaoca — **uspijeva**;
+2. **u istoj transakciji** direktan `SELECT` **tog istog** `practice_memberships` reda vraća
+   **nula redova**.
+
+**Oba iskaza moraju vrijediti istovremeno.** Prvi dokazuje da referencijalni integritet radi pod
+`FORCE RLS`; drugi dokazuje da RLS **nije** oslabljen da bi prvi prošao. Test koji dokaže samo
+prvi je **nevažeći**.
+
+**Neuspjeh je HARD HOLD:** slice `P5-I5` se ne smije započeti, `OD-P5-D2-5` se ponovo otvara i
+vraća u dizajn. **Neuspjeh NE autorizuje** slabljenje RLS-a, proširenje
+`practice_memberships_self_select`, `SECURITY DEFINER` primitiv, četvrtu rolu ni drugi Prisma
+klijent.
+
+Pretpostavka je **fail-loud**: da je netačna, **svaka** cross-member dodjela podigla bi `23503`, pa
+bi ovaj test to uhvatio odmah.
+
+### 12.9.2 Ugovor validacije odgovornog ljekara
+
+3. **Cross-practice dodjela → `422 VALIDATION_ERROR`**, i **neuspjeh nastaje u bazi** (`23503` nad
+   `encounters_responsible_physician_membership_fk`), ne u aplikacijskoj pred-validaciji.
+4. Poruka greške je **generička i ne citira nijednu vrijednost** (D-060, klauzule 39–40).
+5. **Nema globalnog `23503 → 422` mapiranja** — povreda bilo kojeg **drugog** FK-a ostaje interna
+   greška. Dokazuje se negativnim testom nad drugim constraintom.
+6. **`responsiblePhysicianId = null` prolazi** — `MATCH SIMPLE` znači da `NULL` ne pokreće FK
+   provjeru; `responsiblePhysician` u odgovoru je tada `null`.
+7. **Dodjela co-membera sa `active = false` USPIJEVA**, i **dodjela MPA korisnika USPIJEVA** — to su
+   **ratifikovane posljedice** (`OD-P5-D2-4`), pa test potvrđuje odluku, a ne defekt.
+8. **`PATCH` koji mijenja `responsiblePhysicianId` revalidira istim FK-om**; cross-practice
+   vrijednost → `422`.
+9. **Historijska perzistencija:** nakon što membership postane `active = false`, encounter i dalje
+   nosi isti `responsible_physician_id` i i dalje je čitljiv.
+
+### 12.9.3 Katalog referencijalnog integriteta
+
+10. **Svaki FK Faze 5 nosi `confdeltype = 'a'` i `confupdtype = 'a'`** (`NO ACTION`), provjereno iz
+    `pg_constraint`. Nijedan `CASCADE`, `RESTRICT` ni `SET NULL` ne postoji.
+11. **Osam FK-ova Faze 5 postoji** prema `02` §29.2, uključujući **četiri novodeklarisana**.
+12. **Cross-tenant composite FK fail** — "Encounter A → Patient B" mora pasti **na bazi**, ne u
+    aplikacijskoj validaciji.
+13. **`unique (practice_id, id)` postoji na svih pet** tabela; ukupno **8 od 30** tenant tabela.
+14. **Tri nova `CHECK`-a nad `encounter_documents` postoje** i sprovode se: `processing_status` i
+    `redaction_status` odbijaju vrijednost izvan vokabulara, a artefakt-konzistencijski `CHECK`
+    odbija `COMPLETED` bez `redacted_text_ciphertext`/`redacted_text_hash` i `FAILED` sa njima.
+15. **Kombinacija `processing_status = 'FAILED'` uz `redaction_status = 'COMPLETED'` se odbija.**
+16. **Četiri indeksa iz `02` §29.6 postoje**, uključujući `encounters_responsible_physician_idx` i
+    `id desc` tie-breaker na sva tri encounter indeksa.
+
+### 12.9.4 RLS i grantovi Faze 5 — negativni ugovor
+
+17. `relrowsecurity` **i** `relforcerowsecurity` su `true` na svih pet tabela — **trajna regresija**.
+18. **Osam novih politika** postoji; ukupno **18** nad **11** tabela.
+19. **`copilot_system` ima nula grantova** nad svih pet tabela; **`PUBLIC` nula**.
+20. **`storage_objects` nema nijedan grant i nijednu politiku**, i drži **nula redova**.
+21. **Tačan skup column-level `UPDATE` kolona** na `encounters` (12 kolona) i na
+    `encounter_documents` (**isključivo `archived_at`**); pokušaj `UPDATE`-a nad uskraćenom kolonom
+    pada sa **`42501`**.
+22. **Bez tenant konteksta svaki `SELECT` daje nula redova** (fail-closed).
+23. **Nijedna politika Faze 5 ne sadrži podupit** i **nijedna ne referencira `users` ni
+    `practice_memberships`** — provjerljivo iz tijela politika.
+24. **Nema nove role, `BYPASSRLS`-a, `SECURITY DEFINER` funkcije, četvrte role, drugog Prisma
+    klijenta ni treće `users` politike.**
+25. **`practice_memberships_self_select` je bajt-identična** svom Faza-4 tijelu, i njen grant je
+    nepromijenjen. **`users` i dalje ima tačno dvije politike.**
+26. **`FORCE RLS` allowlista ostaje na šest tabela** — nijedna PHI tabela nije u njoj i nijedna nije
+    seedana (`02` §23.4.4b).
+
+### 12.9.5 Semantika arhive, statusa i odsutnih površina
+
+27. **Arhivirani dokument nije u `GET …/documents`**, ali **jest** na `GET …/documents/{id}`, sa
+    prisutnim `archivedAt`.
+28. **Ponovno arhiviranje već arhiviranog dokumenta je idempotentan uspjeh**, ne `409`.
+29. **`includeArchived` parametar ne postoji** i nepoznat query parametar se odbija.
+30. **`processingStatus` je `READY` na svakom redu kreiranom u Fazi 5** — `FAILED` procesiranje je
+    nedosežno na manuelnoj putanji, jer neuspjela normalizacija daje `422` i **ne kreira red**.
+31. **`latestAnalysis`, approval/export blok i `hasBlockingFindings` su odsutni** — provjera je na
+    **odsustvu ključa** nad **sirovim** payloadom, ne na vrijednosti `null`; nepoznat query parametar
+    **odbijen**.
+32. **`sort` prihvata isključivo `treatmentDate desc, id desc`**; cursor kodira `(treatment_date,
+    id)` i **nikada pseudonim**; nevalidan cursor → `400 INVALID_CURSOR`.
+33. **`PATCH /encounters` prihvata tačno osam polja**; `status`, `patientReferenceId`,
+    `sourceSystem`, `version` i `diagnoses[]` su odbijeni.
+34. **Cancel `reason` se ne perzistira u `encounters`**, zapisuje se **sanitizovan** u audit i **ne
+    vraća se** ni u jednom odgovoru.
 
 ---
 
@@ -2260,13 +2385,14 @@ očekivani status/kod, obaveznu audit asertaciju i da li blokira završetak faze
 | §10 optimistic locking — `practice_settings` (D-049; reprezentacija i `ETag` po D-053) | contract + e2e | **Faza 4** | `013_rls_policies` | **da** |
 | §22.1 constraint | integration | Faza 7 | `005_ai_prompts_and_analysis` | **da** |
 | §22.2 concurrency | integration | Faza 7 | `005_ai_prompts_and_analysis` | **da** |
-| §22.1 immutability trigger | integration | Faza 7 | `014_immutability_triggers` | **da** |
+| §22.1 immutability trigger — **AAD slice repointiran na Fazu 5 (D-062, `OD-P5-D2-1`)** | integration | **Faza 5** za `patient_references`, `encounters`, `encounter_documents`; preostala dva trigera u fazi vlasnika stanja | `014_immutability_triggers` | **da** |
 | §22.3–22.4 revizije | e2e | Faza 10 | — | **da** |
 | §23.1 cancel analize | e2e + audit | Faza 7 | — | **da** |
-| §23.2 kaskada | integration + e2e | Faza 5 | — | **da** |
+| §23.2 kaskada otkazivanja (D-035) — **ISPRAVLJENO (D-062, Dio F.5)** | integration + e2e | **Faza 7** — kaskada zahtijeva `analysis_runs` (paket `005`), pa **nije testabilna u Fazi 5**; raniji unos "Faza 5" bio je netačan | — | **da** |
 | §17.1 D-036 permisije | e2e | Faza 10 | — | **da** |
 | §18.1 D-037 approval kodovi | contract + e2e | Faza 11 | — | **da** |
-| §11.1–11.2 state machine | unit + e2e | prema fazi vlasnika stanja | — | **da** |
+| §11.1–11.2 state machine | unit + e2e | prema fazi vlasnika stanja; **Faza 5 pokriva table-driven test nad svih 15 tranzicija — 4 dosežne prolaze, 11 daje `409`** (D-062, Dio F) | — | **da** |
+| **§12.9 schema/RI/odgovorni ljekar (D-062)** — uključujući **`★` RI-naspram-RLS dokaz** | security/integration + contract | **Faza 5**; `★` u slice-u `P5-I2`, **blokirajuće prije `P5-I5`** | `003`, `013`, `014` | **da** |
 | §20.1 error matrica | contract | Faza 12 | — | **da** |
 | §24.1 D-038 schema constrainti | integration | Faza 3 | `002_identity_and_practices` | **da** |
 | §24.2 D-038 životni ciklus | integration | Faza 3 | `002_identity_and_practices` | **da** |

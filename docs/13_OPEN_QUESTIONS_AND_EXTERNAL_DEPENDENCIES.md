@@ -224,6 +224,15 @@ Da li službeni engine vraća amount/points ili backend dodatno mapira? Ne pretp
 **Status:** PILOT DISCOVERY  
 MVP schema podržava generic system/code. Potvrditi šta Axenita/praxis koristi.
 
+**Dispozicija za Fazu 5 (D-062, `OD-P5-D2-11`).** Pitanje **ostaje otvoreno**. Do njegovog
+zatvaranja `codingSystem` **ostaje free-form u v1**: validira se **isključivo dužina i charset na
+API sloju**, a **nijedan DB `CHECK`, enum ni schema izmjena se ne uvode**. Isti tretman dobijaju
+`guarantorType`, `insuranceContext`, `sexCode`, `patientSexAtEncounter`, `specialtyCode` i
+`diagnosisType` — svi su eksplicitno zabilježeni kao **vokabular neodlučen u v1** (`03` §12).
+
+Kontrast sa statusnim rječnicima dokumenta, gdje D-062 **jest** uveo `CHECK` (`02` §2.11.4), je
+**ratifikacija vokabulara**: tamo je zamrznut odlukom D-060, ovdje nije.
+
 ---
 
 # 14. Object storage provider
@@ -448,6 +457,26 @@ njegovog jedinog konzumenta u Fazi 5** i **pomjera trigger** na prvog stvarnog k
 denormalizacija i nijedna `SECURITY DEFINER` funkcija njime **nisu** uvedeni. Zahtjevi iz §19.3 i
 zabrane iz §19.4 ostaju **na snazi u cijelosti**.
 
+**Šta D-062 jeste i šta nije (2026-08-23).** D-062 razrješava **naslijeđenu obavezu D-061, klauzule
+19–21** — domensku validaciju `responsiblePhysicianId` — i to **bez ijedne izmjene ovog pitanja**.
+Ratifikovani mehanizam je **composite foreign key** `encounters (practice_id,
+responsible_physician_id)` → `practice_memberships (practice_id, user_id)`.
+
+**Ta validacija nije čitanje identiteta i ne smije se tako opisivati.** FK evaluira database
+mašinerija referencijalnog integriteta: **nijedan red ne ulazi u aplikaciju, nijedna kolona se ne
+projektuje, nijedan upit ne imenuje ciljnog korisnika.** Rezidualna površina je **boolean orakl
+dodjeljivosti** nad UUID-om koji pozivalac već posjeduje, ograničen na vlastiti tenant — kategorijski
+različit od čitanja imena, emaila, GLN-a, role ili statusa.
+
+Konkretno, D-062 **ne uvodi**: treću `users` politiku, proširenje `users` column granta, proširenje
+`practice_memberships` RLS-a ili granta, denormalizaciju `display_name`, `SECURITY DEFINER` lookup,
+četvrtu database rolu, drugi Prisma klijent ni zamjenski identifikator.
+`practice_memberships_self_select` ostaje **bajt-identična** stanju Faze 4.
+
+**Temeljni dizajn pristupa co-member identitetu time ostaje `OPEN / NOT IMPLEMENTED`, a gate ostaje
+otvoren i consumer-triggered.** Zahtjevi iz §19.3 i zabrane iz §19.4 ostaju **na snazi u cijelosti**,
+i **co-member `displayName` ostaje izostavljen u Fazi 5**.
+
 ## 19.1 Problem
 
 Tri zamrznuta API odgovora izlagala su `displayName` **drugog** korisnika. Njihova tekuća
@@ -556,6 +585,10 @@ buduće odluke.
 - **nema zamjenskog identifikatora** — inicijali, skraćeno ime, hash imena ili stabilan nadimak
   **ne** rješavaju gate i tretiraju se kao njegovo zaobilaženje;
 - nijedan konzument faze 5 ne smije tiho dobiti generičku vidljivost nad `users`;
+- **composite FK validacija odgovornog ljekara (D-062, Dio D) NE rješava ovaj gate** i ne smije se
+  navoditi kao djelimično rješenje: ona ne vraća red, ne projektuje kolonu i ne imenuje ciljnog
+  korisnika u ijednom upitu. Svaki pokušaj da se iz nje izvede vidljivost imena je **zaobilaženje
+  gatea**;
 - `BLOCKED` oznaka iz `15` §3.1 se **ne** koristi za ovu stavku — vrijednost je povučena; ovaj
   gate se vodi ovdje i u D-047 klauzuli 12.
 

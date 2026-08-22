@@ -1152,6 +1152,26 @@ Permission: `patient_reference.read`.
 
 Ne vraća external plaintext.
 
+**Oblik odgovora — objavljeno (D-062, Dio H.1).** Tijelo `200` odgovora je **identično tijelu
+`201` odgovora `POST /patient-references`**:
+
+```json
+{
+  "id": "uuid",
+  "pseudonym": "P-K7M2QX4TB9",
+  "birthYear": 1968,
+  "sexCode": "F",
+  "sourceSystem": "MANUAL",
+  "createdAt": "2026-07-18T10:00:00Z"
+}
+```
+
+`external_patient_ref_hash` je **odsutan iz svakog odgovora po dizajnu** (D-060, klauzula 38).
+
+**Lifecycle `patient_references` u Fazi 5:** kreiraj jednom, čitaj, **nikada ne mijenjaj, nikada ne
+arhiviraj, nikada ne briši.** Nema `PATCH`, nema `version`, nema `archived_at`, nema `status` i
+nema delete rute. `UPDATE` grant se u Fazi 5 **ne dodjeljuje** (`02` §29.5).
+
 ---
 
 # 12. Encounter API
@@ -1212,6 +1232,41 @@ Headers:
 ```http
 ETag: "1"
 ```
+
+### Izvedene vrijednosti i vokabulari Faze 5 (D-062, Dio H.3, `OD-P5-D2-11`)
+
+`status` u odgovoru je **izvedeno i uvijek `"DRAFT"`** (§29.1a). `patient.pseudonym` je **obično
+čitanje** `patient_references.pseudonym` u istom tenantu, ne dekripcija.
+
+Dvije kolone `encounter_diagnoses` su `NOT NULL`, a **nijedno polje zahtjeva ih ne nosi**. Njihove
+ratifikovane vrijednosti pri kreiranju su:
+
+| Kolona | Vrijednost | Obrazloženje |
+|---|---|---|
+| `review_state` | **`UNREVIEWED`** | jedini smislen član `02` §4.8 za tek zavedenu dijagnozu |
+| `source` | **`MANUAL`** | usklađeno sa `integration_provider` literalom koji zahtjev nosi |
+
+**Free-form u v1** — validira se **isključivo dužina i charset na API sloju**, **bez DB `CHECK`-a,
+bez enuma i bez ijedne schema izmjene**; vokabular je eksplicitno **neodlučen u v1**:
+
+```text
+guarantorType, insuranceContext, sexCode, patientSexAtEncounter,
+specialtyCode, diagnosisType
+```
+
+`codingSystem` se već vodi kao otvorena eksterna zavisnost (`13` §13) i **ostaje free-form u v1** uz
+istu validaciju.
+
+Ovo preslikava precedent `02` §2.11.4 — aplikacijsko sprovođenje dok je vokabular neodlučen, uz
+netaknutu schemu. **Kontrast sa statusnim rječnicima dokumenta**, gdje `CHECK` **jest** uveden
+(`02` §2.11.4), je **ratifikacija vokabulara**, ne sklonost prema `CHECK`-ovima.
+
+**Kolone bez pisca u Fazi 5 ostaju `NULL` po dizajnu** i **nijedno API polje se ne kreira samo da
+bi kolona bila popunjena**: `encounters.external_encounter_ref_*` (nijedno polje zahtjeva ne nosi
+eksternu encounter referencu, pa **`encounters` u Fazi 5 ne nosi nikakav ciphertext**),
+`encounter_documents.external_document_ref_hash`, `encounter_documents.source_storage_object_id`, i
+**cijela tabela `storage_objects`**, koja u Fazi 5 nema pisca i drži nula redova (§13.2 je
+`DEFERRED`).
 
 ## GET `/encounters`
 
@@ -1292,6 +1347,29 @@ konzumira.
 gate `BEFORE PHASE 5 CO-MEMBER DISPLAY NAME ACCESS` (`13` §19) bude zatvoren prihvaćenom odlukom.
 Do tada je dodavanje tog ključa **phase-gate defekt**, ne dopuna odgovora.
 
+### Površine bez modela u Fazi 5 (D-062, Dio H.4, `OD-P5-D2-12`)
+
+Blok `latestAnalysis` u primjeru iznad je **kompletan v1 oblik**. **U Fazi 5 se taj ključ
+izostavlja u cijelosti** — `analysis_runs` je paket `005`, Faza 7.
+
+- **`latestAnalysis` — ključ ODSUTAN**, ne `null`.
+- **approval / export summary — ključ ODSUTAN**, ne `null` (Faza 10 / 11).
+- **`hasBlockingFindings` se u Fazi 5 NE REGISTRUJE** kao query parametar — `rule_findings` je
+  paket `008`, Faza 9. Nepoznat query parametar se **odbija** (`08` §12, `05` §6). Prihvatiti pa
+  ignorisati filter je zabranjeno: vratio bi **širi** skup nego što je pozivalac tražio, tiho.
+
+Obrazloženje je isto ono iz D-061, klauzule 8, uspostavljeno **za ovu istu rutu**: prisutan ključ
+sa praznom vrijednošću tvrdio bi da polje postoji a vrijednost je nepoznata; **odsutan ključ tačno
+kaže da površina ne postoji.**
+
+### `sort` i `cursor` — vokabular Faze 5 (D-062, Dio H.4)
+
+- **`sort`**: `treatmentDate desc, id desc` — **default i jedina vrijednost** u Fazi 5. Svaka druga
+  vrijednost → `400`.
+- **`cursor`**: neproziran, kodira **tačno `(treatment_date, id)`** — par koji odgovara sortu i
+  garantuje stabilan rep (§7). **Nikada ne kodira pseudonim** — pseudonim je Class C, nije log-safe,
+  a cursor je vidljiv klijentu. Nevalidan cursor → `400 INVALID_CURSOR`.
+
 ## GET `/encounters/{encounterId}`
 
 Permission: `encounter.read`.
@@ -1305,6 +1383,11 @@ Vraća:
 - latest analysis summary;
 - approval/export summary;
 - ETag.
+
+**Faza 5 (D-062, Dio H.4).** `latest analysis summary` i `approval/export summary` su **kompletan
+v1 oblik**; u Fazi 5 se **oba ključa izostavljaju u cijelosti** (odsutni, ne `null`), jer im backing
+model ne postoji prije Faza 7–11. **Dokument metadata u Fazi 5 isključuje arhivirane dokumente** —
+ista semantika kao lista iz §13.3.
 
 Odgovorni ljekar se i ovdje vraća **isključivo kao identifikator** — ista semantika kao u listi
 iznad (D-061, klauzule 6–10). Nijedan endpoint Faze 5 ne vraća `display_name` **drugog** korisnika.
@@ -1320,6 +1403,34 @@ If-Match: "4"
 ```
 
 Request je partial DTO. Nije dozvoljeno proizvoljno mijenjati status.
+
+**Tačan skup polja Faze 5 — objavljeno (D-062, Dio H.2, `OD-P5-D2-8`).**
+
+Patchable — **tačno osam**:
+
+```text
+occurredAt, treatmentDate, responsiblePhysicianId, guarantorType,
+insuranceContext, specialtyCode, patientAgeAtEncounter, patientSexAtEncounter
+```
+
+**Nije patchable — normativno:**
+
+```text
+status, patientReferenceId, sourceSystem, version, diagnoses[],
+svaki id, svaki timestamp, svaka actor kolona (created_by, updated_by)
+```
+
+- Dozvoljen **isključivo u nefinalnim stanjima**; u Fazi 5 to su `DRAFT` i `READY_FOR_ANALYSIS`.
+  Iz `CANCELLED` → `409 INVALID_STATE_TRANSITION`.
+- **`patientReferenceId` nije patchable** — inače bi se encounter mogao tiho prepokazati na drugog
+  pacijenta nakon što su dokumenti već zavedeni.
+- **`diagnoses[]` nisu patchable u Fazi 5** — `02` §18.1 ne dodjeljuje `DELETE` nad
+  `encounter_diagnoses` ni u v1, a Faza 5 nema ni `UPDATE` grant nad tom tabelom.
+- **Promjena `responsiblePhysicianId` se revalidira istim composite FK-om** kao pri kreiranju
+  (D-062, Dio D); cross-practice vrijednost → `422 VALIDATION_ERROR` sa generičkom porukom koja ne
+  citira vrijednost.
+- Sprovodi se **dvostruko**: aplikacijskom allowlistom **i** column-level `UPDATE` grantom
+  (`02` §29.5), koji `patient_reference_id` i `source_system` uskraćuje na nivou privilegije.
 
 Response `200` vraća novi `ETag`. Bez `If-Match` → `428 PRECONDITION_REQUIRED`; stale
 `If-Match` → `409 VERSION_CONFLICT`.
@@ -1346,6 +1457,14 @@ Dozvoljena stanja (normativno §29.1):
 - `REVIEW_REQUIRED`.
 
 Iz bilo kojeg drugog stanja → `409 INVALID_STATE_TRANSITION`.
+
+**U Fazi 5 dosežna su isključivo prva dva** — `ANALYSIS_IN_PROGRESS` i `REVIEW_REQUIRED` traže
+analizu, koja postoji tek od Faze 7 (§29.1a; D-062, Dio F).
+
+**Perzistencija `reason` polja — objavljeno (D-062, Dio F.3).** **`encounters` nema kolonu za
+razlog i ona se ne uvodi.** `reason` se zapisuje **isključivo u audit trag** i **mora biti
+sanitizovan prije zapisa**, jer je slobodan tekst i može sadržavati PHI (`02` §15.4, `09` §11;
+D-060, klauzula 39). **Ne vraća se ni u jednom odgovoru** i **ne logira se u sirovom obliku.**
 
 ### Kaskada iz `ANALYSIS_IN_PROGRESS` (D-035)
 
@@ -1555,6 +1674,17 @@ Server provjerava size/hash/MIME/antivirus prema konfiguraciji.
 
 Permission: `encounter.document.list`.
 
+**Filtriranje arhive — objavljeno (D-062, Dio G.5, `OD-P5-D2-10`).** Lista **isključuje**
+dokumente sa `archived_at IS NOT NULL`. Arhiviranje je u `03` §13.3 opisano kao "**Umjesto DELETE
+nakon analize**" — zamjena za brisanje mora ukloniti red iz aktivnog radnog skupa, inače ništa ne
+zamjenjuje.
+
+**`includeArchived` parametar se NE uvodi** — to bi bila dopuna API ugovora koja traži vlastitu
+odluku. Nepoznat query parametar se odbija.
+
+**Neuspjeli dokumenti JESU listabilni.** Dokument sa `redactionStatus = FAILED` je običan red pod
+tenant politikom: metapodaci su vidljivi, i **isključivo** `view=redacted` odbija (niže).
+
 ## GET `/encounters/{id}/documents/{documentId}`
 
 Permission: `encounter.document.read`.
@@ -1582,11 +1712,42 @@ view=redacted|original
   `DOCUMENT_VIEWED` audit.
 - Nijedan pogled ne izlaže eksterni ID, HMAC token ni materijal ključa.
 
+**Detaljna ruta i arhiva (D-062, Dio G.5).** Za razliku od liste, detaljna ruta **i dalje vraća
+arhivirani dokument**, sa prisutnim `archivedAt`. Time red ostaje dosežan za audit — što stvarno
+brisanje ne bi bilo.
+
+**Statusi u Fazi 5 (D-062, Dio G).** `processingStatus` je u Fazi 5 **uvijek `READY`**: jedina
+aktivna putanja kreiranja je manuelni tekst, a neuspjela normalizacija se odbija sa `422` i **ne
+kreira red** (D-060, klauzula 35). `FAILED` procesiranje postaje dosežno tek kad se odmrzne upload
+putanja (§13.2). Kolona, vokabular i testovi ostaju.
+
+Dosežne kombinacije u Fazi 5 su **tačno dvije**: `READY`/`COMPLETED` (normalna putanja) i
+`READY`/`FAILED` (redakcija neuspjela, redigovani artefakti `null`). Kombinacija
+`FAILED`/`COMPLETED` je **logički nemoguća** i odbija se.
+
+**Retry redakcije nema rutu u Fazi 5** (D-062, `OD-P5-D2-9`). Ugovor iz D-060, klauzule 32 —
+ponavljanje pod istom verzijom ruleseta uz svjež IV — **ostaje nepromijenjen i neopozvan**; odgađa
+se isključivo **površina**. Posljedično `encounter_documents` dobija `UPDATE` **isključivo nad
+`archived_at`** (`02` §29.5), pa su sve ostale kolone nakon `INSERT`-a nezapisive na nivou
+privilegije.
+
 ## POST `/encounters/{id}/documents/{documentId}/archive`
 
 Permission: `encounter.document.archive`.
 
 Umjesto DELETE nakon analize.
+
+**Semantika — objavljeno (D-062, Dio G.5, `OD-P5-D2-10`).**
+
+- Postavlja `archived_at`. **Nijedna statusna vrijednost se ne mijenja** — `ARCHIVED` ne postoji ni
+  u jednom rječniku (`02` §2.11).
+- **Ponovno arhiviranje već arhiviranog dokumenta je idempotentan uspjeh**, ne `409`.
+- **Restore ruta ne postoji i ne uvodi se.**
+- **Arhiva nikada ne smije postati RLS predikat** (`02` §29.4) — u politici bi sakrila redove od
+  audita i učinila stanje nepovratnim.
+- **Fizičko brisanje ne postoji nigdje u Fazi 5**, i **nijedna delete ruta se ne izmišlja**.
+  Retenciona i pravna pitanja (`09` §20, `D-OPEN-007`) **ostaju otvorena** i ovom odlukom se **ne
+  zatvaraju**.
 
 ---
 
@@ -2858,6 +3019,54 @@ Eksplicitno:
   `REVIEW_REQUIRED`; ljudski review se ne preskače.
 - `REJECT` odluke nad analizom **ne mijenjaju** encounter status — ostaje
   `REVIEW_REQUIRED` (§20).
+
+## 29.1a Dosežni podskup Faze 5 — tačno 4 od 15 (D-062, Dio F)
+
+**Kanonski graf iznad se NE mijenja i ne otvara.** Ovaj pododjeljak isključivo bilježi koje su
+tranzicije **dosežne** u Fazi 5, jer Faza 5 nema ni analizu, ni approval, ni export rute.
+
+**Stanje kreiranja Faze 5:** `DRAFT`, jedino i uvijek.
+
+| # | Tranzicija | Okidač | Akter | `version` |
+|---|---|---|---|---|
+| 1 | *(kreiranje)* → `DRAFT` | `POST /encounters` | `encounter.create` — PHYSICIAN, MPA | `1`, `ETag: "1"` |
+| 2 | `DRAFT` → `READY_FOR_ANALYSIS` | uspješan unos dokumenta (§13.1) | `encounter.document.create` — PHYSICIAN, MPA | **bez inkrementa** |
+| 3 | `DRAFT` → `CANCELLED` | `POST …/cancel` | `encounter.cancel` — **isključivo PHYSICIAN** | inkrement |
+| 4 | `READY_FOR_ANALYSIS` → `CANCELLED` | `POST …/cancel` | `encounter.cancel` — isključivo PHYSICIAN | inkrement |
+
+**Nedosežna stanja u Fazi 5:** `ANALYSIS_IN_PROGRESS`, `REVIEW_REQUIRED`, `APPROVED`,
+`EXPORT_PENDING`, `EXPORTED`, `CLOSED`.
+
+**Preostalih 11 tranzicija mora biti implementirano kao eksplicitno zabranjeno** →
+`409 INVALID_STATE_TRANSITION`, a **ne prećutno odsutno**: `08` §11.1 traži table-driven test nad
+**cijelom** mašinom. **Ponašanje Faze 7+ se ne uvlači u Fazu 5.**
+
+**`DRAFT → READY_FOR_ANALYSIS` — ratifikovani trigger (`OD-P5-D2-7`):**
+
+- postavlja ga **komanda unosa dokumenta**, ne klijent;
+- **isključivo iz `DRAFT`**;
+- pri **svakom** uspješnom unosu, **idempotentno** — ako je encounter već `READY_FOR_ANALYSIS`, to
+  je **no-op, ne greška**;
+- **ne troši `version` inkrement**, pa istovremeni `PATCH` sa važećim `ETag`-om ne pada;
+- emituje **vlastiti** audit događaj `ENCOUNTER_READY_FOR_ANALYSIS`;
+- **nema klijentske rute za promjenu statusa** — §12 zabranjuje proizvoljnu promjenu statusa.
+
+**Efekt na dokumente:** unos dokumenta se **odbija kad je encounter `CANCELLED`** →
+`409 INVALID_STATE_TRANSITION`.
+
+**Arhiviranje encountera ne postoji** — `encounters` nema `archived_at` kolonu (`02` §7.2).
+Arhiviranje je **isključivo koncept dokumenta** (§13.3).
+
+**Reopen ne postoji u Fazi 5.** `CANCELLED` je terminalno; `CANCELLED → CLOSED` je zabranjeno.
+Kanonske re-entry putanje (`APPROVED → REVIEW_REQUIRED`, `EXPORT_PENDING → APPROVED`) su izvan
+Faze 5.
+
+**`POST …/close` je izvan obuhvata Faze 5** jer je `EXPORTED` nedosežan. To što ga `04` §7.3 ne
+navodi **nije kontradikcija** sa §12, nego tačna posljedica nedosežnosti.
+
+**Sloj sprovođenja: aplikacijski.** Vokabular statusa već sprovodi enum tip `encounter_status`;
+**graf tranzicija je aplikacijski** i **nijedan trigger, `CHECK` ni constraint nad statusnom
+kolonom se ne uvodi** (`02` §22.14 ne poznaje encounter-status trigger).
 
 ## 29.2 Analysis
 
