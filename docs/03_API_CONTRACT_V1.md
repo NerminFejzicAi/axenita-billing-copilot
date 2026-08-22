@@ -1239,7 +1239,7 @@ semantiku** — `citext`, `LOWER(kolona)` indeks i posebne kolacije se **ne uvod
 mijenja** radi ove pretrage. Vrijednost koja ni nakon kanonizacije ne odgovara v1 sintaksi tretira
 se kao obična validaciona greška i **ne potvrđuje postojanje nijednog reda**.
 
-Response item:
+Response item — **aktivni oblik Faze 5** (D-061, klauzule 6–10):
 
 ```json
 {
@@ -1248,8 +1248,7 @@ Response item:
   "treatmentDate": "2026-07-17",
   "status": "REVIEW_REQUIRED",
   "responsiblePhysician": {
-    "id": "uuid",
-    "displayName": "Dr. Muster"
+    "id": "uuid"
   },
   "latestAnalysis": {
     "id": "uuid",
@@ -1261,6 +1260,37 @@ Response item:
   "version": 4
 }
 ```
+
+### `responsiblePhysician` — semantika Faze 5 (D-061)
+
+Ovo je **namjerno sužavanje** ranijeg v1 oblika, izvršeno **prije implementacije** i bez
+kompatibilnog shima, po presedanu D-038 (`GET /me`: `role` → `roles[]`). U trenutku sužavanja Faza 5
+je `NOT_STARTED`, nijedan produkcijski kod ne implementira ovaj endpoint i nijedan klijent ga ne
+konzumira.
+
+- kada `responsible_physician_id` **nije** `NULL`, objekat sadrži **isključivo `id`**;
+- **ključ `displayName` je ODSUTAN** — ne emituje se kao `null`, ne kao prazan string i ne kao
+  placeholder. Odsutan ključ znači da površina ne postoji; `null` bi tvrdio da ime postoji ali je
+  nepoznato;
+- kada `responsible_physician_id` **jeste** `NULL`, cijeli objekat je `null`:
+
+```json
+"responsiblePhysician": null
+```
+
+- query filter **`responsiblePhysicianId` ostaje nepromijenjen** i funkcionalan — filtriranje po
+  identifikatoru ne zahtijeva čitanje `users`;
+- **nijedan zamjenski identifikator** (inicijali, skraćeno ime, hash imena) se **ne uvodi**;
+- serviranje ove liste **ne smije čitati `users`** radi obogaćivanja odgovora.
+
+**Razlog i granica.** `display_name` drugog korisnika je co-member pristup. PostgreSQL RLS bira
+**redove, ne kolone**, pa bi svaka politika koja propusti tuđi `users` red učinila čitljivim i
+`email` (`02` §17.5, §20.2a; D-047, klauzula 12). Faza 5 zato **ne kupuje** taj pristup. Vlastiti
+`email`/`displayName` u `GET /me` (§10) su **caller-self** i ostaju nepromijenjeni.
+
+**Buduće proširenje.** Kompletan v1 oblik smije dodati `displayName` **tek nakon** što imenovani
+gate `BEFORE PHASE 5 CO-MEMBER DISPLAY NAME ACCESS` (`13` §19) bude zatvoren prihvaćenom odlukom.
+Do tada je dodavanje tog ključa **phase-gate defekt**, ne dopuna odgovora.
 
 ## GET `/encounters/{encounterId}`
 
@@ -1275,6 +1305,9 @@ Vraća:
 - latest analysis summary;
 - approval/export summary;
 - ETag.
+
+Odgovorni ljekar se i ovdje vraća **isključivo kao identifikator** — ista semantika kao u listi
+iznad (D-061, klauzule 6–10). Nijedan endpoint Faze 5 ne vraća `display_name` **drugog** korisnika.
 
 ## PATCH `/encounters/{encounterId}`
 
@@ -1689,6 +1722,27 @@ Agregirani UI endpoint:
 ```
 
 Original/raw matcher JSON nije dio običnog workspace responsea.
+
+### `encounter.responsiblePhysician.displayName` — polje pod obaveznim gateom (D-061, klauzule 14–16)
+
+Gornji oblik je **zamrznut kompletan v1 oblik**, ne oblik koji je već implementabilan. Polje
+`encounter.responsiblePhysician.displayName` vraća `display_name` **drugog** korisnika i time je
+**co-member pristup**, koji je u v1 `DENY / NOT IMPLEMENTED` (D-047, klauzula 12).
+
+Ovaj endpoint je **tekući prvi poznati konzument** tog pristupa. Vlasnička faza je **Faza 8 — Mock
+AI/Tariff** (`04` §10.3; `05` §9). Prije njegove implementacije **mora** biti ponovo otvoren i
+prihvaćenom odlukom zatvoren imenovani gate:
+
+```text
+BEFORE PHASE 5 CO-MEMBER DISPLAY NAME ACCESS
+```
+
+Do tada vrijedi, bez izuzetka: nema treće `users` politike; nema proširenja `users` column granta;
+nema proširenja `practice_memberships` RLS-a ni granta; nema denormalizacije `display_name`; nema
+`SECURITY DEFINER` lookupa; nema drugog Prisma klijenta (`13` §19.4; D-061, klauzula 11).
+
+Ako **bilo koji raniji** endpoint stekne prihvaćen zahtjev da vrati ime drugog korisnika, gate se
+otvara **tada** — vrijedi pravilo **šta prije nastupi**.
 
 ### Uslovni `tariffEvaluation` blok (D-026, klauzula 6)
 
@@ -2206,6 +2260,16 @@ Response `201`:
   "approvedPayloadSha256": "..."
 }
 ```
+
+**`approvedBy.displayName` — zašto ovo nije co-member trigger (D-061, klauzula 17).** U ovom
+odgovoru je odobravatelj **sam pozivalac**, pa je `displayName` **caller-self** podatak koji već
+pokriva politika `users_self_select` (`02` §17.5). Ovo polje samo po sebi **ne aktivira** gate
+`BEFORE PHASE 5 CO-MEMBER DISPLAY NAME ACCESS`.
+
+Ograničenje je **uslovno** i mora biti provjereno prije implementacije: čim bilo koja **read-back**
+površina — lista odobrenja, detalj analize, audit paket ili export — vrati `approvedBy.displayName`
+za odobrenje koje **nije** napravio pozivalac, to jeste co-member pristup i gate se **mora** otvoriti
+prije te implementacije.
 
 ## POST `/analyses/{analysisId}/approval/revoke`
 

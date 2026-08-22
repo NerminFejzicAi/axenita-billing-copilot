@@ -5669,6 +5669,409 @@ D-OPEN-009 ostaju otvoreni.
 
 ---
 
+# D-061 — Co-member `displayName` u Fazi 5: izostavljanje umjesto proširenja pristupa, i repointiranje obaveznog gatea
+
+- **Status:** ACCEPTED
+- **Datum:** 2026-08-23
+- **Tip:** dizajnerska odluka o pristupu identitetu i o ugovoru odgovora Faze 5. **Dokumentacija
+  isključivo.**
+- **Amandman na:** **nijednu odluku.** D-047, klauzula 12 se **ne opoziva, ne slabi i ne mijenja** —
+  pristup redu **drugog** korisnika ostaje `DENY / NOT IMPLEMENTED` u v1. Ova odluka **ne otvara**
+  taj pristup; ona uklanja njegovog jedinog konzumenta u Fazi 5 i **premješta trigger** imenovanog
+  gatea. D-060 ostaje na snazi u cijelosti; D-OPEN-004a ostaje otvoren.
+- **Vlasnička ratifikacija:** vlasnik je prihvatio nalaze read-only audita `P5-G1` i ratifikovao
+  opciju **G1-A**. Ovaj zapis je **objava** te ratifikacije, ne njeno ponovno izvođenje.
+
+## Kontekst/problem — trigger
+
+`03` §12 (`GET /encounters`) je jedina površina **Faze 5** koja u zamrznutom v1 obliku vraća
+`responsiblePhysician.displayName` — dakle **`display_name` drugog korisnika**. D-047, klauzula 12
+je taj pristup ostavila kao `DENY / NOT IMPLEMENTED` i uvela imenovani obavezni gate
+`BEFORE PHASE 5 CO-MEMBER DISPLAY NAME ACCESS` (`13` §19). Faza 5 je time bila blokirana na tom
+gateu prije nego što je uopšte počela.
+
+Gate je otvoren da bi se odlučilo **kako** co-member ime postaje čitljivo. Audit `P5-G1` je pokazao
+da svaki poznati mehanizam u tekućoj arhitekturi plaća cijenu koja je **veća** od koristi jednog
+prikaznog polja u listi, i da Faza 5 tu korist uopšte ne mora kupiti sada.
+
+## Odluka
+
+# Dio A — dokazano stanje baze koje odluka mora nositi
+
+### A.1 Klauzula 1 — tekući column grant nad `users`
+
+`copilot_app` danas ima **column-level `SELECT`** nad `users` na tačno pet kolona
+(`002_identity_and_practices`, `02` §20.2a):
+
+```text
+id, email, display_name, preferred_language, status
+```
+
+`auth_subject`, `last_login_at`, `created_at` i `updated_at` **nemaju grant**. Nijedan
+`INSERT`/`UPDATE`/`DELETE` grant ne postoji. `users` nosi `ENABLE` **i** `FORCE ROW LEVEL SECURITY`.
+
+### A.2 Klauzula 2 — RLS bira redove, ne kolone
+
+PostgreSQL RLS je **row-level**. Politika određuje **koji redovi** su vidljivi; **koje kolone** su
+čitljive određuje **column grant vezan za rolu**, ne politika. Te dvije ravni su nezavisne i
+politika ne može suziti projekciju.
+
+Posljedica je direktna i neizbježna: **svaka politika koja učini red drugog korisnika vidljivim
+učini ga čitljivim u svih pet grantovanih kolona**, dakle uključujući **`email`**. Traženo je bilo
+jedno polje — `display_name`; dobio bi se cijeli grantovani red.
+
+### A.3 Klauzula 3 — aplikacijska disciplina nije least privilege
+
+Tvrdnja „aplikacija ionako ne selektuje `email`" **nije** kontrola sprovedena u bazi. Ona je
+konvencija koju obara svaki budući `SELECT`, svaki Prisma `include`, svaki debug upit i svaki
+držalac `copilot_app` credentiala (`09` §4; D-047, klauzula 20). Sigurnosna granica koju ovaj
+projekat brani je **ono što baza odbija**, ne ono što kod trenutno ne pita.
+
+### A.4 Klauzula 4 — drugorazredni nalaz: co-member politika nema ni dokaz membershipa
+
+Politika koja bi propustila **co-membera iste ordinacije** mora dokazati da ciljni korisnik jeste
+član tekuće ordinacije. Jedini izvor tog dokaza je `practice_memberships`.
+
+`practice_memberships` od paketa `013_rls_policies` nosi `ENABLE` + `FORCE ROW LEVEL SECURITY` i
+**tačno jednu** politiku:
+
+```text
+practice_memberships_self_select  USING (user_id = app.user_id)
+```
+
+To je **caller-self** opseg. **RLS referencirane tabele primjenjuje se i unutar podupita politike**
+— isto svojstvo koje paket `013` već dokumentuje za `practices_membership_select` i
+`practice_membership_roles_self_select`. Naivna co-member politika nad `users` zato **ne bi ni
+pronašla** red membershipa ciljnog korisnika: podupit bi vratio nula redova, pa bi politika
+propustila nula redova.
+
+### A.5 Klauzula 5 — cijena druge širine
+
+Da bi takva politika uopšte radila, moralo bi se **dodatno proširiti i `practice_memberships` RLS**
+na co-member vidljivost. `practice_memberships` ima **table-level `SELECT` grant** (sve kolone,
+`02` §20.2), pa bi to proširenje izložilo i membership podatke, uključujući **`professional_gln`**.
+
+Traženo je jedno prikazno polje. Cijena bi bila **dvije proširene sigurnosne granice** i **dva nova
+skupa izloženih kolona**.
+
+# Dio B — odluka: opcija G1-A, izostavljanje
+
+### B.1 Klauzula 6 — Faza 5 ne konzumira co-member `display_name`
+
+**Faza 5 ne implementira pristup co-member `display_name` polju ni u jednom obliku.** Nijedan
+endpoint Faze 5 ne vraća ime, prezime ni bilo koji drugi identifikacioni atribut **drugog**
+korisnika.
+
+### B.2 Klauzula 7 — aktivni oblik `GET /encounters` u Fazi 5
+
+Aktivna projekcija odgovornog ljekara u `GET /encounters` (`03` §12) je, kada je
+`responsible_physician_id` **različit od `NULL`**:
+
+```json
+"responsiblePhysician": {
+  "id": "uuid"
+}
+```
+
+### B.3 Klauzula 8 — `displayName` je ODSUTAN, ne `null`
+
+Ključ `displayName` se u Fazi 5 **ne emituje uopšte**. **Ne** emituje se kao `null`, **ne** kao
+prazan string, **ne** kao placeholder. Prisutan ključ sa praznom vrijednošću bi tvrdio da polje
+postoji i da je vrijednost nepoznata; odsutan ključ tačno kaže da **površina ne postoji**.
+
+### B.4 Klauzula 9 — `NULL` odgovorni ljekar
+
+Kada je `responsible_physician_id` `NULL`, cijeli objekat je `null`:
+
+```json
+"responsiblePhysician": null
+```
+
+Razlika je normativna: `null` objekat znači **nema odgovornog ljekara**; objekat sa samo `id`-em
+znači **ima ga, ime nije dio ugovora Faze 5**.
+
+### B.5 Klauzula 10 — šta ostaje nepromijenjeno
+
+- `responsiblePhysician.id` **ostaje** u odgovoru;
+- query filter **`responsiblePhysicianId` ostaje** funkcionalan i nepromijenjen;
+- `GET /me` ostaje nepromijenjen — vlastiti `email` i `displayName` su **caller-self** pristup, već
+  pokriven politikom `users_self_select`, i **nisu** predmet ovog gatea.
+
+### B.6 Klauzula 11 — apsolutne zabrane koje ova odluka potvrđuje
+
+Faza 5 **ne** smije uvesti nijedno od sljedećeg, ni kao „privremeno", ni kao „samo za listu":
+
+- **nikakav zamjenski identifikator** umjesto imena (inicijali, skraćeno ime, hash imena, stabilan
+  nadimak, „Dr. X" derivat);
+- **nikakav novi user-directory ni user-lookup API**;
+- **nijednu novu `users` politiku** — treća `users` politika se **ne kreira**;
+- **nikakvo proširenje `users` column granta**;
+- **nikakvo proširenje `practice_memberships` RLS-a** ni njegovog granta;
+- **nikakvu denormalizaciju `display_name`** u tenant tabelu (`encounters` ili bilo koju drugu);
+- **nikakvu `SECURITY DEFINER` funkciju** za identity lookup;
+- **nikakvu četvrtu database rolu**;
+- **nikakav drugi Prisma klijent ni privilegovanu database putanju** (D-054, klauzula 7).
+
+### B.7 Klauzula 12 — ovo je sužavanje ugovora prije implementacije, ne pojašnjenje
+
+Ovo je **namjerno sužavanje** zamrznutog v1 oblika odgovora za aktivni obuhvat Faze 5, a ne
+pojašnjenje postojećeg teksta. Tekst se mijenja i to se ovdje **eksplicitno priznaje**.
+
+Sužavanje je dozvoljeno bez kompatibilnog rollouta i **bez shima** po presedanu **D-038**, koji je
+`GET /me` promijenio iz `memberships[].role: string` u `memberships[].roles[]` **prije** nego što je
+ijedna implementacija ili ijedan klijent postojao. Isti uslovi vrijede i ovdje i moraju biti
+istinita **sva tri**:
+
+1. nijedan produkcijski kod ne implementira `GET /encounters` — Faza 5 je `NOT_STARTED`;
+2. nijedan klijent ne konzumira taj odgovor;
+3. nijedan perzistirani red ne zavisi od tog oblika.
+
+Kada ti uslovi prestanu važiti, isto sužavanje bi bilo **breaking izmjena** i tražilo bi v2 ili
+kompatibilan rollout (D-007).
+
+# Dio C — repointiranje obaveznog gatea
+
+### C.1 Klauzula 13 — historijska labela se zadržava
+
+Naziv gatea ostaje **doslovno**:
+
+```text
+BEFORE PHASE 5 CO-MEMBER DISPLAY NAME ACCESS
+```
+
+Labela se **ne preimenuje**. Ona je citirana u D-047, klauzuli 12, u `02` §17.5, `04`, `05`, `07`,
+`08` §21.5.2, `09` §4, `13` §19, `14` §2 i `15` §8.1 — i u SQL komentaru migracije
+`002_identity_and_practices` — pa bi preimenovanje pokidalo sve te unakrsne reference bez ijedne
+sigurnosne koristi.
+
+### C.2 Klauzula 14 — trigger se redefiniše
+
+Trigger **više nije faza**. Gate se **mora ponovo otvoriti**:
+
+> **prije implementacije prvog endpointa ili toka koji vraća `display_name` drugog korisnika.**
+
+Ime gatea zadržava riječi „BEFORE PHASE 5" kao **historijsku oznaku porijekla**, ne kao opis tekućeg
+trigera.
+
+### C.3 Klauzula 15 — tekući prvi poznati kanonski konzument
+
+Tekući prvi poznati konzument je:
+
+```text
+GET /analyses/{analysisId}/workspace
+```
+
+čiji zamrznuti kompletan v1 oblik (`03` §15) sadrži `encounter.responsiblePhysician.displayName`.
+
+**Vlasnička faza tog endpointa je Faza 8 — Mock AI/Tariff** (`04` §10.3; `05` §9, red
+„workspace endpoint"), a ne Faza 7. Vlasnička ratifikacija je taj konzument navela pod brojem faze
+7; **broj faze nije normativni dio trigera** i ovdje se usklađuje sa kanonskim vlasništvom obuhvata
+i checkliste, bez izmjene supstance ratifikovanog trigera.
+
+### C.4 Klauzula 16 — „ili ranije, šta prije nastupi"
+
+Ako **bilo koji raniji** konzument stekne prihvaćen zahtjev da vrati ime drugog korisnika, gate se
+otvara **tada**, u toj fazi, a ne čeka Fazu 8. Vrijedi pravilo **šta prije nastupi**.
+
+### C.5 Klauzula 17 — `approvedBy.displayName` nije co-member trigger
+
+`approvedBy.displayName` u zamrznutom odgovoru kreiranja odobrenja (`03` §20, Faza 10) **sam po sebi
+nije** co-member trigger: odobravatelj **jeste pozivalac**, a caller-self pristup vlastitom `users`
+redu već postoji kroz `users_self_select`.
+
+Ograničenje je uslovno i mora biti provjereno prije implementacije: čim bilo koja **read-back**
+površina (lista odobrenja, detalj analize, audit paket, export) vrati `approvedBy.displayName` za
+odobrenje koje **nije** napravio pozivalac, to je co-member pristup i **aktivira gate**.
+
+### C.6 Klauzula 18 — trajno pravilo
+
+**Svaka** buduća površina koja doda ime, prezime, email ili drugi identifikacioni atribut **drugog**
+korisnika mora **prvo** otvoriti i zatvoriti ovaj gate prihvaćenom odlukom. Tiho dodavanje takvog
+polja je **phase-gate defekt**, ne propust u dizajnu odgovora.
+
+# Dio D — naslijeđena obaveza za `P5-D2`
+
+### D.1 Klauzula 19 — otkriven, ovdje **neriješen** problem
+
+Audit `P5-G1` je usput dokazao zaseban problem koji **ova odluka ne rješava**:
+
+Validacija `responsiblePhysicianId` na `POST /encounters` — i na `PATCH /encounters/{encounterId}`
+ako on to polje mijenja — vjerovatno mora provjeriti da referencirani korisnik **jeste odgovarajući
+član tekuće ordinacije**. Prirodan upit za tu provjeru ide nad `practice_memberships`, čiji je RLS
+**caller-self** (klauzula 4). Naivna cross-member provjera bi zato vratila **nula redova** i
+validacija bi tiho pala — ili bi implementator posegnuo za proširenjem RLS-a, što je tačno ono što
+klauzula 11 zabranjuje.
+
+### D.2 Klauzula 20 — klasifikacija i vlasništvo
+
+```text
+P5-D2 BLOCKING DESIGN OBLIGATION
+```
+
+Obaveza je **blokirajuća prije implementacije encounter jezgra** i vlasništvo je gatea **`P5-D2`**.
+`P5-D2` mora odrediti ispravan dizajn domenske validacije **bez slabljenja sigurnosnih invarijanti
+Faze 4**. Ova odluka **ne bira** mehanizam i **ne prejudicira** ishod; ona ga samo **evidentira kao
+naslijeđen ulaz**.
+
+### D.3 Klauzula 21 — postojeći RLS ostaje netaknut
+
+Nijedna politika, nijedan grant i nijedna migracija se ovom odlukom **ne mijenjaju**.
+`practice_memberships_self_select` ostaje **nepromijenjen** i po imenu i po tijelu.
+
+# Dio E — granice
+
+### E.1 Klauzula 22 — ovo je objava autoriteta, ne autorizacija implementacije
+
+Ova odluka **objavljuje** vlasnički ratifikovano pravilo. Ona **ne autorizuje** implementaciju:
+nijedan servis, endpoint, tabela, migracija, politika, grant ni test se ovim gateom ne uvode.
+
+### E.2 Klauzula 23 — Faza 5 ostaje `NOT_STARTED`
+
+```text
+PHASE_5_STATUS   NOT_STARTED
+```
+
+Nijedna kućica Faze 5 nije označena; broj redova i broj označenih ostaje **49 / 0**. Pokretanje Faze
+5 ostaje **zaseban gate**.
+
+### E.3 Klauzula 24 — baza se ne dira
+
+**Nijedna kolona, politika, grant, rola ni migracija se ne dodaje, ne uklanja i ne mijenja.**
+Konkretno se **ne uvode**: treća `users` politika; prošireni `users` grant; proširen
+`practice_memberships` RLS ili grant; `display_name` kolona na `encounters`; `SECURITY DEFINER`
+lookup; četvrta database rola.
+
+### E.4 Klauzula 25 — šta ova odluka **ne** zatvara
+
+- **temeljni problem pristupa co-member identitetu ostaje OTVOREN i NEIMPLEMENTIRAN.** Ova odluka ga
+  **ne rješava** — ona uklanja njegovog konzumenta u Fazi 5 i pomjera trenutak u kojem mora biti
+  riješen. Zahtjevi iz `13` §19.3 ostaju **na snazi u cijelosti** za tu buduću odluku;
+- **D-OPEN-004a** ostaje `DEFERRED` i produkcijski; ova odluka ga ne dodiruje;
+- **D-OPEN-007** i **D-OPEN-009** ostaju nepromijenjeni;
+- **`P5-D2`** zadržava vlasništvo nad schemom, referencijalnim akcijama, migration paketom i state
+  machineom — i **dodatno** nasljeđuje obavezu iz klauzule 19.
+
+## Razlog
+
+Odluka počiva na jednoj asimetriji: **korist je jedno prikazno polje u listi; cijena je trajno
+proširenje sigurnosne granice na dvije tabele i na kolone koje niko nije tražio.**
+
+`email` je Class B podatak (`09` §2) i njegova izloženost nije nusprodukt koji se prihvata usput.
+`professional_gln` je profesionalni identifikator. Nijedno od to dvoje nije bilo predmet zahtjeva —
+oba bi ušla kao **posljedica** mehanizma, ne kao odluka. Kada mehanizam donosi više nego što je
+traženo, mehanizam je pogrešan.
+
+Drugi razlog je vremenski. Gate je bio **fazni**, pa je Faza 5 nasljeđivala obavezu da riješi problem
+identiteta prije nego što napiše ijedan encounter red — iako joj rješenje **nije potrebno**. Fazni
+trigger je time proizvodio pritisak na sigurnosnu odluku bez ijednog stvarnog konzumenta. Trigger
+vezan za **stvarnog konzumenta** uklanja taj pritisak, a **ne uklanja obavezu**: kada prvi endpoint
+zaista zatraži tuđe ime, gate stoji tačno ispred njega.
+
+Treći razlog je iskrenost ugovora. Odsutan ključ je jedina reprezentacija koja ne laže: `null` bi
+tvrdio da ime postoji ali je nepoznato, a zamjenski identifikator bi tvrdio da je problem riješen.
+Faza 5 nema ime i **ne pretvara se** da ga ima.
+
+## Alternative — odbijene
+
+- **Direktno proširenje `users` RLS-a trećom co-member politikom** — odbijeno: RLS je row-level, pa
+  bi propušten red bio čitljiv u **svim** grantovanim kolonama, uključujući `email` (klauzula 2). Uz
+  to politici treba membership dokaz koji caller-self `practice_memberships` RLS ne daje (klauzula
+  4), pa bi tražila **i drugo** proširenje (klauzula 5).
+- **Redizajn grantova — suziti `users` grant na `(id, display_name)` pa onda proširiti RLS** —
+  odbijeno: `GET /me` legitimno vraća vlastiti `email` (`03` §10), pa bi suženi grant oborio
+  postojeći zamrznuti ugovor. Grant je vezan za **rolu**, ne za upit, pa ista rola ne može biti uska
+  za co-member čitanje i široka za self čitanje bez uvođenja **četvrte database role** — što je
+  zasebno zabranjeno.
+- **Projekcijski view nad `users` sa uskim skupom kolona** — odbijeno: view sa vlastitim grantom je
+  **nova sigurnosna površina** izvan dokazanog dvopolitičkog modela `users`. Ili nasljeđuje RLS bazne
+  tabele — pa ne rješava ništa; ili se piše bez `security_invoker` — što je `SECURITY DEFINER` u
+  drugom obliku i podliježe istoj zabrani (D-047, klauzula 2; D-OPEN-011 „ne bira se prećutno").
+- **`SECURITY DEFINER` funkcija za identity lookup** — odbijeno: `02` §17.5, D-047, klauzula 2 i
+  D-OPEN-011 izričito drže da se `SECURITY DEFINER` **ne uvodi prećutno**. Funkcija bi zaobišla
+  `FORCE RLS` i postala jedina putanja bez politike u sistemu koji je cijelu Fazu 4 potrošio na to
+  da takva putanja ne postoji.
+- **Denormalizacija `display_name` u `encounters`** — odbijeno: kopija identitetnog podatka u tenant
+  tabelu je **tiho zaobilaženje** gatea (`13` §19.4), postaje **stale** čim se ime promijeni, i širi
+  identitet na tabelu čiji retention i export put za njega nisu dizajnirani.
+- **Privilegovan aplikacijski lookup / drugi Prisma klijent ili druga konekcija** — odbijeno:
+  D-054, klauzula 7 dopušta **tačno jedan** `PrismaService` i **tačno jedan** `copilot_app` klijent.
+  Drugi klijent bi bio paralelan database stack izvan pinovane tenant transakcije — tačno ono što
+  D-054, dio C.2 zabranjuje.
+- **Zamjenski identifikator (inicijali, skraćeno ime, hash imena)** — odbijeno: stabilan derivat
+  imena je **linkabilan** i nosi dio iste informacije, uz privid da je problem riješen. Ista logika
+  kojom je D-060 odbio „zamjenski token sa hashom ili skraćenim originalom".
+- **Emitovati `displayName: null`** — odbijeno: tvrdi da polje postoji a vrijednost je nepoznata, i
+  navodi klijenta da gradi UI za vrijednost koja nikad neće doći.
+- **Zadržati zamrznuti oblik i riješiti pristup sada, prije Faze 5** — odbijeno: to bi značilo
+  donijeti trajnu odluku o pristupu identitetu radi jednog polja u listi, bez ijednog stvarnog
+  konzumenta i bez produktnog zahtjeva koji bi opravdao izloženost `email`-a.
+- **Preimenovati gate da odrazi novi trigger** — odbijeno: labela je citirana u devet dokumenata i u
+  SQL komentaru migracije `002`; preimenovanje bi pokidalo unakrsne reference bez sigurnosne koristi.
+  Trigger se redefiniše, ime ostaje.
+- **Riješiti i validaciju `responsiblePhysicianId` u ovom gateu** — odbijeno: to je schema i domenski
+  problem i pripada `P5-D2`. Rješavanje ovdje bi tražilo upravo ono proširenje RLS-a koje ova odluka
+  zabranjuje.
+
+**Nijedna odbijena alternativa nije uslovno odobrena.** Odbijanje ovdje **ne** znači „kasnije bez
+odluke" — svaka od njih i dalje zahtijeva prihvaćen ADR i prolazak imenovanog gatea.
+
+## Posljedice
+
+- Faza 5 **više nije blokirana** gateom co-member identiteta; ulazi u `P5-D2` bez te obaveze.
+- `03` §12 dobija **uži** aktivni oblik odgovora; `03` §15 dobija eksplicitnu oznaku da njegov
+  `displayName` **aktivira gate prije implementacije**.
+- `13` §19 dobija dispoziciju koja razlikuje **konzumenta Faze 5** (riješen izostavljanjem) od
+  **temeljnog problema pristupa** (i dalje otvoren).
+- `08` dobija dokumentovane, **još neizvršene** test obaveze za oblik bez `displayName`.
+- `P5-D2` nasljeđuje **novu blokirajuću obavezu** (klauzula 19).
+- Klijent koji jednog dana zatreba ime odgovornog ljekara mora proći kroz prihvaćenu odluku — što je
+  **namjeravana** posljedica, ne trošak.
+
+## Schema uticaj
+
+**Nijedan.** Nijedna kolona se ne dodaje, ne uklanja i ne mijenja.
+`encounters.responsible_physician_id` ostaje onakav kakvim ga `P5-D2` bude definisao; ova odluka o
+njemu ne odlučuje ništa osim da se njegova vrijednost **vraća kao `id`**.
+
+## Migration uticaj
+
+**Nijedan.** Nijedna migracija se ne kreira, ne mijenja niti primjenjuje. Nijedna politika, nijedan
+grant, nijedna rola i nijedna baza se ne diraju.
+
+## Test obaveze
+
+Testovi se **ne implementiraju i ne izvršavaju u ovom gateu**. Obaveze su dokumentovane u `08` §12.8
+i obuhvataju: odsustvo ključa `displayName` u `GET /encounters`; `responsiblePhysician: null` pri
+`NULL` vrijednosti; očuvano filtriranje po `responsiblePhysicianId`; **odsustvo ijednog upita nad
+`users`** pri serviranju te liste; te regresijske testove koji moraju ostati **nepromijenjeni i
+zeleni** — cross-user čitanje `users` daje nula redova, `users` ima **tačno dvije** politike, `users`
+grantovi su nepromijenjeni, `FORCE RLS` je `true`, i `GET /me` i dalje vraća vlastiti `email` i
+`displayName`.
+
+## Granice prema budućim fazama
+
+Naredni gate je **`P5-D2`** — schema, referencijalne akcije, vlasništvo migration paketa i encounter
+state machine, uz **naslijeđenu blokirajuću obavezu** iz klauzule 19. **Tek nakon njega** smije biti
+eksplicitno autorizovan implementacijski gate Faze 5.
+
+Gate `BEFORE PHASE 5 CO-MEMBER DISPLAY NAME ACCESS` ostaje **otvoren** i ponovo se otvara prije prvog
+stvarnog konzumenta tuđeg `display_name`-a — tekuće `GET /analyses/{analysisId}/workspace` (Faza 8),
+ili raniji konzument, **šta prije nastupi**.
+
+## Supersedes
+
+**Ne supersedira nijednu odluku.** D-047 ostaje na snazi u cijelosti; njegova klauzula 12 se ovom
+odlukom **potvrđuje**, a ne opoziva — pristup redu drugog korisnika i dalje je
+`DENY / NOT IMPLEMENTED`. D-060 i D-038 ostaju nepromijenjeni.
+
+## Zavisnosti
+
+D-007, **D-038**, D-041, D-043, **D-047**, D-049, D-051, D-054, D-058, D-059, **D-060**;
+D-OPEN-004a, D-OPEN-007 i D-OPEN-009 ostaju otvoreni. `13` §19 ostaje otvoren u dijelu temeljnog
+pristupa identitetu.
+
+---
+
 # Otvorene odluke
 
 ## D-OPEN-001 — Produkcijski OIDC provider
