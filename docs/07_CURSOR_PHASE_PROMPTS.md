@@ -1099,13 +1099,33 @@ Cross-cutting:
 - audit;
 - outbox base.
 
+Oblik odgovornog ljekara u GET /encounters (D-061 — OBAVEZNO):
+- responsiblePhysician je { "id": "uuid" } i ništa više;
+- ključ displayName je ODSUTAN — ne null, ne prazan string, ne placeholder;
+- kada odgovorni ljekar ne postoji, cijeli objekat je null;
+- query filter responsiblePhysicianId ostaje nepromijenjen i funkcionalan;
+- serviranje ove liste NE SMIJE čitati tabelu users radi obogaćivanja odgovora.
+
+Faza 5 NE konzumira display_name drugog korisnika ni u jednom obliku. NE kreiraj treću users
+politiku. NE širi users column grant. NE širi practice_memberships RLS ni grant. NE
+denormalizuj display_name. NE uvodi SECURITY DEFINER lookup, četvrtu database rolu ni drugi
+Prisma klijent. NE uvodi zamjenski identifikator (inicijali, skraćeno ime, hash imena).
+Gate BEFORE PHASE 5 CO-MEMBER DISPLAY NAME ACCESS (docs/13 §19) ostaje otvoren.
+
+BLOKIRAJUĆE PRIJE POČETKA (P5-D2, D-061 klauzula 19): domenska validacija responsiblePhysicianId
+na POST /encounters — i na PATCH ako mijenja to polje — mora biti riješena gateom P5-D2. RLS nad
+practice_memberships je caller-self, pa naivna cross-member provjera vraća nula redova. Ne
+rješavaj to širenjem RLS-a.
+
 Dokaži:
 - no plaintext external ID response/log;
 - no medical text log;
 - original document access audit;
 - cross-tenant FK fail;
 - stale ETag;
-- idempotency replay/conflict.
+- idempotency replay/conflict;
+- GET /encounters ne sadrži ključ displayName;
+- GET /encounters ne izvršava nijedan upit nad users.
 ```
 
 ---
@@ -1191,6 +1211,15 @@ Kreiraj schema i kod za:
 Ne pozivaj stvarni AI niti OAAT.
 Testiraj invalid AI schema i job retry bez duplikata.
 Raw request/response hash mora postojati.
+
+OBAVEZAN GATE PRIJE `workspace endpoint` (D-061): zamrznut oblik GET /analyses/{id}/workspace
+(docs/03 §15) sadrži encounter.responsiblePhysician.displayName — display_name DRUGOG korisnika.
+To je tekući prvi poznati konzument co-member pristupa, koji je i dalje DENY / NOT IMPLEMENTED.
+Prije implementacije tog endpointa gate BEFORE PHASE 5 CO-MEMBER DISPLAY NAME ACCESS (docs/13
+§19) mora biti ponovo otvoren i zatvoren prihvaćenom odlukom. Ne kreiraj treću users politiku,
+ne širi grant, ne širi practice_memberships RLS, ne denormalizuj ime, ne uvodi SECURITY DEFINER
+lookup i ne uvodi zamjenski identifikator. Ako gate nije zatvoren, faza ostaje BLOCKED za taj
+red i ne smiješ ga implementirati.
 ```
 
 ---

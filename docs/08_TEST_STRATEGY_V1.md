@@ -501,9 +501,10 @@ Stavke `oversized upload 413` i `unsupported MIME 415` pripadaju **isključivo D
 putanji** (`03` §13.2) i nisu dostižne dok je aktivna document putanja samo tekstualna. Prekoračenje
 maksimuma **manuelnog teksta** testira se kao `422 VALIDATION_ERROR` (§12.4), ne kao `413`.
 
-## 12.0 Status obaveza Faze 5 (D-060)
+## 12.0 Status obaveza Faze 5 (D-060, D-061)
 
-Sekcije §12.1–§12.7 su **dokumentovane, još neizvršene** test obaveze objavljene odlukom **D-060**.
+Sekcije §12.1–§12.7 su **dokumentovane, još neizvršene** test obaveze objavljene odlukom **D-060**;
+sekcija **§12.8** je isto takva obaveza objavljena odlukom **D-061**. Isto pravilo važi za sve njih.
 
 - **Nijedan test iz ovih sekcija nije implementiran ni izvršen**, i njihovo postojanje **ne**
   označava nijednu kućicu Faze 5 (`05` §6).
@@ -613,6 +614,53 @@ Sekcije §12.1–§12.7 su **dokumentovane, još neizvršene** test obaveze obja
 - **čisti eksterni ID nije u nijednom odgovoru** i **nije u logu**;
 - Problem Details poruke za PHI i eksterne identifikatore su **generičke** i ne citiraju odbijenu
   vrijednost.
+
+## 12.8 Co-member `displayName` — izostavljanje u Fazi 5 (D-061)
+
+Ove obaveze su **dokumentovane i još neizvršene**, po istom pravilu kao §12.0. **Nijedan test iz
+ove sekcije nije implementiran ni izvršen** i njihovo postojanje **ne označava nijednu kućicu**
+Faze 5 (`05` §6).
+
+### 12.8.1 Novi testovi oblika odgovora (Faza 5)
+
+1. **`GET /encounters` sa postavljenim odgovornim ljekarom** vraća
+   `responsiblePhysician = { "id": "<uuid>" }`; ključ **`displayName` ne postoji u payloadu** —
+   provjera je na **odsustvu ključa**, ne na vrijednosti `null`. Test mora pasti i ako se ključ
+   pojavi sa `null`, praznim stringom ili placeholderom.
+2. **`responsible_physician_id` je `NULL`** → `responsiblePhysician` je **`null`** (cijeli objekat),
+   a ne objekat sa `id: null`.
+3. **Query filter `responsiblePhysicianId`** i dalje filtrira ispravno — pozitivan slučaj (traženi
+   encounter u rezultatu) i negativan slučaj (tuđi odgovorni ljekar nije u rezultatu).
+4. **Serviranje `GET /encounters` ne izvršava nijedan `SELECT` nad `users`** radi obogaćivanja
+   odgovora. Dokazuje se na nivou izvršenih upita (npr. Prisma query log / statement spy), ne samo
+   inspekcijom payloada.
+
+### 12.8.2 Regresije koje moraju ostati nepromijenjene i zelene
+
+Ovi testovi **već postoje** i ova odluka ih **ne mijenja**; ovdje se navode kao obavezan dokaz da
+gate nije tiho zaobiđen.
+
+5. **Cross-user direktno čitanje `users`** — korisnik A ne vidi red korisnika B; **nula redova**
+   (§21.5.2). Test ostaje **doslovno nepromijenjen**.
+6. **`users` ima tačno dvije politike** — `users_bootstrap_subject_select` i `users_self_select`,
+   nepromijenjenih imena i tijela. **Treća politika ne postoji.**
+7. **`users` column grantovi su nepromijenjeni** — `copilot_app` ima `SELECT` na tačno
+   `(id, email, display_name, preferred_language, status)`; `SELECT auth_subject` i
+   `SELECT last_login_at` i dalje padaju sa **`42501`**.
+8. **`FORCE ROW LEVEL SECURITY` nad `users` je `true`**, kao i `ENABLE`.
+9. **`GET /me`** i dalje vraća **vlastiti** `email` i `displayName` nepromijenjeno — caller-self
+   pristup nije zahvaćen (`03` §10).
+
+Dodatno, kao dokaz da drugi put nije otvoren posrednim mehanizmom:
+
+10. **`practice_memberships` ima tačno jednu politiku** — `practice_memberships_self_select`,
+    caller-self, nepromijenjenog tijela; njen grant je nepromijenjen.
+
+**Trigger za buduće testove.** Pozitivni i negativni testovi co-member vidljivosti (`13` §19.3) se
+**ne pišu sada**. Oni pripadaju odluci koja zatvori gate
+`BEFORE PHASE 5 CO-MEMBER DISPLAY NAME ACCESS`, a taj se otvara prije prvog stvarnog konzumenta
+tuđeg `display_name`-a — tekuće `GET /analyses/{analysisId}/workspace` (Faza 8), ili raniji
+konzument, **šta prije nastupi** (D-061, klauzule 14–16).
 
 ---
 
@@ -984,7 +1032,8 @@ Negativni:
 - `INSERT`, `UPDATE`, `DELETE` → **`42501`**;
 - `set_auth_subject_context(null)` i `set_auth_subject_context('')` → **`42501`**;
 - pristup redu drugog korisnika (co-member `displayName`) → **nula** redova; potvrđuje da gate
-  `BEFORE PHASE 5 CO-MEMBER DISPLAY NAME ACCESS` nije tiho zaobiđen (`13` §19).
+  `BEFORE PHASE 5 CO-MEMBER DISPLAY NAME ACCESS` nije tiho zaobiđen (`13` §19). **D-061 ovaj test
+  ne mijenja** — on ostaje doslovno nepromijenjen i mora ostati zelen (§12.8.2, red 5).
 
 ### 21.5.3 `practices`
 

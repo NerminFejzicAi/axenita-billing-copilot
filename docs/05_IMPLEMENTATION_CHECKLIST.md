@@ -2613,6 +2613,61 @@ otvoreni) i **ne rješava** gate `BEFORE PHASE 5 CO-MEMBER DISPLAY NAME ACCESS` 
 akcije, migration paket, state machine, pitanje DB-sprovedenih statusnih rječnika) → tek potom
 eventualni implementacijski gate.
 
+## Objavljen dizajnerski autoritet — D-061 (2026-08-23)
+
+**Ovaj zapis ne mijenja status faze i ne označava nijednu kućicu ispod.** Faza 5 ostaje
+`NOT_STARTED`; broj redova i broj označenih ostaje **49 / 0**.
+
+Gate **`P5-G1`** je izvršen i objavljen kao odluka **D-061**. Ishod je **opcija G1-A —
+izostavljanje**:
+
+- **Faza 5 ne konzumira co-member `display_name`.** Nijedan endpoint Faze 5 ne vraća ime ni bilo
+  koji drugi identifikacioni atribut **drugog** korisnika.
+- **`GET /encounters` (`03` §12)** vraća `responsiblePhysician` kao **samo `{ "id": "uuid" }`**;
+  ključ `displayName` je **odsutan**, ne `null`. Kada odgovorni ljekar ne postoji, cijeli objekat je
+  `null`. Query filter `responsiblePhysicianId` **ostaje** nepromijenjen.
+- **Nijedno proširenje pristupa nije uvedeno.** `users` i dalje ima **tačno dvije** caller-self
+  politike; `practice_memberships` i dalje **tačno jednu** caller-self politiku; grantovi,
+  `FORCE RLS` i migracije su **nepromijenjeni**. Treća `users` politika **nije** kreirana.
+- **Zabranjeno i dalje, bez izuzetka:** treća `users` politika; proširenje `users` column granta;
+  proširenje `practice_memberships` RLS-a ili granta; denormalizacija `display_name`;
+  `SECURITY DEFINER` lookup; četvrta database rola; drugi Prisma klijent; zamjenski identifikator
+  (inicijali, skraćeno ime, hash imena).
+
+**Trigger imenovanog gatea je repointiran.** Historijska labela
+`BEFORE PHASE 5 CO-MEMBER DISPLAY NAME ACCESS` **ostaje doslovno**, ali se gate sada otvara **prije
+implementacije prvog endpointa ili toka koji vraća `display_name` drugog korisnika**. Tekući prvi
+poznati konzument je `GET /analyses/{analysisId}/workspace` (`03` §15), čija je vlasnička faza
+**Faza 8** (§9) — ili bilo koji **raniji** konzument koji stekne takav prihvaćen zahtjev, **šta prije
+nastupi**. `approvedBy.displayName` u odgovoru kreiranja odobrenja (Faza 10, §11) **nije** co-member
+trigger jer je odobravatelj sam pozivalac; **read-back tuđeg odobrenja jeste**.
+
+**Šta D-061 nije.** Nije autorizacija implementacije i **ne rješava** temeljni problem pristupa
+co-member identitetu — taj problem ostaje **OPEN / NOT IMPLEMENTED** (`13` §19). Ne dodiruje
+D-OPEN-004a. Ne mijenja D-047, klauzulu 12, koja se njime **potvrđuje**.
+
+Test obaveze koje iz ovoga slijede dokumentovane su u **`08` §12.8** i **još nisu izvršene**;
+njihovo postojanje **ne označava nijednu kućicu**.
+
+### Naslijeđena blokirajuća obaveza za `P5-D2` (D-061, klauzule 19–21)
+
+```text
+P5-D2 BLOCKING DESIGN OBLIGATION
+```
+
+**Kako se `responsiblePhysicianId` domenski validira na `POST /encounters` — i na
+`PATCH /encounters/{encounterId}` ako on to polje mijenja — pod caller-self
+`practice_memberships` RLS-om, bez proširenja sigurnosne granice Faze 4.**
+
+`P5-G1` je dokazao da prirodan upit za provjeru „referencirani korisnik je član tekuće ordinacije"
+ide nad `practice_memberships`, čija je jedina politika `practice_memberships_self_select`
+**caller-self**. Naivna cross-member provjera bi vratila **nula redova** i validacija bi tiho pala —
+ili bi implementator posegnuo za proširenjem RLS-a, što je zabranjeno.
+
+Obaveza je **blokirajuća prije implementacije encounter jezgra**. `P5-D2` mora odrediti ispravan
+dizajn **bez slabljenja sigurnosnih invarijanti Faze 4**. D-061 mehanizam **ne bira** i ishod **ne
+prejudicira**; postojeći RLS ostaje **netaknut**.
+
 ## Konkretan `TenantDatabaseService` facade — prenesena obaveza (D-056)
 
 **Premješteno iz Faze 4 odlukom D-056 (2026-08-20).** Ovo je **živa buduća obaveza**, ne odbačen
@@ -2784,6 +2839,18 @@ Tests:
 # 9. Faza 8 — Mock AI/Tariff
 
 Status: `NOT_STARTED`
+
+**Obavezan gate prije reda „workspace endpoint" (D-061, klauzule 14–16).** Zamrznut kompletan v1
+oblik `GET /analyses/{analysisId}/workspace` (`03` §15) sadrži
+`encounter.responsiblePhysician.displayName` — dakle `display_name` **drugog** korisnika. To je
+tekući **prvi poznati konzument** co-member pristupa, koji je i dalje `DENY / NOT IMPLEMENTED`
+(D-047, klauzula 12).
+
+Prije implementacije tog reda **mora** biti ponovo otvoren i prihvaćenom odlukom zatvoren imenovani
+gate `BEFORE PHASE 5 CO-MEMBER DISPLAY NAME ACCESS` (`13` §19). Implementacija **ne smije** tiho
+dodati treću `users` politiku, proširiti grant, proširiti `practice_memberships` RLS, denormalizovati
+ime, uvesti `SECURITY DEFINER` lookup ni zamjenski identifikator. Označavanje tog reda bez
+prethodno zatvorenog gatea je **phase-gate defekt**.
 
 - [ ] ai_extraction_runs.
 - [ ] extracted_facts.

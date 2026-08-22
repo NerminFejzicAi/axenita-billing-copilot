@@ -1081,6 +1081,27 @@ niti otvorena.
 `BEFORE PHASE 5 CO-MEMBER DISPLAY NAME ACCESS` (D-047, klauzula 12; `13` §19). Nijedan konzument
 faze 5 ne smije tiho dobiti generičku vidljivost nad `users`.
 
+**Trigger tog gatea je repointiran (D-061, klauzule 13–17).** Historijska labela ostaje **doslovno**
+nepromijenjena, ali njene riječi „BEFORE PHASE 5" su oznaka **porijekla**, ne izvršni trigger. Gate
+se otvara **prije implementacije prvog endpointa ili toka koji vraća `display_name` drugog
+korisnika**:
+
+- **Faza 5 nije više takav konzument.** `GET /encounters` (`03` §12) vraća `responsiblePhysician`
+  kao **samo `{ id }`**; ključ `displayName` je **odsutan**, ne `null`. Faza 5 tako gate **prolazi
+  izostavljanjem**, bez ijednog proširenja pristupa.
+- **Tekući prvi poznati konzument je `GET /analyses/{analysisId}/workspace`** (`03` §15), čiji
+  obuhvat pripada **Fazi 8** (§10.3, red „workspace endpoint") — ili bilo koji **raniji** konzument
+  koji stekne takav prihvaćen zahtjev, **šta prije nastupi**.
+- **`approvedBy.displayName`** u odgovoru kreiranja odobrenja (Faza 10) **nije** co-member trigger —
+  odobravatelj je sam pozivalac. Uslovno: **read-back tuđeg odobrenja jeste** trigger.
+
+**Temeljni problem pristupa co-member identitetu ostaje OTVOREN i NEIMPLEMENTIRAN.** D-061 ga **ne
+rješava** — uklanja mu konzumenta u Fazi 5 i pomjera trenutak rješavanja. Zabrane iz `13` §19.4
+važe **nepromijenjeno i prošireno**: nema treće `users` politike; nema proširenja `users` granta;
+nema proširenja `practice_memberships` RLS-a ni granta; nema denormalizacije; nema `SECURITY
+DEFINER` lookupa; nema četvrte database role; nema drugog Prisma klijenta; nema zamjenskog
+identifikatora.
+
 **OUT OF V1:** kreiranje, deaktivacija i administracija membershipa; dodjela i uklanjanje rola;
 generička runtime administracija rola; cross-practice support pristup; otkazivanje export joba.
 
@@ -1187,7 +1208,29 @@ Preporuka: u fazi 5 uvesti `audit_events` i minimalni `outbox_events`, jer busin
 - original external ID nije u responseu/logu;
 - document view audit;
 - medical text nije u logu;
-- DRAFT → READY prema dokument policy.
+- DRAFT → READY prema dokument policy;
+- **`GET /encounters` vraća `responsiblePhysician` kao samo `{ id }`** — ključ `displayName` je
+  **odsutan**, ne `null`; `responsiblePhysician` je `null` kada odgovorni ljekar ne postoji; filter
+  `responsiblePhysicianId` radi nepromijenjeno; **serviranje liste ne čita `users`** (D-061).
+
+## 7.6a Ograničenja pristupa identitetu — D-061
+
+**Faza 5 ne konzumira `display_name` drugog korisnika ni u jednom obliku** i **ne uvodi** nijedan
+mehanizam koji bi ga učinio čitljivim. Konkretno, u ovoj fazi se **ne** kreira treća `users`
+politika, **ne** širi `users` column grant, **ne** širi `practice_memberships` RLS ni grant, **ne**
+denormalizuje `display_name`, **ne** uvodi `SECURITY DEFINER` lookup, četvrta database rola, drugi
+Prisma klijent ni zamjenski identifikator (D-061, klauzula 11; `13` §19.4).
+
+### `P5-D2 BLOCKING DESIGN OBLIGATION` — validacija `responsiblePhysicianId`
+
+**Blokirajuće prije implementacije encounter jezgra.** Domenska validacija `responsiblePhysicianId`
+na `POST /encounters` — i na `PATCH /encounters/{id}` ako on to polje mijenja — prirodno traži
+provjeru da je referencirani korisnik član tekuće ordinacije. Jedini izvor tog dokaza je
+`practice_memberships`, čija je jedina politika **caller-self**
+(`practice_memberships_self_select`), pa bi naivna cross-member provjera vratila **nula redova**.
+
+Ispravan dizajn te validacije **posjeduje gate `P5-D2`**, mora biti riješen **prije** ove faze i
+**ne smije** oslabiti sigurnosne invarijante Faze 4 (D-061, klauzule 19–21).
 
 ## 7.7 Commit
 
@@ -1333,6 +1376,17 @@ backend/08-mock-ai-tariff
 - mock tariff client;
 - analysis pipeline;
 - workspace endpoint.
+
+**Obavezan gate prije `workspace endpoint` (D-061, klauzule 14–16).** Zamrznut kompletan v1 oblik
+`GET /analyses/{analysisId}/workspace` (`03` §15) sadrži
+`encounter.responsiblePhysician.displayName` — `display_name` **drugog** korisnika. To je tekući
+**prvi poznati konzument** co-member pristupa, koji ostaje `DENY / NOT IMPLEMENTED` (D-047, klauzula
+12).
+
+Prije implementacije tog endpointa **mora** biti ponovo otvoren i prihvaćenom odlukom zatvoren
+imenovani gate `BEFORE PHASE 5 CO-MEMBER DISPLAY NAME ACCESS` (`13` §19). Tiho dodavanje tog polja —
+kroz treću `users` politiku, proširen grant, prošireni `practice_memberships` RLS, denormalizaciju,
+`SECURITY DEFINER` lookup ili zamjenski identifikator — je **phase-gate defekt**.
 
 ## 10.4 Aktivnosti
 

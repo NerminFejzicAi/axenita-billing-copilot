@@ -426,36 +426,101 @@ Za svako pitanje:
 
 ---
 
-# 19. Co-member `displayName` pristup — obavezan gate prije faze 5
+# 19. Co-member `displayName` pristup — obavezan gate, trigger vezan za konzumenta
 
-**Status:** OPEN / ODGOĐENO uz imenovani gate
-**Naziv gatea:** `BEFORE PHASE 5 CO-MEMBER DISPLAY NAME ACCESS`
+**Status — dvije odvojene stavke, ne smiju se miješati (D-061):**
+
+| Stavka | Status |
+|---|---|
+| **konzument Faze 5** (`03` §12 `GET /encounters`) | **RIJEŠEN IZOSTAVLJANJEM / PRISTUP ODGOĐEN** — D-061, klauzule 6–10 |
+| **temeljni dizajn pristupa co-member identitetu** | **OPEN / NOT IMPLEMENTED** — nepromijenjen |
+
+**Naziv gatea:** `BEFORE PHASE 5 CO-MEMBER DISPLAY NAME ACCESS` — **historijska labela, zadržana
+doslovno** radi stabilnosti unakrsnih referenci (D-061, klauzula 13). Riječi „BEFORE PHASE 5" su
+oznaka **porijekla**, ne opis tekućeg trigera; trigger je redefinisan u §19.2a.
+
 **Izvor:** D-047, klauzula 12. Ovo pitanje **nije** dio D-OPEN-011 i nije njime bilo pokriveno;
 izdvojeno je i imenovano upravo da ne bi bilo otkriveno tek u implementaciji.
 
+**Šta D-061 jeste i šta nije.** D-061 **ne rješava** pristup co-member identitetu — on **uklanja
+njegovog jedinog konzumenta u Fazi 5** i **pomjera trigger** na prvog stvarnog konzumenta. Nijedna
+`users` politika, nijedan grant, nijedno proširenje `practice_memberships` RLS-a, nijedna
+denormalizacija i nijedna `SECURITY DEFINER` funkcija njime **nisu** uvedeni. Zahtjevi iz §19.3 i
+zabrane iz §19.4 ostaju **na snazi u cijelosti**.
+
 ## 19.1 Problem
 
-Tri zamrznuta API odgovora izlažu `displayName` **drugog** korisnika:
+Tri zamrznuta API odgovora izlagala su `displayName` **drugog** korisnika. Njihova tekuća
+dispozicija nakon D-061:
 
-- `responsiblePhysician.displayName` — `03` §12 `GET /encounters`;
-- `responsiblePhysician.displayName` — `03` §15 analysis workspace;
-- `approvedBy.displayName` — `03` §20 approval odgovor.
+| Odgovor | Vlasnička faza | Dispozicija |
+|---|---|---|
+| `responsiblePhysician.displayName` — `03` §12 `GET /encounters` | Faza 5 | **UKLONJEN iz aktivnog oblika.** Vraća se samo `responsiblePhysician.id`; ključ `displayName` je **odsutan**, ne `null` (D-061, klauzule 7–9) |
+| `responsiblePhysician.displayName` — `03` §15 analysis workspace | **Faza 8** (`04` §10.3; `05` §9) | **BUDUĆI KONZUMENT POD GATEOM** — tekući prvi poznati trigger (D-061, klauzula 15) |
+| `approvedBy.displayName` — `03` §20 odgovor kreiranja odobrenja | Faza 10 | **CALLER-SELF, nije co-member trigger** — odobravatelj jeste pozivalac (D-061, klauzula 17). Uslovno: read-back tuđeg odobrenja **jeste** trigger |
 
 Nijedan od njih nije u fazi 3. D-047 je pristup redu drugog korisnika ostavio kao
 **`DENY / NOT IMPLEMENTED` u v1**: `users` ima tačno dvije politike (`02` §17.5), obje vezane za
-identitet pozivaoca, i treća se **ne** kreira bez prihvaćene odluke.
+identitet pozivaoca, i treća se **ne** kreira bez prihvaćene odluke. **To i dalje važi.**
 
-## 19.2 Kada gate mora biti zatvoren
+## 19.2 Kada gate mora biti zatvoren — historijska formulacija
 
-**Prije implementacije prve funkcionalnosti faze 5 koja treba tuđi `displayName`.** Do tada rad na
-tim odgovorima **staje na phase gateu**. Implementacija ne smije tiho dodati politiku, proširiti
-grant niti denormalizovati ime u drugu tabelu.
+*(Formulacija ispod je **historijska** i **superseded od D-061**. Zadržana je doslovno radi audita.
+**Aktivni trigger je §19.2a.**)*
 
-**Tekući status (D-060, klauzula 45).** Ovo pitanje **ostaje OTVORENO**. Objava PHI dizajna Faze 5
-(D-060) ga **ne dodiruje, ne rješava i ne prejudicira**: nijedna `users` politika, nijedan grant,
-nijedna denormalizacija i nijedna izmjena `GET /encounters` odgovora nisu tom odlukom uvedene.
-Vlasništvo nosi **naredni, zaseban gate `P5-G1` — `BEFORE PHASE 5 CO-MEMBER DISPLAY NAME ACCESS`**,
-koji prethodi schema gateu `P5-D2`. Zabrane iz §19.4 važe **nepromijenjeno**.
+> **Prije implementacije prve funkcionalnosti faze 5 koja treba tuđi `displayName`.** Do tada rad na
+> tim odgovorima **staje na phase gateu**. Implementacija ne smije tiho dodati politiku, proširiti
+> grant niti denormalizovati ime u drugu tabelu.
+
+**Tok vlasništva do danas.** Objava PHI dizajna Faze 5 (**D-060**, klauzula 45) ovo pitanje **nije
+dodirnula, ni riješila, ni prejudicirala**: nijedna `users` politika, nijedan grant, nijedna
+denormalizacija i nijedna izmjena `GET /encounters` odgovora nisu tom odlukom uvedene. Vlasništvo je
+prenijela na **zaseban gate `P5-G1`**, koji je izvršen i objavljen kao **D-061**. Zabrana iz
+citiranog historijskog teksta — bez politike, bez proširenog granta, bez denormalizacije — **ostaje
+na snazi u cijelosti** (§19.4).
+
+## 19.2a Aktivni trigger (D-061, klauzule 14–16, 18)
+
+Gate se **mora ponovo otvoriti**:
+
+> **prije implementacije prvog endpointa ili toka koji vraća `display_name` drugog korisnika.**
+
+Trigger **više nije faza**. Tekući prvi poznati kanonski konzument je:
+
+```text
+GET /analyses/{analysisId}/workspace     (03 §15)
+```
+
+čija je vlasnička faza **Faza 8 — Mock AI/Tariff** (`04` §10.3; `05` §9, red „workspace endpoint").
+
+Ako **bilo koji raniji** konzument stekne prihvaćen zahtjev da vrati ime drugog korisnika, gate se
+otvara **tada**, u toj fazi. Vrijedi pravilo **šta prije nastupi**.
+
+**Trajno pravilo.** Svaka buduća površina koja doda ime, prezime, email ili drugi identifikacioni
+atribut **drugog** korisnika mora **prvo** proći ovaj gate prihvaćenom odlukom. Tiho dodavanje
+takvog polja je **phase-gate defekt**.
+
+### 19.2a.1 Zašto je Faza 5 discharged izostavljanjem, ne proširenjem pristupa
+
+Faza 5 je gate **prošla tako što traženi pristup nije kupila**:
+
+- `GET /encounters` više ne traži tuđi `display_name`, pa Fazi 5 co-member pristup **nije potreban**;
+- **nijedan pristup nije proširen** — `users` i dalje ima tačno dvije caller-self politike,
+  `practice_memberships` i dalje ima tačno jednu caller-self politiku, grantovi su nepromijenjeni;
+- **temeljni problem nije riješen** i ne smije se tako opisivati.
+
+Dokazi koje je `P5-G1` utvrdio i koji ostaju ulaz za buduću odluku:
+
+- **RLS bira redove, ne kolone.** Svaka politika koja propusti tuđi `users` red čini ga čitljivim u
+  **svih pet** grantovanih kolona — `id`, `email`, `display_name`, `preferred_language`, `status`
+  (`02` §20.2a). `email` je Class B (`09` §2);
+- **co-member politika nema ni dokaz membershipa.** `practice_memberships` nosi `ENABLE` + `FORCE
+  RLS` i **caller-self** politiku `practice_memberships_self_select`. RLS referencirane tabele
+  primjenjuje se i unutar podupita politike, pa bi naivna co-member politika nad `users` vidjela
+  **nula** membership redova i propustila **nula** korisničkih redova;
+- **druga širina košta dodatno.** Da bi takva politika radila, morao bi se proširiti i
+  `practice_memberships` RLS — a ta tabela ima **table-level** `SELECT` grant (`02` §20.2), pa bi
+  izloženost obuhvatila i `professional_gln`.
 
 ## 19.3 Šta prihvaćena odluka mora definisati
 
@@ -470,13 +535,26 @@ koji prethodi schema gateu `P5-D2`. Zabrane iz §19.4 važe **nepromijenjeno**.
 - da li neaktivan membership co-membera i dalje izlaže ime;
 - audit ponašanje;
 - vlasništvo migration paketa — očekivano `013_rls_policies` ili kasniji;
-- pozitivne i negativne testove, uključujući test da korisnik izvan ordinacije ne vidi ime.
+- pozitivne i negativne testove, uključujući test da korisnik izvan ordinacije ne vidi ime;
+- **kako se dobija dokaz membershipa ciljnog korisnika** bez proširenja caller-self
+  `practice_memberships` RLS-a, ili uz eksplicitno prihvatanje te druge izloženosti
+  (D-061, klauzule 4–5).
+
+**Ovaj spisak D-061 ne skraćuje.** Nijedna njegova stavka nije riješena; sve ostaju obavezan sadržaj
+buduće odluke.
 
 ## 19.4 Zabranjene pretpostavke dok je pitanje otvoreno
 
 - nema treće `users` politike;
 - nema proširenja `users` column granta;
+- **nema proširenja `practice_memberships` RLS-a ni njegovog granta** kao posrednog puta do
+  co-member vidljivosti (D-061, klauzule 5 i 11);
 - nema denormalizacije `display_name` u tenant tabelu radi zaobilaženja gatea;
+- **nema `SECURITY DEFINER` identity lookupa, projekcijskog viewa sa vlastitim grantom, četvrte
+  database role ni drugog Prisma klijenta / privilegovane database putanje** (D-054, klauzula 7;
+  D-061, klauzula 11);
+- **nema zamjenskog identifikatora** — inicijali, skraćeno ime, hash imena ili stabilan nadimak
+  **ne** rješavaju gate i tretiraju se kao njegovo zaobilaženje;
 - nijedan konzument faze 5 ne smije tiho dobiti generičku vidljivost nad `users`;
 - `BLOCKED` oznaka iz `15` §3.1 se **ne** koristi za ovu stavku — vrijednost je povučena; ovaj
   gate se vodi ovdje i u D-047 klauzuli 12.
