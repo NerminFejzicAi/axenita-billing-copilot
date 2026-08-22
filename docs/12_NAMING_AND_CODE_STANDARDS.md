@@ -212,12 +212,17 @@ message: "Patient Max Muster note ... failed ..."
 Generički/anonymized:
 
 ```text
-P-TEST-A
+P-TEST000001
 TEST-ENCOUNTER-A
 "Konsultation 18 Minuten."
 ```
 
 Bez realnih podataka.
+
+**Fixture pseudonim mora zadovoljavati kanonsku v1 sintaksu (D-060, klauzula 13; `02` §2.9.1):**
+`P-` + tačno 10 velikih Crockford Base32 znakova. Raniji primjer `P-TEST-A` **ne** zadovoljava tu
+sintaksu i zamijenjen je. Fixture vrijednost smije biti unaprijed određena; **produkcijski put
+nema determinističku granu** — pseudonim se generiše iz CSPRNG-a.
 
 ---
 

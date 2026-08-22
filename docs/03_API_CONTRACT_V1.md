@@ -555,6 +555,13 @@ prethodi svakoj provjeri statusa (§15.3, D-034).
 tekst (§13.1). Zadržani su u tabeli kako bi ugovor bio potpun kada upload putanja postane
 aktivna.
 
+**Prekoračenje maksimuma manuelnog teksta nije `413` (D-060, klauzula 35).** Aktivni manual-text
+endpoint ima vlastiti maksimum od **256 KiB** i prekoračenje mapira na **`422 VALIDATION_ERROR`**
+(§13.1), jer je to semantička validacija tijela zahtjeva, a ne odgođena upload putanja. Generički
+transportni body limit (`09` §14) je odvojen, infrastrukturni vanjski čuvar i **nije** ugovor
+nijednog endpointa; njegova tekuća podrazumijevana vrijednost je iznad 256 KiB, pa endpoint-level
+maksimum ostaje mjerodavan.
+
 Cross-tenant resource se u pravilu vraća kao `404` da se ne potvrđuje postojanje.
 
 ---
@@ -1108,12 +1115,30 @@ Server:
 - generiše pseudonim;
 - nikada ne vraća čisti ID.
 
+**Normativna pojašnjenja (D-060; `02` §2.8, §2.9). Oblik zahtjeva i odgovora se ne mijenja.**
+
+- **Normalizacija.** `externalPatientReference` prolazi profil **`MANUAL` v1** prije bilo kakve
+  upotrebe: validan Unicode; odbijanje `NUL` i C0/C1 kontrolnih znakova; uklanjanje vodećeg BOM-a;
+  vanjski trim; **NFC**; odbijanje praznog rezultata; maksimum dužine; UTF-8. **Bez `NFKC`, bez
+  case-foldinga, bez uklanjanja vodećih nula, bez sažimanja unutrašnjeg whitespacea.** Nevalidan
+  ulaz → `422 VALIDATION_ERROR` sa **generičkom porukom koja ne citira vrijednost** (§8).
+- **Deterministički token.** Server računa **keyed HMAC-SHA256** nad domenski separisanom kanonskom
+  porukom (domen, `practice_id`, `source_system`, normalizovana vrijednost) i perzistira ga kao
+  `h1.<64 lowercase hex>`. **Ključ, njegova referenca, verzija i sam token se nikada ne izlažu** —
+  ni u odgovoru, ni u Problem Details tijelu, ni u logu. Token **nije** dio nijednog javnog
+  odgovora.
+- **Pseudonim.** Vraćeni `pseudonym` prati kanonsku v1 sintaksu `P-` + 10 velikih Crockford Base32
+  znakova, generisan iz CSPRNG-a i **ni na koji način izveden iz eksternog identifikatora**. Primjer
+  u odgovoru ispod je **oblik**, ne fiksni uzorak.
+- **Čisti eksterni ID** se **nikada ne vraća** ni na jednom endpointu i **nikada ne logira**
+  (`09` §11).
+
 Response `201`:
 
 ```json
 {
   "id": "uuid",
-  "pseudonym": "P-7F2A91",
+  "pseudonym": "P-K7M2QX4TB9",
   "birthYear": 1968,
   "sexCode": "F",
   "sourceSystem": "MANUAL",
@@ -1174,7 +1199,7 @@ Response `201`:
   "version": 1,
   "patient": {
     "id": "patient-uuid",
-    "pseudonym": "P-7F2A91"
+    "pseudonym": "P-K7M2QX4TB9"
   },
   "occurredAt": "2026-07-17T06:30:00Z",
   "treatmentDate": "2026-07-17",
@@ -1207,12 +1232,19 @@ cursor
 limit
 ```
 
+**`patientPseudonym` — semantika poređenja (D-060, klauzula 16; `02` §2.9.4).** Ulazna vrijednost se
+**kanonizuje u velika slova prije obične jednakosne pretrage**. Pseudonim se perzistira velikim
+slovima, pa je pretraga obična jednakost nad kolonom. **Baza ne dobija posebnu case-insensitive
+semantiku** — `citext`, `LOWER(kolona)` indeks i posebne kolacije se **ne uvode**, i **schema se ne
+mijenja** radi ove pretrage. Vrijednost koja ni nakon kanonizacije ne odgovara v1 sintaksi tretira
+se kao obična validaciona greška i **ne potvrđuje postojanje nijednog reda**.
+
 Response item:
 
 ```json
 {
   "id": "uuid",
-  "patientPseudonym": "P-7F2A91",
+  "patientPseudonym": "P-K7M2QX4TB9",
   "treatmentDate": "2026-07-17",
   "status": "REVIEW_REQUIRED",
   "responsiblePhysician": {
@@ -1372,6 +1404,68 @@ Response `201`:
 }
 ```
 
+**Normativna pojašnjenja (D-060; `02` §2.10, §2.11). Oblik zahtjeva i odgovora se ne mijenja.**
+
+### Maksimalna veličina teksta
+
+Maksimum je **256 KiB UTF-8** za polje `text`.
+
+- primjenjuje se na **dekodirani tekst zahtjeva, prije normalizacije**;
+- prekoračenje → **`422 VALIDATION_ERROR`**, nikada `413` (§9, §13.2);
+- **tekst se nikada ne skraćuje** — ni pri ulazu, ni pri normalizaciji, ni pri pohrani;
+- **tekst se nikada ne vraća** u validacionom odgovoru ni u logu (`09` §11);
+- **i izlaz normalizacije** mora ostati unutar istog maksimuma;
+- ako bi normalizacija proizvela nevalidan rezultat (prazan tekst, zabranjeni kontrolni znak,
+  prekoračena veličina), zahtjev se **odbija**, a tekst se **ne mijenja dodatno**.
+
+### Redoslijed obrade
+
+```text
+dekodirani request text
+  -> normalizacija (02 §2.10.2)
+  -> source_text_hash = lowercase hex SHA-256 normalizovanog UTF-8
+  -> enkripcija i pohrana normalizovanog teksta (02 §2.7)
+  -> deterministička redakcija (phase5-basic-v1)
+  -> redacted_text_hash
+  -> enkripcija i pohrana redigovanog teksta
+```
+
+Normalizacija je **minimalna i semantički lossless**: `CRLF`/`CR` → `LF`, **NFC**, vanjski trim
+cijelog dokumenta, odbijanje `NUL` i C0/C1 kontrolnih znakova osim `LF` i `TAB`. Očuvani su
+veličina slova, interpunkcija, unutrašnji whitespace, tabovi, prazni redovi, jedinice, doziranja,
+datumi i klinički simboli. **`NFKC` se ne koristi.** Redoslijed operacija je dio ugovora o
+hashovanju.
+
+### `redactBeforeAiProcessing`
+
+```text
+true   -> prihvaćeno
+false  -> 422 VALIDATION_ERROR
+```
+
+Kanonski tokovi rediguju **bezuslovno**; nijedna kolona ne perzistira ovu politiku kao trajno
+svojstvo dokumenta, pa bi prihvatanje `false` proizvelo nedefinisanu semantiku `view=redacted` i
+moglo potkopati D-043. Polje **ostaje u zahtjevu**; ograničen je **skup prihvaćenih vrijednosti**.
+**`SKIPPED` status se ne uvodi.**
+
+### Statusi u odgovoru
+
+```text
+processingStatus   READY | FAILED
+redactionStatus    COMPLETED | FAILED
+```
+
+`COMPLETED` znači **isključivo** da je konfigurisani deterministički ruleset Faze 5 izvršen
+uspješno. **Ne tvrdi** anonimizaciju, de-identifikaciju ni odsustvo svih identifikatora; sadržaj
+ostaje Class A (`09` §2). Pri `redactionStatus = FAILED` `redactedTextHash` izostaje, a
+`view=redacted` **ne vraća** normalizovani tekst (§13.3).
+
+Deterministička redakcija Faze 5 pokriva e-mail, `http`/`https`/`www.` URL-ove, validiran AHV/AVS,
+validiran IBAN, kanonski definisane visokopouzdane identifikatore osiguranja, eksternu referencu
+pacijenta iz tekućeg zahtjeva i **strogo prepoznat** švicarski telefonski broj. **Ne pokriva** imena,
+adrese, dijagnoze, simptome, lijekove, doziranja, mjerenja, medicinski nužne datume ni kliničke
+nalaze (D-060, klauzula 26).
+
 ## 13.2 Upload putanja — DEFERRED
 
 Sljedeća dva endpointa su **DEFERRED** i nisu dostupna u aktivnom v1. `413` i `415` iz §9
@@ -1440,6 +1534,20 @@ view=redacted|original
 
 `view=original` dodatno zahtijeva **`encounter.document.read_original`** i kreira
 `DOCUMENT_VIEWED` audit event. Bez te permisije zahtjev pada na `403 ACCESS_DENIED`.
+
+**Kanonska definicija pogleda (D-060, klauzule 34 i 32).**
+
+- **`view=original`** = **dekriptovan, neredigovan, kanonski normalizovan** tekst dokumenta. To
+  **nije** obećanje tačnih sirovih HTTP/request bajtova: kanonska schema **ne perzistira**
+  pre-normalizacioni sirovi manuelni tekst (`02` §2.10.1). Parametar se **ne preimenuje** i kolona
+  za sirovi tekst se **ne uvodi**.
+- **`view=redacted`** = dekriptovan **redigovani** tekst. Kad je `redactionStatus = FAILED`,
+  redigovani artefakt **ne postoji** i pogled **NE SMIJE pasti nazad** na normalizovani ni
+  originalni tekst — fallback bi bio tiho zaobilaženje `encounter.document.read_original`.
+- Ponašanje permisija iz **D-043 ostaje nepromijenjeno**: `view=redacted` traži običnu permisiju
+  čitanja dokumenta, `view=original` **dodatno** `encounter.document.read_original` uz
+  `DOCUMENT_VIEWED` audit.
+- Nijedan pogled ne izlaže eksterni ID, HMAC token ni materijal ključa.
 
 ## POST `/encounters/{id}/documents/{documentId}/archive`
 
@@ -1549,7 +1657,7 @@ Agregirani UI endpoint:
   },
   "encounter": {
     "id": "uuid",
-    "patientPseudonym": "P-7F2A91",
+    "patientPseudonym": "P-K7M2QX4TB9",
     "treatmentDate": "2026-07-17",
     "responsiblePhysician": {
       "id": "uuid",

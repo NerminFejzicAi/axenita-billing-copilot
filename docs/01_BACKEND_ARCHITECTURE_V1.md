@@ -602,9 +602,21 @@ upload/manual text
 → document metadata
 ```
 
+**Normativno pojašnjenje (D-060; `02` §2.10, §2.11).** Gornji dijagram je pregledan; **normativan
+redoslijed i značenje koraka su u `02` §2.10.3**. Konkretno: korak „encrypt/store original" znači
+pohranu **kanonski normalizovanog, neredigovanog** teksta (`normalized_text_*`) — **sirovi
+pre-normalizacioni tekst se ne perzistira**, i kolona za njega ne postoji. `source hash` je SHA-256
+tog **normalizovanog** teksta, računat **prije** enkripcije, pa je reproducibilan iz ciphertexta
+nakon ovlaštene dekripcije. Redakcija je **deterministička i ne-AI** (`phase5-basic-v1`); njen izlaz
+**ostaje Class A** i status `COMPLETED` **ne tvrdi** anonimizaciju ni de-identifikaciju.
+
 ## 12.3 Čitanje
 
 Originalni tekst se vraća samo uz posebnu permission i stvara `DOCUMENT_VIEWED` audit event.
+
+`view=original` kanonski znači **dekriptovan, neredigovan, kanonski normalizovan** tekst (`03`
+§13.3), ne sirove bajtove zahtjeva. Kad redakcija nije uspjela, `view=redacted` **ne pada nazad** na
+normalizovani tekst.
 
 ---
 

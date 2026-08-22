@@ -33,8 +33,8 @@ Ovaj dokument sprečava da Cursor izmisli odgovore za dijelove koji zavise od ug
 
 # 3. Encryption/KMS
 
-**Status:** OPEN BEFORE PHASE 5 FINALIZATION  
-**Potrebno odlučiti:**
+**Status:** OPEN BEFORE PHASE 5 FINALIZATION — **djelimično zatvoreno**  
+**Potrebno odlučiti (historijska lista):**
 
 - AES-GCM format;
 - DEK granularnost;
@@ -45,6 +45,38 @@ Ovaj dokument sprečava da Cursor izmisli odgovore za dijelove koji zavise od ug
 - backup recovery.
 
 Cursor smije implementirati interface i development adapter, ali ne smije nazvati local static key produkcijski spremnim.
+
+## 3.1 Tekuće stanje — šta je zatvoreno, a šta nije
+
+**Historijska lista iznad se ne mijenja.** Ova podsekcija samo čini tekući autoritet nedvosmislenim
+(D-025; D-060, klauzula 45).
+
+**ZATVORENO odlukom D-025 (2026-08-02):**
+
+- format AES-GCM ciphertexta;
+- `iv` / `auth_tag` / kanonski AAD;
+- granularnost DEK-a **u v1** — verzionisani aplikacijski ključ iz secrets managera, **bez per-row
+  DEK-a**;
+- ugovor local development adaptera (`LocalStaticKeyProvider`, startup guardovi);
+- mehanika verzionisanja enkripcije po redu (`encryption_version`);
+- mehanika rotacije — atomarna re-enkripcija reda sa svježim IV-ovima, **bez izmjene `*_hash`
+  kolona**.
+
+**I DALJE OTVORENO i isključivo PRODUKCIJSKO (D-OPEN-004a):**
+
+- izbor KMS/providera;
+- produkcijski model pristupa ključu;
+- rotation cadence;
+- procedura recoveryja/backupa ključa;
+- uslovni per-row DEK i crypto-shredding, ako to retention (§8, D-OPEN-007) kasnije zahtijeva.
+
+**D-060 ne zatvara nijednu od otvorenih stavki** i **ne kreira produkcijski KMS dizajn**. On uvodi
+**namjenski HMAC ključ `K_hmac`** za deterministički lookup token eksternog ID-a — **zaseban ključni
+materijal**, odvojen od `K_enc`, koji **ne dira** KEK/DEK hijerarhiju. Produkcijski životni ciklus
+`K_hmac` (provisioning, čuvanje, rotacija, recovery) **pada pod isti otvoreni produkcijski gate** i
+rješava se zajedno sa D-OPEN-004a.
+
+**Local static key i dalje nikada nije produkcijski spreman.**
 
 ---
 
@@ -119,6 +151,12 @@ Cursor ne smije implementirati službenu logiku iz sekundarne dokumentacije.
 - reconciliation.
 
 Do tada ManualAdapter.
+
+**Normalizacija eksternog ID-a (D-060, klauzula 12).** Aktivni normalizacioni profil za
+deterministički lookup token je **`MANUAL` v1** i **immutable je čim pod njim postoji ijedan
+perzistirani red**. Zaseban profil **`AXENITA`** smije biti definisan **tek nakon** što ovo pitanje
+bude odblokirano i stvarni format identifikatora bude poznat. **Axenita normalizacija se ne
+izmišlja unaprijed**, i profil `MANUAL` v1 se ne mijenja da bi je „unaprijed pokrio".
 
 ---
 
@@ -412,6 +450,12 @@ identitet pozivaoca, i treća se **ne** kreira bez prihvaćene odluke.
 **Prije implementacije prve funkcionalnosti faze 5 koja treba tuđi `displayName`.** Do tada rad na
 tim odgovorima **staje na phase gateu**. Implementacija ne smije tiho dodati politiku, proširiti
 grant niti denormalizovati ime u drugu tabelu.
+
+**Tekući status (D-060, klauzula 45).** Ovo pitanje **ostaje OTVORENO**. Objava PHI dizajna Faze 5
+(D-060) ga **ne dodiruje, ne rješava i ne prejudicira**: nijedna `users` politika, nijedan grant,
+nijedna denormalizacija i nijedna izmjena `GET /encounters` odgovora nisu tom odlukom uvedene.
+Vlasništvo nosi **naredni, zaseban gate `P5-G1` — `BEFORE PHASE 5 CO-MEMBER DISPLAY NAME ACCESS`**,
+koji prethodi schema gateu `P5-D2`. Zabrane iz §19.4 važe **nepromijenjeno**.
 
 ## 19.3 Šta prihvaćena odluka mora definisati
 

@@ -338,6 +338,7 @@ MUST DECIDE BEFORE <faza>
 - **Test dokaz:** `08` §12 — ciphertext ≠ plaintext; dekripcija sa pogrešnim ključem ili verzijom pada; izmijenjen auth tag pada; ciphertext premješten u drugi red ne dekriptuje; neusklađena NULL trojka odbijena; IV od 11 bajtova odbijen; tag od 15 bajtova odbijen; UPDATE nad `id` ili `practice_id` pada sa `23514`.
 - **Ostaje otvoreno:** KMS provider (D-OPEN-004a), rotation cadence.
 - **Supersedes:** D-OPEN-004 djelimično — format je zatvoren, izbor KMS providera nije.
+- **Dopuna (D-060, 2026-08-22) — tijelo ove odluke se ne mijenja.** D-060 uvodi **namjenski HMAC ključ `K_hmac`**, odvojen od ključa podataka `K_enc` iz ove odluke, i **zabranjuje** upotrebu `K_enc` za HMAC. Razlog je klauzula 7 ove odluke: re-enkripcija pri rotaciji **ne mijenja `*_hash` kolone**, pa `*_hash` ne smije zavisiti od `K_enc` — inače bi rotacija razbila deterministički lookup identitet. D-060 takođe utvrđuje da ponovni pokušaj redakcije mora koristiti **svjež IV**, što je primjena klauzule 6, ne izuzetak od nje. **Nijedna klauzula 1–14 se ne mijenja, ne slabi ni ne opoziva.** Vidi D-060.
 
 ---
 
@@ -5060,6 +5061,614 @@ D-041, D-045, D-052, D-053, D-054, D-055, **D-056**, **D-057**, **D-058**.
 
 ---
 
+# D-060 — PHI dizajn Faze 5: HMAC eksternog ID-a, pseudonim, normalizacija teksta, hashing, deterministička redakcija i statusni rječnici
+
+- **Status:** ACCEPTED
+- **Datum:** 2026-08-22
+- **Tip:** dizajnerska odluka o PHI/sigurnosnim ugovorima Faze 5. **Dokumentacija isključivo.**
+- **Amandman na:** **nijednu odluku.** Ova odluka **dopunjuje** D-018 i D-025 novim, susjednim
+  ugovorom (keyed lookup token, pseudonim, normalizacija, hashing, redakcija). **Nijedna klauzula
+  D-025 se ne mijenja, ne slabi ni ne opoziva**, a D-OPEN-004a **ostaje otvoren**.
+- **Vlasnička ratifikacija:** vlasnik je prihvatio nalaze read-only dizajn audita `P5-D1-A` i
+  ratifikovao odluke D1–D16 iz tog audita. Ovaj zapis je njihova **objava**, ne njihovo ponovno
+  izvođenje.
+
+## Kontekst/problem — trigger
+
+`02` §7.1 i §8.2 već fiksiraju kolone `external_*_ref_hash`, `pseudonym`, `source_text_hash`,
+`redacted_text_hash`, `processing_status` i `redaction_status`, a `03` §11 i §13 već fiksiraju
+endpointe koji ih pune. Ono što **nije** bilo kanonski određeno je **značenje** tih polja:
+
+- `09` §8 traži „keyed HMAC" za external ID, ali ne imenuje ključ, poruku, domensku separaciju,
+  encoding ni oblik verzionisanja;
+- `02` §7.1 zabranjuje pseudonim izveden skraćivanjem eksternog ID-a, ali ne definiše sintaksu,
+  izvor entropije, entropijski cilj ni semantiku pretrage;
+- „normalized text" i `source_text_hash` se pominju u `01` §12 i `02` §8.2 bez normativnog
+  redoslijeda operacija — a hash bez fiksne normalizacije nije reproducibilan;
+- „redaction" je u `04` §7.5 opisan kao „mock/basic rule", bez granice šta jeste, a naročito **šta
+  nije**;
+- `processing_status` i `redaction_status` su `varchar(30)` bez ijednog kanonskog rječnika;
+- `03` §13 nudi `redactBeforeAiProcessing` i `view=original` bez definisane semantike.
+
+Svako od tih polja je PHI-nosivo ili PHI-vezano. Implementirati ih bez prethodno zamrznutog ugovora
+značilo bi da prvi napisani kod postaje neformalna specifikacija — a normalizacija i hashing su
+**immutable čim postoji ijedan perzistirani red**. Zato ovaj gate prethodi svakoj schema i business
+implementaciji Faze 5.
+
+## Odluka
+
+# Dio A — HMAC eksternog ID-a
+
+### A.1 Klauzula 1 — algoritam i namjenski ključ
+
+Deterministički lookup token eksternog identifikatora računa se **HMAC-SHA256** algoritmom, uz
+**namjenski HMAC ključ `K_hmac`**, odvojen od AES-GCM ključa podataka `K_enc` iz D-025.
+
+`K_hmac` **ne smije** biti jednak `K_enc` niti direktno izveden iz njega.
+
+### A.2 Klauzula 2 — zašto ponovna upotreba AES ključa nije dozvoljena
+
+Zabrana nije stilska. D-025, klauzula 7 propisuje da **re-enkripcija pri rotaciji ključa ne mijenja
+`*_hash` kolone**. Da `*_hash` zavisi od `K_enc`, rotacija enkripcijskog ključa bi promijenila
+identitet deterministički pretraživog tokena i **razbila lookup identitet** postojećih redova, ili
+bi zahtijevala rewrite svih `*_hash` vrijednosti — što D-025 izričito ne radi. Odvojen `K_hmac`
+čini enkripcijsku rotaciju i lookup identitet **nezavisnim osama**.
+
+### A.3 Klauzula 3 — kanonska HMAC poruka i domenska separacija
+
+HMAC poruka je kanonski UTF-8 string, LF separatori, **bez završnog praznog reda**, po istoj
+filozofiji kao kanonski AAD iz D-025, klauzule 5:
+
+```text
+v1
+domain=<token domain>
+practice_id=<canonical UUID>
+source_system=<canonical enum literal>
+value=<normalized external identifier>
+```
+
+Redoslijed redova je **normativan**. Prvi red je **verzija formata HMAC poruke**, ne verzija ključa.
+
+### A.4 Klauzula 4 — katalog domena
+
+```text
+patient_external_ref
+encounter_external_ref
+document_external_ref
+```
+
+Domen je **obavezan** i ulazi u poruku. Isti eksterni string u dvije domene daje **dva različita**
+tokena. Isto važi za dvije ordinacije i dva `source_system` literala.
+
+### A.5 Klauzula 5 — encoding tokena
+
+Rezultat je **lowercase heksadecimalni** zapis od tačno **64** znaka.
+
+### A.6 Klauzula 6 — perzistirani oblik i generacijski marker
+
+Perzistira se u **postojeću** `varchar(128)` kolonu, u obliku:
+
+```text
+h1.<64 lowercase hex>
+```
+
+Ukupna dužina v1 tokena je 67 znakova, unutar postojećeg `varchar(128)`. **Nijedna schema promjena
+nije potrebna.**
+
+### A.7 Klauzula 7 — šta `h1` znači, a šta ne znači
+
+`h1` je **identifikator generacije HMAC tokena**. On veže **tri** stvari zajedno:
+
+- porodicu/verziju HMAC algoritma;
+- generaciju/verziju HMAC ključa;
+- generaciju kanonskog formata HMAC poruke (klauzula 3).
+
+`h1` **nije** verzija normalizacionog profila eksternog ID-a. Profil normalizacije je **odvojeno**
+verzionisan (Dio B) i **ne smije se tiho poistovjetiti** sa `h1`.
+
+### A.8 Klauzula 8 — operativna politika v1 i buduće generacije
+
+- v1 ima **jednu aktivnu generaciju HMAC ključa**;
+- **rutinska rotacija HMAC ključa nije planirana u Fazi 5**;
+- format tokena svejedno **mora** podržati više generacija;
+- budući lookup smije izračunati **više kandidata po generaciji** i porediti ih jednakošću ili `IN`
+  listom;
+- **ne uvodi se** kolona za verziju HMAC ključa; marker živi unutar tokena.
+
+### A.9 Klauzula 9 — budući startup guard (zahtjev, ne implementacija)
+
+Budući startup guard mora odbiti start ako je `K_hmac == K_enc`. Ovo je **dizajnerski zahtjev**;
+ovaj gate ga **ne implementira** i ne mijenja nijedan postojeći guard iz D-025, klauzule 10.
+
+# Dio B — normalizacija eksternog identifikatora
+
+### B.1 Klauzula 10 — profil `MANUAL`, verzija 1
+
+Prije HMAC-a eksterni identifikator prolazi **minimalan** normalizacioni profil. Aktivni profil je
+**`MANUAL`, verzija 1**. Operacije, **tim redoslijedom**:
+
+1. ulaz mora biti validan aplikacijski string / validan Unicode;
+2. odbij `NUL`;
+3. odbij C0/C1 kontrolne znakove;
+4. ukloni vodeći `U+FEFF` (BOM) ako postoji;
+5. skrati vodeći i prateći Unicode whitespace;
+6. Unicode normalizacija **NFC**;
+7. odbij prazan rezultat nakon normalizacije;
+8. primijeni eksplicitan maksimum dužine identifikatora, preuzet iz postojećih schema/API
+   ograničenja;
+9. kodiraj kao UTF-8 na HMAC granici.
+
+### B.2 Klauzula 11 — izričito zabranjene operacije
+
+Profil **ne smije**:
+
+- primijeniti `NFKC`;
+- raditi case-folding;
+- uklanjati vodeće nule;
+- sažimati unutrašnji whitespace;
+- mijenjati interpunkciju;
+- raditi homoglyph/confusable folding.
+
+Razlog je da su eksterni identifikatori **poslovno značajni nizovi**: `0012` i `12` mogu biti
+različiti pacijenti, a `a` i `A` različiti zapisi u izvornom sistemu. Agresivna normalizacija bi
+proizvela **tihe kolizije identiteta** koje nijedan constraint ne bi otkrio.
+
+### B.3 Klauzula 12 — immutability profila
+
+Normalizacioni profil je **immutable od trenutka kad pod njim postoji ijedan perzistirani red**.
+Promjena ponašanja zahtijeva **novi profil/verziju**, ne izmjenu postojećeg.
+
+Buduća Axenita integracija smije definisati **zaseban profil `AXENITA`** — i to **tek nakon** što
+D-OPEN-009 bude odblokiran. **Axenita normalizacija se ovdje ne izmišlja.**
+
+# Dio C — pseudonim pacijenta
+
+### C.1 Klauzula 13 — sintaksa v1
+
+```text
+P- + 10 velikih Crockford Base32 znakova
+```
+
+Kanonska v1 sintaksa je `P-` praćeno tačno deset znakova iz Crockford Base32 abecede, velikim
+slovima. Primjer **oblika**, ne fiksni uzorak: `P-K7M2QX4TB9`.
+
+### C.2 Klauzula 14 — porijeklo i nepovezanost sa eksternim ID-em
+
+Pseudonim:
+
+- **mora** biti generisan iz CSPRNG-a;
+- **ne smije** biti izveden iz eksternog identifikatora pacijenta;
+- **ne smije** biti hash, skraćivanje ni HMAC eksternog identifikatora;
+- **ne smije** biti reverzibilan;
+- **mora** ostati stabilan za cijeli životni vijek reda `patient_references`.
+
+Ovo pooštrava i **ne slabi** postojeće pravilo `02` §7.1 („produkcijski pseudonim ne smije biti
+izveden direktnim skraćivanjem eksternog ID-a").
+
+### C.3 Klauzula 15 — entropija, kolizije, immutability
+
+- ciljna entropija: **približno 50 bita ili više**;
+- kanonski perzistirani oblik: **velika slova**;
+- jedinstvenost: **postojeći** `unique (practice_id, pseudonym)`;
+- kolizija: **ograničen** regenerate-and-retry pri unique violationu;
+- **nema** determinističkog fallbacka; pri iscrpljenim pokušajima zahtjev pada;
+- pseudonim je **immutable** nakon kreiranja.
+
+### C.4 Klauzula 16 — semantika pretrage bez schema promjene
+
+Baza **ne** dobija posebnu case-insensitive semantiku poređenja. Umjesto toga:
+
+- generiši velikim slovima;
+- perzistiraj velikim slovima;
+- **ulazni** `patientPseudonym` iz query parametra kanonizuj u velika slova **prije** obične
+  jednakosne pretrage.
+
+**Ne uvode se** `citext`, `LOWER(kolona)`, posebne kolacije ni funkcijski indeksi, i **schema se ne
+mijenja** radi case-insensitive pretrage.
+
+# Dio D — normalizacija kliničkog teksta
+
+### D.1 Klauzula 17 — normativni v1 pipeline
+
+Normalizacija je **minimalna i semantički lossless**. Operacije, **tim redoslijedom**:
+
+1. validiraj aplikacijski string / validan Unicode;
+2. normalizuj `CRLF` i samostalni `CR` u `LF`;
+3. odbij `NUL`;
+4. odbij C0/C1 kontrolne znakove **osim** `LF` i `TAB`;
+5. ukloni **jedan** vodeći `U+FEFF` (BOM) ako postoji;
+6. Unicode normalizacija **NFC**;
+7. skrati vodeći i prateći whitespace **isključivo na nivou cijelog dokumenta**;
+8. odbij prazan rezultat nakon normalizacije;
+9. primijeni maksimum manuelnog teksta (klauzula 35);
+10. **nikada ne skraćuj sadržaj.**
+
+### D.2 Klauzula 18 — obavezno očuvani sadržaj
+
+Normalizacija **mora očuvati**: velika/mala slova; interpunkciju; unutrašnji whitespace; tabove;
+ponovljene prazne redove; medicinski značajne simbole; decimalne zareze i tačke; jedinice; datume;
+nazive lijekova; doziranja; dijagnoze; nalaze.
+
+`NFKC` se **ne smije** koristiti — on mijenja znakove nosioce kliničkog značenja (razlomke,
+indekse, tipografske varijante) i time normalizacija prestaje biti lossless.
+
+### D.3 Klauzula 19 — normalizacija je dio hashing ugovora
+
+Tačan redoslijed operacija iz klauzule 17 je **dio ugovora o hashovanju** i **ne smije se tiho
+mijenjati**. Promjena ponašanja zahtijeva novu, eksplicitnu odluku, jer bi inače `source_text_hash`
+postojećih redova prestao biti reproducibilan.
+
+# Dio E — `source_text_hash`
+
+### E.1 Klauzula 20 — definicija
+
+`source_text_hash` je **lowercase hex SHA-256 UTF-8 kodiranja kanonski normalizovanog,
+neredigovanog teksta**.
+
+### E.2 Klauzula 21 — normativni redoslijed
+
+```text
+sirovi request
+  -> normalizacija (Dio D)
+  -> normalizovani UTF-8
+  -> SHA-256
+  -> lowercase hex
+  -> source_text_hash
+  -> enkripcija i pohrana normalizovanog teksta (D-025)
+```
+
+Posljedica je namjerna: hash je **reproducibilan iz perzistiranog ciphertexta** nakon ovlaštene
+dekripcije. **Ne uvodi se druga kolona** za hash sirovog ulaza.
+
+`redacted_text_hash` se računa istim postupkom nad **redigovanim** tekstom.
+
+# Dio F — deterministička redakcija Faze 5
+
+### F.1 Klauzula 22 — šta redakcija Faze 5 jeste
+
+Deterministički, **ne-AI**, osnovni ruleset za uklanjanje identifikatora.
+
+### F.2 Klauzula 23 — šta redakcija Faze 5 **nije**
+
+Redakcija **nije** anonimizacija. **Nije** de-identifikacija. **Nije** zamjena za enkripciju ni
+RLS. **Redigovani izlaz ostaje Class A medicinski podatak** (`09` §2) i nosi sve kontrole te klase.
+
+### F.3 Klauzula 24 — minimalni ruleset Faze 5
+
+Podržane klase:
+
+- e-mail adrese;
+- `http`/`https` i `www.` URL-ovi;
+- švicarski AHV/AVS broj **isključivo** kad format i kontrolna cifra prođu validaciju;
+- švicarski IBAN **isključivo** kad checksum prođe validaciju;
+- identifikatori osiguranja/kartice **isključivo** tamo gdje je kanonski definisan visokopouzdan,
+  validiran uzorak;
+- **eksplicitna eksterna referenca pacijenta iz tekućeg intake zahtjeva**, ako se pojavljuje u
+  tekstu;
+- švicarski telefonski brojevi **isključivo** kroz konzervativan prepoznavač.
+
+### F.4 Klauzula 25 — stroga posture za telefonske brojeve
+
+**Ne koristi se širok generički telefonski regex.** Koristi se **isključivo strog švicarski**
+prepoznavač sa dovoljno jakim strukturnim dokazom. **Kad je signal dvosmislen — ne rediguje se.**
+
+**Lažno negativni rezultati su prihvaćeni i dokumentovani za Fazu 5**, jer je lažno pozitivna
+redakcija doziranja, laboratorijske vrijednosti ili tarifnog koda **klinički opasnija** od
+propuštenog broja u tekstu koji ionako ostaje enkriptovan i pod RLS-om.
+
+### F.5 Klauzula 26 — šta se **ne** rediguje automatski
+
+Imena osoba; adrese; dijagnoze; simptomi; lijekovi; doziranja; mjerenja; medicinski nužni datumi;
+klinički nalazi.
+
+Njihovo uklanjanje traži budući viši nivo redakcije/NER logike i **nije obuhvat Faze 5**. Nijedan
+dokument, test ni komentar **ne smije tvrditi** da su te klase pokrivene.
+
+### F.6 Klauzula 27 — zamjenski tokeni
+
+Zamjenski token je **konstantan po klasi**, na primjer:
+
+```text
+[REDACTED:EMAIL]
+```
+
+Token **ne smije** sadržavati: hash; originalni prefiks ni sufiks; skraćeni original; niti bilo
+kakav stabilan derivat uklonjene vrijednosti. Stabilan derivat bi ponovo uveo linkabilnost koju
+redakcija treba ukloniti.
+
+### F.7 Klauzula 28 — verzija ruleseta
+
+Verzija ruleseta je **immutable identifikator na nivou koda/konfiguracije**:
+
+```text
+phase5-basic-v1
+```
+
+- verzija je dio ugovora koda/konfiguracije;
+- ponašanje verzije je **immutable** čim je upotrijebljena nad perzistiranim dokumentima;
+- promjena ponašanja zahtijeva **novu verziju ruleseta**;
+- **ne uvodi se** kolona za verziju ruleseta po dokumentu u Fazi 5;
+- P5-D2 smije preispitati perzistenciju **samo** ako zaseban audit/provenance zahtjev to naloži.
+
+# Dio G — statusni rječnici
+
+### G.1 Klauzula 29 — `processing_status`
+
+Kanonski rječnik Faze 5, na aplikacijskom nivou:
+
+```text
+READY
+FAILED
+```
+
+- **`READY`** — normalizacija je uspjela, a normalizovani source-side artefakt je validan,
+  enkriptovan i hash-konzistentan.
+- **`FAILED`** — dokument postoji, ali source-side artefakt obrade nije upotrebljiv.
+
+**Nema** `PENDING`. **Nema** `PROCESSING`. **Nema** `ARCHIVED` statusa — arhiviranje i dalje nosi
+`archived_at` (`02` §8.2). **Ne uvode se** stanja upload putanje.
+
+### G.2 Klauzula 30 — `redaction_status`
+
+```text
+COMPLETED
+FAILED
+```
+
+- **`COMPLETED`** — kompletan deterministički ruleset Faze 5, u verziji konfigurisanoj za
+  aplikaciju, izvršen je uspješno i proizveo je enkriptovani redigovani tekst i hash redigovanog
+  teksta.
+- **`FAILED`** — redakcija nije proizvela upotrebljiv redigovani artefakt.
+
+### G.3 Klauzula 31 — normativna klauzula iskrenosti za `COMPLETED`
+
+`COMPLETED` znači **isključivo** da je konfigurisani deterministički ruleset Faze 5 izvršen
+uspješno.
+
+`COMPLETED` **ne tvrdi**: anonimizaciju; de-identifikaciju; odsustvo svih identifikatora; niti
+sigurnost za neograničeno otkrivanje. **Rezultat ostaje Class A medicinski podatak.**
+
+### G.4 Klauzula 32 — ponašanje pri `FAILED` redakciji
+
+- `redacted_text_*` i `redacted_text_hash` ostaju null/odsutni, kako schema već dozvoljava;
+- **`view=redacted` NE SMIJE pasti nazad na normalizovani ni originalni tekst**;
+- dokument **ne može** zadovoljiti PHI-readiness predikat Faze 5;
+- deterministička redakcija se smije **kasnije ponoviti pod istom verzijom ruleseta**;
+- ponovni pokušaj **mora** koristiti **svjež AES-GCM IV** (D-025, klauzula 6).
+
+**Nema** `SKIPPED`.
+
+### G.5 Klauzula 33 — sloj sprovođenja
+
+U Fazi 5 oba rječnika sprovodi **aplikacijska/domenska logika**. **U ovom gateu se ne dodaju
+database `CHECK` constrainti.** Odluku da li rječnici postaju DB-sprovedeni **posjeduje P5-D2**.
+
+# Dio H — API semantika
+
+### H.1 Klauzula 34 — `view=original`
+
+API parametar `view=original` **ostaje** i kanonski znači:
+
+> **dekriptovan, neredigovan, kanonski normalizovan tekst dokumenta.**
+
+To **nije** obećanje tačnih sirovih HTTP/request bajtova. Kanonska schema **ne perzistira**
+pre-normalizacioni sirovi manuelni tekst. API se **ne preimenuje** i **ne dodaje se** kolona za
+sirovi tekst.
+
+Ponašanje permisija iz D-043 se **ne mijenja**: `view=redacted` traži običnu permisiju čitanja
+dokumenta; `view=original` **dodatno** traži `encounter.document.read_original` i proizvodi
+`DOCUMENT_VIEWED` audit ponašanje prema postojećem autoritetu.
+
+### H.2 Klauzula 35 — maksimalna veličina aktivnog manuelnog teksta
+
+Maksimum je **256 KiB UTF-8** ulaznog teksta za aktivni manual-text endpoint.
+
+- primjenjuje se na **dekodirani tekst zahtjeva prije normalizacije**;
+- prekoračenje → **`422 VALIDATION_ERROR`**;
+- **nikada se ne skraćuje**;
+- tekst se **nikada ne vraća** u validacionom odgovoru ni u logu;
+- **i izlaz normalizacije** mora ostati unutar istog maksimuma;
+- ako bi normalizacija proizvela nevalidan rezultat, zahtjev se **odbija**, a ne dodatno mijenja.
+
+`413 Payload Too Large` u `03` §9 ostaje vezan **isključivo za DEFERRED upload putanju** (`03`
+§13.2). Validacija manuelnog teksta u Fazi 5 koristi **validacioni ugovor API-ja**
+(`422 VALIDATION_ERROR`), ne grešku odgođene upload putanje.
+
+Generički transportni body limit (`09` §14, `API_BODY_LIMIT`) je **odvojen, infrastrukturni**
+vanjski čuvar i **nije** ugovor ovog endpointa; njegova tekuća podrazumijevana vrijednost (`1mb`)
+je **iznad** 256 KiB, pa endpoint-level maksimum ostaje dostižan i mjerodavan.
+
+### H.3 Klauzula 36 — `redactBeforeAiProcessing`
+
+Za aktivni v1:
+
+```text
+redactBeforeAiProcessing = false  ->  422 VALIDATION_ERROR
+```
+
+Razlog:
+
+- kanonski tokovi **rediguju bezuslovno**;
+- **nijedna kolona ne perzistira** ovu politiku kao trajno svojstvo dokumenta;
+- prihvatanje `false` bi proizvelo **nedefinisanu semantiku `view=redacted`** i moglo bi potkopati
+  D-043.
+
+**Ne uvodi se** `SKIPPED` status. Polje se **ne uklanja** iz zahtjeva — ograničava se **skup
+prihvaćenih vrijednosti**.
+
+### H.4 Klauzula 37 — `POST /patient-references`
+
+Ugovor se pojašnjava **bez promjene oblika zahtjeva ni odgovora**: eksterni ID se normalizuje
+profilom `MANUAL` v1; HMAC se opisuje **apstraktno, bez izlaganja materijala ključa**; pseudonim
+prati v1 sintaksu; **čisti eksterni ID se nikada ne vraća i nikada ne logira**.
+
+# Dio I — sigurnost logova i grešaka
+
+### I.1 Klauzula 38 — klasifikacija
+
+- **HMAC token eksternog ID-a je osjetljiv i linkabilan** i **nije loggable**;
+- **pseudonim je Class C** (`09` §2) i **nije** na allowlisti tehničkog loga (`09` §11);
+- **tekst dokumenta ostaje Class A i nakon redakcije.**
+
+### I.2 Klauzula 39 — apsolutna zabrana u logovima i greškama
+
+Log i error putanje **nikada** ne smiju sadržavati: eksterne ID-eve; HMAC tokene; pseudonime;
+izvorni, normalizovani ni redigovani tekst; ciphertext; ključeve; IV ni auth tag; niti **spornu PHI
+vrijednost koja je pala validaciju**.
+
+### I.3 Klauzula 40 — Problem Details poruke
+
+Validacione poruke za PHI i eksterne identifikatore koriste **sigurne generičke poruke**. Polje
+`errors[].message` (`03` §8) **ne smije** citirati odbijenu vrijednost, njen prefiks, sufiks, niti
+bilo koji njen derivat.
+
+### I.4 Klauzula 41 — redakcija nije sigurnosna granica
+
+Redakcija je **pomoć pri egressu i minimizaciji podataka**, ne sigurnosna granica. Sigurnosne
+granice ostaju: autentifikacija, permisije, tenant izolacija/RLS i aplikacijska enkripcija. Nijedna
+kontrola se **ne smije oslabiti** pozivom na to da je tekst redigovan.
+
+# Dio J — granice
+
+### J.1 Klauzula 42 — ovo je objava autoriteta, ne autorizacija implementacije
+
+Ova odluka **objavljuje dizajnerski autoritet**. Ona **ne autorizuje** njegovu implementaciju:
+nijedan servis, endpoint, tabela, migracija ni test se ovim gateom ne uvode.
+
+### J.2 Klauzula 43 — Faza 5 ostaje `NOT_STARTED`
+
+```text
+PHASE_5_STATUS   NOT_STARTED
+```
+
+Nijedna kućica Faze 5 nije označena. Pokretanje Faze 5 ostaje **zaseban gate**.
+
+### J.3 Klauzula 44 — schema se ne mijenja
+
+**Nijedna kolona se ne dodaje, ne uklanja i ne mijenja.** Konkretno se **ne uvode**: kolona za
+verziju HMAC ključa; kolona za verziju redakcionog ruleseta; kolona za sirovi tekst; drugi hash
+sirovog ulaza; `citext` ni funkcijski indeks za pseudonim; `CHECK` constraint za statusne rječnike.
+
+### J.4 Klauzula 45 — otvorena pitanja koja ova odluka **ne** zatvara
+
+- **D-OPEN-004a** ostaje **OPEN/DEFERRED** i **produkcijski**: KMS provider, produkcijski model
+  pristupa ključu, rotation cadence, recovery/backup procedura i uslovni per-row DEK/crypto-
+  shredding. Ova odluka **ne kreira produkcijski KMS dizajn**;
+- **`BEFORE PHASE 5 CO-MEMBER DISPLAY NAME ACCESS`** (`13` §19) ostaje **otvoren** i vlasništvo je
+  **narednog, zasebnog gatea `P5-G1`**. Ovaj gate ga **ne rješava**;
+- **D-OPEN-009** (Axenita) ostaje otvoren; profil normalizacije `AXENITA` se **ne izmišlja**;
+- **P5-D2** zadržava vlasništvo nad schemom, referencijalnim akcijama, migration paketom, state
+  machineom i pitanjem DB-sprovedenih statusnih rječnika.
+
+## Razlog
+
+Sva četiri ugovora — HMAC, pseudonim, normalizacija/hash i redakcija — dijele jedno svojstvo:
+**postaju immutable čim postoji prvi perzistirani red**. Deterministički token, hash normalizovanog
+teksta i pseudonim nisu izvedene vrijednosti koje se mogu naknadno preračunati; oni **jesu
+identitet** reda. Zato je jedini trenutak u kojem se smiju zamrznuti **prije** schema i business
+implementacije.
+
+Domenska separacija u HMAC poruci nije dekoracija: bez `practice_id`, `domain` i `source_system`
+isti eksterni string bi u dvije ordinacije dao isti token, pa bi jednakost tokena postala
+**cross-tenant orakl** — tačno klasa izloženosti koju `02` §2.5 i RLS uklanjaju.
+
+Klauzula iskrenosti za `COMPLETED` postoji jer je najveći rizik ovog dijela sistema **pogrešno
+povjerenje**: statusna riječ koja zvuči kao „očišćeno" navela bi buduće faze da redigovani tekst
+tretiraju kao manje osjetljiv nego što jeste. Dokumentovan lažno negativan rezultat je siguran;
+neopravdano povjerenje nije.
+
+## Alternative — odbijene
+
+- **Obični SHA-256 bez ključa za eksterni ID** — odbijeno: eksterni ID-evi su low-entropy i
+  podložni dictionary napadu (`09` §8).
+- **Ponovna upotreba `K_enc` kao HMAC ključa** — odbijeno: sudara se sa D-025, klauzulom 7
+  (rotacija ne dira `*_hash`) i razbija lookup identitet.
+- **Zasebna kolona za verziju HMAC ključa** — odbijeno: marker unutar `varchar(128)` tokena nosi
+  istu informaciju bez schema promjene i bez migracije nad popunjenom tabelom.
+- **Pseudonim izveden iz eksternog ID-a (hash/skraćivanje)** — odbijeno: rekonstruktivan i vezan za
+  eksterni identitet; direktno protivno `02` §7.1.
+- **Case-insensitive kolacija / `citext` / `LOWER(kolona)` indeks za pseudonim** — odbijeno:
+  kanonizacija ulaza u velika slova daje isti rezultat bez schema promjene, novog tipa i posebnog
+  ponašanja indeksa.
+- **`NFKC` za tekst i za identifikatore** — odbijeno: nije lossless nad kliničkim sadržajem i
+  proizvodi tihe kolizije identiteta.
+- **Hash sirovog ulaza kao druga hash kolona** — odbijeno: sirovi ulaz se ne perzistira, pa takav
+  hash ne bi bio provjerljiv; udvostručio bi hash površinu bez ijednog čitaoca.
+- **Širok generički telefonski regex** — odbijeno: rediguje doze, laboratorijske vrijednosti,
+  tarifne i ICD kodove; klinička šteta lažno pozitivnog nadmašuje korist.
+- **Zamjenski token sa hashom ili skraćenim originalom** — odbijeno: stabilan derivat vraća
+  linkabilnost.
+- **Prihvatiti `redactBeforeAiProcessing = false`** — odbijeno: nema kolone koja bi to trajno
+  nosila, `view=redacted` bi ostao nedefinisan, a D-043 potkopan.
+- **Uvesti `SKIPPED`, `PENDING`, `PROCESSING` ili `ARCHIVED`** — odbijeno: nijedan aktivni tok Faze
+  5 ih ne proizvodi; arhiviranje već nosi `archived_at`.
+- **`view=redacted` sa fallbackom na normalizovani tekst pri `FAILED`** — odbijeno: to je tiho
+  zaobilaženje `encounter.document.read_original` i najozbiljniji mogući defekt ovog dizajna.
+- **Preimenovati `view=original` u `view=normalized`** — odbijeno: mijenja javni API ugovor bez
+  dobitka; definicija uklanja dvosmislenost jednako dobro.
+- **DB `CHECK` constrainti za statusne rječnike već sada** — odbijeno: rječnici pripadaju domenskom
+  sloju dok P5-D2 ne odluči o schemi; prerani constraint bi zaključao vokabular prije schema gatea.
+- **Odgoditi ove odluke do implementacije Faze 5** — odbijeno: prvi napisani kod bi postao
+  neformalna specifikacija immutable ugovora.
+
+## Posljedice
+
+- Faza 5 ulazi u implementaciju sa **zamrznutim** PHI ugovorima; P5-D2 nasljeđuje definisano, ne
+  otvoreno stanje.
+- `02` dobija kanonske sekcije za lookup token, pseudonim, normalizaciju/hash i statusne rječnike;
+  `03` dobija nedvosmislenu semantiku za `view`, `redactBeforeAiProcessing` i maksimum teksta.
+- `09` dobija eksplicitnu klasifikaciju HMAC tokena i pseudonima i eksplicitnu granicu redakcije.
+- `08` dobija dokumentovane, **još neizvršene**, test obaveze.
+- Nijedan artefakt implementacije ne nastaje.
+
+## Schema uticaj
+
+**Nijedan.** Sve odluke staju u postojeće kolone: `varchar(128)` za `external_*_ref_hash`,
+`varchar(50)` za `pseudonym`, `varchar(64)` za oba hasha i `varchar(30)` za oba statusa. Postojeći
+`unique (practice_id, source_system, external_patient_ref_hash)` i `unique (practice_id, pseudonym)`
+su dovoljni i **ostaju nepromijenjeni**.
+
+## Migration uticaj
+
+**Nijedan.** Nijedna migracija se ne kreira, ne mijenja niti primjenjuje; nijedna baza se ne dira.
+
+## Implementacijske zavisnosti
+
+Prije implementacije ovih ugovora moraju postojati: encryption service interface i lokalna
+implementacija po D-025; tenant granica zahtjeva sa `set_request_context` (D-047, D-054);
+`patient_references`, `encounters` i `encounter_documents` sa RLS-om — a njihov schema/migration
+dizajn **posjeduje P5-D2**, ne ovaj gate.
+
+## Test obaveze
+
+Testovi se **ne implementiraju i ne izvršavaju u ovom gateu**. Obaveze su dokumentovane u `08`
+§12.1–§12.7 i obuhvataju: determinizam i domensku separaciju HMAC-a; zabranu `K_hmac == K_enc`;
+sigurno odbijanje nepoznatog generacijskog prefiksa; profil normalizacije eksternog ID-a (NFC,
+vanjski trim, očuvane vodeće nule i veličina slova, bez `NFKC`); format pseudonima, mockabilan
+CSPRNG seam, retry pri koliziji i put `lowercase query -> uppercase -> jednakost`; normalizaciju
+teksta (`CRLF`/`CR` -> `LF`, NFC, očuvani tabovi i klinički simboli, 256 KiB, bez skraćivanja);
+redakciju po klasama, stroge negativne slučajeve za telefon, neredigovanje medicinskih brojeva,
+semantiku `COMPLETED` i **odsustvo fallbacka `view=redacted` pri `FAILED`**; reproducibilnost oba
+hasha iz dekriptovanog teksta; i odsustvo PHI u logovima i greškama.
+
+## Granice prema budućim fazama
+
+Naredni gate je **`P5-G1` — `BEFORE PHASE 5 CO-MEMBER DISPLAY NAME ACCESS`**, zatim **`P5-D2`** —
+schema, referencijalne akcije, migration paket i state machine. **Tek nakon njih** smije biti
+eksplicitno autorizovan implementacijski gate.
+
+## Supersedes
+
+**Ne supersedira nijednu odluku.** D-018, D-025 i D-043 ostaju **na snazi u cijelosti**; ova odluka
+ih **dopunjuje** susjednim ugovorom i **ne prepisuje** nijedno njihovo tijelo.
+
+## Zavisnosti
+
+D-018, **D-025**, D-022, D-023, D-028, D-033, D-043, D-047, D-054; D-OPEN-004a, D-OPEN-007 i
+D-OPEN-009 ostaju otvoreni.
+
+---
+
 # Otvorene odluke
 
 ## D-OPEN-001 — Produkcijski OIDC provider
@@ -5084,6 +5693,7 @@ D-041, D-045, D-052, D-053, D-054, D-055, **D-056**, **D-057**, **D-058**.
 - **Status:** SUPERSEDED by D-025 (2026-08-02) — djelimično. Format ciphertexta, IV/tag kolone i AAD su zaključani u D-025. Izbor KMS providera i rotation cadence ostaju otvoreni i preseljeni su u D-OPEN-004a.
 - **Historijska preporuka:** AES-256-GCM envelope encryption; DEK po dokumentu ili kontrolisanoj grupi; KEK u KMS.
 - **Historijski otvorena pitanja:** format ciphertexta, IV/tag kolone, rotation, access.
+- **Anotacija tekućeg statusa (D-060, 2026-08-22) — historijsko tijelo se ne mijenja.** Kanonska podjela je danas nedvosmislena. **Zatvoreno u D-025:** format AES-GCM ciphertexta; `iv`/`auth_tag`/AAD; granularnost DEK-a u v1 (verzionisani aplikacijski ključ, bez per-row DEK-a); ugovor local development adaptera; mehanika `encryption_version` po redu; mehanika rotacije. **Ostaje otvoreno i isključivo produkcijsko, u D-OPEN-004a:** izbor KMS/providera; produkcijski model pristupa ključu; rotation cadence; procedura recoveryja/backupa ključa; uslovni per-row DEK i crypto-shredding ako to retention (D-OPEN-007) kasnije zahtijeva. **D-060 ne zatvara nijednu od tih stavki** i **ne kreira produkcijski KMS dizajn**; on uvodi isključivo **odvojen HMAC ključ `K_hmac`** za deterministički lookup token, što je zaseban ključni materijal i **ne dira** hijerarhiju KEK/DEK. Vidi D-025, D-060.
 
 ## D-OPEN-004a — KMS provider i rotation cadence
 
@@ -5093,6 +5703,7 @@ D-041, D-045, D-052, D-053, D-054, D-055, **D-056**, **D-057**, **D-058**.
 - **Vezano za:** produkcijski hosting (D-OPEN-002, `13` §4) — provider se bira zajedno sa hosting odlukom.
 - **MVP:** D-025 koristi verzionisani aplikacijski ključ iz secrets managera i local static key adapter za development. Local static key nikada nije produkcijski spreman.
 - **Uslovna revizija:** Ako D-OPEN-007 zahtijeva crypto-shredding, prelazak na per-row DEK je obavezan prije pilota (D-025).
+- **Anotacija tekućeg statusa (D-060, 2026-08-22):** ovo pitanje **ostaje OTVORENO** i **`DEFERRED`**, i **ostaje produkcijsko**. D-060 ga **ne zatvara, ne sužava i ne prejudicira**; nijedan produkcijski KMS dizajn, provider, cadence ni recovery procedura nisu ovim odabrani. Namjenski HMAC ključ `K_hmac` iz D-060 je **zaseban ključni materijal** za deterministički lookup token; njegov produkcijski životni ciklus (provisioning, čuvanje, rotacija, recovery) **pada pod isti otvoreni produkcijski gate** kao i `K_enc` i biće riješen zajedno sa ovim pitanjem. Local static key i dalje **nikada nije produkcijski spreman**.
 
 ## D-OPEN-005 — ESM ili CommonJS
 

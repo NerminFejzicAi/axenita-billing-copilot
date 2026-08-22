@@ -2574,6 +2574,45 @@ zatvaranja se **ne otvara tiho**.
 
 Status: `NOT_STARTED`
 
+## Objavljen dizajnerski autoritet — D-060 (2026-08-22)
+
+**Ovaj zapis ne mijenja status faze i ne označava nijednu kućicu ispod.** Faza 5 ostaje
+`NOT_STARTED`, a njeno pokretanje je i dalje **zaseban gate**.
+
+Odlukom **D-060** vlasnički su ratifikovani i objavljeni PHI/sigurnosni ugovori koje implementacija
+Faze 5 **mora** poštovati:
+
+- **deterministički lookup token eksternog ID-a** — HMAC-SHA256, **namjenski ključ odvojen od
+  AES-GCM ključa**, domenski separisana kanonska poruka, format `h1.<hex64>`, normalizacioni profil
+  `MANUAL` v1 verzionisan odvojeno od `h1` (`02` §2.8);
+- **pseudonim** — `P-` + 10 velikih Crockford Base32 znakova iz CSPRNG-a, bez izvedenosti iz
+  eksternog ID-a, ulazni query kanonizovan u velika slova prije jednakosne pretrage (`02` §2.9);
+- **normalizacija kliničkog teksta i `source_text_hash`** — minimalan, semantički lossless pipeline;
+  hash normalizovanog teksta prije enkripcije; maksimum **256 KiB**; **nikada truncate**
+  (`02` §2.10, `03` §13.1);
+- **deterministička redakcija `phase5-basic-v1`** — uska klasa identifikatora, **stroga** posture za
+  telefonske brojeve, **bez** uklanjanja imena/adresa/medicinskog sadržaja; `COMPLETED` **ne tvrdi**
+  anonimizaciju; redigovani tekst **ostaje Class A** (`02` §2.11, `09` §8.3);
+- **statusni rječnici** — `processing_status` ∈ {`READY`, `FAILED`}, `redaction_status` ∈
+  {`COMPLETED`, `FAILED`}, u Fazi 5 **sprovedeni aplikacijski**, bez DB `CHECK` constrainta;
+- **API semantika** — `view=original` = dekriptovan neredigovan kanonski normalizovan tekst;
+  `view=redacted` **bez fallbacka** pri `FAILED`; `redactBeforeAiProcessing = false` →
+  `422 VALIDATION_ERROR` (`03` §11, §12, §13);
+- **PHI sigurnost logova i grešaka** — HMAC token, pseudonim, tekst u svakom obliku, ciphertext,
+  ključevi, IV/tag i sporna validaciona vrijednost **nikada** ne ulaze u log ni Problem Details
+  (`09` §2, §8, §11).
+
+Test obaveze koje iz ovoga slijede dokumentovane su u **`08` §12.0–§12.7** i **još nisu izvršene**;
+njihovo postojanje **ne označava nijednu kućicu**.
+
+**Šta D-060 nije.** Nije autorizacija implementacije: nijedan servis, endpoint, tabela, migracija ni
+test nisu njome uvedeni. **Ne zatvara** D-OPEN-004a (produkcijski KMS/rotacija/recovery ostaju
+otvoreni) i **ne rješava** gate `BEFORE PHASE 5 CO-MEMBER DISPLAY NAME ACCESS` (`13` §19).
+
+**Redoslijed narednih gateova:** `P5-G1` (co-member `displayName`) → `P5-D2` (schema, referencijalne
+akcije, migration paket, state machine, pitanje DB-sprovedenih statusnih rječnika) → tek potom
+eventualni implementacijski gate.
+
 ## Konkretan `TenantDatabaseService` facade — prenesena obaveza (D-056)
 
 **Premješteno iz Faze 4 odlukom D-056 (2026-08-20).** Ovo je **živa buduća obaveza**, ne odbačen

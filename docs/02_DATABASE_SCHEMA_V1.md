@@ -252,6 +252,229 @@ opisan u §19.3.
 
 ---
 
+## 2.8 Deterministički lookup token eksternog ID-a (`*_ref_hash`)
+
+Normativni izvor je D-060, Dio A i Dio B. Ova sekcija je jedini kanonski opis; pojedinačne tabele
+samo navode kolonu i njena ograničenja. **Nijedna kolona se ovim ne dodaje ni ne mijenja.**
+
+### 2.8.1 Obuhvat
+
+```text
+patient_references.external_patient_ref_hash    (§7.1)
+encounters.external_encounter_ref_hash          (§7.2)
+encounter_documents.external_document_ref_hash  (§8.2)
+```
+
+Sve tri su `varchar(128)`.
+
+### 2.8.2 Semantika
+
+Kolona **nije** običan hash sadržaja. To je **keyed, deterministički lookup token**:
+**HMAC-SHA256** nad kanonskom, domenski separisanom porukom, uz **namjenski HMAC ključ `K_hmac`**.
+
+`K_hmac` je **odvojen od AES-GCM ključa podataka `K_enc`** iz §2.7. Upotreba `K_enc` za HMAC je
+**zabranjena** (D-060, klauzula 2): §2.7.6 propisuje da re-enkripcija pri rotaciji **ne mijenja
+`*_hash` kolone**, pa `*_hash` ne smije zavisiti od enkripcijskog ključa — inače bi rotacija
+razbila lookup identitet postojećih redova.
+
+### 2.8.3 Kanonska HMAC poruka
+
+UTF-8 string, LF separatori, bez završnog praznog reda:
+
+```text
+v1
+domain=<token domain>
+practice_id=<canonical UUID>
+source_system=<canonical enum literal>
+value=<normalized external identifier>
+```
+
+Redoslijed redova je normativan. Katalog domena:
+
+```text
+patient_external_ref
+encounter_external_ref
+document_external_ref
+```
+
+Domenska separacija je obavezna: isti eksterni string u dvije ordinacije, dva `source_system`
+literala ili dvije domene daje **različite** tokene. Bez `practice_id` u poruci jednakost tokena bi
+postala cross-tenant orakl.
+
+### 2.8.4 Perzistirani format
+
+```text
+h1.<64 lowercase hex>
+```
+
+Ukupno 67 znakova za v1, unutar postojećeg `varchar(128)`.
+
+`h1` je **identifikator generacije tokena** i veže algoritam, generaciju HMAC ključa i generaciju
+formata poruke. `h1` **nije** verzija normalizacionog profila — profil je verzionisan odvojeno
+(§2.8.5).
+
+### 2.8.5 Normalizacija ulazne vrijednosti
+
+Aktivni profil je **`MANUAL` v1** (D-060, klauzula 10), tim redoslijedom: validan Unicode; odbij
+`NUL`; odbij C0/C1 kontrolne znakove; ukloni vodeći `U+FEFF`; skrati vodeći/prateći Unicode
+whitespace; **NFC**; odbij prazan rezultat; primijeni maksimum dužine iz postojećih schema/API
+ograničenja; kodiraj UTF-8.
+
+Zabranjeno je: `NFKC`; case-folding; uklanjanje vodećih nula; sažimanje unutrašnjeg whitespacea;
+mijenjanje interpunkcije; homoglyph folding.
+
+Profil je **immutable čim pod njim postoji ijedan perzistirani red**. Profil `AXENITA` se smije
+definisati **tek nakon** što D-OPEN-009 bude odblokiran.
+
+### 2.8.6 Verzionisanje bez schema promjene
+
+Faza 5 ima **jednu** aktivnu generaciju HMAC ključa i **ne planira** rutinsku rotaciju. Format
+svejedno podržava više generacija: budući lookup smije izračunati kandidate po generaciji i
+porediti ih jednakošću ili `IN` listom.
+
+**Ne uvodi se kolona za verziju HMAC ključa.** Marker živi unutar tokena.
+
+### 2.8.7 Klasifikacija
+
+Token je **osjetljiv i linkabilan**; **nikada se ne logira** i **nikada se ne vraća** u API
+odgovoru (`09` §8, §11).
+
+---
+
+## 2.9 Pseudonim pacijenta (`patient_references.pseudonym`)
+
+Normativni izvor je D-060, Dio C.
+
+### 2.9.1 Kanonska v1 sintaksa
+
+```text
+P- + tačno 10 velikih Crockford Base32 znakova
+```
+
+Primjer **oblika**, ne fiksni uzorak: `P-K7M2QX4TB9`. Stane u postojeći `varchar(50)`.
+
+### 2.9.2 Porijeklo i stabilnost
+
+- generisan iz **CSPRNG-a**;
+- **nije** izveden iz eksternog identifikatora — ni hashom, ni skraćivanjem, ni HMAC-om;
+- **nije reverzibilan**;
+- **immutable** nakon kreiranja i stabilan za cijeli životni vijek reda.
+
+Ovo pooštrava, i ne slabi, pravilo iz §7.1 („produkcijski pseudonim ne smije biti izveden direktnim
+skraćivanjem eksternog ID-a").
+
+### 2.9.3 Entropija i kolizije
+
+Ciljna entropija je **približno 50 bita ili više**. Jedinstvenost nosi **postojeći**
+`unique (practice_id, pseudonym)`. Kolizija se rješava **ograničenim** regenerate-and-retry
+postupkom pri unique violationu; **determinističkog fallbacka nema** — pri iscrpljenim pokušajima
+zahtjev pada.
+
+### 2.9.4 Pretraga bez schema promjene
+
+Perzistira se **velikim slovima**, a **ulazni** `patientPseudonym` iz query parametra se kanonizuje
+u velika slova **prije obične jednakosne pretrage** (`03` §12).
+
+**Ne uvode se** `citext`, `LOWER(kolona)` indeks, posebne kolacije ni funkcijski indeksi; **schema
+se ne mijenja** radi case-insensitive pretrage.
+
+### 2.9.5 Klasifikacija
+
+Pseudonim je **Class C** (`09` §2) i **nije** na allowlisti tehničkog loga (`09` §11).
+
+---
+
+## 2.10 Normalizacija kliničkog teksta i `source_text_hash`
+
+Normativni izvor je D-060, Dio D i Dio E.
+
+### 2.10.1 Šta je perzistirano
+
+`encounter_documents.normalized_text_*` (§8.2) je **enkriptovani, kanonski normalizovani,
+neredigovani** izvorni klinički tekst.
+
+**Sirovi, pre-normalizacioni tekst zahtjeva se ne perzistira.** Kolona za sirovi tekst **ne
+postoji** i **ne uvodi se**.
+
+### 2.10.2 Normativni pipeline normalizacije
+
+Minimalan i **semantički lossless**, tim redoslijedom: validan Unicode; `CRLF` i samostalni `CR` u
+`LF`; odbij `NUL`; odbij C0/C1 kontrolne znakove **osim** `LF` i `TAB`; ukloni **jedan** vodeći
+`U+FEFF`; **NFC**; skrati vodeći/prateći whitespace **isključivo na nivou cijelog dokumenta**;
+odbij prazan rezultat; primijeni maksimum manuelnog teksta (`03` §13.1); **nikada ne skraćuj**.
+
+Očuvani su: veličina slova, interpunkcija, unutrašnji whitespace, tabovi, ponovljeni prazni redovi,
+medicinski simboli, decimalni zarezi i tačke, jedinice, datumi, nazivi lijekova, doziranja,
+dijagnoze i nalazi. **`NFKC` se ne koristi.**
+
+Redoslijed operacija je **dio ugovora o hashovanju** i ne mijenja se tiho.
+
+### 2.10.3 `source_text_hash`
+
+`source_text_hash` (`varchar(64)`) je **lowercase hex SHA-256 UTF-8 kodiranja kanonski
+normalizovanog, neredigovanog teksta**:
+
+```text
+sirovi request -> normalizacija -> normalizovani UTF-8 -> SHA-256 -> lowercase hex
+               -> source_text_hash -> enkripcija i pohrana normalizovanog teksta (§2.7)
+```
+
+Hash je time **reproducibilan iz perzistiranog ciphertexta** nakon ovlaštene dekripcije. **Druga
+hash kolona za sirovi ulaz se ne uvodi.**
+
+`redacted_text_hash` (`varchar(64)`) računa se istim postupkom nad **redigovanim** tekstom.
+
+### 2.10.4 Redigovani tekst ostaje Class A
+
+`redacted_text_*` je enkriptovan po §2.7 i **ostaje Class A medicinski podatak** (`09` §2).
+Redakcija Faze 5 **nije** anonimizacija ni de-identifikacija (§2.11.2).
+
+---
+
+## 2.11 Statusni rječnici dokumenta u Fazi 5
+
+Normativni izvor je D-060, Dio F i Dio G. Obje kolone su `varchar(30)` (§8.2).
+
+### 2.11.1 `processing_status`
+
+```text
+READY     normalizacija uspjela; normalizovani source-side artefakt je validan,
+          enkriptovan i hash-konzistentan
+FAILED    dokument postoji, ali source-side artefakt obrade nije upotrebljiv
+```
+
+**Nema** `PENDING`, `PROCESSING` ni `ARCHIVED`. Arhiviranje i dalje nosi `archived_at` (§8.2).
+**Ne uvode se** stanja upload putanje.
+
+### 2.11.2 `redaction_status`
+
+```text
+COMPLETED  konfigurisani deterministički ruleset Faze 5 izvršen je uspješno i proizveo
+           enkriptovani redigovani tekst i redacted_text_hash
+FAILED     redakcija nije proizvela upotrebljiv redigovani artefakt
+```
+
+**Klauzula iskrenosti (normativno).** `COMPLETED` znači **isključivo** da je konfigurisani
+deterministički ruleset izvršen uspješno. **Ne tvrdi** anonimizaciju, de-identifikaciju, odsustvo
+svih identifikatora ni sigurnost za neograničeno otkrivanje. **Rezultat ostaje Class A.**
+
+Pri `FAILED`: `redacted_text_*` i `redacted_text_hash` ostaju null, kako CHECK constrainti iz §8.2
+već dozvoljavaju; `view=redacted` **ne smije** pasti nazad na normalizovani ni originalni tekst
+(`03` §13.3); redakcija se smije ponoviti pod **istom** verzijom ruleseta, uz **svjež IV** (§2.7.2).
+**Nema** `SKIPPED`.
+
+### 2.11.3 Verzija redakcionog ruleseta
+
+Verzija je **immutable identifikator na nivou koda/konfiguracije** — `phase5-basic-v1`.
+**Kolona za verziju ruleseta po dokumentu se u Fazi 5 ne uvodi.**
+
+### 2.11.4 Sloj sprovođenja
+
+U Fazi 5 oba rječnika sprovodi **aplikacijska/domenska logika**. **Database `CHECK` constrainti se
+za ove kolone ne uvode u ovom gateu**; odluku o tome posjeduje P5-D2.
+
+---
+
 # 3. Database role
 
 ## 3.1 `copilot_migrator`
@@ -1009,6 +1232,23 @@ Enkripcijski envelope prema §2.7. AAD immutability trigger: §19.3.
 
 Produkcijski pseudonim ne smije biti izveden direktnim skraćivanjem eksternog ID-a.
 
+**Semantika `external_patient_ref_hash` (§2.8, D-060).** Kolona nosi **keyed deterministički lookup
+token**, ne obični hash: HMAC-SHA256 nad domenski separisanom kanonskom porukom
+(`domain=patient_external_ref`, `practice_id`, `source_system`, normalizovana vrijednost), uz
+**namjenski HMAC ključ odvojen od AES-GCM ključa iz §2.7**. Perzistirani format je
+`h1.<64 lowercase hex>` — 67 znakova unutar postojećeg `varchar(128)`. **Kolona za verziju HMAC
+ključa se ne uvodi**; generacijski marker živi unutar tokena. Ulazna vrijednost prolazi
+normalizacioni profil `MANUAL` v1 (§2.8.5), koji je **odvojeno verzionisan od `h1`** i **immutable
+čim pod njim postoji ijedan perzistirani red**.
+
+**Semantika `pseudonym` (§2.9, D-060).** Kanonska v1 sintaksa je `P-` + tačno 10 velikih Crockford
+Base32 znakova, generisanih iz **CSPRNG-a**, **bez ikakve izvedenosti iz eksternog ID-a**, ciljne
+entropije približno 50 bita ili više, **immutable** nakon kreiranja. Jedinstvenost nosi postojeći
+`unique (practice_id, pseudonym)`; kolizija se rješava ograničenim regenerate-and-retry postupkom,
+**bez determinističkog fallbacka**. Perzistira se velikim slovima, a ulazni query parametar se
+kanonizuje u velika slova prije obične jednakosne pretrage — **`citext`, funkcijski indeks ni
+posebna kolacija se ne uvode**.
+
 ## 7.2 `encounters`
 
 | Kolona | Tip |
@@ -1244,6 +1484,29 @@ dijele isti red i zato dijele `encryption_algorithm`, `encryption_version`,
 upotreba IV-a sa istim ključem zabranjena.
 
 AAD immutability trigger: §19.3.
+
+**Semantika tekstualnih polja i hasheva (§2.10, D-060).** `normalized_text_*` je **enkriptovani,
+kanonski normalizovani, neredigovani** izvorni klinički tekst; **sirovi pre-normalizacioni tekst se
+ne perzistira** i kolona za njega **ne postoji**. `source_text_hash` je **lowercase hex SHA-256
+UTF-8 kodiranja tog normalizovanog teksta**, računat **prije** enkripcije, pa je **reproducibilan
+iz perzistiranog ciphertexta** nakon ovlaštene dekripcije; **druga hash kolona za sirovi ulaz se ne
+uvodi**. `redacted_text_hash` se računa istim postupkom nad redigovanim tekstom.
+**`redacted_text_*` ostaje Class A medicinski podatak** — redakcija Faze 5 nije anonimizacija ni
+de-identifikacija.
+
+**Semantika `external_document_ref_hash` (§2.8).** Isti keyed lookup-token ugovor kao u §7.1, uz
+domen `document_external_ref`.
+
+**Statusni rječnici Faze 5 (§2.11, D-060).** `processing_status` ∈ {`READY`, `FAILED`};
+`redaction_status` ∈ {`COMPLETED`, `FAILED`}. Nema `PENDING`, `PROCESSING`, `ARCHIVED` ni
+`SKIPPED`; arhiviranje i dalje nosi `archived_at`. `COMPLETED` znači **isključivo** da je
+konfigurisani deterministički ruleset (`phase5-basic-v1`) izvršen uspješno i **ne tvrdi**
+anonimizaciju ni odsustvo svih identifikatora. Pri `FAILED` redakciji `redacted_text_*` i
+`redacted_text_hash` ostaju null, kako gornji CHECK constrainti već dozvoljavaju, a `view=redacted`
+**ne smije** pasti nazad na normalizovani tekst (`03` §13.3); ponovni pokušaj koristi **svjež IV**.
+**Kolona za verziju redakcionog ruleseta se ne uvodi.** U Fazi 5 oba rječnika sprovodi
+**aplikacijska logika** — **`CHECK` constrainti za njih se u ovom gateu ne dodaju**; odluku
+posjeduje P5-D2.
 
 ---
 
