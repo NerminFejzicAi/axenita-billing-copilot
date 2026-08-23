@@ -139,6 +139,25 @@ practices/{practiceId}/documents/{documentId}/source
 
 Presigned URL se izdaje tek nakon tenant/permission provjere i kratko traje.
 
+## 4.1 Tenant površina Faze 5 (D-062)
+
+Faza 5 uvodi **pet** tenant tabela. Njihova izolacija počiva na **tri nezavisna sloja**:
+
+1. **`ENABLE` + `FORCE ROW LEVEL SECURITY`** na svih pet, sa tenant predikatom `02` §17.1,
+   doslovno i neoslabljeno. Bez `app.practice_id` predikat daje **nula redova za svaku ordinaciju**
+   (fail-closed). **Nijedna politika Faze 5 ne sadrži podupit** i **nijedna ne referencira `users`
+   ni `practice_memberships`** — pa strukturno ne postoji površina za curenje co-member identiteta.
+2. **Composite FK-ovi**, koji cross-practice povezivanje čine **nemogućim, a ne samo odbijenim**:
+   red koji bi povezao entitete dvije ordinacije **nema parent red**. Svih **osam** FK-ova Faze 5
+   nosi eksplicitno `ON DELETE NO ACTION ON UPDATE NO ACTION` (`02` §29.2).
+3. **Grant discipline — default deny.** `copilot_system` dobija **ništa**; `PUBLIC` **ništa**;
+   **nijedan `DELETE` grant nigdje**; `storage_objects` **nijedan grant i nijednu politiku**;
+   a `UPDATE` je column-level i uzak (`02` §29.5). `practice_id` i `id` na `encounters` su
+   **nepomjerivi na nivou privilegije**, nezavisno od politike i trigera.
+
+**Arhiviranje nije sigurnosna granica** i **ne smije** postati RLS predikat — u politici bi sakrilo
+redove od audita i učinilo stanje nepovratnim (`02` §29.4).
+
 ---
 
 # 5. Authentication
@@ -504,6 +523,13 @@ Ne čuva puno medicinsko prethodno/novo stanje. Čuva:
 - request;
 - reason.
 
+**Obavezna sanitizacija slobodnog teksta (D-062, Dio F.3).** `POST /encounters/{encounterId}/cancel`
+prima polje `reason` za koje **ne postoji kolona u `encounters`** i **ne uvodi se**. Ono završava
+**isključivo u audit tragu** i **mora biti sanitizovano prije zapisa** — slobodan tekst koji unosi
+klinički korisnik može sadržavati PHI. `02` §15.4 već traži da `previous_value`/`new_value` budu
+sanitizovani; isti zahtjev vrijedi za `reason`. Nesanitizovan `reason` u auditu je **defekt klase
+T3**, ne kozmetički propust.
+
 ---
 
 # 13. Upload sigurnost
@@ -592,6 +618,10 @@ Ne čuva puno medicinsko prethodno/novo stanje. Čuva:
 
 Kontrole: practice context, RLS, composite FK, 404, tests.
 
+Za Fazu 5 (D-062): svih **osam** FK-ova je composite ili ukorijenjeno u `practices`, pa je
+cross-practice referenca **nekonstruktibilna**, a ne samo odbijena (§4.1). Validacija
+`responsiblePhysicianId` je dio te iste kontrole — i **ne dodaje nijednu sposobnost čitanja**.
+
 ## T2 Compromised runtime DB credential
 
 Kontrole: RLS, least privilege, no owner, no BYPASSRLS, encryption.
@@ -634,6 +664,13 @@ Kontrole: secrets manager, no logs/Git, scanning/rotation.
 ## T10 Insider excessive access
 
 Kontrole: permission, sensitive read audit, least privilege, periodic review.
+
+**Validacija odgovornog ljekara ne širi insider pristup (D-062, Dio D).** Provjera se izvršava kao
+database FK: **nijedan red ne ulazi u aplikaciju, nijedna kolona se ne projektuje, nijedan upit ne
+imenuje ciljnog korisnika.** Rezidualna površina je **boolean orakl dodjeljivosti** nad UUID-om koji
+pozivalac već posjeduje, ograničen na vlastiti tenant — kategorijski različit od čitanja identiteta.
+`practice_memberships_self_select` ostaje bajt-identična, `users` i dalje ima tačno dvije politike, i
+temeljni gate co-member identiteta ostaje **otvoren** (`13` §19).
 
 ---
 

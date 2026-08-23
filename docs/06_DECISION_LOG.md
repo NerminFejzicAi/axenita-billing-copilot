@@ -6072,6 +6072,1030 @@ pristupa identitetu.
 
 ---
 
+# D-062 — Schema Faze 5, referencijalni integritet, vlasništvo migration paketa, encounter/document state i domenska validacija
+
+- **Status:** ACCEPTED
+- **Datum:** 2026-08-23
+- **Tip:** dizajnerska odluka o schemi, referencijalnim akcijama, vlasništvu migration paketa,
+  state semantici i domenskoj validaciji Faze 5. **Dokumentacija isključivo.**
+- **Amandman na:** **nijednu odluku.** D-060 i D-061 ostaju na snazi **u cijelosti** i ova ih
+  odluka **ne prepisuje, ne slabi i ne mijenja**. D-023, D-025, D-033, D-038, D-042, D-043, D-046,
+  D-047, D-048, D-049, D-051, D-052, D-053, D-054 i D-056 ostaju nepromijenjeni. **Nijedna Faza-4
+  RLS/grant invarijanta se ne slabi.**
+- **Vlasnička ratifikacija:** vlasnik je prihvatio nalaze read-only audita `P5-D2` i **ratifikovao
+  preporučeni skup odluka `OD-P5-D2-1` … `OD-P5-D2-14`**, uz eksplicitnu potvrdu **`A + A+`** za
+  `OD-P5-D2-6`. Ovaj zapis je **objava** te ratifikacije, ne njeno ponovno izvođenje i ne novo
+  biranje opcija.
+- **Ovaj gate ne autorizuje implementaciju.** Faza 5 ostaje `NOT_STARTED`, implementacijski
+  checklist Faze 5 ostaje **49 / 0**, i nijedan schema, migration, RLS, grant, trigger ni test
+  artefakt se ovom odlukom ne kreira.
+
+## Kontekst/problem — trigger
+
+Nakon D-060 (PHI dizajn) i D-061 (co-member `displayName`) Faza 5 je ostala blokirana na četiri
+klase neriješenih pitanja koja `02` §28.1, `02` §2.11.4 i D-061, klauzule 19–21, **eksplicitno
+dodjeljuju gateu `P5-D2`**:
+
+1. **referencijalne akcije** za četiri već deklarisana composite FK-a koje kreira paket
+   `003_patient_encounter_documents`, uz rok "**prije paketa `003`**" (`02` §28.1);
+2. **naslijeđena blokirajuća obaveza D-061, klauzula 19** — kako `POST`/`PATCH` encounter operacije
+   validiraju `responsiblePhysicianId` kao člana **tekuće** ordinacije, dok `practice_memberships`
+   RLS ostaje caller-self;
+3. **statusni rječnici dokumenta** — da li `processing_status` i `redaction_status` dobijaju
+   database `CHECK` (`02` §2.11.4, D-060, klauzula 33);
+4. **encounter/document state semantika, vlasništvo migration paketa, RLS/grant površina Faze 5,
+   indeksi i vrijednosni rječnici** — bez kojih implementacijski gate ne može biti autorizovan.
+
+Audit `P5-D2` je zaključen sa `P5_D2_PASS_READY_FOR_OWNER_DECISIONS` i spakovao je četrnaest
+stvarno otvorenih vlasničkih odluka. Ova odluka ih objavljuje kao kanonske.
+
+# Dio A — ratifikovani skup odluka (normativna matrica)
+
+Svih četrnaest odluka ratifikovano je u **preporučenoj** opciji. Matrica je normativna; dijelovi
+B–M su njena razrada, ne njen izvor.
+
+| OD | Pitanje | Ratifikovana opcija | Sažetak ratifikovanog sadržaja |
+|---|---|---|---|
+| `OD-P5-D2-1` | Vlasništvo migration paketa i redoslijed za Fazu 5 | **A** | Tri broja paketa / četiri fajla: `003` (schema, **bez granta i bez RLS-a**), Faza-5 slice paketa `011` (**samo** `idempotency_keys` i `audit_events`), Faza-5 slice paketa `013` (grant → `ENABLE`/`FORCE` → politike), Faza-5 slice paketa `014` (AAD funkcija + **tri** trigera) |
+| `OD-P5-D2-2` | Referencijalne akcije za četiri kanonska composite FK-a Faze 5 | **A** | `ON DELETE NO ACTION ON UPDATE NO ACTION` na sva četiri |
+| `OD-P5-D2-3` | Tri nedeklarisane relacije Faze 5 | **A** | Deklarisati **sve tri** odmah, `NO ACTION` / `NO ACTION` |
+| `OD-P5-D2-4` | Invarijanta pri dodjeli odgovornog ljekara | **A** | Korisnik sa **bilo kojim** `practice_memberships` redom u **istoj** ordinaciji. Rola i `active` se **ne** traže |
+| `OD-P5-D2-5` | Mehanizam validacije odgovornog ljekara *(naslijeđena obaveza D-061)* | **A** (`RP-B` + `RP-E`) | Composite FK `encounters (practice_id, responsible_physician_id)` → `practice_memberships (practice_id, user_id)`, `MATCH SIMPLE`, `NO ACTION`/`NO ACTION`, uz **eksplicitno odgađanje** validacije role i aktivnosti |
+| `OD-P5-D2-6` | Database sprovođenje statusnih rječnika | **A + A+** *(eksplicitna vlasnička potvrda)* | Dva vokabularna `CHECK`-a nad postojećim `varchar(30)` kolonama **plus** artefakt-konzistencijski `CHECK`. **Bez** konverzije u PostgreSQL enum |
+| `OD-P5-D2-7` | Dosežni podskup encounter stanja i `DRAFT → READY_FOR_ANALYSIS` trigger | **A** | Postavlja ga komanda unosa dokumenta, **isključivo iz `DRAFT`**, pri **svakom** uspješnom unosu, idempotentno, **bez** `version` inkrementa, uz zaseban audit događaj; unos dokumenta se **odbija** pri `CANCELLED` |
+| `OD-P5-D2-8` | Skup polja koja `PATCH /encounters/{encounterId}` smije mijenjati | **A** | Tačno osam polja; `status`, `patientReferenceId`, `sourceSystem`, `version`, `diagnoses[]`, svaki `id`, svaki timestamp i svaka actor kolona **nisu** patchable |
+| `OD-P5-D2-9` | Semantika greške i retry-a dokumenta | **A** | **Odgoditi retry.** `UPDATE (archived_at)` je jedini `UPDATE` grant nad `encounter_documents`. `processing_status = FAILED` je u Fazi 5 **nedosežan** |
+| `OD-P5-D2-10` | Filtriranje arhiviranih dokumenata pri čitanju | **A** | Lista **isključuje** `archived_at IS NOT NULL`; detaljna ruta i dalje vraća arhivirani dokument; **nema** restore rute; ponovno arhiviranje je **idempotentan uspjeh** |
+| `OD-P5-D2-11` | Nedefinisani vrijednosni rječnici i `NOT NULL` kolone bez API izvora | **A** | `review_state = 'UNREVIEWED'`, `source = 'MANUAL'` pri kreiranju; šest rječnika ostaju **free-form u v1** uz validaciju dužine/charseta na API sloju, **bez** DB `CHECK`-a i **bez** schema izmjene |
+| `OD-P5-D2-12` | Površina odgovora i filtera za domene koje još ne postoje | **A** | Ključevi se **izostavljaju u cijelosti** (odsutni, ne `null`); `hasBlockingFindings` se **ne registruje**; `sort` vokabular Faze 5 je `treatmentDate desc, id desc`; cursor kodira `(treatment_date, id)` i **nikada** pseudonim |
+| `OD-P5-D2-13` | Pomirenje indeksa između `02` §7.2 i `02` §21 | **A** | Kreiraju se **sva tri** encounter indeksa uz `id desc` tie-breaker, plus `documents_encounter_idx` |
+| `OD-P5-D2-14` | Seed politika za PHI tabele Faze 5 i `FORCE RLS` allowlista | **A** | **Nijedna PHI tabela Faze 5 se ne seeda.** Allowlista iz `02` §23.4 ostaje na **šest** tabela; **nijedna `§23.4.4b` klauzula se ne uvodi** |
+
+**Nijedna od četrnaest odluka nije zamijenjena drugom opcijom, prećutno pojednostavljena ni
+djelimično objavljena.**
+
+# Dio B — schema delta i vlasništvo migration paketa
+
+## B.1 Delta (paket `003_patient_encounter_documents`)
+
+Paket `003` je **prvi kreator** svih navedenih objekata:
+
+| Klasa | Broj | Sadržaj |
+|---|---:|---|
+| Enumi | **5** | `integration_provider`, `encounter_status`, `review_state`, `document_type`, `document_source` |
+| Tabele | **5** | `patient_references`, `encounters`, `encounter_diagnoses`, `storage_objects`, `encounter_documents` |
+| Primarni ključevi | **5** | po jedan po tabeli |
+| Unique constrainti/indeksi | **9** | `patient_references`: `(practice_id, source_system, external_patient_ref_hash)`, `(practice_id, pseudonym)`, `(practice_id, id)` · `encounters`: `(practice_id, id)` · `encounter_diagnoses`: `(practice_id, id)`, `(practice_id, encounter_id, coding_system, diagnosis_code)` · `storage_objects`: `(bucket_name, object_key)`, `(practice_id, id)` · `encounter_documents`: `(practice_id, id)` |
+| Composite FK — kanonski deklarisani | **4** | Dio C, redovi 2, 6, 9, 10 |
+| FK — novodeklarisani ovom odlukom | **4** | Dio C, redovi 1, 4, 7, 11 |
+| Ne-unique indeksi | **4** | Dio J |
+| `CHECK` constrainti iz zamrznute scheme | **18** | `patient_references` 5, `encounters` 6, `storage_objects` 1, `encounter_documents` 10 |
+| `CHECK` constrainti uvedeni ovom odlukom | **3** | Dio E |
+| Defaults | 2 klase | `created_at default current_timestamp`; `version default 1` na `encounters`. **Nigdje `gen_random_uuid()`** (`02` §2.2, §26.1) |
+
+**Enumi se dodaju u `02` §22.3.** Njihov izostanak iz §22.3 bio je dokumentaciona nepotpunost, ne
+otvoreno dizajnersko pitanje: sve vrijednosti su zamrznute u `02` §4.3–§4.8. Fizička imena prate
+precedent §2.1 + §22.2 (`entity_status`, `membership_role`, `platform_role`): snake_case jednina,
+`@@map`-irano.
+
+**Nijedno schema polje se ovom odlukom ne dodaje** izvan gore navedenog — vidi Dio B.2.
+
+## B.2 D-060 ne traži nijednu novu kolonu
+
+Provjereno stavku po stavku prema D-060, klauzula 44. **Ne uvode se:**
+
+- kolona za verziju HMAC ključa — generacijski marker `h1` živi **unutar** tokena, a `h1.<64 hex>`
+  = 67 znakova ≤ `varchar(128)`;
+- kolona za sirovi tekst prije normalizacije — `02` §2.10.1;
+- druga hash kolona za sirovi ulaz;
+- kolona za verziju redakcionog ruleseta — `phase5-basic-v1` je identifikator koda/konfiguracije
+  (`02` §2.11.3);
+- denormalizovani co-member `display_name` — D-061, klauzule B.6 i E.3;
+- `citext`, funkcionalni indeks ni collation za pseudonim — `02` §2.9.4;
+- **enum tipovi za dva statusna rječnika dokumenta** — Dio E.
+
+## B.3 Vlasništvo paketa, redoslijed i atomičnost (`OD-P5-D2-1`)
+
+Faza 5 izvršava **četiri migracijska fajla nad tri postojeća broja paketa**. **Nijedan novi broj
+paketa se ne uvodi i nijedan se ne renumeriše.**
+
+| # | Paket | Faza-5 sadržaj | Grant? | RLS? |
+|---|---|---|---|---|
+| 1 | `003_patient_encounter_documents` | 5 enuma, 5 tabela, svi constrainti, svi FK-ovi sa **eksplicitnim** akcijama, svi `CHECK`-ovi, 4 indeksa | **nijedan** | **nijedan** |
+| 2 | `011_jobs_idempotency_outbox_audit` — Faza-5 slice | **isključivo** `idempotency_keys` i `audit_events` | prema `011` | prema `011` |
+| 3 | `013_rls_policies` — Faza-5 slice | grantovi → `ENABLE`/`FORCE` → politike, **tim redoslijedom** | da | da |
+| 4 | `014_immutability_triggers` — Faza-5 slice | dijeljena `app_security.reject_aad_bound_column_change()` + **tri** trigera: `patient_references`, `encounters`, `encounter_documents` | — | — |
+
+**`outbox_events` i `async_jobs` se u Fazi 5 ne kreiraju** — nemaju konzumenta Faze 5.
+**Preostala dva AAD trigera iz `02` §19.3 slijede u vlastitim fazama**, primjenom precedenta D-052
+u **ranijem** smjeru: paket zadržava vlasništvo, a izvršava se nad tabelom koja u datoj fazi
+postoji.
+
+**Redoslijed izvršenja:** `003` → `011`-slice → `013`-slice → `014`-slice.
+
+**Atomičnost.** Svaki fajl se primjenjuje u **jednoj transakciji**. `CREATE INDEX CONCURRENTLY` i
+svaki drugi iskaz koji lomi transakciju je **zabranjen** — i nepotreban, jer su tabele prazne.
+
+**Očuvana invarijanta — nova PHI tabela ne dobija runtime sposobnost prije nego što RLS/grant paket
+atomično uvede grant i ograničavajuću politiku.** Ta invarijanta ovdje **nije** obezbijeđena
+spajanjem fajlova nego **grant disciplinom**: paket `003` ne izdaje **nijedan** `GRANT`, migracija
+`001` već tvrdi da nad schemom `public` ne postoje `DEFAULT PRIVILEGES`, a `copilot_app` nema
+`CREATE` nad schemom. Tabela koju kreira `003` dosežna je time **nijednoj** runtime roli sve dok je
+`013` ne dodijeli — a `013` je dodjeljuje u **istoj transakciji** koja RLS uključuje i forsira.
+Prozor između migracija time **ne sadrži nikakvu sposobnost**, što je jače od tvrdnje da je prozor
+kratak. Ovo doslovno ispunjava D-049, klauzulu 5.
+
+**Rollback/reverzija — konvencija repozitorija se ne mijenja.** Down-migration fajl **ne postoji**.
+Skripta pune reverzije dokumentuje se kao komentar **unutar** forward migracije (precedent `013`
+§7), nikada se ne izvršava, nije zamjena za maintenance prozor iz `02` §23.4, i **ne smije**
+ostaviti tabelu sa `ENABLE`, a bez `FORCE` RLS-a. Rollback opoziva isključivo ono što je **taj**
+paket dodao.
+
+**Dokumentacija u SQL-u** ostaje `--` komentar kolociran u fajlu, kao u sva tri postojeća fajla.
+**Nijedan `COMMENT ON` objekat se ne uvodi.**
+
+## B.4 Obavezne post-migracijske katalog tvrdnje
+
+- `relrowsecurity = true` **i** `relforcerowsecurity = true` za svih pet novih tabela — **trajna
+  regresija**;
+- tačan skup i broj imena politika nad tih pet tabela;
+- tačan skup grantova po roli iz `information_schema.role_table_grants` i `column_privileges`:
+  `copilot_system` = **nula** grantova nad svih pet (D-023), `PUBLIC` = nula;
+- FK inventar iz `pg_constraint` sa `confdeltype = 'a'` **i** `confupdtype = 'a'` za **svaki** FK
+  Faze 5;
+- `unique (practice_id, id)` na svih pet (`02` §2.5) — ukupno nakon Faze 5 = **8 od 30** tenant
+  tabela;
+- svih 18 zamrznutih `CHECK`-ova **plus** tri `CHECK`-a iz Dijela E;
+- **negativne tvrdnje:** nema nove role, nema `BYPASSRLS`, nema `SECURITY DEFINER` funkcije, nema
+  četvrte database role, nema drugog Prisma klijenta, nema treće `users` politike, i **nema
+  nijedne izmjene politike ni granta nad `practice_memberships`** (D-061, klauzula 11 i E.3 —
+  mehanički provjerljivo).
+
+# Dio C — referencijalne akcije (`OD-P5-D2-2`, `OD-P5-D2-3`, `OD-P5-D2-5`)
+
+## C.1 Potpuna FK matrica Faze 5
+
+**Svaki** FK Faze 5 nosi **eksplicitno** `ON DELETE NO ACTION ON UPDATE NO ACTION`. Prisma defaulti
+se **ne koriste ni u jednoj poziciji**.
+
+| # | Child | Parent | Oblik FK-a | Nullability | ON DELETE | ON UPDATE | Status prije ove odluke |
+|---|---|---|---|---|---|---|---|
+| 1 | `patient_references (practice_id)` | `practices (id)` | jednokolonski | `NOT NULL` | `NO ACTION` | `NO ACTION` | **nedeklarisan** → deklariše se (`OD-3`) |
+| 2 | `encounters (practice_id, patient_reference_id)` | `patient_references (practice_id, id)` | **composite** | `NOT NULL` | `NO ACTION` | `NO ACTION` | deklarisan, akcije otvorene (`OD-2`) |
+| 4 | `encounters (practice_id, responsible_physician_id)` | `practice_memberships (practice_id, user_id)` | **composite, `MATCH SIMPLE`** | **`NULL` dozvoljen** | `NO ACTION` | `NO ACTION` | **nedeklarisan** → deklariše se (`OD-5`) |
+| 6 | `encounter_diagnoses (practice_id, encounter_id)` | `encounters (practice_id, id)` | **composite** | `NOT NULL` | `NO ACTION` | `NO ACTION` | deklarisan, akcije otvorene (`OD-2`) |
+| 7 | `storage_objects (practice_id)` | `practices (id)` | jednokolonski | `NOT NULL` | `NO ACTION` | `NO ACTION` | **nedeklarisan** → deklariše se (`OD-3`) |
+| 9 | `encounter_documents (practice_id, encounter_id)` | `encounters (practice_id, id)` | **composite** | `NOT NULL` | `NO ACTION` | `NO ACTION` | deklarisan, akcije otvorene (`OD-2`) |
+| 10 | `encounter_documents (practice_id, storage_object_id)` | `storage_objects (practice_id, id)` | **composite, `MATCH SIMPLE`** | **`NULL` dozvoljen** | `NO ACTION` | `NO ACTION` | deklarisan, akcije otvorene (`OD-2`) |
+| 11 | `encounter_documents (practice_id, source_storage_object_id)` | `storage_objects (practice_id, id)` | **composite, `MATCH SIMPLE`** | **`NULL` dozvoljen** | `NO ACTION` | `NO ACTION` | **nedeklarisan** → deklariše se (`OD-3`) |
+
+**Relacije koje se namjerno NE deklarišu:**
+
+| Relacija | Razlog |
+|---|---|
+| `encounters (practice_id)` → `practices (id)` | Tenant ključ se nosi **tranzitivno** kroz FK #2 → #1; direktan FK bi duplirao istu garanciju (precedent `02` §6.3a) |
+| `encounters.created_by` / `updated_by` → `users` | **Aplikacijska invarijanta**, ne FK. Precedent `02` §6.5 (`granted_by`, `revoked_by`): globalni identifikator aktora, ne tenant referenca. Prihvaćeni constraint skup se ne širi |
+| `storage_objects.created_by` → `users` | isto |
+| `encounter_documents.created_by` → `users` | isto |
+| `encounters.responsible_physician_id` → `users (id)` | **Nepotreban.** Postojanje membershipa tranzitivno garantuje postojanje korisnika kroz već postojeći `practice_memberships_user_fk`. Drugi direktan FK dodao bi globalno spregnuće i **nula** dodatne garancije |
+
+## C.2 `MATCH SIMPLE` je obavezan za #4, #10 i #11
+
+Sva tri para imaju `NOT NULL` `practice_id` uz **nullable** drugu kolonu. Pod defaultnim
+`MATCH SIMPLE` constraint je zadovoljen kad je **bilo koja** referencirajuća kolona `NULL` — pa
+"nema odgovornog ljekara" i "nema storage objekta" prolaze bez FK provjere. **`MATCH FULL` bi ih
+odbio i ovdje se ne smije koristiti nikada.**
+
+## C.3 Zašto `NO ACTION`, a ne `RESTRICT` ni `CASCADE`
+
+- **`CASCADE` se odbija u svakoj poziciji.** `02` §28.1 to navodi direktno ("`CASCADE` nikada nije
+  default"). U Fazi 5 **ne postoji nijedna delete sposobnost** — `02` §18.1 ne dodjeljuje `DELETE`
+  nijednoj tabeli Faze 5, a `09` §20 zabranjuje ad-hoc `DELETE` API. `CASCADE` time nema
+  **nijedan legitiman okidač**, a ima jedan destruktivan: jedan zalutali iskaz nad roditeljem
+  obrisao bi encountere, dijagnoze i dokumente cijelog tenanta. To je najveći pojedinačni vektor
+  gubitka PHI u schemi.
+- **`SET NULL` je nemoguć** nad `NOT NULL` tenant/parent ključevima, a nad nullable pozicijama bi
+  tiho odvojio dokument od njegovog bloba.
+- **`RESTRICT` i `NO ACTION` su ekvivalentna odbijanja.** `NO ACTION` je provjerljiv na kraju
+  iskaza i po potrebi deferrable; `RESTRICT` to nikada nije. Migracija `002` koristi `NO ACTION`
+  za svih pet postojećih FK-ova — druga konvencija se ne uvodi.
+- **`ON UPDATE` je nedosežan.** Svaki parent ključ je `(practice_id, id)` ili
+  `(practice_id, user_id)`; `id` i `practice_id` su AAD-vezani i immutable nakon `INSERT`-a
+  (`02` §2.7.8, §19.3), a `user_id` je globalno immutable. Nijedna vrijednost parent ključa ne može
+  se promijeniti — `NO ACTION` je time i tačan i nedosežan, što je željeno stanje.
+
+**Historijski medicinski integritet je očuvan:** historijski encounteri, dijagnoze i dokumenti
+preživljavaju svako brisanje roditelja, jer se brisanje roditelja **odbija**, a ne kaskadira.
+
+## C.4 Obaveza prema Prisma sloju — normativno
+
+**Prisma default se ne smije osloniti ni u jednoj relaciji.** Prisma za obaveznu relaciju
+podrazumijeva `onDelete: Restrict, onUpdate: Cascade` — izmišljeno pravilo koje je migracija `002`
+eksplicitno odbila. **Svaka** Prisma relacija Faze 5 mora nositi doslovno:
+
+```prisma
+onDelete: NoAction, onUpdate: NoAction
+```
+
+Bez toga `prisma migrate diff` pri regeneraciji **tiho vraća** Prisma akcije. Ovo je normativni
+zahtjev prema budućem slice-u `P5-I1`, ne opis postojećeg stanja.
+
+# Dio D — odgovorni ljekar (`OD-P5-D2-4`, `OD-P5-D2-5`)
+
+Ovaj dio **razrješava naslijeđenu blokirajuću obavezu D-061, klauzule 19–21**.
+
+## D.1 Dvije invarijante se moraju razlikovati
+
+### D.1.1 Invarijanta u trenutku dodjele (procjenjuje se pri `INSERT`-u i pri svakom `PATCH`-u koji postavlja polje)
+
+| Pitanje | Ratifikovani odgovor | Sloj sprovođenja |
+|---|---|---|
+| Nullable? | **Da.** `02` §7.2 kolonu deklariše nullable, a D-061, klauzula 9, `null` vrijednosti daje zasebno normativno značenje ("nema odgovornog ljekara"). **Nullable semantika se očuvava** | schema |
+| Referencira `users.id` ili membership identitet? | **Pohranjena vrijednost ostaje `users.id`** — `03` §12 vraća `responsiblePhysician.id` i filtrira po njemu. **Cilj FK-a je membership red**, ključen `(practice_id, user_id)` | schema |
+| Mora li imati membership? | **Da, u istoj ordinaciji** — sprovedeno bazom | composite FK, D.2 |
+| Ista ordinacija? | **Da** — strukturno, ne validacijom | composite FK |
+| Mora li rola biti `PHYSICIAN`? | **Ne.** Nijedan kanonski izvor to ne traži, i **nije sprovodivo u Fazi 5** bez proširenja `practice_memberships` RLS-a koje D-061, klauzula 11, zabranjuje | — |
+| Smije li MPA biti odgovorni ljekar? | **Da, u Fazi 5** — ratifikovana i eksplicitno zapisana posljedica, ne neotkrivena rupa | — |
+| Mora li membership biti `active`? | **Nije sprovodivo u Fazi 5.** `active` je kolona `practice_memberships`, čitljiva isključivo pod caller-self politikom | — |
+
+### D.1.2 Invarijanta historijske perzistencije (vrijedi zauvijek nakon dodjele)
+
+| Pitanje | Ratifikovani odgovor |
+|---|---|
+| Zadržava li historijski encounter `user_id`? | **Da, bezuslovno.** Ništa ne prepisuje `responsible_physician_id`: nema trigera, nema kaskade, nema `ON UPDATE` puta |
+| Šta ako membership kasnije postane neaktivan? | **Ništa.** `active = false` je `UPDATE`, ne `DELETE`; parent red preživljava; encounter je netaknut. Tvrdnja "Dr X je bio odgovoran 2026-07-17" ostaje tačna i čitljiva |
+| Šta ako se membership u cijelosti ukloni? | **Blokirano `ON DELETE NO ACTION`-om.** Dodjela ne može ostati siroče |
+| Smije li se odgovorni ljekar promijeniti nakon kreiranja? | **Da**, kroz `PATCH /encounters/{encounterId}` uz obavezan `If-Match`, dok je status u nefinalnom stanju dosežnom u Fazi 5 (`DRAFT`, `READY_FOR_ANALYSIS`). Isti FK revalidira novu vrijednost. **Zabranjeno iz `CANCELLED`** (terminalno) |
+
+**Zapisana posljedica `ON DELETE NO ACTION`-a.** Membership red koji ijedan encounter imenuje
+**ne može se obrisati**. To danas ne košta ništa — `practice_memberships` nema `DELETE` grant
+nijednoj runtime roli, a administracija membershipa je izvan aktivnog v1 permission kataloga
+(`02` §20.2, D-038, klauzula 24) — i **poželjno je**, jer čuva historijsku dodjelu. Buduća
+funkcija uklanjanja člana mora koristiti `active = false` ili **eksplicitno odlučiti** kako
+tretira historijske reference. Ova posljedica je ovdje zapisana, a ne ostavljena da bude otkrivena.
+
+## D.2 Ratifikovani mehanizam — `RP-B` + `RP-E`
+
+```sql
+alter table encounters
+  add constraint encounters_responsible_physician_membership_fk
+  foreign key (practice_id, responsible_physician_id)
+  references practice_memberships (practice_id, user_id)
+  match simple
+  on delete no action on update no action;
+```
+
+**Parent ključ već postoji.** `practice_memberships_practice_user_key` — `unique (practice_id,
+user_id)` — kreiran je migracijom `002`. **Nijedan novi indeks i nijedan novi constraint nad
+`practice_memberships` se ne uvodi.**
+
+**Baza čini cross-practice dodjelu odgovornog ljekara nemogućom**, a ne samo odbijenom: red koji bi
+imenovao člana druge ordinacije **nema parent red** i ne može postojati.
+
+Uz FK se **eksplicitno odgađa** validacija role i aktivnosti (`RP-E`): oba atributa su u Fazi 5
+nedosežna svakim dozvoljenim mehanizmom, a nijedan kanonski izvor ih ne traži. Odgađanje **ne
+stvara sposobnost** — ono odbija da je stvori.
+
+## D.3 Sigurnosni ishod koji se mora očuvati
+
+Ratifikovani mehanizam uvodi **nula** nove sposobnosti čitanja:
+
+| | |
+|---|---|
+| Nova RLS politika | **nijedna** |
+| Izmjena `practice_memberships_self_select` | **nijedna** — ime i tijelo identični (D-061, klauzula 21) |
+| Proširenje `practice_memberships` RLS-a | **nijedno** |
+| Proširenje `users` RLS-a | **nijedno** |
+| Dodatni identitetski `SELECT` grant | **nijedan** |
+| `SECURITY DEFINER` membership lookup | **nijedan** |
+| Treća `users` politika | **nijedna** |
+| Četvrta database rola | **nijedna** |
+| Drugi Prisma klijent / privilegovani put | **nijedan** |
+| Denormalizovani `display_name` | **nijedan** |
+| Zamjenski identifikator | **nijedan** |
+| Nova kolona | **nijedna** |
+| Izmjena API oblika | **nijedna** |
+| Novi indeks | **nijedan** |
+
+**Nema co-member directory sposobnosti.** FK evaluira database mašinerija referencijalnog
+integriteta: **nijedan red ne ulazi u aplikaciju, nijedna kolona se ne projektuje, nijedan upit ne
+imenuje ciljnog korisnika**. To je materijalno jače od aplikacijske provjere koja pročita pa
+odbaci — discipline koju D-061, klauzula 3, izričito odbija prihvatiti kao kontrolu.
+
+Rezidualna površina je **boolean orakl dodjeljivosti** nad UUID-om koji pozivalac već posjeduje,
+ograničen na **vlastiti tenant**. To je kategorijski različito od čitanja identiteta: ne vraća se
+ni ime, ni email, ni GLN, ni rola, ni status.
+
+**Temeljni problem co-member identiteta ostaje `OPEN / NOT IMPLEMENTED`** (`13` §19). Ova odluka ga
+**ne rješava, ne rješava ga djelimično, i ne smije se opisivati kao da ga rješava.** Imenovani gate
+`BEFORE PHASE 5 CO-MEMBER DISPLAY NAME ACCESS` zadržava repointirani trigger iz D-061, klauzule
+13–16, i svi zahtjevi `13` §19.3 ostaju na snazi.
+
+## D.4 Autorizacija naspram domenske validacije
+
+| | **Autorizacija** | **Domenska validacija** |
+|---|---|---|
+| Pitanje | Smije li **ovaj pozivalac** kreirati/mijenjati encounter u **ovoj** ordinaciji? | Je li `responsiblePhysicianId` validna dodjeljiva vrijednost za **ovu** ordinaciju? |
+| Subjekt | pozivalac | treća osoba imenovana u tijelu zahtjeva |
+| Mehanizam | `TenantRequestPipeline.admit` — nepromijenjen | composite FK iz D.2 |
+| Greška | `403 ACCESS_DENIED` | `422 VALIDATION_ERROR` |
+| Daje sposobnost čitanja? | već uspostavljena za pozivaoca | **ne** |
+
+**Postojeći permission model rute ostaje mjerodavan i ne dira se.** `encounter.create` i
+`encounter.update` drže isključivo `PHYSICIAN` i `MPA`; `encounter.cancel` isključivo `PHYSICIAN`
+(`15`). **Nijedna permisija se ne dodaje, ne uklanja ni ne uslovljava.**
+
+## D.5 Mapiranje greške — usko, normativno
+
+Povreda podiže `SQLSTATE 23503` sa imenom constrainta
+`encounters_responsible_physician_membership_fk`. Mora se hvatati **tačno onako kako se danas hvata
+`TenantContextRejectedError`**: jedan `catch`, oko jednog iskaza, ključen na **to jedno** ime
+constrainta, preveden u `422 VALIDATION_ERROR` sa generičkom porukom koja **ne citira nijednu
+vrijednost** (D-060, klauzule 39–40).
+
+**Globalno mapiranje `23503 → 422` je zabranjeno.** Povreda bilo kojeg drugog constrainta ostaje
+interna greška, po istoj logici koju migracija `013` zapisuje za `42501`.
+
+## D.6 Obavezni implementacijski gate — RI naspram RLS-a
+
+**Ponašanje RI-a pod `FORCE RLS` modelom NIJE dokazano samim tim što ga D-062 dokumentuje.**
+
+Mehanizam počiva na jednoj nosećoj pretpostavci: **PostgreSQL provjere referencijalnog integriteta
+zaobilaze row-level security**. To je dokumentovano ponašanje i već je u ovom repozitoriju
+izvršeno kroz `practice_membership_roles_membership_fk`, ali **nije izvršeno ni u jednom gateu do
+sada**, jer su svi bili read-only ili dokumentacijski.
+
+**Normativni gate:**
+
+> Prije nego što se implementacija encounter jezgra smije osloniti na ovaj FK mehanizam, slice
+> **`P5-I2` MORA empirijski dokazati** — nad **stvarnim PostgreSQL-om** i pod **stvarnim runtime
+> rolama** — da se composite FK ponaša ispravno pod postojećim `FORCE RLS` modelom.
+
+**Oblik dokaza (`★`).** U **istoj transakciji**, pod `copilot_app` i uspostavljenim tenant
+kontekstom:
+
+1. `INSERT` u `encounters` koji imenuje `user_id` **co-membera** (ne pozivaoca) **uspijeva**;
+2. direktan `SELECT` **tog istog** membership reda vraća **nula redova**.
+
+Oba iskaza moraju vrijediti istovremeno. Prvi dokazuje da RI radi; drugi dokazuje da se RLS **nije**
+oslabio.
+
+**Neuspjeh tog dokaza je HARD HOLD.** Vraća se u dizajn i ponovo otvara `OD-P5-D2-5`.
+**Ne autorizuje slabljenje RLS-a**, proširenje `practice_memberships` politike, uvođenje
+`SECURITY DEFINER` primitiva ni bilo koje drugo proširenje Faza-4 sigurnosne granice.
+
+Pretpostavka je **fail-loud**, ne fail-silent: da je netačna, **svaka** dodjela co-membera podigla
+bi `23503` i prvi test slice-a `P5-I2` bi to odmah uhvatio. Vodi se kao `RISK-07`.
+
+**`P5-I5` (encounter jezgro) ne smije početi prije nego što `★` prođe.**
+
+# Dio E — statusni rječnici dokumenta (`OD-P5-D2-6`, ratifikovano `A + A+`)
+
+**Fizički tip obje kolone ostaje `varchar(30)`** (`02` §8.2). **Konverzija u PostgreSQL enum nije
+autorizovana** — `02` §8.2 fiksira fizički tip, a D-060, klauzula 44, zabranjuje izmjenu kolone.
+
+Vokabular ostaje doslovno onaj iz D-060 i `02` §2.11:
+
+```text
+processing_status ∈ { READY, FAILED }
+redaction_status  ∈ { COMPLETED, FAILED }
+```
+
+**Ne uvode se** `PENDING`, `PROCESSING`, `ARCHIVED` ni `SKIPPED` — ni u jednoj poziciji.
+Arhiviranje i dalje nosi `archived_at`, nikada statusnu vrijednost.
+
+## E.1 Ratifikovani `CHECK` constrainti (paket `003`)
+
+**Opcija A — vokabularni `CHECK`-ovi:**
+
+```sql
+check (processing_status in ('READY','FAILED'))
+check (redaction_status in ('COMPLETED','FAILED'))
+```
+
+**Opcija A+ — artefakt-konzistencijski `CHECK`** (izveden iz D-060, klauzule 30 i 32):
+
+```sql
+check (
+  (redaction_status = 'COMPLETED'
+   and redacted_text_ciphertext is not null
+   and redacted_text_hash is not null)
+  or
+  (redaction_status = 'FAILED'
+   and redacted_text_ciphertext is null
+   and redacted_text_hash is null)
+)
+```
+
+Ukupno **tri** nova `CHECK` constrainta nad praznom tabelom.
+
+## E.2 Nemoguća kombinacija statusa — očuvana odluka P5-D2
+
+Kombinacija `processing_status = 'FAILED'` uz `redaction_status = 'COMPLETED'` je **logički
+nemoguća**: redakcija operiše nad normalizovanim artefaktom i ne može uspjeti nad neupotrebljivim
+izvorom. **Ta ratifikovana odluka se očuvava**: kombinacija se **odbija**, i implementacija je ne
+smije proizvesti ni prihvatiti.
+
+Artefakt-konzistencijski `CHECK` iz E.1 je već isključuje u dijelu koji je database-provjerljiv
+(`COMPLETED` bez artefakta je nemoguć). Domenski sloj je dodatno ne smije konstruisati.
+
+## E.3 Zašto `CHECK` sada, a ne ranije
+
+Prigovor D-060 bio je **vremenski, ne suštinski**: "*prerani constraint bi zaključao vokabular
+prije schema gatea*". **Taj prigovor istječe tačno ovdje**, na schema gateu. Vokabular je zamrznut
+prihvaćenom odlukom (D-060, klauzule 29–30, uz eksplicitno isključenje
+`PENDING`/`PROCESSING`/`ARCHIVED`/`SKIPPED`), pa `CHECK` kodira **ratifikovanu činjenicu**, a ne
+pretpostavlja neratifikovanu.
+
+**Kontrast sa `OD-P5-D2-11`**, gdje se `CHECK` **ne** uvodi: ondje vokabular **nije** ratifikovan.
+Razlika je ratifikacija, ne sklonost prema `CHECK`-ovima.
+
+Buduća izmjena vokabulara time traži migraciju — što je ispravno, jer je takva izmjena događaj na
+nivou odluke.
+
+# Dio F — encounter state machine (`OD-P5-D2-7`)
+
+Kanonski vokabular (`02` §4.3, devet vrijednosti) i kanonski skup od **tačno 15 tranzicija**
+(`03` §29.1, D-027; `08` §11.1) **ostaju zamrznuti i ne otvaraju se**.
+
+## F.1 Dosežni podskup Faze 5 — tačno 4 od 15
+
+**Stanje kreiranja Faze 5:** `DRAFT`, jedino i uvijek.
+
+| # | Tranzicija | Okidač | Akter | Timestamp | `version` |
+|---|---|---|---|---|---|
+| 1 | *(kreiranje)* → `DRAFT` | `POST /encounters` | `encounter.create` — PHYSICIAN, MPA | `created_at`, `created_by` | `version = 1`, `ETag: "1"` |
+| 2 | `DRAFT` → `READY_FOR_ANALYSIS` | uspješan unos dokumenta | `encounter.document.create` — PHYSICIAN, MPA | `updated_at`, `updated_by` | **bez inkrementa** |
+| 3 | `DRAFT` → `CANCELLED` | `POST …/cancel` | `encounter.cancel` — **isključivo PHYSICIAN** | `updated_at`, `updated_by` | inkrement |
+| 4 | `READY_FOR_ANALYSIS` → `CANCELLED` | `POST …/cancel` | `encounter.cancel` — isključivo PHYSICIAN | `updated_at`, `updated_by` | inkrement |
+
+**Nedosežna stanja u Fazi 5:** `ANALYSIS_IN_PROGRESS`, `REVIEW_REQUIRED`, `APPROVED`,
+`EXPORT_PENDING`, `EXPORTED`, `CLOSED`.
+
+**Preostalih 11 tranzicija mora biti implementirano kao eksplicitno zabranjeno** →
+`409 INVALID_STATE_TRANSITION`, a **ne prećutno odsutno**. `08` §11.1 traži table-driven test nad
+**cijelom** mašinom.
+
+**Ponašanje Faze 7+ se ne uvlači u Fazu 5.** Nijedna analiza, nijedan approval i nijedan export put
+nije dio Faze 5.
+
+## F.2 `DRAFT → READY_FOR_ANALYSIS` — ratifikovani trigger
+
+- postavlja ga **komanda unosa dokumenta**, ne klijent;
+- **isključivo iz `DRAFT`**;
+- pri **svakom** uspješnom unosu, **idempotentno** — ako je encounter već `READY_FOR_ANALYSIS`, to
+  je **no-op, ne greška**;
+- **ne troši `version` inkrement** — istovremeni `PATCH` sa važećim `ETag`-om se ne obara;
+- emituje **vlastiti** audit događaj `ENCOUNTER_READY_FOR_ANALYSIS`;
+- **nema klijentske rute za promjenu statusa** — `03` §12 zabranjuje proizvoljnu promjenu statusa.
+
+## F.3 Cancel, terminalnost, zatvaranje i ograničenja mutacije
+
+- **Cancel:** `POST /encounters/{encounterId}/cancel`, permisija `encounter.cancel`, isključivo
+  `PHYSICIAN` (D-042). Dozvoljen iz `DRAFT` i `READY_FOR_ANALYSIS`.
+- **`reason` pri cancelu se ne perzistira u `encounters`** — **kolona ne postoji i ne uvodi se**.
+  Zapisuje se **isključivo u audit trag**, i **mora biti sanitizovan** prije zapisa, jer je
+  slobodan tekst i može sadržavati PHI (`02` §15.4, `09` §11, D-060, klauzula 39).
+- **Terminalnost:** `CANCELLED` je terminalno — **nema izlaznih tranzicija, nema reopen-a**, i
+  `CANCELLED → CLOSED` je eksplicitno zabranjeno (`03` §29.1). Nakon njega nema nikakve mutacije.
+- **Zatvaranje:** `CLOSED` je **nedosežan u Fazi 5** — traži `EXPORTED` i rutu `close`, a nijedno
+  ne postoji u Fazi 5. `04` §7.3 ne navodi `POST …/close`, i to **nije kontradikcija** sa
+  `03` §12, nego tačna posljedica nedosežnosti.
+- **Arhiviranje encountera ne postoji** — `encounters` nema `archived_at` kolonu. Arhiviranje je
+  **isključivo koncept dokumenta**.
+- **Ograničenja mutacije:** `PATCH` je dozvoljen isključivo u nefinalnim stanjima (`DRAFT`,
+  `READY_FOR_ANALYSIS`), uz obavezan `If-Match`.
+- **Efekt na dokumente:** unos dokumenta se **odbija** kad je encounter `CANCELLED` →
+  `409 INVALID_STATE_TRANSITION`.
+- **Odgovorni ljekar:** promjenjiv u `DRAFT` i `READY_FOR_ANALYSIS`, odbijen iz `CANCELLED`.
+
+## F.4 Sloj sprovođenja
+
+**Aplikacijski/domenski, ne database.** **Nijedan trigger, `CHECK` ni constraint nad statusnom
+kolonom se ne uvodi.** `02` §22.14 dodjeljuje immutability trigere paketu `014` i navodi tačno dva
+guarda plus AAD i revision-identity guard — **encounter-status trigger u kanonu ne postoji** i
+njegovo uvođenje bi stvorilo klasu artefakta koju nijedna odluka nije autorizovala. **Vokabular**
+statusa je već sproveden enum tipom `encounter_status`; **graf tranzicija** je aplikacijski, tačno
+kako `03` §29 navodi.
+
+## F.5 Ispravka rasporeda u test strategiji
+
+`08` §26.1 dodjeljuje "§23.2 kaskada → Faza 5". **To je netačno i ispravlja se:** kaskada
+otkazivanja iz D-035 zahtijeva `analysis_runs`, koje kreira paket `005` u **Fazi 7**. **Ta kaskada
+se ne može u cijelosti testirati u Fazi 5** i **repointira se na fazu vlasnika stanja**. Faza 5
+testira isključivo svoje četiri dosežne tranzicije i eksplicitno odbijanje preostalih jedanaest.
+
+Obrnuto, "§22.1 immutability trigger" se **repointira na Fazu 5** za tri tabele koje Faza 5 kreira
+i koje nose ciphertext ili AAD-vezane ključeve (Dio B.3).
+
+# Dio G — document state, retry i arhiva (`OD-P5-D2-9`, `OD-P5-D2-10`)
+
+## G.1 Tabela kombinacija
+
+| # | `processing_status` | `redaction_status` | Validno? | Dosežno u Fazi 5? | Sadržaj reda | PHI/AI podobnost |
+|---|---|---|---|---|---|---|
+| 1 | `READY` | `COMPLETED` | **da** | **da — normalna putanja** | `normalized_text_*`, `source_text_hash`, `redacted_text_*`, `redacted_text_hash` — svi non-null; `encryption_*` postavljeni | **zadovoljena** |
+| 2 | `READY` | `FAILED` | **da** | **da** | normalizovana strana potpuna; `redacted_text_*` i `redacted_text_hash` **null** | **nije zadovoljena** |
+| 3 | `FAILED` | `FAILED` | **da** | **ne** — G.2 | obje strane null | nije zadovoljena |
+| 4 | `FAILED` | `COMPLETED` | **NEMOGUĆE** | — | — | — |
+
+**PHI/AI predikat podobnosti** (D-060 G.4):
+
+```text
+processing_status = 'READY'
+and redaction_status = 'COMPLETED'
+and redacted_text_ciphertext is not null
+and redacted_text_hash is not null
+```
+
+Nijedna ruta Faze 5 ga ne konzumira — to je ugovor koji će konzumirati ulaz analize Faze 7.
+
+## G.2 `processing_status = FAILED` je nedosežan u Fazi 5
+
+`POST /encounters/{encounterId}/documents/text` je **jedina aktivna** putanja kreiranja dokumenta
+(`03` §13.1; upload putanja je `DEFERRED`, §13.2). Za nju je D-060, klauzula 35, eksplicitna: ako
+bi normalizacija proizvela nevalidan rezultat, **zahtjev se odbija**. Odbijen zahtjev je `422` —
+**i ne kreira red**.
+
+Dakle: ili normalizacija uspije i red se upisuje sa `processing_status = READY`, ili reda nema.
+`FAILED` procesiranje postaje dosežno tek kad se odmrzne upload putanja.
+
+**Zapisane posljedice:** tabela stanja Faze 5 ima **dvije** dosežne kombinacije, ne tri;
+`processing_status` je u Fazi 5 efektivno konstanta `'READY'`; **kolona, vokabular i testovi
+ostaju**, jer ih upload putanja aktivira. Ovo se zapisuje da ne bi kasnije bilo pogrešno shvaćeno
+kao nedostajuća kodna grana.
+
+## G.3 Kreiranje, atomičnost i retry
+
+- **Kreiranje:** jedan red po uspješnom `POST`-u, `source = MANUAL_TEXT`,
+  `processing_status = READY`, `redaction_status` prema ishodu redakcije. Normativni redoslijed
+  obrade (`03` §13.1): normalizacija → `source_text_hash` → enkripcija i pohrana normalizovanog →
+  redakcija → `redacted_text_hash` → enkripcija i pohrana redigovanog.
+- **Atomičnost statusa i artefakata — normativno.** Red se upisuje **jednim `INSERT`-om unutar
+  jedne pinovane transakcije**. Status, ciphertexti, IV-ovi, auth tagovi i **oba** hasha su kolone
+  **istog reda u istom iskazu**. **Ne postoji prozor u kojem status ne odgovara svojim
+  artefaktima**, zbog čega su row-level i per-field `CHECK` constrainti dovoljni i **nijedan
+  trigger nije potreban**.
+- **Retry se odgađa.** D-060, klauzula 32, **ostaje nepromijenjena i neopozvana** — ponavljanje
+  redakcije pod **istom** verzijom ruleseta uz **svjež IV** ostaje ugovorno dozvoljeno. Odgađa se
+  isključivo **površina**: `03` §13.3 ne izlaže retry rutu, i **Faza 5 je ne uvodi**. Ovo je isti
+  obrazac vlasništvo-naspram-izvršenja koji uspostavlja D-052.
+- **Posljedica za grant:** `encounter_documents` dobija `UPDATE` **isključivo nad `archived_at`**.
+  Sve ostale kolone su nakon `INSERT`-a **nezapisive na nivou privilegije**.
+- **Ako buduća odluka uvede retry rutu**, grant se proširuje na **tačno**
+  `redaction_status`, `redacted_text_ciphertext`, `redacted_text_iv`, `redacted_text_auth_tag`,
+  `redacted_text_hash` — i **ne** na `encryption_key_ref` ni `encryption_key_version`, jer retry
+  istim ključem njih ne mijenja.
+
+## G.4 Čitanje, `view` i apsolutna zabrana
+
+- **`view=redacted`** — permisija `encounter.document.read`; vraća **dekriptovani redigovani
+  tekst**.
+- **`view=original`** — **dodatno** traži `encounter.document.read_original` i emituje audit
+  događaj `DOCUMENT_VIEWED`. Ponašanje D-043 je nepromijenjeno.
+- **Očuvano D-060:** **`view=original` znači dekriptovani kanonski normalizovani izvorni tekst, a
+  ne sirove bajtove zahtjeva.** Sirovi tekst prije normalizacije se **ne perzistira** (`02`
+  §2.10.1).
+- **Apsolutna zabrana:** pri `redaction_status = FAILED` `view=redacted` **mora odbiti** i **nikada
+  ne smije pasti nazad** na normalizovani ni originalni tekst. D-060 to imenuje "**najozbiljnijim
+  mogućim defektom ovog dizajna**" — tiho bi zaobišlo `encounter.document.read_original` i
+  poništilo D-043. Pripada **trajnoj regresijskoj suiti**.
+- **Neuspjeli dokumenti su listabilni.** Dokument sa `redaction_status = FAILED` je običan red pod
+  tenant politikom: metapodaci su vidljivi, `view=original` je čitljiv uz odgovarajuću permisiju,
+  i **isključivo** `view=redacted` odbija.
+
+## G.5 Arhiva (`OD-P5-D2-10`)
+
+- `POST /encounters/{encounterId}/documents/{documentId}/archive` postavlja `archived_at`.
+  Permisija `encounter.document.archive`, isključivo `PHYSICIAN`. **Nijedna statusna vrijednost se
+  ne mijenja.**
+- **Lista `GET /encounters/{encounterId}/documents` isključuje** `archived_at IS NOT NULL`.
+- **Detaljna ruta `GET …/documents/{documentId}` i dalje vraća arhivirani dokument**, sa prisutnim
+  `archivedAt`. Time ostaje dosežan za audit — što stvarno brisanje ne bi bilo.
+- **Ponovno arhiviranje već arhiviranog dokumenta je idempotentan uspjeh**, ne `409`.
+- **Restore ruta ne postoji i ne uvodi se.** `includeArchived` parametar se **ne uvodi**.
+- **Arhiva nikada ne smije postati RLS predikat** (Dio I) — to bi sakrilo redove od audita i
+  učinilo stanje nepovratnim.
+- **Fizičko brisanje ne postoji nigdje u Fazi 5** i **ne uvodi se nijedna delete ruta.**
+
+# Dio H — API / schema pomirenje (`OD-P5-D2-8`, `OD-P5-D2-11`, `OD-P5-D2-12`)
+
+**Nijedno API polje se ne kreira samo da bi schema kolona bila popunjena.** Obrnuto vrijedi
+jednako: kolona bez pisca Faze 5 ostaje `NULL` **po dizajnu**, i to je zapisano, a ne otkriveno.
+
+## H.1 `GET /patient-references/{patientReferenceId}`
+
+Oblik odgovora **je isti kao tijelo `201` odgovora na `POST /patient-references`**: `id`,
+`pseudonym`, `sourceSystem`, `birthYear`, `sexCode`, `createdAt`.
+
+**`external_patient_ref_hash` je odsutan iz svakog odgovora po dizajnu** (D-060, klauzula 38).
+Eksterni identifikator se **nikada** ne vraća i **nikada** ne loguje.
+
+`patient_references` nema `PATCH`, nema `version`, nema `archived_at`, nema `status` i nema delete
+rutu. Model je: **kreiraj jednom, čitaj, nikada ne mijenjaj, nikada ne arhiviraj, nikada ne briši.**
+**Nijedan `UPDATE` grant i nijedna `UPDATE` politika se u Fazi 5 ne uvode.**
+
+## H.2 `PATCH /encounters/{encounterId}` — tačan skup polja (`OD-P5-D2-8`)
+
+**Patchable — tačno osam:**
+
+```text
+occurredAt, treatmentDate, responsiblePhysicianId, guarantorType,
+insuranceContext, specialtyCode, patientAgeAtEncounter, patientSexAtEncounter
+```
+
+**Nije patchable — normativno:**
+
+```text
+status, patientReferenceId, sourceSystem, version, diagnoses[],
+svaki id, svaki timestamp, svaka actor kolona (created_by, updated_by)
+```
+
+- Dozvoljen **isključivo u nefinalnim stanjima**; obavezan `If-Match`.
+- **`patientReferenceId` nije patchable** — inače bi se encounter mogao tiho prepokazati na drugog
+  pacijenta nakon što su dokumenti već zavedeni.
+- **`diagnoses[]` nije patchable u Fazi 5** — `02` §18.1 ne dodjeljuje `DELETE` nad
+  `encounter_diagnoses` ni u v1, a Faza 5 nema ni `UPDATE` grant nad tom tabelom.
+- **Sprovodi se dvostruko:** aplikacijskom allowlistom **i** column-level `UPDATE` grantom iz
+  Dijela I, koji `patient_reference_id` i `source_system` uskraćuje na nivou privilegije. To je
+  svojstvo "dvije nezavisne barijere" koje projekat već primjenjuje na `practice_settings.practice_id`.
+
+## H.3 Vrijednosni rječnici i `NOT NULL` kolone bez API izvora (`OD-P5-D2-11`)
+
+**Ratifikovane vrijednosti Faze 5:**
+
+| Kolona | Vrijednost pri kreiranju | Obrazloženje |
+|---|---|---|
+| `encounter_diagnoses.review_state` | **`'UNREVIEWED'`** | jedini smislen član `02` §4.8 za tek zavedenu dijagnozu |
+| `encounter_diagnoses.source` | **`'MANUAL'`** | usklađeno sa `integration_provider` literalom koji zahtjev nosi |
+
+**Free-form u v1** — validacija **isključivo** dužine i charseta na API sloju, **bez DB `CHECK`-a,
+bez enuma, bez schema izmjene**, i eksplicitno zapisano kao "*vokabular neodlučen u v1*":
+
+```text
+guarantorType, insuranceContext, sexCode, patientSexAtEncounter,
+specialtyCode, diagnosisType
+```
+
+`codingSystem` se već vodi kao otvorena eksterna zavisnost (`13` §13); validira se **isključivo**
+dužina/charset. **Ostaje free-form u v1.**
+
+Ovo doslovno preslikava precedent `02` §2.11.4: aplikacijsko sprovođenje dok je vokabular
+neodlučen, uz netaknutu schemu. **Kontrast sa Dijelom E je ratifikacija vokabulara, ne sklonost.**
+
+## H.4 Polja bez modela u Fazi 5 (`OD-P5-D2-12`)
+
+**Ključevi se izostavljaju u cijelosti — odsutni, ne `null`:**
+
+- `latestAnalysis` blok — `analysis_runs` je paket `005`, Faza 7;
+- approval / export summary blok — Faza 10 / 11;
+- **`hasBlockingFindings` filter se ne registruje** — `rule_findings` je paket `008`, Faza 9.
+  Nepoznat query parametar se **odbija** (`08` §12, `05` §6 — "unknown field rejected").
+
+**Obrazloženje je već kanonsko** — D-061, klauzula 8, uspostavljena je **za tu istu rutu** i za
+tačno tu razliku: prisutan ključ sa praznom vrijednošću tvrdio bi da polje postoji i da je
+vrijednost nepoznata; **odsutan ključ tačno kaže da površina ne postoji**. Prihvatiti pa ignorisati
+filter je najopasnija varijanta — vratio bi **širi** skup nego što je pozivalac tražio, tiho.
+
+**`sort` vokabular Faze 5:** `treatmentDate desc, id desc` — **default i jedina vrijednost**.
+**Cursor kodira `(treatment_date, id)`** i **nikada pseudonim** — pseudonim je Class C, nije
+log-safe, a cursor je vidljiv klijentu. Nevalidan cursor → `400 INVALID_CURSOR`.
+
+## H.5 Kolone bez pisca u Fazi 5 — ostaju `NULL` po dizajnu
+
+| Kolona / tabela | Stanje u Fazi 5 |
+|---|---|
+| **`storage_objects` — cijela tabela** | **nema pisca u Fazi 5**; upload putanja je `DEFERRED` (`03` §13.2). Tabela postoji jer je FK roditelj, i drži **nula redova** |
+| `encounters.external_encounter_ref_hash` / `_ciphertext` / `_iv` / `_auth_tag` | **nema pisca** — nijedno API polje ne nosi eksternu encounter referencu. **`encounters` u Fazi 5 ne nosi nikakav ciphertext** |
+| `encounters.encryption_*` (četiri kolone) | `NULL`; row-level `CHECK` je zadovoljen vakuumski |
+| `encounter_documents.external_document_ref_hash` | **nema pisca** — ostaje `NULL` |
+| `patient_references.external_patient_ref_ciphertext` / `_iv` / `_auth_tag` / `encryption_*` | opcioni envelope; **u Fazi 5 neiskorišten** (write-back je Axenita, iza `D-OPEN-009`) |
+| `encounter_documents.source_storage_object_id` | **nema pisca**; FK je deklarisan (Dio C, #11), vrijednost ostaje `NULL` |
+| `storage_objects.archived_at` / `retention_delete_after` | neiskorišteni u Fazi 5 |
+
+## H.6 Ostala pomirenja
+
+- **`POST /encounters` odgovor:** `status` je izvedeno i **uvijek `"DRAFT"`**; `version` = 1,
+  `ETag: "1"`; `patient.pseudonym` je **obično čitanje** `patient_references.pseudonym` u istom
+  tenantu, ne dekripcija.
+- **`POST …/documents/text` odgovor:** `source` je izvedeno i **uvijek `"MANUAL_TEXT"`**;
+  `processingStatus` je izvedeno i **uvijek `"READY"`** u Fazi 5 (Dio G.2); `redactedTextHash` se
+  **izostavlja** kada je redakcija neuspjela.
+- **`redactBeforeAiProcessing`** se prima **isključivo kao `true`**; `false` → `422`
+  (D-060, klauzula 36). **Ne pohranjuje se ni u jednu kolonu.**
+- **`text` je Class A**: normalizuje se, hashira, **enkriptuje**; **nikada se ne pohranjuje sirov**
+  i **nikada se ne vraća** u validacijskom tijelu ni logu.
+- **Cancel `reason`** — audit-only i sanitizovan (Dio F.3).
+- **`04` §7.3 ne navodi `POST …/close`, a `03` §12 ga definiše** — to **nije kontradikcija**:
+  `EXPORTED` je nedosežan u Fazi 5, pa je ruta izvan obuhvata Faze 5 (Dio F.3).
+- **`02` §28.1 tvrdi da je paket `003` "prvi koji kreira izvornu tabelu sa composite FK-om"** —
+  to je **manja dokumentaciona netačnost**: paket `002` je to već učinio za
+  `practice_membership_roles`. **Suština roka je nepromijenjena** i ovom odlukom je ispunjena.
+
+# Dio I — RLS i grantovi Faze 5
+
+**Objavljuje se dizajn. Politike i grantovi se ovim gateom NE implementiraju.**
+
+## I.1 RLS po tabeli
+
+| Tabela | `ENABLE` | `FORCE` | SELECT | INSERT | UPDATE | DELETE | `USING` | `WITH CHECK` |
+|---|---|---|---|---|---|---|---|---|
+| `patient_references` | **da** | **da** | `patient_references_select` | `patient_references_insert` | **nijedna u Fazi 5** | **nijedna** | tenant predikat | tenant predikat (INSERT) |
+| `encounters` | **da** | **da** | `encounters_select` | `encounters_insert` | `encounters_update` | **nijedna** | tenant predikat | tenant predikat na INSERT **i** UPDATE |
+| `encounter_diagnoses` | **da** | **da** | `encounter_diagnoses_select` | `encounter_diagnoses_insert` | **nijedna u Fazi 5** | **nijedna** | tenant predikat | tenant predikat (INSERT) |
+| `storage_objects` | **da** | **da** | **nijedna** | **nijedna** | **nijedna** | **nijedna** | — | — |
+| `encounter_documents` | **da** | **da** | `encounter_documents_select` | `encounter_documents_insert` | `encounter_documents_update` | **nijedna** | tenant predikat | tenant predikat na INSERT **i** UPDATE |
+
+**Tenant predikat je doslovno oblik `02` §17.1, neoslabljen:**
+
+```sql
+practice_id = nullif(current_setting('app.practice_id', true), '')::uuid
+```
+
+Ukupno **8 novih politika**. Nakon Faze 5: **18 politika** nad **11 tabela** sa `ENABLE` + `FORCE`.
+
+## I.2 Normativna ograničenja dizajna politika
+
+- **`practice_id` je `NOT NULL` na svih pet** (`02` §2.5), pa pretpostavka §17.1 vrijedi i nijedan
+  red ne može se sakriti iza `NULL` tenant ključa.
+- **Nijedan permission predikat** — permisije pozivaoca ostaju u aplikaciji
+  (`03` §3.7.1 korak 10, §28.5; `15`). RLS nosi tenant granicu i **ne smije** postati drugi,
+  divergentni permission engine.
+- **Nijedan archive/soft-delete predikat** — filtriranje po `archived_at` je **upitno pitanje, ne
+  sigurnosna granica**.
+- **`FORCE` je obavezan uz `ENABLE`** — bez njega vlasnik `copilot_migrator` tiho zaobilazi svaku
+  politiku.
+- **Nijedna politika Faze 5 ne sadrži podupit** — svih osam su obična poređenja kolone sa GUC-om.
+  Time **strukturno ne postoji površina** kroz koju bi co-member identitet mogao procuriti, i
+  izbjegnut je tačan defekt koji dokumentuje D-061, klauzula 4.
+- **Nijedna politika Faze 5 ne referencira `users` ni `practice_memberships`.**
+- **Nema bootstrap izuzetka i nijedan se ne smije dodati** — nijedna tabela Faze 5 ne čita se
+  prije uspostavljenog tenant konteksta. Bez `app.practice_id` predikat daje **nula redova za svaku
+  ordinaciju** (fail-closed).
+- **`set_request_context` ostaje nepromijenjen** — tijelo, potpis i `SECURITY INVOKER` mod.
+
+## I.3 Tačni runtime grantovi Faze 5 — default deny
+
+`copilot_system` dobija **ništa** nad svih pet (D-023). `PUBLIC` dobija **ništa**;
+`REVOKE ALL … FROM PUBLIC` prethodi svakom grantu, prema obrascu `002`. Vlasnik ostaje
+`copilot_migrator`.
+
+| Tabela | SELECT | INSERT | UPDATE | DELETE | Sequences |
+|---|---|---|---|---|---|
+| `patient_references` | table-level | table-level | **nijedan** | **nijedan** | nijedan |
+| `encounters` | table-level | table-level | **column-level, usko** (I.4) | **nijedan** | nijedan |
+| `encounter_diagnoses` | table-level | table-level | **nijedan** | **nijedan** | nijedan |
+| `storage_objects` | **nijedan** | **nijedan** | **nijedan** | **nijedan** | nijedan |
+| `encounter_documents` | table-level | table-level | **column-level: isključivo `archived_at`** | **nijedan** | nijedan |
+
+**`02` §18.1 opisuje v1 krajnje stanje, a NE stanje Faze 5.** Čitati ga kao obuhvat Faze 5 značilo
+bi dodijeliti `UPDATE` nad `patient_references` i `INSERT` nad `storage_objects` **bez ijednog
+konzumenta**. Sposobnost raste po fazi (precedent D-049), i **grant se nikada ne izdaje prije svog
+konzumenta**.
+
+**`storage_objects` namjerno dobija nula sposobnosti:** tabela mora postojati jer je FK roditelj,
+ali **nijedna ruta Faze 5 je ne čita ni ne piše**. `ENABLE` + `FORCE`, **bez politike, bez granta**
+— default deny, dokazivo nedosežna. **Ne dobija Faza-5 writer grant.**
+
+**Nijedan fizički `DELETE` grant nigdje** — nije ratifikovan i ne uvodi se.
+
+## I.4 Column-level `UPDATE` grant nad `encounters`
+
+```text
+status, version, updated_by, updated_at,
+occurred_at, treatment_date, responsible_physician_id,
+guarantor_type, insurance_context, specialty_code,
+patient_age_at_encounter, patient_sex_at_encounter
+```
+
+**Uskraćeno — bez `UPDATE` privilegije:**
+
+```text
+id, practice_id, patient_reference_id, source_system, created_by, created_at,
+external_encounter_ref_hash, external_encounter_ref_ciphertext,
+external_encounter_ref_iv, external_encounter_ref_auth_tag,
+encryption_algorithm, encryption_version, encryption_key_ref, encryption_key_version
+```
+
+Tri svojstva koja sama politika ne daje:
+
+1. **`practice_id` i `id` postaju nepomjerivi na nivou privilegije** — "dvije nezavisne barijere",
+   primijenjeno na tenant ključ **i** primarni ključ.
+2. **Bitno ublažava vremenski jaz AAD immutability-ja** — AAD-vezane kolone su tačno `id` i
+   `practice_id`; bez `UPDATE` granta runtime rola ih ne može promijeniti, sa trigerom ili bez.
+3. **`patient_reference_id` postaje immutable** — encounter se ne može tiho prepokazati na drugog
+   pacijenta.
+
+## I.5 Column-level `UPDATE` grant nad `encounter_documents`
+
+```text
+archived_at
+```
+
+**To je potpuna lista.** Posljedično su `id`, `practice_id`, `encounter_id`, **obje** statusne
+kolone, **oba** ciphertext trojca, **oba** hasha, sve četiri `encryption_*` kolone te
+`created_by`/`created_at` **nezapisivi nakon `INSERT`-a na nivou privilegije** — per-document
+immutability jača od bilo kojeg trigera, dobijena besplatno.
+
+## I.6 Column-level `SELECT` se ne uvodi
+
+`002` je koristio column-level `SELECT` nad `users` i `practices` da `auth_subject`, `legal_name`,
+`zsr_number` i `gln_number` učini nedosežnim i pri ukradenom credentialu. **Nijedna kolona Faze 5
+nema to svojstvo**: svaka je ili potrebna u odgovoru, ili u `WHERE` predikatu, ili je ciphertext
+bezvrijedan bez ključa koji se drži izvan baze. `external_patient_ref_hash` **mora** nositi
+`SELECT`, jer se deterministički lookup oslanja na njega u `WHERE` predikatu, a kolona bez granta
+pada na `42501` i kad se koristi isključivo u `WHERE` (`02` §20.2b). Table-level `SELECT` uz usku
+aplikacijsku projekciju je iskren izbor.
+
+# Dio J — indeksi (`OD-P5-D2-13`)
+
+`02` §7.2 i `02` §21 su se **razilazili**: §7.2 deklariše `responsible_physician_id` indeks koji
+§21 izostavlja; §21 dodaje `id desc` na patient-timeline indeks, a §7.2 ne. **Ratifikovana je
+unija, sa specifičnijim `id desc` tie-breakerom.**
+
+```sql
+create index encounters_review_queue_idx
+on encounters(practice_id, status, treatment_date desc, id desc);
+
+create index encounters_patient_timeline_idx
+on encounters(practice_id, patient_reference_id, treatment_date desc, id desc);
+
+create index encounters_responsible_physician_idx
+on encounters(practice_id, responsible_physician_id, treatment_date desc, id desc);
+
+create index documents_encounter_idx
+on encounter_documents(practice_id, encounter_id, created_at);
+```
+
+- **`encounters_responsible_physician_idx` se NE uklanja** samo zato što ga minimalni katalog §21
+  izostavlja — filter `responsiblePhysicianId` je kanonski i **eksplicitno očuvan** D-061,
+  klauzulom 10, pa indeks nije spekulativan.
+- **`id desc` je obavezan** na sva tri encounter indeksa — bez njega je rep sortiranja nestabilan i
+  cursor paginacija se lomi (`03` §7 traži stabilan sort).
+- Nijedan od četiri nije spekulativan: svaki ima dokumentovanu putanju upita u zamrznutom ugovoru.
+- **Kreira ih paket `003`.** Paket `012_constraints_indexes` ih kasnije **verifikuje**, ne kreira —
+  precedent `platform_role_assignments_user_idx` iz paketa `002`.
+
+# Dio K — seed politika (`OD-P5-D2-14`)
+
+- **Nijedna PHI tabela Faze 5 se ne seeda.** Nijedan pouzdani DML nikada ne dodiruje PHI tabelu.
+- **Allowlista iz `02` §23.4 ostaje na tačno šest tabela.** **Nijedna `§23.4.4b` klauzula se ne
+  uvodi**, i **nijedan `NO FORCE ROW LEVEL SECURITY` prozor se ne otvara nad medicinskim
+  podacima** — trajno, i za svaku kasniju fazu.
+- `02` §23.2 demo encounter označava **opcionim**. Odricanje od njega ne košta ništa.
+- Ako se demo encounter poželi, kreira se **kroz autentifikovani API** u razvojnoj skripti — što
+  ujedno dokazuje rutu umjesto da je zaobilazi.
+- **Tiho proširenje allowliste ostaje zabranjeno** (`02` §23.4.4, `08` §26.2) i ova odluka ga ne
+  uvodi.
+
+# Dio L — implementacijski slice-ovi, gateovi i test obaveze
+
+**Slice-ovi se ovdje isključivo objavljuju kao dizajn. Nijedan se ovim gateom ne autorizuje.**
+
+| Slice | Obuhvat | Zavisi od |
+|---|---|---|
+| `P5-I1` | Prisma modeli + paket `003` + Faza-5 slice paketa `011`; svi FK-ovi sa eksplicitnim `NoAction`; svi `CHECK`-ovi; 4 indeksa. **Bez granta, bez politike, bez trigera, bez servisa** | OD-1, 2, 3, 5, 6, 13, 14 |
+| `P5-I2` | Faza-5 slice paketa `013` (grant → `ENABLE`/`FORCE` → politike, jedna transakcija); Faza-5 slice paketa `014`; **trajna negative-privilege i steady-state regresijska suita**; **`★` dokaz iz Dijela D.6** | `P5-I1`; OD-1, 4, 5 |
+| `P5-I3` | Kripto/HMAC/normalizacijski primitivi (bez baze) — paralelizabilno | isključivo OD |
+| `P5-I4` | Servis i rute `patient_references` | `P5-I2`, `P5-I3` |
+| `P5-I5` | **Encounter jezgro** — `POST`, `PATCH`, `cancel`, table-driven state machine nad svih 15 tranzicija sa 4 dosežne; usko `23503 → 422` mapiranje | `P5-I2` **uključujući `★`**, `P5-I3`, `P5-I4` |
+| `P5-I6` | Ručni unos dokumenta i redakcija | `P5-I3`, `P5-I5` |
+| `P5-I7` | Čitanje, lista, filteri, arhiva | `P5-I5`, `P5-I6` |
+| `P5-I8` | Integracijsko i sigurnosno zatvaranje Faze 5 | sve |
+
+## L.1 Tvrdi gateovi
+
+1. **`P5-I0`** — zaseban **implementacijski autorizacijski gate**. Bez njega Faza 5 ne počinje.
+   Autorizuje **isključivo** `P5-I1`, i ništa preko toga.
+2. **`★` RI-naspram-RLS dokaz u `P5-I2`** — **tvrdi preduslov za `P5-I5`**. Neuspjeh je **HARD
+   HOLD** i vraća se u dizajn (Dio D.6). **Ne autorizuje slabljenje RLS-a.**
+3. **Trajne regresije** koje moraju ostati zelene i nepromijenjene: `practice_memberships` ima
+   **tačno jednu** politiku, bajt-identičnu Faza-4 tijelu; `users` ima **tačno dvije** politike;
+   grantovi nad `users`, `practices`, `practice_memberships` i `practice_membership_roles` su
+   nepromijenjeni; `FORCE RLS` je `true`; `GET /me` i dalje vraća vlastiti `email` i `displayName`;
+   **odsustvo ključa `displayName`** u `GET /encounters`, provjereno nad **sirovim** payloadom.
+
+## L.2 Test obaveze (dokumentuju se, ne izvršavaju se u ovom gateu)
+
+- **`★`** — Dio D.6, oba iskaza u istoj transakciji.
+- Cross-practice dodjela odgovornog ljekara → **`422`**, i **neuspjeh nastaje u bazi**, ne u
+  aplikacijskoj validaciji.
+- "Encounter A → Patient B" mora pasti **na bazi**, ne u aplikaciji.
+- `confdeltype = 'a'` i `confupdtype = 'a'` na **svakom** FK-u Faze 5.
+- Svih 15 tranzicija: 4 uspijevaju, **11 daje `409 INVALID_STATE_TRANSITION`**.
+- `view=redacted` pri `FAILED` **odbija i ne pada nazad** — trajna regresija.
+- Arhivirani dokument **nije** u listi, **jest** na detaljnoj ruti; ponovno arhiviranje uspijeva.
+- Lista `GET /encounters` **ne dodiruje `users`** — provjereno nad planom upita.
+- `latestAnalysis`, approval/export blok i `hasBlockingFindings` — **odsutni ključevi**, nepoznat
+  parametar **odbijen**.
+- `copilot_system` ima **nula** grantova nad svih pet tabela; `PUBLIC` nula.
+- Tačan skup column-level `UPDATE` kolona iz I.4 i I.5.
+
+# Dio M — granice ove odluke
+
+**Ova odluka objavljuje dizajnersku vlast. Ona tu vlast ne implementira.**
+
+Ovaj gate **ne** radi ništa od sljedećeg, i ništa od toga se ne smije izvesti iz njega:
+
+- **ne** mijenja Prisma schemu i **ne** kreira migration SQL;
+- **ne** mijenja aplikacijski izvorni kod ni testove;
+- **ne** kontaktira i **ne** mutira bazu;
+- **ne** mijenja nijednu postojeću RLS politiku, grant, rolu ni funkciju;
+- **ne** kreira tabele Faze 5;
+- **ne** implementira kripto, HMAC ni redakciju;
+- **ne** implementira patient/encounter/document rute;
+- **ne** kreira `TenantDatabaseService` — obaveza iz D-056 ostaje **nepromijenjena**;
+- **ne** čekira nijedan red implementacijskog checklista Faze 5;
+- **ne** mijenja status Faze 5;
+- **ne** autorizuje `P5-I1`.
+
+**Ako se ratifikovani dizajn ne bi mogao izraziti dokumentacijom bez izmjene
+aplikacijskog/schema/migration koda — postupak je STOP, a ne proširenje Faza-4 sigurnosne
+granice.** Ta situacija u ovom gateu **nije nastupila**.
+
+## M.1 Šta ostaje otvoreno — nepromijenjeno
+
+- **`D-OPEN-004a` ostaje OPEN i produkcijski-ograničen.** Ova odluka ga **ne zatvara** i **ne
+  pred-odlučuje**. Naprotiv, izbor `NO ACTION` čuva **oba** buduća puta brisanja: eksplicitni
+  auditovani purge **i** crypto-shredding uništavanjem ključa.
+- **`D-OPEN-007` (retencija) ostaje otvoren.** `09` §20 i dalje traži da se retencija dokumenata,
+  analiza i audita definiše prije produkcije. **Nijedno pravno ni retenciono pitanje se ovom
+  odlukom ne zatvara**, i **nijedna ruta fizičkog brisanja se ne izmišlja.**
+- **`D-OPEN-009` (Axenita write-back) ostaje otvoren** — zato envelope kolone
+  `patient_references` ostaju neiskorištene u Fazi 5.
+- **`13` §19 — temeljni pristup co-member identitetu ostaje `OPEN / NOT IMPLEMENTED`.** Gate
+  `BEFORE PHASE 5 CO-MEMBER DISPLAY NAME ACCESS` ostaje **otvoren** i **consumer-triggered**;
+  prvi poznati trigger ostaje `GET /analyses/{analysisId}/workspace` (**Faza 8**) ili raniji
+  prihvaćeni konzument, **šta prije nastupi**. **Co-member `displayName` ostaje izostavljen u
+  Fazi 5.**
+- **Šest `analysis_run_id` relacija** iz `02` §28.1 ostaje zasebna otvorena stavka schema
+  governance-a — **izvan** obuhvata ove odluke.
+- **Preostalih šest od deset nedeklarisanih referencijalnih akcija** iz `02` §28.1 (paketi `005`,
+  `007`, `010`) ostaju otvoreni; ova odluka rješava **isključivo** četiri koje posjeduje paket
+  `003`, plus četiri koje sama deklariše.
+
+## Posljedice
+
+- `02` §28.1 je za paket `003` **ispunjen prije roka** — sve četiri relacije koje taj paket kreira
+  imaju ratifikovane akcije, i dodane su još četiri deklaracije.
+- **D-061, klauzule 19–21, su RAZRIJEŠENE** — mehanizmom koji ne dira nijednu politiku, nijedan
+  grant i nijednu rolu, **i uz obavezan empirijski dokaz prije oslanjanja**.
+- `02` §2.11.4 je razriješen — statusni rječnici dobijaju DB sprovođenje.
+- Faza 5 ulazi u implementacijski gate sa **potpuno određenom** schemom, referencijalnim akcijama,
+  vlasništvom paketa, state semantikom, RLS/grant površinom i indeksima.
+- **Broj tenant tabela sa `unique (practice_id, id)` raste sa 3 na 8 od 30.**
+- **Broj politika raste sa 10 na 18; broj tabela sa `ENABLE` + `FORCE RLS` sa 6 na 11.**
+- Buduća funkcija uklanjanja člana mora koristiti `active = false` ili eksplicitno odlučiti o
+  historijskim referencama (Dio D.1.2).
+
+## Security/privacy uticaj
+
+- **Nula nove sposobnosti čitanja identiteta.** Dio D.3 nabraja svaku zabranu D-061, klauzule 11, i
+  E.3, i svaka je ispunjena **doslovno i mehanički**.
+- **Cross-practice povezivanje je strukturno nemoguće** na svakoj referenci Faze 5 — composite
+  ključem ili korijenom u `practices`.
+- **Nijedan `SECURITY DEFINER`, nijedan `BYPASSRLS`, nijedna četvrta rola, nijedan drugi klijent.**
+- **Default deny** na grantovima; `storage_objects` ostaje bez ijedne sposobnosti.
+- **Najveći vektor gubitka PHI (`CASCADE`) je zatvoren** u svakoj poziciji.
+- **Klauzula iskrenosti D-060 je ojačana**: `redaction_status = 'COMPLETED'` više ne može postojati
+  bez svog redigovanog artefakta — sada strukturno, a ne konvencijom.
+- **Nijedna Faza-4 invarijanta nije oslabljena**, i to je mehanički provjerljivo.
+
+## Migration/rollout
+
+Ništa se ne izvršava u ovom gateu. Objavljeni redoslijed je `003` → `011`-slice → `013`-slice →
+`014`-slice, svaki u jednoj transakciji, uz katalog tvrdnje iz Dijela B.4. Prvi mutirajući korak
+smije nastupiti tek nakon zasebnog gatea `P5-I0`.
+
+## Test dokaz
+
+Testovi se **ne implementiraju i ne izvršavaju u ovom gateu.** Obaveze su zapisane u Dijelu L.2 i
+razrađene u `08`.
+
+## Supersedes
+
+**Ne supersedira nijednu odluku.** D-060 i D-061 ostaju na snazi **u cijelosti**; ova odluka
+**razrješava obavezu koju je D-061 njoj proslijedio** i **ne dira** nijedno tijelo D-060 ni D-061.
+D-023, D-025, D-027, D-029, D-033, D-035, D-038, D-042, D-043, D-046, D-047, D-048, D-049, D-051,
+D-052, D-053, D-054 i D-056 ostaju nepromijenjeni. D-047, klauzula 12, se **potvrđuje**, a ne
+opoziva.
+
+## Zavisnosti
+
+D-023, D-025, D-027, D-029, D-033, D-035, D-038, D-042, D-043, D-046, **D-047**, D-048, **D-049**,
+D-051, **D-052**, D-053, D-054, D-056, D-059, **D-060**, **D-061**; `D-OPEN-004a`, `D-OPEN-007` i
+`D-OPEN-009` **ostaju otvoreni**. `13` §19 ostaje otvoren u dijelu temeljnog pristupa identitetu.
+
+## Granice prema budućim fazama
+
+Naredni gate je **`P5-I0` — implementacijska autorizacija Faze 5**, koji autorizuje **isključivo**
+slice `P5-I1`. Prije njega Faza 5 ostaje `NOT_STARTED`, a checklist **49 / 0**.
+
+Redoslijed gateova: `P5-D1-A` → `D-060` → `P5-G1` → `D-061` → `P5-D2` → **`P5-D2-B` / `D-062` (ovaj
+zapis)** → `P5-I0` → `P5-I1` … `P5-I8`.
+
+---
+
 # Otvorene odluke
 
 ## D-OPEN-001 — Produkcijski OIDC provider

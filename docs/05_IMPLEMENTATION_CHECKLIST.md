@@ -2594,7 +2594,9 @@ Faze 5 **mora** poštovati:
   telefonske brojeve, **bez** uklanjanja imena/adresa/medicinskog sadržaja; `COMPLETED` **ne tvrdi**
   anonimizaciju; redigovani tekst **ostaje Class A** (`02` §2.11, `09` §8.3);
 - **statusni rječnici** — `processing_status` ∈ {`READY`, `FAILED`}, `redaction_status` ∈
-  {`COMPLETED`, `FAILED`}, u Fazi 5 **sprovedeni aplikacijski**, bez DB `CHECK` constrainta;
+  {`COMPLETED`, `FAILED`}. *(Sloj sprovođenja je naknadno razriješen odlukom **D-062**, koja uz
+  aplikacijsko sprovođenje uvodi i **tri DB `CHECK` constrainta**; vidi blok D-062 niže i
+  `02` §2.11.4. Vokabular iz D-060 se **ne mijenja**.)*;
 - **API semantika** — `view=original` = dekriptovan neredigovan kanonski normalizovan tekst;
   `view=redacted` **bez fallbacka** pri `FAILED`; `redactBeforeAiProcessing = false` →
   `422 VALIDATION_ERROR` (`03` §11, §12, §13);
@@ -2611,7 +2613,8 @@ otvoreni) i **ne rješava** gate `BEFORE PHASE 5 CO-MEMBER DISPLAY NAME ACCESS` 
 
 **Redoslijed narednih gateova:** `P5-G1` (co-member `displayName`) → `P5-D2` (schema, referencijalne
 akcije, migration paket, state machine, pitanje DB-sprovedenih statusnih rječnika) → tek potom
-eventualni implementacijski gate.
+eventualni implementacijski gate. *(Oba gatea su izvršena i objavljena — kao **D-061** odnosno
+**D-062**. Naredni gate je **`P5-I0`**, implementacijska autorizacija.)*
 
 ## Objavljen dizajnerski autoritet — D-061 (2026-08-23)
 
@@ -2667,6 +2670,77 @@ ili bi implementator posegnuo za proširenjem RLS-a, što je zabranjeno.
 Obaveza je **blokirajuća prije implementacije encounter jezgra**. `P5-D2` mora odrediti ispravan
 dizajn **bez slabljenja sigurnosnih invarijanti Faze 4**. D-061 mehanizam **ne bira** i ishod **ne
 prejudicira**; postojeći RLS ostaje **netaknut**.
+
+**Status: RAZRIJEŠENO odlukom D-062, Dio D.** Ratifikovan je **composite FK** prema
+`practice_memberships (practice_id, user_id)` — mehanizam koji **ne uvodi nijednu politiku, grant,
+`SECURITY DEFINER`, novu rolu ni drugi klijent**, i **ne dira** `practice_memberships_self_select`.
+Vidi blok D-062 niže. **Uz razrješenje je uvedena nova, uža blokirajuća obaveza:** `★`
+RI-naspram-RLS dokaz mora proći u slice-u `P5-I2` prije encounter jezgra (`04` §7.6a).
+
+## Objavljen dizajnerski autoritet — D-062 (2026-08-23)
+
+**Ovaj zapis ne mijenja status faze i ne označava nijednu kućicu ispod.** Faza 5 ostaje
+`NOT_STARTED`; broj redova i broj označenih ostaje **49 / 0**.
+
+Gate **`P5-D2`** je izvršen i objavljen kao odluka **D-062**. Vlasnik je ratifikovao **preporučeni
+skup od četrnaest odluka** `OD-P5-D2-1` … `OD-P5-D2-14`, uz eksplicitnu potvrdu **`A + A+`** za
+`OD-P5-D2-6`.
+
+**Ratifikovani ishodi — sažetak (normativni izvor je D-062, Dio A):**
+
+| OD | Ishod |
+|---|---|
+| 1 | Tri broja paketa / četiri fajla: `003` (schema, **bez granta i RLS-a**), Faza-5 slice `011` (**samo** `idempotency_keys` + `audit_events`), Faza-5 slice `013` (grant → `ENABLE`/`FORCE` → politike), Faza-5 slice `014` (AAD funkcija + **tri** trigera) |
+| 2 | `ON DELETE NO ACTION ON UPDATE NO ACTION` na sva četiri kanonska composite FK-a |
+| 3 | Deklarišu se i **tri** ranije nedeklarisane relacije, `NO ACTION`/`NO ACTION` |
+| 4 | Odgovorni ljekar = korisnik sa **bilo kojim** membershipom u **istoj** ordinaciji; rola i `active` se **ne traže** |
+| 5 | Mehanizam je **composite FK** prema `practice_memberships (practice_id, user_id)`, `MATCH SIMPLE`, uz **eksplicitno odgađanje** validacije role/aktivnosti |
+| 6 | **`A + A+`** — dva vokabularna `CHECK`-a **plus** artefakt-konzistencijski `CHECK`; kolone ostaju `varchar(30)`, **bez konverzije u enum** |
+| 7 | `DRAFT → READY_FOR_ANALYSIS` postavlja unos dokumenta, **samo iz `DRAFT`**, idempotentno, **bez `version` inkrementa**, uz vlastiti audit; unos se **odbija pri `CANCELLED`** |
+| 8 | `PATCH /encounters` mijenja **tačno osam** polja; `status`, `patientReferenceId`, `sourceSystem`, `version`, `diagnoses[]` **nisu** patchable |
+| 9 | **Retry se odgađa**; jedini `UPDATE` grant nad `encounter_documents` je `archived_at`; `processing_status = FAILED` je u Fazi 5 **nedosežan** |
+| 10 | Lista **isključuje** arhivirane; detaljna ruta ih **vraća**; **nema restore rute**; ponovno arhiviranje je **idempotentan uspjeh** |
+| 11 | `review_state = 'UNREVIEWED'`, `source = 'MANUAL'`; šest rječnika ostaju **free-form u v1**, bez DB `CHECK`-a i bez schema izmjene |
+| 12 | `latestAnalysis`, approval/export blok i `hasBlockingFindings` — **ključevi odsutni**, filter **neregistrovan**; `sort` = `treatmentDate desc, id desc`; cursor kodira `(treatment_date, id)`, **nikada pseudonim** |
+| 13 | Kreiraju se **sva tri** encounter indeksa uz `id desc`, plus `documents_encounter_idx` |
+| 14 | **Nijedna PHI tabela se ne seeda**; `FORCE RLS` allowlista ostaje na **šest** tabela |
+
+**Sigurnosni ishod koji se time NE mijenja.** Ratifikovani dizajn uvodi **nula** nove sposobnosti
+čitanja identiteta: nema co-member directoryja, nema proširenja `practice_memberships` ni `users`
+RLS-a, nema dodatnog identitetskog `SELECT` granta, nema `SECURITY DEFINER` lookupa, nema drugog
+Prisma klijenta i nema nove database role. `practice_memberships_self_select` ostaje **bajt-
+identična** stanju Faze 4. **Nijedna Faza-4 RLS/grant invarijanta nije oslabljena.**
+
+**Naslijeđena obaveza D-061, klauzule 19–21, je RAZRIJEŠENA** — bazom, ne aplikacijskim upitom.
+
+### Nova blokirajuća obaveza — `★` RI-naspram-RLS dokaz
+
+```text
+P5-I2 BLOCKING IMPLEMENTATION PROOF
+```
+
+**Dokumentovanje mehanizma u D-062 NE dokazuje njegovo ponašanje.** Prije nego što se implementacija
+encounter jezgra (`P5-I5`) smije osloniti na composite FK, slice **`P5-I2` mora empirijski dokazati**
+nad **stvarnim PostgreSQL-om** i **stvarnim runtime rolama**, u **istoj transakciji**:
+
+1. `INSERT` u `encounters` koji imenuje `user_id` **co-membera** **uspijeva**;
+2. direktan `SELECT` **tog istog** membership reda vraća **nula redova**.
+
+**Neuspjeh je HARD HOLD** — vraća se u dizajn i ponovo otvara `OD-P5-D2-5`. **Ne autorizuje
+slabljenje RLS-a.** (`04` §7.6a; `08` §12.9.)
+
+**Šta D-062 nije.** **Nije autorizacija implementacije.** Nijedan servis, endpoint, tabela,
+migracija, politika, grant, trigger ni test nisu njome uvedeni. **Ne zatvara** `D-OPEN-004a`
+(produkcijski KMS/rotacija/recovery ostaju otvoreni), **ne zatvara** `D-OPEN-007` (retencija) i
+**ne rješava** gate `BEFORE PHASE 5 CO-MEMBER DISPLAY NAME ACCESS` (`13` §19), koji ostaje
+**OPEN / NOT IMPLEMENTED** i **consumer-triggered**. **Co-member `displayName` ostaje izostavljen u
+Fazi 5.** Obaveza konkretnog `TenantDatabaseService` facadea (D-056) ostaje **nepromijenjena**.
+
+Test obaveze koje iz ovoga slijede dokumentovane su u **`08` §12.9** i **još nisu izvršene**;
+njihovo postojanje **ne označava nijednu kućicu**.
+
+**Naredni gate:** **`P5-I0`** — implementacijska autorizacija Faze 5, koja autorizuje **isključivo**
+slice `P5-I1`.
 
 ## Konkretan `TenantDatabaseService` facade — prenesena obaveza (D-056)
 

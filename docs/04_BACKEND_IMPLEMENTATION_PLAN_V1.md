@@ -1151,6 +1151,18 @@ backend/05-encounters-documents
 - RLS;
 - indeksi.
 
+**Objavljeni obuhvat (D-062, `02` §29).** Paket `003_patient_encounter_documents` kreira i **pet
+enuma** (`integration_provider`, `encounter_status`, `review_state`, `document_type`,
+`document_source`), **osam FK-ova sa eksplicitnim `NO ACTION`/`NO ACTION`**, **tri nova `CHECK`-a**
+nad statusnim rječnicima i **četiri indeksa**. **Ne izdaje nijedan `GRANT` i ne uvodi nijedan RLS
+objekat** — to radi Faza-5 slice paketa `013`, atomično sa politikom.
+
+Uz to Faza 5 izvršava **Faza-5 slice paketa `011`** koji kreira **isključivo `idempotency_keys` i
+`audit_events`**, te **Faza-5 slice paketa `014`** sa AAD funkcijom i **tri** trigera.
+
+**`storage_objects` nema pisca u Fazi 5** — upload putanja je `DEFERRED` (`03` §13.2). Tabela se
+kreira jer je FK roditelj, drži **nula redova**, i **ne dobija nijedan grant ni politiku**.
+
 ## 7.3 Scope API-ja
 
 ```text
@@ -1177,9 +1189,13 @@ POST /encounters/{id}/documents/{documentId}/archive
 - encryption abstraction;
 - hash;
 - audit;
-- outbox base tables mogu biti uvedene ovdje ili najkasnije u fazi 7.
+- idempotency i audit prerequisite tabele.
 
-Preporuka: u fazi 5 uvesti `audit_events` i minimalni `outbox_events`, jer business command ne treba postojati bez audita.
+**Ratifikovano (D-062, `OD-P5-D2-1`).** Faza 5 kreira **isključivo `idempotency_keys` i
+`audit_events`**, kroz Faza-5 slice paketa `011_jobs_idempotency_outbox_audit`. **`outbox_events` i
+`async_jobs` se u Fazi 5 NE kreiraju** — nemaju konzumenta Faze 5, a tabela se ne uvodi prije svog
+konzumenta. Raniji tekst ovog odjeljka je preporučivao "minimalni `outbox_events`"; ta preporuka je
+**zamijenjena** ratifikovanom odlukom.
 
 ## 7.5 Aktivnosti
 
@@ -1198,6 +1214,22 @@ Preporuka: u fazi 5 uvesti `audit_events` i minimalni `outbox_events`, jer busin
 13. ETag/If-Match;
 14. e2e.
 
+### Objavljena sekvenca slice-ova (D-062, Dio L)
+
+Aktivnosti iznad grupišu se u **osam slice-ova**. **Nijedan se ovim planom ne autorizuje** —
+autorizaciju daje zaseban gate `P5-I0`, i on autorizuje **isključivo `P5-I1`**.
+
+| Slice | Obuhvat | Zavisi od |
+|---|---|---|
+| `P5-I1` | Prisma modeli, paket `003`, Faza-5 slice paketa `011`. **Bez granta, politike, trigera i servisa** | gate `P5-I0` |
+| `P5-I2` | Faza-5 slice paketa `013` i `014`; trajna negative-privilege regresija; **`★` dokaz iz §7.6a** | `P5-I1` |
+| `P5-I3` | Kripto/HMAC/normalizacijski primitivi — **bez baze, paralelizabilno** | — |
+| `P5-I4` | Servis i rute `patient_references` | `P5-I2`, `P5-I3` |
+| `P5-I5` | **Encounter jezgro** — table-driven state machine nad svih 15 tranzicija, 4 dosežne | `P5-I2` **uključujući `★`**, `P5-I3`, `P5-I4` |
+| `P5-I6` | Ručni unos dokumenta i redakcija | `P5-I3`, `P5-I5` |
+| `P5-I7` | Čitanje, lista, filteri, arhiva | `P5-I5`, `P5-I6` |
+| `P5-I8` | Integracijsko i sigurnosno zatvaranje Faze 5 | sve |
+
 ## 7.6 Acceptance
 
 - duplicate idempotency vraća isti resurs;
@@ -1208,7 +1240,27 @@ Preporuka: u fazi 5 uvesti `audit_events` i minimalni `outbox_events`, jer busin
 - original external ID nije u responseu/logu;
 - document view audit;
 - medical text nije u logu;
-- DRAFT → READY prema dokument policy;
+- **DRAFT → READY_FOR_ANALYSIS prema ratifikovanoj politici (D-062, `OD-P5-D2-7`)** — postavlja je
+  komanda unosa dokumenta, **isključivo iz `DRAFT`**, pri **svakom** uspješnom unosu, idempotentno
+  (već `READY_FOR_ANALYSIS` je **no-op, ne greška**), **bez `version` inkrementa**, uz vlastiti
+  audit događaj `ENCOUNTER_READY_FOR_ANALYSIS`; unos dokumenta se **odbija pri `CANCELLED`** →
+  `409 INVALID_STATE_TRANSITION`;
+- **svih 15 kanonskih tranzicija je pokriveno table-driven testom**: 4 dosežne prolaze, preostalih
+  **11 daje `409 INVALID_STATE_TRANSITION`** — eksplicitno zabranjene, ne prećutno odsutne;
+- **cross-practice dodjela odgovornog ljekara daje `422`, i neuspjeh nastaje u bazi**, ne u
+  aplikacijskoj validaciji;
+- **`★` RI-naspram-RLS dokaz iz §7.6a prolazi prije `P5-I5`**;
+- **`PATCH /encounters/{id}` mijenja tačno osam polja** iz `03` §12; `status`,
+  `patientReferenceId`, `sourceSystem`, `version` i `diagnoses[]` su odbijeni;
+- **`view=redacted` pri `redactionStatus = FAILED` odbija i NIKADA ne pada nazad** na normalizovani
+  ni originalni tekst — trajna regresija;
+- **arhivirani dokument nije u listi, jest na detaljnoj ruti**; ponovno arhiviranje je idempotentan
+  uspjeh;
+- **`latestAnalysis`, approval/export blok i `hasBlockingFindings` su odsutni**, a nepoznat query
+  parametar je odbijen;
+- **`copilot_system` ima nula grantova nad svih pet tabela**; `PUBLIC` nula;
+- **`storage_objects` nema nijedan grant ni politiku** i drži nula redova;
+- **nijedna PHI tabela nije seedana**, i `FORCE RLS` allowlista ostaje na **šest** tabela;
 - **`GET /encounters` vraća `responsiblePhysician` kao samo `{ id }`** — ključ `displayName` je
   **odsutan**, ne `null`; `responsiblePhysician` je `null` kada odgovorni ljekar ne postoji; filter
   `responsiblePhysicianId` radi nepromijenjeno; **serviranje liste ne čita `users`** (D-061).
@@ -1221,16 +1273,64 @@ politika, **ne** širi `users` column grant, **ne** širi `practice_memberships`
 denormalizuje `display_name`, **ne** uvodi `SECURITY DEFINER` lookup, četvrta database rola, drugi
 Prisma klijent ni zamjenski identifikator (D-061, klauzula 11; `13` §19.4).
 
-### `P5-D2 BLOCKING DESIGN OBLIGATION` — validacija `responsiblePhysicianId`
+### `P5-D2 BLOCKING DESIGN OBLIGATION` — validacija `responsiblePhysicianId` — **RAZRIJEŠENO (D-062)**
 
-**Blokirajuće prije implementacije encounter jezgra.** Domenska validacija `responsiblePhysicianId`
-na `POST /encounters` — i na `PATCH /encounters/{id}` ako on to polje mijenja — prirodno traži
-provjeru da je referencirani korisnik član tekuće ordinacije. Jedini izvor tog dokaza je
-`practice_memberships`, čija je jedina politika **caller-self**
-(`practice_memberships_self_select`), pa bi naivna cross-member provjera vratila **nula redova**.
+**Historijski opis obaveze.** Domenska validacija `responsiblePhysicianId` na `POST /encounters` —
+i na `PATCH /encounters/{id}` ako on to polje mijenja — prirodno traži provjeru da je referencirani
+korisnik član tekuće ordinacije. Jedini izvor tog dokaza je `practice_memberships`, čija je jedina
+politika **caller-self** (`practice_memberships_self_select`), pa bi naivna cross-member provjera
+vratila **nula redova**.
 
-Ispravan dizajn te validacije **posjeduje gate `P5-D2`**, mora biti riješen **prije** ove faze i
-**ne smije** oslabiti sigurnosne invarijante Faze 4 (D-061, klauzule 19–21).
+**Dispozicija: obaveza je RAZRIJEŠENA odlukom D-062, Dio D (`OD-P5-D2-5`, opcija `RP-B` + `RP-E`).**
+Gate `P5-D2` je zaključen, a D-062 objavljuje njegov ratifikovani ishod.
+
+**Ratifikovani mehanizam** je **composite foreign key**, ne runtime upit:
+
+```sql
+alter table encounters
+  add constraint encounters_responsible_physician_membership_fk
+  foreign key (practice_id, responsible_physician_id)
+  references practice_memberships (practice_id, user_id)
+  match simple
+  on delete no action on update no action;
+```
+
+Parent ključ `practice_memberships_practice_user_key` postoji od paketa `002`, pa se **nijedan novi
+indeks i nijedan objekat nad `practice_memberships` ne uvodi**. Validacija prestaje biti nešto što
+aplikacija **pita** i postaje nešto što baza čini **nemogućim za prekršiti**: cross-practice dodjela
+nema parent red.
+
+**Invarijanta dodjele (`OD-P5-D2-4`):** korisnik sa **bilo kojim** membershipom u **istoj**
+ordinaciji. **Rola i `active` se ne traže** i **nisu sprovodivi u Fazi 5** — pa se eksplicitno
+odgađaju. **Ratifikovana posljedica:** u Fazi 5 MPA, ili član sa neaktivnim membershipom, **smije**
+biti imenovan odgovornim ljekarom. To je zapisana odluka, ne neotkrivena rupa.
+
+**Sigurnosne invarijante Faze 4 nisu oslabljene** — mehanizam ne uvodi nijednu politiku, nijedan
+grant, nijedan `SECURITY DEFINER`, nijednu novu rolu ni drugi klijent (D-062, Dio D.3).
+
+**Mapiranje greške (usko, obavezno):** `23503` nad **tim jednim** imenom constrainta →
+`422 VALIDATION_ERROR` sa generičkom porukom koja ne citira vrijednost. **Globalno `23503 → 422`
+mapiranje je zabranjeno.**
+
+### **NOVA BLOKIRAJUĆA OBAVEZA — `★` RI-naspram-RLS dokaz prije encounter jezgra**
+
+**Dokumentovanje mehanizma u D-062 NE znači da je njegovo ponašanje dokazano.**
+
+Mehanizam počiva na jednoj nosećoj pretpostavci: **PostgreSQL provjere referencijalnog integriteta
+zaobilaze RLS**. Prije nego što se implementacija encounter jezgra smije osloniti na taj FK, slice
+**`P5-I2` MORA empirijski dokazati**, nad **stvarnim PostgreSQL-om** i pod **stvarnim runtime
+rolama**, da composite FK radi ispravno pod postojećim `FORCE RLS` modelom:
+
+1. u istoj transakciji, pod `copilot_app` i uspostavljenim tenant kontekstom, `INSERT` u
+   `encounters` koji imenuje `user_id` **co-membera** **uspijeva**;
+2. direktan `SELECT` **tog istog** membership reda vraća **nula redova**.
+
+Oba iskaza moraju vrijediti istovremeno: prvi dokazuje da RI radi, drugi da RLS **nije** oslabljen.
+
+**Neuspjeh je HARD HOLD** — vraća se u dizajn i ponovo otvara `OD-P5-D2-5`. **Ne autorizuje
+slabljenje RLS-a** ni bilo koje proširenje Faza-4 sigurnosne granice.
+
+**Implementacija encounter jezgra (`P5-I5`) ne smije početi prije nego što `★` prođe.**
 
 ## 7.7 Commit
 

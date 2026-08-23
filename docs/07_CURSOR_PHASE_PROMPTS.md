@@ -1112,10 +1112,54 @@ denormalizuj display_name. NE uvodi SECURITY DEFINER lookup, četvrtu database r
 Prisma klijent. NE uvodi zamjenski identifikator (inicijali, skraćeno ime, hash imena).
 Gate BEFORE PHASE 5 CO-MEMBER DISPLAY NAME ACCESS (docs/13 §19) ostaje otvoren.
 
-BLOKIRAJUĆE PRIJE POČETKA (P5-D2, D-061 klauzula 19): domenska validacija responsiblePhysicianId
-na POST /encounters — i na PATCH ako mijenja to polje — mora biti riješena gateom P5-D2. RLS nad
-practice_memberships je caller-self, pa naivna cross-member provjera vraća nula redova. Ne
-rješavaj to širenjem RLS-a.
+RAZRIJEŠENO (D-062): domenska validacija responsiblePhysicianId se NE radi aplikacijskim upitom.
+RLS nad practice_memberships je caller-self, pa bi naivna cross-member provjera vratila nula redova.
+Ratifikovani mehanizam je database composite FK:
+
+  alter table encounters
+    add constraint encounters_responsible_physician_membership_fk
+    foreign key (practice_id, responsible_physician_id)
+    references practice_memberships (practice_id, user_id)
+    match simple
+    on delete no action on update no action;
+
+Parent ključ practice_memberships_practice_user_key postoji od paketa 002 — NE kreiraj novi indeks
+i NE diraj practice_memberships. MATCH SIMPLE je obavezan (responsible_physician_id je nullable).
+Mapiraj 23503 nad TIM JEDNIM imenom constrainta u 422 VALIDATION_ERROR sa generičkom porukom koja ne
+citira vrijednost. NE uvodi globalno 23503 -> 422 mapiranje.
+
+Invarijanta dodjele: član sa BILO KOJIM membershipom u ISTOJ ordinaciji. Rola i active se NE traže.
+Ratifikovana posljedica: MPA ili neaktivan član SMIJE biti odgovorni ljekar u Fazi 5.
+
+BLOKIRAJUĆE PRIJE ENCOUNTER JEZGRA (P5-I2, D-062 Dio D.6): prije nego što se osloniš na taj FK,
+dokaži nad stvarnim PostgreSQL-om i stvarnim runtime rolama, u JEDNOJ transakciji:
+  1) INSERT u encounters koji imenuje user_id CO-MEMBERA uspijeva;
+  2) direktan SELECT tog istog membership reda vraća NULA redova.
+Oba iskaza moraju vrijediti istovremeno. Neuspjeh je HARD HOLD — vrati u dizajn. NE rješavaj to
+širenjem RLS-a.
+
+OSTALE RATIFIKOVANE ODLUKE (D-062) koje moraš poštovati:
+- svi FK-ovi Faze 5 nose EKSPLICITNO on delete no action on update no action; u Prisma modelima
+  pinuj onDelete: NoAction, onUpdate: NoAction na SVAKOJ relaciji, inače migrate diff vrati
+  Prisma defaulte;
+- paket 003 kreira 5 enuma, 5 tabela, 8 FK-ova, 3 nova CHECK-a i 4 indeksa, i NE izdaje nijedan
+  GRANT i nijedan RLS objekat;
+- Faza 5 kreira SAMO idempotency_keys i audit_events iz paketa 011 — NE outbox_events, NE async_jobs;
+- processing_status i redaction_status ostaju varchar(30) uz CHECK-ove; NE konvertuj u enum;
+  NE uvodi PENDING, PROCESSING, ARCHIVED ni SKIPPED;
+- DRAFT -> READY_FOR_ANALYSIS postavlja unos dokumenta, SAMO iz DRAFT, idempotentno, BEZ version
+  inkrementa, uz vlastiti audit; unos nad CANCELLED encounterom daje 409;
+- PATCH /encounters mijenja TAČNO osam polja; status, patientReferenceId, sourceSystem, version i
+  diagnoses[] NISU patchable;
+- NEMA retry rute za redakciju; jedini UPDATE grant nad encounter_documents je archived_at;
+- lista dokumenata ISKLJUČUJE arhivirane, detaljna ruta ih vraća, nema restore rute, ponovno
+  arhiviranje je idempotentan uspjeh;
+- latestAnalysis, approval/export blok i hasBlockingFindings — ključevi ODSUTNI, filter
+  NEREGISTROVAN; sort = treatmentDate desc, id desc; cursor kodira (treatment_date, id), nikada
+  pseudonim;
+- storage_objects NE dobija nijedan grant ni politiku i drži nula redova;
+- NE seeduj nijednu PHI tabelu; FORCE RLS allowlista ostaje na šest tabela;
+- cancel reason se NE perzistira u encounters — ide sanitizovan u audit.
 
 Dokaži:
 - no plaintext external ID response/log;
@@ -1125,7 +1169,13 @@ Dokaži:
 - stale ETag;
 - idempotency replay/conflict;
 - GET /encounters ne sadrži ključ displayName;
-- GET /encounters ne izvršava nijedan upit nad users.
+- GET /encounters ne izvršava nijedan upit nad users;
+- ★ RI-naspram-RLS dokaz (gore) prolazi PRIJE encounter jezgra;
+- cross-practice dodjela odgovornog ljekara daje 422, i neuspjeh nastaje U BAZI;
+- svih 15 kanonskih tranzicija je pokriveno: 4 prolaze, 11 daje 409 INVALID_STATE_TRANSITION;
+- view=redacted pri FAILED odbija i NIKADA ne pada nazad na normalizovani ni originalni tekst;
+- copilot_system ima nula grantova nad svih pet tabela; PUBLIC nula;
+- practice_memberships i dalje ima tačno jednu politiku, users tačno dvije, nepromijenjene.
 ```
 
 ---

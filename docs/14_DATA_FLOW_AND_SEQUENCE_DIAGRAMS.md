@@ -228,12 +228,28 @@ sequenceDiagram
         API-->>UI: same result
     else new
         API->>DB: insert encounter + diagnoses
-        API->>AUD: insert ENCOUNTER_CREATED
-        API->>DB: complete idempotency
-        API->>DB: COMMIT
-        API-->>UI: 201 + ETag
+        alt composite FK odgovornog ljekara prekršen (23503)
+            DB-->>API: 23503 encounters_responsible_physician_membership_fk
+            API->>DB: ROLLBACK
+            API-->>UI: 422 VALIDATION_ERROR (generička poruka)
+        else FK zadovoljen
+            API->>AUD: insert ENCOUNTER_CREATED
+            API->>DB: complete idempotency
+            API->>DB: COMMIT
+            API-->>UI: 201 + ETag
+        end
     end
 ```
+
+**Validacija `responsiblePhysicianId` (D-062, Dio D).** Provjeru izvršava **database composite FK**
+`encounters (practice_id, responsible_physician_id) → practice_memberships (practice_id, user_id)`,
+a **ne** aplikacijski upit. Dijagram namjerno **nema** korak "pročitaj membership": **nijedan red ne
+ulazi u aplikaciju, nijedna kolona se ne projektuje i nijedan upit ne imenuje ciljnog korisnika.**
+Naivan cross-member `SELECT` vratio bi **nula redova** pod caller-self politikom
+`practice_memberships_self_select` i tiho bi oborio validaciju — zato ga ovaj tok nema.
+
+Mapiranje `23503` je **usko**: hvata se **isključivo** to jedno ime constrainta. **Globalno
+`23503 → 422` mapiranje je zabranjeno.**
 
 ---
 
@@ -250,8 +266,23 @@ flowchart TD
     G --> H[Encrypt redacted]
     H --> I[Persist document metadata]
     I --> J[Audit]
-    J --> K[Encounter READY_FOR_ANALYSIS]
+    J --> K{Encounter status == DRAFT?}
+    K -->|da| L[Encounter READY_FOR_ANALYSIS + vlastiti audit]
+    K -->|već READY_FOR_ANALYSIS| M[no-op, ne greška]
 ```
+
+**Tranzicija je uslovna i idempotentna (D-062, `OD-P5-D2-7`; `03` §29.1a).** Postavlja je **komanda
+unosa dokumenta**, **isključivo iz `DRAFT`**, pri **svakom** uspješnom unosu. Ako je encounter već
+`READY_FOR_ANALYSIS`, to je **no-op, ne greška**. Tranzicija **ne troši `version` inkrement**, pa
+istovremeni `PATCH` sa važećim `ETag`-om ne pada, i emituje **vlastiti** audit događaj
+`ENCOUNTER_READY_FOR_ANALYSIS`.
+
+**Unos dokumenta nad `CANCELLED` encounterom se odbija** → `409 INVALID_STATE_TRANSITION`.
+
+**Faza 5 koristi isključivo manuelnu tekstualnu putanju** — upload grana je `DEFERRED` (`03` §13.2),
+pa `storage_objects` u Fazi 5 nema pisca. Sve upisano je **jedan `INSERT` u jednoj transakciji**:
+status, ciphertexti, IV-ovi, auth tagovi i oba hasha su kolone istog reda, pa **ne postoji prozor u
+kojem status ne odgovara svojim artefaktima**.
 
 ---
 
@@ -442,6 +473,26 @@ stateDiagram-v2
     CANCELLED --> [*]
     CLOSED --> [*]
 ```
+
+## 12.0 Dosežni podskup Faze 5 (D-062, Dio F; `03` §29.1a)
+
+Dijagram iznad je **kompletan kanonski graf** i **ne mijenja se**. U **Fazi 5** dosežne su
+**tačno četiri** tranzicije, jer Faza 5 nema analizu, approval ni export rute:
+
+```mermaid
+stateDiagram-v2
+    [*] --> DRAFT: POST /encounters
+    DRAFT --> READY_FOR_ANALYSIS: unos dokumenta (samo iz DRAFT, idempotentno)
+    DRAFT --> CANCELLED: encounter.cancel
+    READY_FOR_ANALYSIS --> CANCELLED: encounter.cancel
+    CANCELLED --> [*]
+```
+
+**Nedosežno u Fazi 5:** `ANALYSIS_IN_PROGRESS`, `REVIEW_REQUIRED`, `APPROVED`, `EXPORT_PENDING`,
+`EXPORTED`, `CLOSED`. **Preostalih 11 tranzicija mora biti implementirano kao eksplicitno
+zabranjeno** → `409 INVALID_STATE_TRANSITION`, a ne prećutno odsutno.
+
+**Kaskada iz §12.1 nije dosežna u Fazi 5** — zahtijeva `analysis_runs` (paket `005`, Faza 7).
 
 ## 12.1 Kaskadno otkazivanje iz `ANALYSIS_IN_PROGRESS` (D-035)
 
