@@ -2,12 +2,22 @@
 //
 // Normative sources: D-004 (Prisma 7 + custom SQL), `02_DATABASE_SCHEMA_V1.md` §26.
 //
-// Scope note (phase 3): this schema declares the identity and practice domain owned by
-// migration package `002_identity_and_practices` (§22.2) — `practices`, `users`,
-// `practice_memberships`, `practice_membership_roles`, `practice_settings`,
-// `platform_role_assignments` and the three enums they use. Business tables belong to
-// packages `003` and later and are created by their own phases (04 §5 onward). Declaring
-// them early would pull phase 4+ scope forward.
+// Scope note: this schema declares two domains.
+//
+//   * PHASE 3 — the identity and practice domain owned by migration package
+//     `002_identity_and_practices` (§22.2): `practices`, `users`, `practice_memberships`,
+//     `practice_membership_roles`, `practice_settings`, `platform_role_assignments` and the
+//     three enums they use;
+//   * PHASE 5 — the patient, encounter, storage and document domain owned by migration
+//     package `003_patient_encounter_documents` (§22.3, §29): `patient_references`,
+//     `encounters`, `encounter_diagnoses`, `storage_objects`, `encounter_documents` and the
+//     five enums they use.
+//
+// Tables of packages `004` and later still belong to their own phases and are deliberately
+// NOT declared here; declaring them early would pull later scope forward. `idempotency_keys`
+// and `audit_events` are likewise absent: D-063 clause 3 defers the phase 5 slice of package
+// `011` out of `P5-I1`, and `outbox_events` and `async_jobs` are not created in phase 5 at
+// all.
 //
 // Rules that Prisma cannot express and that therefore live in migration SQL (§26):
 //   - RLS policies, grants, functions, triggers;
@@ -103,6 +113,11 @@ model Practice {
   memberships PracticeMembership[]
   settings    PracticeSettings?
 
+  // Phase 5 back-relations (§29.2 rows 1 and 5). Prisma-only: the foreign keys live on the
+  // CHILD tables, so these fields emit no SQL and change nothing about `practices`.
+  patientReferences PatientReference[]
+  storageObjects    StorageObject[]
+
   @@index([status], map: "practices_status_idx")
   @@map("practices")
 }
@@ -154,6 +169,13 @@ model PracticeMembership {
   practice Practice                 @relation(fields: [practiceId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "practice_memberships_practice_fk")
   user     User                     @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "practice_memberships_user_fk")
   roles    PracticeMembershipRole[]
+
+  // Phase 5 back-relation (§29.2 row 3). Prisma-only: the foreign key
+  // `encounters_responsible_physician_membership_fk` is created ON `encounters`, and the
+  // parent key `practice_memberships_practice_user_key` already exists from package `002`.
+  // NO index and NO constraint is added to `practice_memberships` by package `003`
+  // (D-061 clause 11, D-062 Dio B.4).
+  responsibleForEncounters Encounter[]
 
   @@unique([practiceId, userId], map: "practice_memberships_practice_user_key")
   @@unique([practiceId, id], map: "practice_memberships_tenant_key")
@@ -242,4 +264,315 @@ model PlatformRoleAssignment {
   @@unique([userId, platformRole], map: "platform_role_assignments_user_role_key")
   @@index([userId], map: "platform_role_assignments_user_idx")
   @@map("platform_role_assignments")
+}
+
+// =============================================================================
+// Phase 5 enums (§4.3–§4.8, §29.1; D-062 Dio B.1)
+//
+// Created by migration package `003_patient_encounter_documents` and by nothing else
+// (§22.3). Every value set is FROZEN by §4.3–§4.8 — no value is added, removed or renamed
+// here. Physical names follow the §2.1 + §22.2 precedent (`entity_status`,
+// `membership_role`, `platform_role`): snake_case singular, `@@map`-ed.
+//
+// The two phase 5 document status vocabularies — `processing_status` and `redaction_status`
+// — are DELIBERATELY NOT enums. §2.11.4 and D-062 Dio E keep both columns `varchar(30)` and
+// enforce the vocabulary with named CHECK constraints instead; D-060 clause 44 forbids
+// changing the column type.
+// =============================================================================
+
+/// Origin of an externally sourced record (§4.6 — FROZEN).
+enum IntegrationProvider {
+  AXENITA
+  MANUAL
+  CSV
+  FHIR
+  OTHER
+
+  @@map("integration_provider")
+}
+
+/// Encounter lifecycle state (§4.3 — FROZEN; the canonical state machine is `03` §29.1 /
+/// D-027, and phase 5 reaches exactly 4 of its 15 transitions — D-062 Dio F.1).
+enum EncounterStatus {
+  DRAFT
+  READY_FOR_ANALYSIS
+  ANALYSIS_IN_PROGRESS
+  REVIEW_REQUIRED
+  APPROVED
+  EXPORT_PENDING
+  EXPORTED
+  CANCELLED
+  CLOSED
+
+  @@map("encounter_status")
+}
+
+/// Human review state of a derived item (§4.8 — FROZEN).
+enum ReviewState {
+  UNREVIEWED
+  CONFIRMED
+  CORRECTED
+  REJECTED
+
+  @@map("review_state")
+}
+
+/// Kind of clinical document (§4.4 — FROZEN).
+enum DocumentType {
+  CONSULTATION_NOTE
+  DIAGNOSIS_LIST
+  PROCEDURE_NOTE
+  REFERRAL
+  LAB_RESULT
+  BILLING_DRAFT
+  AUDIT_REPORT
+  OTHER
+
+  @@map("document_type")
+}
+
+/// How a document entered the system (§4.5 — FROZEN).
+enum DocumentSource {
+  MANUAL_TEXT
+  FILE_UPLOAD
+  AXENITA_API
+  CSV_IMPORT
+  FHIR_IMPORT
+  GENERATED
+
+  @@map("document_source")
+}
+
+// =============================================================================
+// Phase 5 patient, encounter, storage and document tables (§7.1–§7.3, §8.1, §8.2, §29)
+//
+// Owned by package `003_patient_encounter_documents`. THAT PACKAGE ISSUES NO GRANT AND
+// CREATES NO RLS OBJECT (§22.3, D-062 Dio B.3, D-063 clause 2): after `003` alone these five
+// tables are reachable by NO runtime role at all, which is what makes the window between
+// migrations carry zero capability rather than merely a short exposure.
+//
+// Referential actions: EVERY phase 5 relation pins `onDelete: NoAction, onUpdate: NoAction`
+// literally (§29.3, D-062 Dio C.4). Prisma would otherwise silently substitute
+// `Restrict`/`Cascade`, an invented rule that migration `002` already rejected. The three
+// mixed-nullability composite keys (#3, #7, #8 of §29.2) rely on PostgreSQL's default
+// `MATCH SIMPLE`, which Prisma emits: `MATCH FULL` would reject "no responsible physician"
+// and "no storage object" and must NEVER be used here.
+//
+// Identifier rule (§2.2, §26.1): no `@default(uuid())` anywhere — the application generates
+// every UUID because the canonical AAD of the encryption envelope contains `row_id`. The
+// only defaults are `created_at` and `encounters.version` (D-062 Dio B.1).
+//
+// CHECK constraints cannot be expressed in Prisma and therefore live in the migration SQL
+// (§26). All 23 of them carry an explicit canonical name (§29.7a, D-063 clause 7).
+// =============================================================================
+
+/// Pseudonymous reference to a patient held in the source system (§7.1).
+///
+/// `external_patient_ref_hash` is a KEYED deterministic lookup token — HMAC-SHA256 under a
+/// dedicated `K_hmac`, persisted as `h1.<64 hex>` (§2.8, D-060). NO HMAC key-version column
+/// exists: the generation marker lives inside the token. `pseudonym` is CSPRNG-derived and
+/// never derived from the external identifier (§2.9); NO `citext` column, functional index or
+/// special collation is introduced. The envelope columns stay unwritten in phase 5 —
+/// write-back sits behind `D-OPEN-009` (§29.8).
+model PatientReference {
+  id                           String              @id @db.Uuid
+  practiceId                   String              @map("practice_id") @db.Uuid
+  sourceSystem                 IntegrationProvider @map("source_system")
+  externalPatientRefHash       String              @map("external_patient_ref_hash") @db.VarChar(128)
+  externalPatientRefCiphertext Bytes?              @map("external_patient_ref_ciphertext")
+  externalPatientRefIv         Bytes?              @map("external_patient_ref_iv")
+  externalPatientRefAuthTag    Bytes?              @map("external_patient_ref_auth_tag")
+  encryptionAlgorithm          String?             @map("encryption_algorithm") @db.VarChar(30)
+  encryptionVersion            Int?                @map("encryption_version")
+  encryptionKeyRef             String?             @map("encryption_key_ref") @db.VarChar(255)
+  encryptionKeyVersion         Int?                @map("encryption_key_version")
+  pseudonym                    String              @db.VarChar(50)
+  birthYear                    Int?                @map("birth_year") @db.SmallInt
+  sexCode                      String?             @map("sex_code") @db.VarChar(20)
+  createdAt                    DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                    DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  practice   Practice    @relation(fields: [practiceId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "patient_references_practice_fk")
+  encounters Encounter[]
+
+  @@unique([practiceId, sourceSystem, externalPatientRefHash], map: "patient_references_source_external_ref_key")
+  @@unique([practiceId, pseudonym], map: "patient_references_pseudonym_key")
+  @@unique([practiceId, id], map: "patient_references_tenant_key")
+  @@map("patient_references")
+}
+
+/// One treatment episode (§7.2).
+///
+/// NO direct `practice_id -> practices(id)` foreign key is declared: the tenant key is
+/// carried TRANSITIVELY through `encounters_patient_reference_fk` into
+/// `patient_references_practice_fk`, and a second key would duplicate the same guarantee
+/// (§29.2, precedent §6.3a). `created_by`/`updated_by` are application invariants, not
+/// foreign keys (precedent §6.5). `responsible_physician_id` gets NO direct key to `users`
+/// either — the membership key already guarantees the user exists.
+///
+/// `encounters_responsible_physician_membership_fk` is the database half of D-062 Dio D: a
+/// responsible physician must be a member OF THIS PRACTICE, proven structurally rather than
+/// by a query the caller is not privileged to run. It is `MATCH SIMPLE` because
+/// `practice_id` is NOT NULL while `responsible_physician_id` is nullable.
+/// **Its behaviour under FORCE RLS is NOT proven by this package — that is the `★` proof of
+/// slice `P5-I2`, which stays a hard precondition of `P5-I5` (D-062 Dio D.6).**
+///
+/// `version` is the D-029 optimistic locking column. Phase 5 writes NO ciphertext into this
+/// table at all — every `external_encounter_ref_*` and `encryption_*` column stays NULL by
+/// design (§29.8). There is no `reason` column and no `archived_at` column.
+model Encounter {
+  id                             String              @id @db.Uuid
+  practiceId                     String              @map("practice_id") @db.Uuid
+  patientReferenceId             String              @map("patient_reference_id") @db.Uuid
+  externalEncounterRefHash       String?             @map("external_encounter_ref_hash") @db.VarChar(128)
+  externalEncounterRefCiphertext Bytes?              @map("external_encounter_ref_ciphertext")
+  externalEncounterRefIv         Bytes?              @map("external_encounter_ref_iv")
+  externalEncounterRefAuthTag    Bytes?              @map("external_encounter_ref_auth_tag")
+  encryptionAlgorithm            String?             @map("encryption_algorithm") @db.VarChar(30)
+  encryptionVersion              Int?                @map("encryption_version")
+  encryptionKeyRef               String?             @map("encryption_key_ref") @db.VarChar(255)
+  encryptionKeyVersion           Int?                @map("encryption_key_version")
+  occurredAt                     DateTime            @map("occurred_at") @db.Timestamptz(6)
+  treatmentDate                  DateTime            @map("treatment_date") @db.Date
+  responsiblePhysicianId         String?             @map("responsible_physician_id") @db.Uuid
+  guarantorType                  String?             @map("guarantor_type") @db.VarChar(30)
+  insuranceContext               String?             @map("insurance_context") @db.VarChar(30)
+  specialtyCode                  String?             @map("specialty_code") @db.VarChar(50)
+  patientAgeAtEncounter          Int?                @map("patient_age_at_encounter") @db.SmallInt
+  patientSexAtEncounter          String?             @map("patient_sex_at_encounter") @db.VarChar(20)
+  status                         EncounterStatus
+  sourceSystem                   IntegrationProvider @map("source_system")
+  version                        Int                 @default(1)
+  createdBy                      String              @map("created_by") @db.Uuid
+  createdAt                      DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedBy                      String?             @map("updated_by") @db.Uuid
+  updatedAt                      DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  patientReference     PatientReference    @relation(fields: [practiceId, patientReferenceId], references: [practiceId, id], onDelete: NoAction, onUpdate: NoAction, map: "encounters_patient_reference_fk")
+  responsiblePhysician PracticeMembership? @relation(fields: [practiceId, responsiblePhysicianId], references: [practiceId, userId], onDelete: NoAction, onUpdate: NoAction, map: "encounters_responsible_physician_membership_fk")
+
+  diagnoses EncounterDiagnosis[]
+  documents EncounterDocument[]
+
+  @@unique([practiceId, id], map: "encounters_tenant_key")
+  @@index([practiceId, status, treatmentDate(sort: Desc), id(sort: Desc)], map: "encounters_review_queue_idx")
+  @@index([practiceId, patientReferenceId, treatmentDate(sort: Desc), id(sort: Desc)], map: "encounters_patient_timeline_idx")
+  @@index([practiceId, responsiblePhysicianId, treatmentDate(sort: Desc), id(sort: Desc)], map: "encounters_responsible_physician_idx")
+  @@map("encounters")
+}
+
+/// A diagnosis recorded on an encounter (§7.3).
+///
+/// This table carries NO CHECK constraint at all. That is a RATIFIED ABSENCE, not an omission
+/// (§29.7a, D-063 clause 7): its constraints are the primary key, two uniques and the
+/// composite foreign key. It also carries no `updated_at` — §7.3 declares `created_at` only.
+model EncounterDiagnosis {
+  id            String      @id @db.Uuid
+  practiceId    String      @map("practice_id") @db.Uuid
+  encounterId   String      @map("encounter_id") @db.Uuid
+  codingSystem  String      @map("coding_system") @db.VarChar(30)
+  diagnosisCode String      @map("diagnosis_code") @db.VarChar(50)
+  description   String?
+  diagnosisType String?     @map("diagnosis_type") @db.VarChar(30)
+  isPrimary     Boolean     @map("is_primary")
+  source        String      @db.VarChar(30)
+  reviewState   ReviewState @map("review_state")
+  createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  encounter Encounter @relation(fields: [practiceId, encounterId], references: [practiceId, id], onDelete: NoAction, onUpdate: NoAction, map: "encounter_diagnoses_encounter_fk")
+
+  @@unique([practiceId, id], map: "encounter_diagnoses_tenant_key")
+  @@unique([practiceId, encounterId, codingSystem, diagnosisCode], map: "encounter_diagnoses_encounter_code_key")
+  @@map("encounter_diagnoses")
+}
+
+/// A blob held in object storage (§8.1).
+///
+/// `encryption_key_ref` and `encryption_version` here describe encryption of the BLOB in
+/// object storage. They are NOT part of the §2.7 row envelope and carry none of its CHECK
+/// constraints; the table has no `*_ciphertext` column at all (§8.1).
+///
+/// Phase 5 gives this table NO capability whatsoever — no grant, no policy, and no route
+/// reads or writes it (§29.5). It exists because it is a foreign key parent, and it holds
+/// zero rows.
+model StorageObject {
+  id                   String    @id @db.Uuid
+  practiceId           String    @map("practice_id") @db.Uuid
+  bucketName           String    @map("bucket_name") @db.VarChar(100)
+  objectKey            String    @map("object_key") @db.VarChar(500)
+  contentType          String    @map("content_type") @db.VarChar(150)
+  originalFilename     String?   @map("original_filename") @db.VarChar(255)
+  byteSize             BigInt    @map("byte_size")
+  sha256               String    @db.VarChar(64)
+  encryptionKeyRef     String?   @map("encryption_key_ref") @db.VarChar(255)
+  encryptionVersion    Int?      @map("encryption_version")
+  antivirusStatus      String?   @map("antivirus_status") @db.VarChar(30)
+  createdBy            String    @map("created_by") @db.Uuid
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  archivedAt           DateTime? @map("archived_at") @db.Timestamptz(6)
+  retentionDeleteAfter DateTime? @map("retention_delete_after") @db.Timestamptz(6)
+
+  practice Practice @relation(fields: [practiceId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "storage_objects_practice_fk")
+
+  documents       EncounterDocument[] @relation("EncounterDocumentStorageObject")
+  sourceDocuments EncounterDocument[] @relation("EncounterDocumentSourceStorageObject")
+
+  @@unique([bucketName, objectKey], map: "storage_objects_bucket_object_key")
+  @@unique([practiceId, id], map: "storage_objects_tenant_key")
+  @@map("storage_objects")
+}
+
+/// A clinical document attached to an encounter (§8.2).
+///
+/// `normalized_text_*` holds the ENCRYPTED, canonically normalised, UNREDACTED source text.
+/// The raw pre-normalisation text is NEVER persisted and HAS NO COLUMN (§2.10.1, D-060);
+/// there is no second hash column for the raw input, and no per-document redaction-ruleset
+/// version column (§2.11.3). `redacted_text_*` stays Class A medical data — phase 5
+/// redaction is neither anonymisation nor de-identification.
+///
+/// `processing_status` and `redaction_status` stay `varchar(30)`. Converting them to
+/// PostgreSQL enums is NOT authorised (§2.11.4, D-060 clause 44). Their vocabularies —
+/// `READY`/`FAILED` and `COMPLETED`/`FAILED` — are enforced by two named CHECK constraints,
+/// and a third CHECK ties `COMPLETED` to the presence of the redacted artifact and `FAILED`
+/// to its absence (D-062 Dio E). `PENDING`, `PROCESSING`, `ARCHIVED` and `SKIPPED` do not
+/// exist; archiving carries `archived_at`.
+///
+/// Two relations point at `StorageObject`, so both carry an explicit, distinct relation name.
+/// Both are nullable composite keys and therefore `MATCH SIMPLE`.
+model EncounterDocument {
+  id                       String         @id @db.Uuid
+  practiceId               String         @map("practice_id") @db.Uuid
+  encounterId              String         @map("encounter_id") @db.Uuid
+  documentType             DocumentType   @map("document_type")
+  source                   DocumentSource
+  storageObjectId          String?        @map("storage_object_id") @db.Uuid
+  sourceStorageObjectId    String?        @map("source_storage_object_id") @db.Uuid
+  normalizedTextCiphertext Bytes?         @map("normalized_text_ciphertext")
+  normalizedTextIv         Bytes?         @map("normalized_text_iv")
+  normalizedTextAuthTag    Bytes?         @map("normalized_text_auth_tag")
+  redactedTextCiphertext   Bytes?         @map("redacted_text_ciphertext")
+  redactedTextIv           Bytes?         @map("redacted_text_iv")
+  redactedTextAuthTag      Bytes?         @map("redacted_text_auth_tag")
+  encryptionAlgorithm      String?        @map("encryption_algorithm") @db.VarChar(30)
+  encryptionVersion        Int?           @map("encryption_version")
+  encryptionKeyRef         String?        @map("encryption_key_ref") @db.VarChar(255)
+  encryptionKeyVersion     Int?           @map("encryption_key_version")
+  sourceTextHash           String?        @map("source_text_hash") @db.VarChar(64)
+  redactedTextHash         String?        @map("redacted_text_hash") @db.VarChar(64)
+  languageCode             String?        @map("language_code") @db.VarChar(10)
+  pageCount                Int?           @map("page_count")
+  processingStatus         String         @map("processing_status") @db.VarChar(30)
+  redactionStatus          String         @map("redaction_status") @db.VarChar(30)
+  externalDocumentRefHash  String?        @map("external_document_ref_hash") @db.VarChar(128)
+  createdBy                String         @map("created_by") @db.Uuid
+  createdAt                DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  archivedAt               DateTime?      @map("archived_at") @db.Timestamptz(6)
+
+  encounter           Encounter      @relation(fields: [practiceId, encounterId], references: [practiceId, id], onDelete: NoAction, onUpdate: NoAction, map: "encounter_documents_encounter_fk")
+  storageObject       StorageObject? @relation("EncounterDocumentStorageObject", fields: [practiceId, storageObjectId], references: [practiceId, id], onDelete: NoAction, onUpdate: NoAction, map: "encounter_documents_storage_object_fk")
+  sourceStorageObject StorageObject? @relation("EncounterDocumentSourceStorageObject", fields: [practiceId, sourceStorageObjectId], references: [practiceId, id], onDelete: NoAction, onUpdate: NoAction, map: "encounter_documents_source_storage_object_fk")
+
+  @@unique([practiceId, id], map: "encounter_documents_tenant_key")
+  @@index([practiceId, encounterId, createdAt], map: "documents_encounter_idx")
+  @@map("encounter_documents")
 }
