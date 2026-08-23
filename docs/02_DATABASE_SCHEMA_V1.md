@@ -1552,7 +1552,10 @@ anonimizaciju ni odsustvo svih identifikatora. Pri `FAILED` redakciji `redacted_
 **ne smije** pasti nazad na normalizovani tekst (`03` §13.3); ponovni pokušaj koristi **svjež IV**.
 **Kolona za verziju redakcionog ruleseta se ne uvodi.** U Fazi 5 oba rječnika sprovodi
 **aplikacijska logika** — **`CHECK` constrainti za njih se u ovom gateu ne dodaju**; odluku
-posjeduje P5-D2.
+posjeduje P5-D2. *(**Superseded — D-062, Dio E / §2.11.4.** Gate `P5-D2` je izvršen: rječnici se
+sprovode **i aplikacijski i database `CHECK` constraintima**, i paket `003` uvodi **tri** `CHECK`-a
+nad `encounter_documents`. Rečenica iznad zadržana je nepromijenjena kao historijski D-060 zapis i
+**više ne opisuje tekuće stanje**. Potpun katalog: §29.7a.)*
 
 ---
 
@@ -5822,11 +5825,73 @@ nestabilan i cursor paginacija se lomi (`03` §7).
 - `copilot_system` = **nula** grantova nad svih pet; `PUBLIC` = nula;
 - `confdeltype = 'a'` **i** `confupdtype = 'a'` na **svakom** FK-u Faze 5;
 - `unique (practice_id, id)` na svih pet — ukupno **8 od 30** tenant tabela;
-- 18 zamrznutih `CHECK`-ova **plus** tri iz §2.11.4;
+- **potpun katalog `CHECK` constrainata paketa `003` — 20 zamrznutih plus tri iz §2.11.4, ukupno
+  23** (§29.7a; **korigovano odlukom D-063, klauzula 6**; raniji broj `18` bio je aritmetička
+  greška). Tvrdnja je **stroga jednakost punog skupa** nad `conname` + tabelom +
+  `pg_get_constraintdef()`, ne brojanje;
 - tačan skup column-level `UPDATE` kolona iz §29.5;
 - **negativno:** nema nove role, `BYPASSRLS`-a, `SECURITY DEFINER` funkcije, četvrte role, drugog
   Prisma klijenta, treće `users` politike, **ni ijedne izmjene politike ili granta nad
   `practice_memberships`** (D-061, klauzula 11 i E.3).
+
+## 29.7a Katalog `CHECK` constrainata paketa `003` — mjerodavan (D-063, klauzule 6–8)
+
+**Normativni izvor: D-063, klauzule 6, 7 i 8.** Ovaj katalog je **tekući autoritet**. Svaki raniji
+sažetak koji navodi **18** zamrznutih `CHECK`-ova, ili koji `encounter_documents` pripisuje **10**,
+je **superseded kao aritmetička greška**. **Nijedno tijelo constrainta se time ne mijenja** —
+mjerodavan izvor tijela ostaju §7.1, §7.2, §7.3, §8.1, §8.2 i §2.11.4.
+
+| Tabela | Zamrznuti | Novi (§2.11.4) | Ukupno |
+|---|---:|---:|---:|
+| `patient_references` | **5** | 0 | **5** |
+| `encounters` | **6** | 0 | **6** |
+| `encounter_diagnoses` | **0** | 0 | **0** |
+| `storage_objects` | **1** | 0 | **1** |
+| `encounter_documents` | **8** | **3** | **11** |
+| **Ukupno** | **20** | **3** | **23** |
+
+`encounter_diagnoses` nema **nijedan** `CHECK` — to je **ratifikovano odsustvo**, ne propust (§7.3).
+
+**Sva 23 constrainta nose eksplicitno ime** po standardu `12` §8 (`<table>_<rule>_check`), po
+precedentu `practice_settings_version_check` iz paketa `002`. **Ime je dio ugovora.**
+
+```text
+patient_references_birth_year_check
+patient_references_external_patient_ref_envelope_check
+patient_references_external_patient_ref_iv_length_check
+patient_references_external_patient_ref_auth_tag_length_check
+patient_references_encryption_metadata_check
+
+encounters_version_check
+encounters_patient_age_check
+encounters_external_encounter_ref_envelope_check
+encounters_external_encounter_ref_iv_length_check
+encounters_external_encounter_ref_auth_tag_length_check
+encounters_encryption_metadata_check
+
+storage_objects_byte_size_check
+
+encounter_documents_page_count_check
+encounter_documents_normalized_text_envelope_check
+encounter_documents_normalized_text_iv_length_check
+encounter_documents_normalized_text_auth_tag_length_check
+encounter_documents_redacted_text_envelope_check
+encounter_documents_redacted_text_iv_length_check
+encounter_documents_redacted_text_auth_tag_length_check
+encounter_documents_encryption_metadata_check
+
+encounter_documents_processing_status_check
+encounter_documents_redaction_status_check
+encounter_documents_redacted_artifact_consistency_check
+```
+
+**Ugovor katalog testa (izvršava se u slice-u `P5-I1`).** Test mora nabrojati **potpun očekivani
+skup** i za **svaki** constraint tvrditi najmanje `conname`, tabelu vlasnika (`conrelid::regclass`)
+i `pg_get_constraintdef(oid)`. **Poređenje je stroga jednakost punog skupa** nad `pg_constraint`
+(`contype = 'c'`, pet tabela Faze 5) — nijedan višak, nijedan manjak, nijedno odstupanje u imenu ni
+u tijelu. **Tvrdnja tačnog skupa se nikada ne smije oslabiti u `contains`/`subset` poređenje.**
+Numerički total **23** smije se tvrditi dodatno, ali **test koji provjerava isključivo `count = 23`
+je nedovoljan**.
 
 ## 29.8 Kolone bez pisca u Fazi 5 — `NULL` po dizajnu
 

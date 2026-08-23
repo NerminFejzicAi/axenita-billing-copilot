@@ -1160,6 +1160,17 @@ objekat** — to radi Faza-5 slice paketa `013`, atomično sa politikom.
 Uz to Faza 5 izvršava **Faza-5 slice paketa `011`** koji kreira **isključivo `idempotency_keys` i
 `audit_events`**, te **Faza-5 slice paketa `014`** sa AAD funkcijom i **tri** trigera.
 
+**Tačka izvršenja — korigovano (D-063, klauzule 1–5).** Paket `003` nastaje u slice-u **`P5-I1`**.
+**Faza-5 slice paketa `011` NIJE u `P5-I1`** — izvršava se u **`P5-I2`**, zajedno sa Faza-5 slice-om
+paketa `013` i `014`, jer njegovo **strukturno** i **sigurnosno** izvršenje mora biti razriješeno
+istovremeno. **Redoslijed migracijskih fajlova se ne mijenja** (`003` → `011`-slice → `013`-slice →
+`014`-slice), niti se mijenja vlasništvo paketa. `P5-I2` mora, prije izvršenja, za **svaku** od
+`idempotency_keys` i `audit_events` eksplicitno nabrojati paket koji je kreira, redoslijed, `ENABLE`
+i `FORCE RLS`, tačna tijela politika, tačne runtime grantove, **negativne** grantove, tenant
+predikat i katalog tvrdnje. **Nijedna runtime rola ne smije dobiti `SELECT`, `INSERT` ni `UPDATE`
+nad tim tabelama prije nego što je njena ograničavajuća tenant politika na snazi; runtime
+čitljivost `audit_events` preko granica ordinacija je kategorički zabranjena.**
+
 **`storage_objects` nema pisca u Fazi 5** — upload putanja je `DEFERRED` (`03` §13.2). Tabela se
 kreira jer je FK roditelj, drži **nula redova**, i **ne dobija nijedan grant ni politiku**.
 
@@ -1197,6 +1208,9 @@ POST /encounters/{id}/documents/{documentId}/archive
 konzumenta. Raniji tekst ovog odjeljka je preporučivao "minimalni `outbox_events`"; ta preporuka je
 **zamijenjena** ratifikovanom odlukom.
 
+**Tačka izvršenja (D-063, klauzula 3):** taj slice se izvršava u **`P5-I2`**, ne u `P5-I1`. Vidi
+§7.2 i D-063, klauzule 1–5.
+
 ## 7.5 Aktivnosti
 
 1. schema/migration;
@@ -1221,8 +1235,8 @@ autorizaciju daje zaseban gate `P5-I0`, i on autorizuje **isključivo `P5-I1`**.
 
 | Slice | Obuhvat | Zavisi od |
 |---|---|---|
-| `P5-I1` | Prisma modeli, paket `003`, Faza-5 slice paketa `011`. **Bez granta, politike, trigera i servisa** | gate `P5-I0` |
-| `P5-I2` | Faza-5 slice paketa `013` i `014`; trajna negative-privilege regresija; **`★` dokaz iz §7.6a** | `P5-I1` |
+| `P5-I1` | **Prisma modeli i paket `003`**, plus schema/katalog testovi paketa `003`. **Bez paketa `011`, `013` i `014`; bez granta, `REVOKE`-a, RLS zastavice, politike, trigera i servisa** (D-063, klauzule 1–2) | gate `P5-I0` |
+| `P5-I2` | **Faza-5 slice paketa `011`** (`idempotency_keys`, `audit_events`) — **odgođen iz `P5-I1` odlukom D-063** i vezan uz sigurnosnu granicu; Faza-5 slice paketa `013` i `014`; trajna negative-privilege regresija; **`★` dokaz iz §7.6a** | `P5-I1` |
 | `P5-I3` | Kripto/HMAC/normalizacijski primitivi — **bez baze, paralelizabilno** | — |
 | `P5-I4` | Servis i rute `patient_references` | `P5-I2`, `P5-I3` |
 | `P5-I5` | **Encounter jezgro** — table-driven state machine nad svih 15 tranzicija, 4 dosežne | `P5-I2` **uključujući `★`**, `P5-I3`, `P5-I4` |

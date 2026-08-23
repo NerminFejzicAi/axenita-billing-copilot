@@ -1144,7 +1144,22 @@ OSTALE RATIFIKOVANE ODLUKE (D-062) koje moraš poštovati:
   Prisma defaulte;
 - paket 003 kreira 5 enuma, 5 tabela, 8 FK-ova, 3 nova CHECK-a i 4 indeksa, i NE izdaje nijedan
   GRANT i nijedan RLS objekat;
+  KOREKCIJA (D-063, klauzule 6-8): ukupan katalog CHECK constrainata paketa 003 je 23 — 20
+  zamrznutih (patient_references 5, encounters 6, encounter_diagnoses 0, storage_objects 1,
+  encounter_documents 8) plus 3 nova. Raniji broj 18 je superseded aritmetička greška. Kanonska
+  imena svih 23 su u docs/02 §29.7a; imenuj SVAKI constraint eksplicitno po <table>_<rule>_check.
+  Katalog test tvrdi conname + tabelu + pg_get_constraintdef() uz STROGU JEDNAKOST PUNOG SKUPA;
+  NE oslabljuj u contains/subset i NE tvrdi samo count = 23;
 - Faza 5 kreira SAMO idempotency_keys i audit_events iz paketa 011 — NE outbox_events, NE async_jobs;
+  KOREKCIJA (D-063, klauzule 1-5): taj slice NIJE u P5-I1. P5-I1 je isključivo Prisma schema +
+  paket 003 + schema/katalog testovi paketa 003 — BEZ paketa 011/013/014, BEZ GRANT-a, BEZ REVOKE-a,
+  BEZ ENABLE/FORCE RLS, BEZ politike, BEZ trigera, BEZ servisa. Faza-5 slice paketa 011 se izvršava
+  u P5-I2, zajedno sa 013-slice i 014-slice. Prije izvršenja P5-I2 mora za idempotency_keys i
+  audit_events nabrojati: paket koji kreira, redoslijed, ENABLE RLS, FORCE RLS, tačna tijela
+  politika, tačne runtime grantove, negativne grantove, tenant predikat i katalog tvrdnje. NIJEDNA
+  runtime rola ne dobija SELECT/INSERT/UPDATE nad tim tabelama prije nego što je njena
+  ograničavajuća tenant politika na snazi. audit_events runtime-čitljiv preko ordinacija je
+  KATEGORIČKI ZABRANJEN;
 - processing_status i redaction_status ostaju varchar(30) uz CHECK-ove; NE konvertuj u enum;
   NE uvodi PENDING, PROCESSING, ARCHIVED ni SKIPPED;
 - DRAFT -> READY_FOR_ANALYSIS postavlja unos dokumenta, SAMO iz DRAFT, idempotentno, BEZ version

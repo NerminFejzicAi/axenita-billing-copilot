@@ -6153,6 +6153,15 @@ Paket `003` je **prvi kreator** svih navedenih objekata:
 | `CHECK` constrainti uvedeni ovom odlukom | **3** | Dio E |
 | Defaults | 2 klase | `created_at default current_timestamp`; `version default 1` na `encounters`. **Nigdje `gen_random_uuid()`** (`02` §2.2, §26.1) |
 
+> **KOREKCIJA — D-063, klauzula 6 (kasniji autoritet).** Red „`CHECK` constrainti iz zamrznute
+> scheme" iznad je **aritmetički pogrešan** i **superseded**. Zadržan je nepromijenjen kao
+> historijski dokaz nalaza gatea `P5-I0`. Mehaničko prebrojavanje eksplicitno nabrojanih tijela
+> constrainata u `02` §7.1, §7.2, §7.3, §8.1 i §8.2 daje **20**, a ne 18: `patient_references` 5,
+> `encounters` 6, `encounter_diagnoses` **0**, `storage_objects` 1, `encounter_documents` **8**
+> (ne 10). Uz **tri** `CHECK`-a iz Dijela E, mjerodavan ukupan broj paketa `003` je **23**.
+> Kanonska imena svih 23 nabrojana su u D-063, klauzuli 7. **Nijedno tijelo constrainta se ne
+> mijenja — mijenja se isključivo sažeti broj.**
+
 **Enumi se dodaju u `02` §22.3.** Njihov izostanak iz §22.3 bio je dokumentaciona nepotpunost, ne
 otvoreno dizajnersko pitanje: sve vrijednosti su zamrznute u `02` §4.3–§4.8. Fizička imena prate
 precedent §2.1 + §22.2 (`entity_status`, `membership_role`, `platform_role`): snake_case jednina,
@@ -6225,7 +6234,7 @@ paket dodao.
   Faze 5;
 - `unique (practice_id, id)` na svih pet (`02` §2.5) — ukupno nakon Faze 5 = **8 od 30** tenant
   tabela;
-- svih 18 zamrznutih `CHECK`-ova **plus** tri `CHECK`-a iz Dijela E;
+- svih 18 zamrznutih `CHECK`-ova **plus** tri `CHECK`-a iz Dijela E; *(**superseded — D-063, klauzula 6**: zamrznutih je **20**, ukupno **23**. Tvrdnja je uz to **pooštrena** D-063, klauzulom 8: katalog se provjerava **strogom jednakošću punog skupa** nad `conname` + tabelom + `pg_get_constraintdef()`, a ne brojanjem.)*
 - **negativne tvrdnje:** nema nove role, nema `BYPASSRLS`, nema `SECURITY DEFINER` funkcije, nema
   četvrte database role, nema drugog Prisma klijenta, nema treće `users` politike, i **nema
   nijedne izmjene politike ni granta nad `practice_memberships`** (D-061, klauzula 11 i E.3 —
@@ -6963,6 +6972,19 @@ on encounter_documents(practice_id, encounter_id, created_at);
 | `P5-I7` | Čitanje, lista, filteri, arhiva | `P5-I5`, `P5-I6` |
 | `P5-I8` | Integracijsko i sigurnosno zatvaranje Faze 5 | sve |
 
+> **KOREKCIJA — D-063, klauzule 1–5 (kasniji autoritet).** Red `P5-I1` iznad je **superseded u
+> jednoj tački** i zadržan nepromijenjen kao historijski dokaz. **Faza-5 slice paketa `011`
+> (`idempotency_keys`, `audit_events`) više NIJE u `P5-I1`** — odgođen je u **`P5-I2`**, jer je
+> `P5-I1` istovremeno nosio obavezu da te tabele kreira i zabranu da im izda **ijedan** grant,
+> `ENABLE`/`FORCE RLS` ili politiku, a grant disciplina iz Dijela B.3 nigdje nije bila zapisana za
+> te dvije §15 tabele. **`P5-I1` je time isključivo strukturni slice:** Prisma schema Faze 5,
+> paket `003` i schema/katalog testovi paketa `003`. **`P5-I2` uz `013`-slice, `014`-slice i `★`
+> dokaz sada nosi i `011`-slice**, uz obaveznu enumeraciju iz D-063, klauzule 4, i zabranu iz
+> D-063, klauzule 5 — **nijedna runtime rola ne dobija sposobnost nad `idempotency_keys` ni
+> `audit_events` prije nego što je njena ograničavajuća tenant politika na snazi**. **Vlasništvo
+> paketa, redoslijed migracija (`003` → `011` → `013` → `014`) i sve ostale ratifikacije D-062
+> ostaju nepromijenjeni.**
+
 ## L.1 Tvrdi gateovi
 
 1. **`P5-I0`** — zaseban **implementacijski autorizacijski gate**. Bez njega Faza 5 ne počinje.
@@ -7095,6 +7117,307 @@ Redoslijed gateova: `P5-D1-A` → `D-060` → `P5-G1` → `D-061` → `P5-D2` �
 zapis)** → `P5-I0` → `P5-I1` … `P5-I8`.
 
 ---
+
+# D-063 — Korekcija implementacijske granice Faze 5: vrijeme izvršenja Faza-5 slicea paketa `011` i katalog `CHECK` constrainata paketa `003`
+
+- **Status:** ACCEPTED
+- **Datum:** 2026-08-23
+- **Tip:** uska korektivna odluka o **implementacijskoj granici i dokumentacionoj tačnosti**.
+  **Dokumentacija isključivo.**
+- **Amandman na:** **D-062, i to isključivo u dvije tačke** navedene niže. Sva ostala tijela D-062
+  ostaju **nepromijenjena i na snazi**. **D-060 i D-061 se ne diraju ni u jednoj klauzuli.**
+- **Vlasnička ratifikacija:** vlasnik je prihvatio oba nalaza read-only gatea **`P5-I0`** i
+  ratifikovao obje korekcije. Ovaj zapis je **objava** te ratifikacije, ne novo biranje opcija.
+- **Ovaj gate ne autorizuje implementaciju.** Faza 5 ostaje `NOT_STARTED`, implementacijski
+  checklist Faze 5 ostaje **49 / 0**, i nijedan schema, migration, RLS, grant, trigger ni test
+  artefakt se ovom odlukom ne kreira. **`P5-I1` se ovom odlukom ne autorizuje — ona ga sužava.**
+
+## Kontekst/problem — trigger
+
+Read-only gate **`P5-I0`** je, prije prvog implementacijskog slicea Faze 5, otkrio dvije greške u
+objavljenom kanonskom autoritetu D-062:
+
+1. **Slice `P5-I1` je nosio Faza-5 slice paketa `011`** (`idempotency_keys`, `audit_events`), a
+   istovremeno mu je bilo zabranjeno da izda **ijedan** `GRANT`, `ENABLE`/`FORCE RLS` ili politiku.
+   D-062, Dio B.3, tu invarijantu za **pet PHI tabela** obezbjeđuje **grant disciplinom** — paket
+   `003` ne izdaje nijedan grant, pa je tabela dosežna **nijednoj** runtime roli dok je Faza-5 slice
+   paketa `013` ne dodijeli **atomično sa politikom**. Za `idempotency_keys` i `audit_events` **ta
+   ista disciplina nigdje nije bila zapisana**: nijedan kanonski dokument ne imenuje ko im, u kojoj
+   transakciji i kojim redoslijedom uvodi `ENABLE RLS`, `FORCE RLS`, politike i runtime grantove u
+   Fazi 5. `02` §29.4 i §29.5 pokrivaju **isključivo** pet PHI tabela; `02` §18.1 daje generički
+   matrični red, ne izvršni ugovor Faze 5. Slice sa **strukturnom** obavezom, **bez** pripadajuće
+   **sigurnosne** obaveze, je stanje u kojem se PHI-adjacentna audit tabela može naći bez
+   ograničavajuće tenant politike.
+2. **Sažeti broj zamrznutih `CHECK` constrainata paketa `003` bio je aritmetički pogrešan.**
+   Objavljeno je **18** uz podjelu koja `encounter_documents` pripisuje **10**. Mehaničko
+   prebrojavanje **eksplicitno nabrojanih tijela constrainata** u `02` §7.1, §7.2, §7.3, §8.1 i
+   §8.2 daje **20**, uz `encounter_documents` = **8**.
+
+## Odluka
+
+### Klauzula 1 — `P5-I1` se sužava
+
+**Slice `P5-I1` posjeduje isključivo:**
+
+1. **Prisma schema temelj Faze 5** — pet modela i pet enuma, sa `onDelete: NoAction` i
+   `onUpdate: NoAction` doslovno pinovanim na **svakoj** relaciji (D-062, Dio C.4);
+2. **migration paket `003_patient_encounter_documents`** u punom obuhvatu iz `02` §29 i D-062,
+   Dio B.1;
+3. **schema/katalog testove paketa `003`** — uključujući ugovor iz klauzule 8 niže.
+
+### Klauzula 2 — šta `P5-I1` ne smije ni kreirati ni mijenjati
+
+`P5-I1` **ne smije** kreirati ni mijenjati **nijedno** od sljedećeg:
+
+- `idempotency_keys`;
+- `audit_events`;
+- `outbox_events`;
+- `async_jobs`;
+- Faza-5 slice paketa `011`;
+- Faza-5 slice paketa `013`;
+- Faza-5 slice paketa `014`;
+- **ijedan** runtime `GRANT`;
+- **ijedan** `REVOKE`;
+- **ijednu** `ENABLE`/`FORCE ROW LEVEL SECURITY` zastavicu;
+- **ijednu** RLS politiku;
+- **ijedan** trigger ili funkciju;
+- **ijedan** aplikacijski servis, modul, rutu ni DTO.
+
+### Klauzula 3 — Faza-5 slice paketa `011` se odgađa u `P5-I2`
+
+**Faza-5 slice paketa `011` se uklanja iz `P5-I1` i odgađa u `P5-I2`**, gdje se njegovo
+**strukturno** i **sigurnosno** izvršenje mora razriješiti **zajedno**, u istoj sigurnosnoj granici
+kao Faza-5 slice paketa `013`, i **prije** bilo kojeg servisa koji se oslanja na `idempotency_keys`
+ili `audit_events`.
+
+**Vlasništvo paketa se ne mijenja** — paket `011_jobs_idempotency_outbox_audit` i dalje posjeduje
+sve četiri §15 tabele (`02` §22.11). **Nijedan novi broj paketa se ne uvodi i nijedan se ne
+renumeriše.** Mijenja se **isključivo tačka izvršenja unutar Faze 5**, po istom precedentu D-052
+koji je i sam Faza-5 slice već koristio. **`outbox_events` i `async_jobs` se u Fazi 5 i dalje NE
+kreiraju.**
+
+**Redoslijed izvršenja migracija Faze 5 se ovom odlukom ne mijenja**: `003` → `011`-slice →
+`013`-slice → `014`-slice. Mijenja se **slice u kojem `011`-slice nastaje** — iz `P5-I1` u
+`P5-I2`, gdje `013`-slice i `014`-slice već jesu.
+
+### Klauzula 4 — obavezna enumeracija koju `P5-I2` mora objaviti prije izvršenja
+
+Za **svaku** od tabela `idempotency_keys` i `audit_events`, `P5-I2` mora **eksplicitno nabrojati**:
+
+1. **koji paket kreira tabelu**;
+2. **redoslijed izvršenja** u odnosu na grant i politiku;
+3. `ENABLE ROW LEVEL SECURITY`;
+4. `FORCE ROW LEVEL SECURITY`;
+5. **tačna tijela politika**;
+6. **tačne runtime grantove** po roli;
+7. **negativne grantove** — ko **nema** koju sposobnost, uključujući `copilot_system` i `PUBLIC`;
+8. **tenant predikat**;
+9. **katalog tvrdnje** koje sve navedeno mehanički provjeravaju.
+
+### Klauzula 5 — sigurnosna invarijanta, normativno
+
+**Nijedna runtime rola ne smije dobiti `SELECT`, `INSERT` ni `UPDATE` sposobnost nad
+`idempotency_keys` ili `audit_events` prije nego što je njena ograničavajuća tenant politika na
+snazi.** Grant i ograničavajuća politika moraju nastati **u istoj transakciji**, po istom obrascu
+koji D-062, Dio B.3, i `02` §29.4 propisuju za pet PHI tabela.
+
+**Stanje u kojem je `audit_events` runtime-čitljiv preko granica ordinacija je kategorički
+zabranjeno.**
+
+### Klauzula 6 — mjerodavan katalog `CHECK` constrainata paketa `003`
+
+Mjerodavni brojevi su:
+
+| Tabela | Zamrznuti `CHECK`-ovi | Novi `CHECK`-ovi (D-062, Dio E) | Ukupno |
+|---|---:|---:|---:|
+| `patient_references` | **5** | 0 | **5** |
+| `encounters` | **6** | 0 | **6** |
+| `encounter_diagnoses` | **0** | 0 | **0** |
+| `storage_objects` | **1** | 0 | **1** |
+| `encounter_documents` | **8** | **3** | **11** |
+| **Ukupno** | **20** | **3** | **23** |
+
+**Svaki raniji sažetak koji navodi `18`, ili koji `encounter_documents` pripisuje `10` zamrznutih
+`CHECK`-ova, superseded je kao aritmetička/dokumentaciona greška.** Zahvaćeni su: D-062, Dio B.1
+(red tabele), D-062, Dio B.4, i `02` §29.7.
+
+**Nijedan constraint se ne izmišlja da bi se došlo do broja 23.** Mjerodavan izvor su **eksplicitno
+nabrojana tijela constrainata** u `02` §7.1, §7.2, §7.3, §8.1, §8.2 i §2.11.4. **Nijedno tijelo
+constrainta se ovom odlukom ne mijenja, ne dodaje i ne uklanja** — mijenja se **isključivo sažeti
+broj**.
+
+### Klauzula 7 — kanonska imena svih 23 `CHECK` constrainta
+
+Sva 23 constrainta nose **eksplicitno ime** po standardu `12` §8 — `<table>_<rule>_check` — po
+precedentu `practice_settings_version_check` iz paketa `002`. **Ime je dio ugovora, ne slobodan
+izbor implementatora.**
+
+**`patient_references` — 5:**
+
+```text
+patient_references_birth_year_check
+patient_references_external_patient_ref_envelope_check
+patient_references_external_patient_ref_iv_length_check
+patient_references_external_patient_ref_auth_tag_length_check
+patient_references_encryption_metadata_check
+```
+
+**`encounters` — 6:**
+
+```text
+encounters_version_check
+encounters_patient_age_check
+encounters_external_encounter_ref_envelope_check
+encounters_external_encounter_ref_iv_length_check
+encounters_external_encounter_ref_auth_tag_length_check
+encounters_encryption_metadata_check
+```
+
+**`encounter_diagnoses` — 0.** Tabela nema **nijedan** `CHECK` constraint. To je **ratifikovano
+odsustvo**, ne propust: njena ograničenja su primarni ključ, dva unique constrainta i composite FK
+(`02` §7.3).
+
+**`storage_objects` — 1:**
+
+```text
+storage_objects_byte_size_check
+```
+
+**`encounter_documents` — 8 zamrznutih:**
+
+```text
+encounter_documents_page_count_check
+encounter_documents_normalized_text_envelope_check
+encounter_documents_normalized_text_iv_length_check
+encounter_documents_normalized_text_auth_tag_length_check
+encounter_documents_redacted_text_envelope_check
+encounter_documents_redacted_text_iv_length_check
+encounter_documents_redacted_text_auth_tag_length_check
+encounter_documents_encryption_metadata_check
+```
+
+**`encounter_documents` — 3 nova (D-062, Dio E, `OD-P5-D2-6`):**
+
+```text
+encounter_documents_processing_status_check
+encounter_documents_redaction_status_check
+encounter_documents_redacted_artifact_consistency_check
+```
+
+### Klauzula 8 — ugovor katalog testa `CHECK` constrainata (`P5-I1`)
+
+Katalog test paketa `003` **mora nabrojati potpun očekivani skup** `CHECK` constrainata i za
+**svaki** tvrditi **najmanje**:
+
+- `conname`;
+- tabelu vlasnika (`conrelid::regclass`);
+- `pg_get_constraintdef(oid)`.
+
+**Poređenje je stroga jednakost punog skupa.** Očekivani skup i stvarni skup iz `pg_constraint`
+(`contype = 'c'`, nad pet tabela Faze 5) moraju biti **identični** — nijedan višak, nijedan
+manjak, nijedno odstupanje u tijelu ni u imenu.
+
+**Postojeća tvrdnja tačnog skupa se nikada ne smije oslabiti u `contains`/`subset` poređenje.** Ta
+zabrana je trajna i važi za svaku buduću izmjenu ovog testa.
+
+Numerički total **23** smije se tvrditi **dodatno**, ali **nije primarni autoritet**. Test koji
+provjerava **isključivo** `count = 23` je **nedovoljan** i ne ispunjava ovaj ugovor.
+
+## Razlog
+
+- **Sužavanje `P5-I1` je jedini potez koji ne stvara sposobnost bez ograničenja.** Alternativa —
+  dozvoliti `P5-I1` da kreira `idempotency_keys` i `audit_events` — zahtijevala bi ili da slice
+  izda grantove i politike, što mu D-062 izričito zabranjuje, ili da tabele ostanu u
+  nedokumentovanom stanju do `P5-I2`. Prvo krši D-062; drugo ostavlja audit tabelu bez zapisanog
+  sigurnosnog ugovora.
+- **Grant disciplina koja štiti pet PHI tabela nije bila zapisana za dvije §15 tabele.** Ona se ne
+  smije **pretpostaviti** — mora se **enumerisati**, i to prije izvršenja.
+- **Aritmetička greška je zabilježena, a ne prećutno prepisana.** Tijelo D-062 ostaje historijski
+  dokaz; ova odluka je kasniji autoritet. Prećutna izmjena broja unutar D-062 uklonila bi trag
+  greške i oslabila auditabilnost.
+- **Broj sam po sebi nije ugovor.** Test koji tvrdi `count = 23` prolazi i kada su dva constrainta
+  zamijenjena, jedan preimenovan ili jedno tijelo oslabljeno. Zato je primarni autoritet **stroga
+  jednakost punog skupa** nad `conname` + tabelom + `pg_get_constraintdef()`.
+
+## Alternative
+
+- **Ostaviti `011`-slice u `P5-I1` i dodati mu grant/RLS ovlaštenje** — **odbijeno.** To bi
+  proširilo `P5-I1` iz čisto strukturnog u sigurnosni slice i razbilo pravilo da grant i politika
+  nastaju atomično, u jednoj transakciji.
+- **Prepisati broj `18` u `23` unutar tijela D-062** — **odbijeno.** Gate `P5-I0` je grešku otkrio;
+  taj nalaz je dio revizijskog traga.
+- **Zadržati numeričku tvrdnju `count = 23` kao primarni test** — **odbijeno**, iz razloga gore.
+- **Uvesti novi broj migration paketa za `idempotency_keys` i `audit_events`** — **odbijeno.**
+  D-062, `OD-P5-D2-1`, zabranjuje uvođenje i renumeraciju paketa; ova odluka to potvrđuje.
+
+## Posljedice
+
+- **`P5-I1` je uži nego u D-062** i sada je čisto strukturni slice: Prisma schema, paket `003`,
+  schema/katalog testovi. Ništa više.
+- **`P5-I2` je širi**: uz Faza-5 slice paketa `013` i `014` te `★` dokaz, nosi i Faza-5 slice
+  paketa `011` **zajedno sa njegovom obaveznom sigurnosnom enumeracijom** iz klauzule 4.
+- **Zavisnosti slice-ova `P5-I3` … `P5-I8` se ne mijenjaju.**
+- **Redoslijed migracijskih fajlova Faze 5 se ne mijenja.**
+- **Broj `CHECK` constrainata paketa `003` u tekućem autoritetu je 23** (20 + 3), sa
+  `encounter_documents` = 11 ukupno.
+- Katalog test paketa `003` dobija **stroži** ugovor nego što ga je D-062 zapisao.
+
+## Security/privacy uticaj
+
+- **Nula nove sposobnosti.** Ova odluka **ne dodjeljuje nijedan grant**, **ne kreira nijednu
+  politiku** i **ne mijenja nijednu postojeću**.
+- **Sigurnosna površina se sužava, ne širi:** slice koji je smio kreirati audit tabelu bez
+  pripadajućeg RLS/grant ugovora to više ne smije.
+- **`audit_events` dobija eksplicitnu, mehanički provjerljivu zabranu cross-practice čitljivosti**
+  koja ranije nije bila zapisana.
+- **Nijedna Faza-4 invarijanta nije dirnuta.** `practice_memberships_self_select` ostaje
+  bajt-identična; `users` i dalje ima tačno dvije politike; grantovi Faze 4 su nepromijenjeni.
+- **`★` RI-naspram-RLS dokaz u `P5-I2` ostaje tvrdi preduslov za `P5-I5`, nepromijenjen**, i
+  **neuspjeh je i dalje HARD HOLD**.
+
+## Migration/rollout
+
+Ništa se ne izvršava u ovom gateu. Objavljeni redoslijed migracija Faze 5 ostaje `003` →
+`011`-slice → `013`-slice → `014`-slice; `003` nastaje u `P5-I1`, preostala tri u `P5-I2`. Prvi
+mutirajući korak Faze 5 smije nastupiti tek kroz zasebno autorizovan slice `P5-I1`.
+
+## Test dokaz
+
+Testovi se **ne implementiraju i ne izvršavaju u ovom gateu.** Ugovor katalog testa `CHECK`
+constrainata zapisan je u klauzuli 8 i razrađen u `08` §12.9.3. Obaveze iz D-062, Dio L.2, ostaju
+**nepromijenjene**.
+
+## Supersedes
+
+**Supersedira isključivo dvije tačke D-062:**
+
+1. **red `P5-I1` u D-062, Dio L**, i njegov odraz u `04` §7.2 — u dijelu koji Faza-5 slice paketa
+   `011` smješta u `P5-I1`;
+2. **sažete `CHECK` brojeve** u D-062, Dio B.1 (red tabele `18` / `encounter_documents` `10`) i
+   D-062, Dio B.4 („svih 18 zamrznutih `CHECK`-ova"), te njihov odraz u `02` §29.7.
+
+**Sve ostalo u D-062 ostaje nepromijenjeno i na snazi**, uključujući svih četrnaest `OD-P5-D2-*`
+ratifikacija, Dio C (referencijalne akcije), Dio D (odgovorni ljekar i `★` dokaz), Dio E (tri nova
+`CHECK`-a), Dio I (RLS i grantovi pet PHI tabela), Dio J, Dio K i Dio M.
+
+**D-060 i D-061 se ne diraju ni u jednoj klauzuli.** `D-OPEN-004a`, `D-OPEN-007`, `D-OPEN-009` i
+`13` §19 ostaju **otvoreni i nepromijenjeni**.
+
+## Zavisnosti
+
+D-023, D-049, D-052, D-053, D-056, D-059, **D-060**, **D-061**, **D-062**; `02` §7.1–§7.3, §8.1,
+§8.2, §2.11.4, §18.1, §22.11, §29; `04` §7.2; `08` §12.9; `12` §8.
+
+## Granice prema budućim fazama
+
+Naredni gate je **`P5-I1`** — prvi implementacijski slice Faze 5, u **suženom** obuhvatu iz
+klauzula 1 i 2. Prije njega Faza 5 ostaje `NOT_STARTED`, a checklist **49 / 0**.
+
+Redoslijed gateova: `P5-D1-A` → `D-060` → `P5-G1` → `D-061` → `P5-D2` → `P5-D2-B` / `D-062` →
+`P5-I0` → **`P5-I0-B` / `D-063` (ovaj zapis)** → `P5-I1` → `P5-I2` … `P5-I8`.
+
+---
+
 
 # Otvorene odluke
 
