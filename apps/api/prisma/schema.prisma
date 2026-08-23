@@ -11,13 +11,16 @@
 //   * PHASE 5 — the patient, encounter, storage and document domain owned by migration
 //     package `003_patient_encounter_documents` (§22.3, §29): `patient_references`,
 //     `encounters`, `encounter_diagnoses`, `storage_objects`, `encounter_documents` and the
-//     five enums they use.
+//     five enums they use;
+//   * PHASE 5, SECOND SLICE — the two system tables owned by the phase 5 slice of migration
+//     package `011_jobs_idempotency_outbox_audit` (§22.11, §29.9; D-064 `OD-5`):
+//     `idempotency_keys` and `audit_events`. Exactly two models, no enum.
 //
 // Tables of packages `004` and later still belong to their own phases and are deliberately
-// NOT declared here; declaring them early would pull later scope forward. `idempotency_keys`
-// and `audit_events` are likewise absent: D-063 clause 3 defers the phase 5 slice of package
-// `011` out of `P5-I1`, and `outbox_events` and `async_jobs` are not created in phase 5 at
-// all.
+// NOT declared here; declaring them early would pull later scope forward. `outbox_events`
+// and `async_jobs` are the other two §15 tables of package `011` and are deliberately
+// ABSENT: phase 5 has no consumer for either, so D-062 `OD-P5-D2-1`, D-063 clause 3 and
+// D-064 `OD-5` all keep them out. `OutboxEvent` and `AsyncJob` must NOT be added here.
 //
 // Rules that Prisma cannot express and that therefore live in migration SQL (§26):
 //   - RLS policies, grants, functions, triggers;
@@ -117,6 +120,13 @@ model Practice {
   // CHILD tables, so these fields emit no SQL and change nothing about `practices`.
   patientReferences PatientReference[]
   storageObjects    StorageObject[]
+
+  // Phase 5 slice of package `011` (§29.9.1; D-064 `OD-4`, `OD-5`). Prisma-only back-relations
+  // for the two — and ONLY two — new `practices` foreign keys. Like the two above they live on
+  // the CHILD tables and therefore emit NO structural change against `practices`: no column, no
+  // index, no constraint is added here (D-064 `OD-5`).
+  idempotencyKeys IdempotencyKey[]
+  auditEvents     AuditEvent[]
 
   @@index([status], map: "practices_status_idx")
   @@map("practices")
@@ -575,4 +585,108 @@ model EncounterDocument {
   @@unique([practiceId, id], map: "encounter_documents_tenant_key")
   @@index([practiceId, encounterId, createdAt], map: "documents_encounter_idx")
   @@map("encounter_documents")
+}
+
+// =============================================================================
+// System tables — phase 5 slice of package `011_jobs_idempotency_outbox_audit`
+// (§15.2, §15.4, §22.11, §29.9; D-023, D-062 `OD-P5-D2-1`, D-063 clause 3, D-064)
+// =============================================================================
+//
+// EXACTLY TWO MODELS. `OutboxEvent` and `AsyncJob` are the other two §15 tables this package
+// owns and are deliberately NOT declared: phase 5 has no consumer for either, so their slice
+// stays deferred (D-064 `OD-5`). Declaring them here would pull later scope forward.
+//
+// ZERO RUNTIME CAPABILITY (D-064 `OD-1`). The phase 5 slice of package `011` is STRUCTURAL
+// ONLY. It issues no `GRANT`, no `REVOKE`, no `ENABLE`/`FORCE` RLS statement and no
+// policy; after it, and before the phase 5 slice of `013_rls_policies`, both tables carry
+// `relrowsecurity = false`, `relforcerowsecurity = false`, zero policies and zero runtime
+// grants. That state is SAFE AND INTENDED — the tables are owned by `copilot_migrator`, no
+// `DEFAULT PRIVILEGE` exists on schema `public`, and neither runtime role holds `CREATE`
+// there, so no runtime role can reach them at all. Grants, RLS and the five policies of
+// §29.4a arrive together, in ONE transaction, with package `013` (D-049 clause 5).
+//
+// EXACTLY TWO NEW FOREIGN KEYS (§29.9.1, D-064 `OD-4`), both to `practices(id)` and both with
+// referential actions pinned explicitly to `NoAction`/`NoAction` — Prisma would otherwise
+// substitute `Restrict`/`Cascade` (§29.3). NO key to `users` is declared from either table:
+// `idempotency_keys.user_id`, `audit_events.actor_user_id` and `audit_events.actor_service`
+// stay APPLICATION INVARIANTS (precedent §6.5), because a key to `users` would introduce an
+// identity relation D-061 explicitly does not widen.
+//
+// Identifier rule (§2.2, §26.1): no `@default(uuid())`. The only default in either model is
+// `idempotency_keys.created_at`, matching every other `created_at` in this schema. §15.4
+// declares NO `created_at` on `audit_events` — `occurred_at` is the event timestamp and
+// carries no default, exactly like `encounters.occurred_at`.
+
+/// One recorded idempotent command execution (§15.2).
+///
+/// The scope key `(practice_id, user_id, endpoint, idempotency_key)` is what makes a replayed
+/// command resolve to the same recorded response inside one practice, one user and one
+/// endpoint; `(practice_id, id)` is the unconditional tenant constraint of §2.5 / D-022.
+///
+/// `response_body` must never hold medical content (§15.2). Only `response_status`,
+/// `response_body`, `locked_at` and `completed_at` ever become mutable, through the
+/// column-level `UPDATE` grant of §29.4a.3 — which belongs to package `013`, not here.
+model IdempotencyKey {
+  id             String    @id @db.Uuid
+  practiceId     String    @map("practice_id") @db.Uuid
+  userId         String    @map("user_id") @db.Uuid
+  idempotencyKey String    @map("idempotency_key") @db.VarChar(255)
+  endpoint       String    @db.VarChar(255)
+  requestSha256  String    @map("request_sha256") @db.VarChar(64)
+  responseStatus Int?      @map("response_status")
+  responseBody   Json?     @map("response_body")
+  lockedAt       DateTime? @map("locked_at") @db.Timestamptz(6)
+  completedAt    DateTime? @map("completed_at") @db.Timestamptz(6)
+  expiresAt      DateTime  @map("expires_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  practice Practice @relation(fields: [practiceId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "idempotency_keys_practice_fk")
+
+  @@unique([practiceId, id], map: "idempotency_keys_tenant_key")
+  @@unique([practiceId, userId, endpoint, idempotencyKey], map: "idempotency_keys_scope_key")
+  @@map("idempotency_keys")
+}
+
+/// One append-only audit event (§15.4).
+///
+/// `practice_id` is `NOT NULL` (D-023 clause 1): under a FORCE RLS equality policy a nullable
+/// tenant key would make `NULL = <uuid>` yield `NULL`, so the runtime role could neither write
+/// nor read such a row — silently, without an error. No `system_audit_events` twin is created
+/// (D-023 clause 2).
+///
+/// Append-only is enforced primarily by the GRANT — `SELECT` + `INSERT`, never `UPDATE`,
+/// `DELETE` or `TRUNCATE` (§15.4, §29.4a.4, D-064 `OD-3`) — which belongs to package `013`.
+/// The §19.2 audit guard trigger belongs to package `014`. Neither is declared here.
+///
+/// `previous_value` and `new_value` must be sanitised before they are written (§15.4);
+/// `event_sha256` / `previous_event_sha256` carry the hash chain.
+model AuditEvent {
+  id                  String   @id @db.Uuid
+  practiceId          String   @map("practice_id") @db.Uuid
+  occurredAt          DateTime @map("occurred_at") @db.Timestamptz(6)
+  actorType           String   @map("actor_type") @db.VarChar(30)
+  actorUserId         String?  @map("actor_user_id") @db.Uuid
+  actorService        String?  @map("actor_service") @db.VarChar(100)
+  action              String   @db.VarChar(150)
+  resourceType        String   @map("resource_type") @db.VarChar(100)
+  resourceId          String?  @map("resource_id") @db.Uuid
+  requestId           String?  @map("request_id") @db.VarChar(100)
+  sessionIdHash       String?  @map("session_id_hash") @db.VarChar(128)
+  ipAddress           String?  @map("ip_address") @db.Inet
+  userAgentHash       String?  @map("user_agent_hash") @db.VarChar(128)
+  previousValue       Json?    @map("previous_value")
+  newValue            Json?    @map("new_value")
+  metadata            Json
+  eventSha256         String   @map("event_sha256") @db.VarChar(64)
+  previousEventSha256 String?  @map("previous_event_sha256") @db.VarChar(64)
+
+  practice Practice @relation(fields: [practiceId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "audit_events_practice_fk")
+
+  // Both §21 audit indexes are created by THIS package's creator migration (§29.9.2,
+  // D-064 `OD-7`). Package `012` may later verify or reconcile them; creation is not deferred,
+  // because `012` does not exist in phase 5 and a table without its indexes is not finished.
+  @@unique([practiceId, id], map: "audit_events_tenant_key")
+  @@index([practiceId, resourceType, resourceId, occurredAt], map: "audit_resource_idx")
+  @@index([practiceId, actorUserId, occurredAt(sort: Desc)], map: "audit_actor_idx")
+  @@map("audit_events")
 }
