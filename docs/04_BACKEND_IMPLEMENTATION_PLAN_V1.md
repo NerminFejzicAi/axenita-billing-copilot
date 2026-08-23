@@ -1176,6 +1176,21 @@ predikat i katalog tvrdnje. **Nijedna runtime rola ne smije dobiti `SELECT`, `IN
 nad tim tabelama prije nego što je njena ograničavajuća tenant politika na snazi; runtime
 čitljivost `audit_events` preko granica ordinacija je kategorički zabranjena.**
 
+**Objavljena sigurnosna granica `P5-I2` (D-064).** Enumeracija koju D-063, klauzula 4, traži je
+objavljena: **Faza-5 slice paketa `013` je isključivi vlasnik** grantova, `ENABLE`/`FORCE RLS`-a
+i politika za **svih sedam** tenant tabela `P5-I2`; **Faza-5 slice paketa `011` kreira isključivo
+strukturne objekte** (dvije tabele, **dva** `practices` FK-a, **oba** audit indeksa), i njegovo
+međustanje ima **nula grantova, nula politika, `relrowsecurity = false`,
+`relforcerowsecurity = false`** — dakle **nula runtime sposobnosti**. Runtime grantovi:
+`idempotency_keys` = `SELECT` + `INSERT` + **column-level** `UPDATE` nad `response_status`,
+`response_body`, `locked_at`, `completed_at`; `audit_events` = **samo** `SELECT` + `INSERT`.
+`copilot_system` i `PUBLIC` = **nula** nad obje. Tačan katalog: `02` §29.4a, §29.9, §29.10.
+
+**Puni post-`P5-I2` katalog je 13 tabela sa `ENABLE` + `FORCE` i 23 politike** (10 Faza-3/4 + 8
+PHI + 3 + 2), a kanonski lanac migracija tada sadrži **tačno sedam** direktorija (`001`, `002`,
+`013` Faza-4, `003`, `011_phase5`, `013_phase5`, `014_phase5`). **Ranije objavljeno `18 / 11` je
+PHI-only podzbir i ne smije se koristiti kao exit tvrdnja `P5-I2`** (D-064, `OD-6`, `OD-8`).
+
 **`storage_objects` nema pisca u Fazi 5** — upload putanja je `DEFERRED` (`03` §13.2). Tabela se
 kreira jer je FK roditelj, drži **nula redova**, i **ne dobija nijedan grant ni politiku**.
 
@@ -1259,6 +1274,30 @@ vlasnički kontrolisan, sigurnosno osjetljiv gate**. `P5-I2` i dalje posjeduje F
 `011`, runtime sigurnosnu granicu i **`★`** dokaz iz §7.6a, koji ostaje **tvrdi preduslov za
 `P5-I5`** uz `HARD HOLD` pri neuspjehu. Kompletan dokaz `P5-I1`-a je u `05`, Faza 5,
 blok `Slice P5-I1`.
+
+### Segmentacija `P5-I2` na četiri pod-gatea (D-064)
+
+`P5-I2` se **ne izvršava kao jedan potez**. Ratifikovana su četiri pod-gatea:
+
+| Pod-gate | Obuhvat | Zavisi od |
+|---|---|---|
+| **`P5-I2A`** | strukturni preduslov — Faza-5 slice paketa `011`: dvije tabele, **dva** `practices` FK-a, **oba** audit indeksa, **dva** Prisma modela. **Bez granta, `REVOKE`-a, RLS zastavice, politike i trigera** | `P5-I1` (kanonski) |
+| **`P5-I2B`** | Faza-5 slice paketa `013` — grantovi, `ENABLE`/`FORCE RLS`, politike **svih sedam** tabela, sigurnosni testovi | `P5-I2A` |
+| **`P5-I2C`** | Faza-5 slice paketa `014` — AAD funkcija, **tri** trigera, `REVOKE ALL … FROM PUBLIC` nad funkcijom | `P5-I2B` |
+| **`P5-I2V`** | **`★`** RI-naspram-RLS dokaz iz §7.6a + trajne regresije | `P5-I2C` |
+
+**Nijedan pod-gate ne smije prećutno apsorbovati naredni.** `P5-I2A` **ne autorizuje**
+`P5-I2B`; `P5-I2B` **ne autorizuje** `P5-I2C`; `P5-I2C` **ne razrješava `★`**. **`P5-I5` ostaje
+blokiran dok `P5-I2V PASS` ne postane kanonski.** Svaki pod-gate traži **zasebnu vlasničku
+autorizaciju**; **D-064 nijedan od njih ne autorizuje**.
+
+**Vlasništvo sigurnosnih testova (D-064, `OD-9`).** `phase5-schema-catalogue.security.ts`
+zadržava strukturni katalog paketa `003` i **package-boundary ZERO-CAPABILITY tvrdnju nad samom
+migracijom `003`**; novi **`phase5-rls-grants.security.ts`** postaje vlasnik steady-state
+sigurnosnog kataloga `P5-I2`; **`★`** ostaje u zasebnom
+**`phase5-responsible-physician-ri.security.ts`**. Exact-set ekspektacije smiju evoluirati
+**stari tačan skup → novi tačan skup**; **`exact` → `contains`/`subset`/`partial` ostaje
+kategorički zabranjeno**.
 
 ## 7.6 Acceptance
 

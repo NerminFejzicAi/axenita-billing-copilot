@@ -6823,6 +6823,12 @@ practice_id = nullif(current_setting('app.practice_id', true), '')::uuid
 
 Ukupno **8 novih politika**. Nakon Faze 5: **18 politika** nad **11 tabela** sa `ENABLE` + `FORCE`.
 
+> **KOREKCIJA — D-064, `OD-6` (kasniji autoritet).** Rečenica iznad je **tačna kao PHI-only /
+> pre-paket-`011` podzbir**, ali **nije puni post-`P5-I2` katalog** i **ne smije se koristiti kao
+> exit tvrdnja `P5-I2`**. Puno kanonsko stanje nakon `P5-I2` je **23 politike** nad **13 tabela**
+> sa `ENABLE` + `FORCE` (10 Faza-3/4 + 8 PHI + 3 `idempotency_keys` + 2 `audit_events`).
+> Tijelo D-062 se **ne prepisuje** — anotira se, po precedentu D-063. Vidi `02` §29.4a.
+
 ## I.2 Normativna ograničenja dizajna politika
 
 - **`practice_id` je `NOT NULL` na svih pet** (`02` §2.5), pa pretpostavka §17.1 vrijedi i nijedan
@@ -7415,6 +7421,582 @@ klauzula 1 i 2. Prije njega Faza 5 ostaje `NOT_STARTED`, a checklist **49 / 0**.
 
 Redoslijed gateova: `P5-D1-A` → `D-060` → `P5-G1` → `D-061` → `P5-D2` → `P5-D2-B` / `D-062` →
 `P5-I0` → **`P5-I0-B` / `D-063` (ovaj zapis)** → `P5-I1` → `P5-I2` … `P5-I8`.
+
+---
+
+
+# D-064 — `P5-I2` sigurnosna granica i implementacijski ugovor
+
+- **Status:** ACCEPTED
+- **Datum:** 2026-08-23
+- **Tip:** vlasnička ratifikacija **sigurnosnog dizajna i implementacijskog ugovora** slicea
+  `P5-I2`, plus dvije korekcije nađene u vlasničkom pregledu. **Dokumentacija isključivo.**
+- **Amandman na:** **D-062, Dio I** (sažeti katalog politika/tabela) i na **preflight izvještaj
+  `P5-I2`** (broj migracijskih direktorija; obrazac behavioural testa AAD trigera). Sva ostala
+  tijela D-062 ostaju **nepromijenjena i na snazi**. **D-060, D-061 i D-063 se ne diraju ni u
+  jednoj klauzuli.**
+- **Vlasnička ratifikacija:** read-only preflight gate `P5-I2` je zaključen ishodom
+  `P5_I2_PREFLIGHT_PASS_READY_FOR_OWNER_REVIEW` i vlasniku predao **devet** otvorenih
+  sigurnosno-dizajnerskih pitanja. Vlasnik ih je sva riješio. Ovaj zapis je **objava** tih rješenja,
+  ne novo biranje opcija. **`OWNER_DECISIONS_REQUIRED` za `P5-I2` je time `0`.**
+- **Ovaj gate ne autorizuje implementaciju.** `P5-I2` **nije implementiran i nije autorizovan** —
+  ni ovim zapisom, ni kanoničnošću `P5-I1`-a. Faza 5 ostaje `IN_PROGRESS`, implementacijski
+  checklist Faze 5 ostaje **49 / 8**, i nijedan schema, migration, RLS, grant, trigger, Prisma
+  model ni test artefakt se ovom odlukom ne kreira. **Pokretanje `P5-I2` ostaje zaseban, vlasnički
+  kontrolisan gate.**
+
+## Kontekst/problem — trigger
+
+D-063, klauzula 4, obavezala je `P5-I2` da **prije izvršenja** objavi punu sigurnosnu enumeraciju za
+`idempotency_keys` i `audit_events`. Read-only preflight gate `P5-I2` je tu enumeraciju pripremio i
+pritom utvrdio da **devet** tačaka nije izvedivo iz postojećeg kanonskog autoriteta, nego traži
+vlasničku odluku: vlasništvo sigurnosnih iskaza po paketu, tačni runtime grantovi obje tabele,
+`practices` FK-ovi paketa `011`, obuhvat Prisma modela, **puni** post-`P5-I2` katalog politika,
+vlasništvo audit indeksa, imenovanje migracijskih direktorija i dozvoljena evolucija exact-set
+testova.
+
+Uz to su u vlasničkom pregledu nađene **dvije greške** — jedna u samom preflight izvještaju
+(broj migracijskih direktorija), jedna u obrascu dokazivanja AAD trigera (test koji pod
+`FORCE RLS` modelom nije jednoznačan).
+
+## Odluka
+
+### `OD-1` — vlasništvo sigurnosnih iskaza po paketu
+
+**Faza-5 slice paketa `013` je isključivi vlasnik** iskaza `GRANT`, `REVOKE`,
+`ENABLE ROW LEVEL SECURITY`, `FORCE ROW LEVEL SECURITY` i `CREATE POLICY` za **svih sedam** tenant
+tabela u obuhvatu `P5-I2`:
+
+```text
+patient_references
+encounters
+encounter_diagnoses
+storage_objects
+encounter_documents
+idempotency_keys
+audit_events
+```
+
+**Faza-5 slice paketa `011` kreira isključivo strukturne objekte.** Nakon `011`, a prije `013`,
+kanonsko međustanje obje nove tabele je:
+
+| Svojstvo | Vrijednost nakon `011`, prije `013` |
+|---|---|
+| tabela postoji | **da** |
+| runtime grantovi | **nula** |
+| politike | **nula** |
+| `relrowsecurity` | **false** |
+| `relforcerowsecurity` | **false** |
+
+**U tom međustanju ne postoji nijedna runtime sposobnost** — tabela nije dosežna nijednoj runtime
+roli, pa odsustvo RLS-a ne stvara izloženost. To je isti obrazac koji paket `003` već koristi za
+pet PHI tabela (D-062, Dio B.3).
+
+**Faza-5 migracija paketa `013` izdaje grant, `ENABLE`, `FORCE` i pripadajuće politike unutar JEDNE
+transakcije.** **Nijedno commitovano međustanje ne smije izložiti runtime sposobnost bez njenog
+tenant ograničenja.**
+
+### `OD-2` — runtime grant `idempotency_keys`
+
+`copilot_app`:
+
+```sql
+grant select on idempotency_keys to copilot_app;
+grant insert on idempotency_keys to copilot_app;
+grant update (response_status, response_body, locked_at, completed_at)
+  on idempotency_keys to copilot_app;
+```
+
+**Bez `UPDATE` privilegije nad:**
+
+```text
+id, practice_id, user_id, idempotency_key, endpoint, request_sha256, expires_at, created_at
+```
+
+**Bez `DELETE`. Bez `TRUNCATE`. Bez blanket table-level `UPDATE`-a.**
+
+RLS politike — tri:
+
+```text
+idempotency_keys_select
+idempotency_keys_insert
+idempotency_keys_update
+```
+
+Sve tri nose **kanonski tenant predikat** iz `02` §17.1, doslovno i neoslabljeno. `INSERT` nosi
+`WITH CHECK`; **`UPDATE` nosi i `USING` i `WITH CHECK`**.
+
+**`locked_at` je namjerno mutabilan** — to je concurrency/claim state polje, i bez njega
+idempotency claim nema mehanizam. **`expires_at` nije mutabilan u Fazi 5** — retencija i cleanup
+job nemaju konzumenta Faze 5, pa se grant ne izdaje prije svog konzumenta (D-049).
+
+### `OD-3` — runtime grant `audit_events`
+
+`copilot_app`:
+
+```sql
+grant select on audit_events to copilot_app;
+grant insert on audit_events to copilot_app;
+```
+
+**Bez `UPDATE`. Bez `DELETE`. Bez `TRUNCATE`.** Time je append-only ugovor iz `02` §15.4 sproveden
+**grantom**, koji je primarna kontrola (`02` §19.2).
+
+RLS politike — dvije:
+
+```text
+audit_events_select
+audit_events_insert
+```
+
+Tenant predikat je **kanonski i practice-scoped**. **Cross-practice čitljivost `audit_events` je
+kategorički zabranjena** (D-063, klauzula 5) — negativni test je trajna regresija.
+
+**`copilot_system` = nula runtime sposobnosti. `PUBLIC` = nula runtime sposobnosti**;
+`REVOKE ALL … FROM PUBLIC` prethodi svakom grantu.
+
+Ovo slijedi **tabelarno specifičan ugovor `02` §15.4**, ne generički matrični red `02` §18.1.
+
+### `OD-4` — `practices` FK-ovi paketa `011`
+
+Faza-5 slice paketa `011` deklariše **tačno dva** nova FK-a:
+
+```text
+idempotency_keys (practice_id) -> practices (id)
+audit_events     (practice_id) -> practices (id)
+```
+
+Oba: **`ON DELETE NO ACTION ON UPDATE NO ACTION`**, po istom pravilu koje D-062, Dio C, propisuje za
+Fazu 5.
+
+Imena slijede repozitorijsko FK pravilo `12` §8 (`<table>_<relation>_fk`) i precedent
+`patient_references_practice_fk` / `storage_objects_practice_fk` iz paketa `003`:
+
+```text
+idempotency_keys_practice_fk
+audit_events_practice_fk
+```
+
+**Ne izmišlja se nijedna druga relacija.** Konkretno se **NE** deklarišu:
+
+- `idempotency_keys.user_id → users`;
+- `audit_events.actor_user_id → users`;
+- bilo koji actor/service directory FK;
+- bilo koja druga nova relacija.
+
+Presedan je `02` §6.5 i §29.2: actor kolone su **aplikacijska invarijanta**, a ne FK, jer bi FK
+prema `users` uveo identitetsku relaciju koju D-061 izričito ne širi.
+
+### `OD-5` — Prisma modeli
+
+`P5-I2A` dodaje u `schema.prisma` **tačno dva** modela:
+
+```text
+IdempotencyKey
+AuditEvent
+```
+
+sa kanonskim kolonskim ugovorima iz `02` §15.2, §15.4 i D-023.
+
+**U Fazi 5 se NE dodaju `OutboxEvent` ni `AsyncJob`** — nemaju konzumenta Faze 5 (D-062,
+`OD-P5-D2-1`; D-063, klauzula 3).
+
+**RLS, grantovi, politike, funkcije i trigeri ostaju custom migration SQL** i **ne** reprezentuju se
+kao Prisma sigurnosna metadata.
+
+Ako Prisma zahtijeva back-relacije na `Practice` za dva FK-a iz `OD-4`, one se smiju dodati kao
+**Prisma-only relacije**, ali **ne smiju emitovati nijednu strukturnu izmjenu nad postojećom
+tabelom `practices`** izvan ta dva eksplicitno autorizovana FK-a.
+
+Generisani Prisma izlaz ostaje pod repozitorijskom tracking konvencijom: `db:generate` se izvršava
+po potrebi, ali se **ignorisani/generisani artefakti ne dodaju u repozitorij** samo zato što ih je
+generacija proizvela.
+
+### `OD-6` — puni post-`P5-I2` sigurnosni katalog
+
+**Kanonsko puno stanje nakon `P5-I2`:**
+
+| Veličina | Vrijednost |
+|---|---:|
+| tabela sa `ENABLE` + `FORCE ROW LEVEL SECURITY` | **13** |
+| ukupno politika | **23** |
+
+Na **svih 13** tabela vrijedi `relrowsecurity = true` **i** `relforcerowsecurity = true`.
+
+**Aritmetika broja politika:**
+
+| Izvor | Broj |
+|---|---:|
+| postojeće politike Faze 3/4 | **10** |
+| Faza-5 politike nad pet PHI tabela | **8** |
+| `idempotency_keys` politike | **3** |
+| `audit_events` politike | **2** |
+| **Ukupno** | **23** |
+
+**Ranije objavljeno „`18` politika nad `11` tabela" NIJE puni post-`P5-I2` katalog.** To je
+**PHI-only / pre-paket-`011` podzbir** — tačan za skup koji opisuje, netačan kao exit tvrdnja
+`P5-I2`. Historijski tekst se **zadržava gdje je historijski tačan i anotira**, ne prepisuje
+(precedent D-063). Zahvaćeni su `02` §29.4, D-062, Dio I.1, i `08` §12.9.4, stavka 18.
+
+**Nijedan implementator ne smije koristiti `18 / 11` kao exit asercija `P5-I2`.**
+
+### `OD-7` — vlasništvo audit indeksa
+
+Faza-5 **creator** migracija paketa `011` kreira i **oba** audit indeksa iz `02` §21:
+
+```sql
+create index audit_resource_idx
+on audit_events(practice_id, resource_type, resource_id, occurred_at);
+
+create index audit_actor_idx
+on audit_events(practice_id, actor_user_id, occurred_at desc);
+```
+
+Paket `012` ih smije kasnije **verifikovati/pomiriti**. **Kreiranje se ne odgađa** samo zato što je
+`02` §21 katalogizovan pod paketom `012` — tabela bez svojih indeksa nije dovršena, a `012` u Fazi 5
+ne postoji.
+
+### `OD-8` — imenovanje migracijskih direktorija
+
+Nepromjenjiva konvencija za **tri buduća** Faza-5 direktorija:
+
+```text
+<timestamp>_011_jobs_idempotency_outbox_audit_phase5
+<timestamp>_013_rls_policies_phase5
+<timestamp>_014_immutability_triggers_phase5
+```
+
+**Timestampovi se u D-064 ne izmišljaju** — stvarni timestamp se bira **isključivo** u trenutku
+autorstva pojedine migracije.
+
+**Kanonski hronološki lanac nakon uspješnog `P5-I2` sadrži TAČNO SEDAM migracijskih direktorija:**
+
+```text
+001              extensions and roles
+002              identity and practices
+013              [postojeći Faza-4 slice]
+003              [P5-I1]
+011_phase5
+013_phase5
+014_phase5
+```
+
+**Broj paketa izražava vlasništvo, ne hronološki redoslijed timestampova** (D-052). Otuda `013`
+prethodi `003` u lancu, a `013_phase5` slijedi nakon `011_phase5`.
+
+**Očekivani konačni tačan broj migracija = 7.**
+
+### `OD-9` — evolucija exact-set testova
+
+Vlasnik **eksplicitno autorizuje** da exact-set regresijske ekspektacije evoluiraju
+
+```text
+STARI TAČAN SKUP  →  NOVI TAČAN SKUP
+```
+
+kada kanonski `P5-I2` **namjerno** mijenja stanje baze. **To NIJE slabljenje dokaza.**
+
+**I dalje je kategorički zabranjeno:**
+
+- `exact` → `contains`;
+- `exact` → `subset`;
+- `exact` → `partial`;
+- uklanjanje sigurnosne invarijante zato što je postala nezgodna.
+
+**Obavezna podjela vlasništva testova:**
+
+**A. `phase5-schema-catalogue.security.ts`** — zadržava vlasništvo nad: Faza-5 schema katalogom ·
+enumima · tabelama · FK-ovima · `CHECK`-ovima · unique/index katalogom · strukturnim ugovorom paketa
+`003`. Njegovi **globalni** exact skupovi smiju se **mehanički proširiti** kada se kanonski puni
+migracijski lanac promijeni.
+
+**Tvrdnja ZERO-CAPABILITY paketa `003` ne smije jednostavno nestati.** Nakon `P5-I2` konačno stanje
+baze **više nema** nula sposobnosti, pa ta tvrdnja mora ostati mehanički dokaziva kao
+**package-boundary / statička** asercija **nad samom migracijom `003`**, a ne nad završnim stanjem
+baze.
+
+**B. novi `phase5-rls-grants.security.ts`** — vlasnik **steady-state** sigurnosnog kataloga i
+ponašanja `P5-I2`: 13 tabela `true`/`true` · **tačno 23** politike · tačni table grantovi · tačni
+column grantovi · **nula** `PUBLIC` · **nula** `copilot_system` nad Faza-5 tenant objektima ·
+tenant izolacija · negativno privilegijsko ponašanje.
+
+**C. zaseban `phase5-responsible-physician-ri.security.ts`** — i dalje **preporučen**. `★` dokaz
+mora ostati **vizuelno i mehanički izolovan** od ostatka sigurnosnog paketa.
+
+## Korekcija A — broj migracijskih direktorija
+
+Fraza iz **§11 preflight izvještaja `P5-I2`**:
+
+```text
+"migration chain (exact set, 6 files)"
+```
+
+je **superseded**.
+
+Kanonski tačan broj nakon `P5-I2` je **7 migracijskih direktorija**, jer tekući kanonski lanac već
+ima **četiri** (`001`, `002`, `013` Faza-4, `003` `P5-I1`), a `P5-I2` dodaje **tri**
+(`011_phase5`, `013_phase5`, `014_phase5`).
+
+**Historijski preflight dokaz se ne prepisuje prećutno** — korekcija se **zapisuje** (precedent
+D-063).
+
+## Korekcija B — behavioural test AAD trigera
+
+**Sljedeći dokaz se NE traži jer je pod `P5-I2B` modelom nevaljan/dvosmislen:**
+
+```text
+"copilot_migrator mijenja id/practice_id na produkcijskoj Faza-5 tabeli nakon FORCE RLS
+ i dobija trigger SQLSTATE 23514"
+```
+
+**Razlog.** Nakon `P5-I2B` je i migrator/vlasnik tabele **sam podložan `FORCE RLS`-u** i **nema
+primjenjivu runtime politiku**, pa RLS može spriječiti da red uopšte dođe do `BEFORE UPDATE`
+trigera. Test bi tada prolazio iz **pogrešnog razloga** ili padao bez informacije o trigeru.
+
+**Ispravna podjela dokaza — tri odvojena testa:**
+
+**1. Dokaz atačiranja / katalog nad produkcijom.** Mehanički se tvrdi nad **stvarnim** Faza-5
+tabelama:
+
+- **tačno 3** ciljna trigera;
+- **tačna imena** (`patient_references_aad_immutable_trg`, `encounters_aad_immutable_trg`,
+  `encounter_documents_aad_immutable_trg`);
+- `BEFORE UPDATE`;
+- `FOR EACH ROW`;
+- **bez `WHEN` klauzule**;
+- **tačna ciljna funkcija** `app_security.reject_aad_bound_column_change()`.
+
+**2. Runtime prva barijera.** `copilot_app` pokušaj mutacije `id` ili `practice_id` ostaje odbijen
+**grantom/RLS-om** (uskraćen column-level `UPDATE`, `02` §29.5). **Ne smije se tvrditi da to
+odbijanje dokazuje izvršenje trigera** — ono dokazuje prvu barijeru, ne drugu.
+
+**3. Ponašanje trigger funkcije.** **Isključivo na guarded disposable bazi**:
+
+- kao migrator/test owner kreirati **test-only privremenu** tabelu sa kolonama `id` + `practice_id`;
+- atačirati **istu kanonsku** funkciju `app_security.reject_aad_bound_column_change()` na tu
+  privremenu tabelu;
+- izmjena zaštićene kolone mora podići **SQLSTATE `23514`**;
+- `UPDATE` koji ostavlja `id` i `practice_id` nepromijenjenima mora vratiti `NEW` / uspjeti;
+- privremeni objekat **nestaje ili se eksplicitno rollbackuje**.
+
+**Ne smije se dodati:** owner politika · četvrta rola · `BYPASSRLS` · trajna test tabela ·
+proširenje produkcijskog granta.
+
+Time je **druga barijera dokazana bez slabljenja `FORCE RLS`-a**.
+
+## Higijena ACL-a funkcije paketa `014`
+
+Ratifikuje se:
+
+```sql
+revoke all on function app_security.reject_aad_bound_column_change() from public;
+```
+
+**Nijedan direktan `EXECUTE` grant se ne izdaje** ni `copilot_app`-u ni `copilot_system`-u.
+Semantika izvršenja trigera se time **ne mijenja** — trigger funkciju izvršava sistem u kontekstu
+trigera, ne pozivalac kroz direktan poziv.
+
+Funkcija ostaje: **`SECURITY INVOKER`** · `LANGUAGE plpgsql` · `RETURNS trigger` · **fiksiran
+kanonski `search_path`** · **SQLSTATE `23514`** pri mutaciji zaštićene kolone (`02` §19.3).
+
+## Očuvani ratifikovani autoritet
+
+**Ne otvaraju se ponovo:** **D-060**, **D-061**, **D-062**, **D-063**, **`D-OPEN-004a`**.
+
+**Ostaje na snazi, nepromijenjeno:**
+
+- Faza-5 obuhvat paketa `011` = **isključivo** `idempotency_keys` + `audit_events`;
+- **`outbox_events` i `async_jobs` ostaju odgođeni** i u Fazi 5 se ne kreiraju;
+- **nijedna nova runtime rola**;
+- **nijedan `BYPASSRLS`**;
+- **nijedan `SECURITY DEFINER`** za dodatke `P5-I2`;
+- **nijedan drugi Prisma klijent**;
+- **nijedna treća `users` politika**;
+- **nijedno širenje co-member identitetskog čitanja**;
+- **`02` §23.4 maintenance allowlista ostaje tačno šest tabela**;
+- **`P5-I2` `★` hard stop prije `P5-I5`**.
+
+**Imenovanje politika porodice `P5-I2`** slijedi **već kanonska konkretna imena** oblika
+`<table>_<command>` (`idempotency_keys_select`, `audit_events_insert`, …), **bez** preimenovanja
+postojećih primijenjenih politika radi generičke `_policy` sufiks konvencije iz `12` §8.
+**Nijedna postojeća politika se ne preimenuje.** `12` §8 dobija minimalnu grandfathering napomenu,
+bez izmjene ijednog primijenjenog imena.
+
+## `★` hard stop — očuvan doslovno
+
+**`P5-I2` `★` ostaje obavezan.** Budući empirijski dokaz mora **istovremeno** ustanoviti, pod
+**stvarnim** `copilot_app`, **stvarnim `FORCE RLS`**, u **istoj transakciji** i **istom tenant
+kontekstu**:
+
+**A.** `INSERT` u `encounters` koji imenuje **istoordinacijskog co-member** odgovornog ljekara
+**uspijeva** kroz composite FK;
+
+**I**
+
+**B.** direktan `SELECT` **tog istog** `practice_memberships` reda vraća **NULA REDOVA**.
+
+**B mora biti nula redova, ne puko `SQLSTATE 42501`.** Negativni slučajevi ostaju obavezni.
+
+**Neuspjeh: `HARD HOLD` + ponovo se otvara `OD-P5-D2-5`.**
+
+**Neuspjeh NE autorizuje:** `SECURITY DEFINER` · četvrtu DB rolu · drugi Prisma klijent · širenje
+`users` politike · širenje `practice_memberships` · `BYPASSRLS` · denormalizaciju `displayName`-a.
+
+## Segmentacija implementacije — ratifikovano
+
+Ratifikuju se **četiri** buduća pod-gatea:
+
+| Pod-gate | Obuhvat |
+|---|---|
+| **`P5-I2A`** | strukturni preduslov — Faza-5 slice paketa `011` (dvije tabele, dva `practices` FK-a, dva audit indeksa, dva Prisma modela) |
+| **`P5-I2B`** | Faza-5 slice paketa `013` — RLS, grantovi, sigurnosni testovi |
+| **`P5-I2C`** | Faza-5 slice paketa `014` — AAD trigger slice |
+| **`P5-I2V`** | **`★`** RI-naspram-RLS dokaz + trajne regresije |
+
+**Nijedan gate ne smije prećutno apsorbovati naredni:**
+
+- **`P5-I2A` NE autorizuje `P5-I2B`**;
+- **`P5-I2B` NE autorizuje `P5-I2C`**;
+- **`P5-I2C` NE razrješava `★`**;
+- **`P5-I5` ostaje blokiran dok `P5-I2V PASS` ne postane kanonski.**
+
+## Prognoza checklista
+
+**Ovim gateom se ne mijenja nijedna kućica.** Tekuće stanje ostaje **49 / 8**.
+
+Nakon što **cijeli** `P5-I2` bude implementiran, verifikovan i kanonski, **jedini** red Faza-5
+checklista koji se prognozira kao novo završen je:
+
+```text
+Schema:  RLS
+```
+
+**Prognoza: 49 / 9.**
+
+**`Tests → cross-tenant FK` se u `P5-I2` NE smije označiti**, jer značenje tog reda uključuje i
+kasnije API/`422` ponašanje koje posjeduje `P5-I5`. **Svi Services/API/facade redovi ostaju
+netaknuti.**
+
+## Razlog
+
+- **Grant i njegovo tenant ograničenje moraju nastati atomično.** `OD-1` to pretvara iz namjere u
+  vlasništvo paketa: struktura je `011`, sposobnost je `013`, i međustanje je dokazivo prazno.
+- **Column-level `UPDATE` na `idempotency_keys` je uža površina od table-level `UPDATE`-a.** Blanket
+  `UPDATE` bi pozivaocu dao i mutaciju `practice_id`-a i `idempotency_key`-a — dvije kolone koje su
+  nosioci tenant granice i ključa deduplikacije.
+- **`audit_events` bez `UPDATE`/`DELETE` je jedini oblik u kojem je audit trag vjerodostojan.**
+  Grant je primarna kontrola; trigger iz `02` §19.2 je dodatna, ne zamjenska.
+- **Puni katalog mora biti objavljen prije nego što ga test tvrdi.** `18 / 11` je tačan podzbir i
+  netačna exit tvrdnja; bez ove korekcije bi `P5-I2B` napisao test koji **prolazi** dok dvije nove
+  tabele nemaju nijednu politiku.
+- **Exact-set testovi moraju smjeti da rastu.** Bez `OD-9` implementator bi imao samo dva izlaza:
+  oslabiti poređenje u `contains` (zabranjeno) ili tvrditi zastarjelo stanje. Autorizovana je
+  **tačno jedna** operacija: zamjena starog tačnog skupa novim tačnim skupom.
+- **Behavioural test AAD trigera je morao biti razdvojen** jer pod `FORCE RLS`-om jedan iskaz ne
+  može istovremeno dokazati atačiranje, runtime barijeru i logiku funkcije. Tri odvojena dokaza
+  dokazuju sve tri stvari **bez** ijednog izuzetka u sigurnosnom modelu.
+- **Broj `7` je zapisan jer je `6` bio broj koji bi prošao „exact set" test i sakrio jedan
+  nedostajući direktorij.**
+
+## Alternative
+
+- **Dati paketu `011` i grantove/RLS** — **odbijeno.** To bi ga pretvorilo u sigurnosni paket i
+  razbilo atomičnost grant + politika, istu koju D-063, klauzula 5, već traži.
+- **Table-level `UPDATE` na `idempotency_keys`** — **odbijeno.** Uključuje `practice_id` i
+  `idempotency_key`; kolone koje nose tenant granicu i ključ deduplikacije ne smiju biti mutabilne.
+- **`UPDATE`/`DELETE` grant nad `audit_events` „za cleanup"** — **odbijeno.** Retencija nema
+  konzumenta Faze 5, a append-only audit koji se smije mijenjati nije audit.
+- **FK `audit_events.actor_user_id → users`** — **odbijeno.** Uvodi identitetsku relaciju koju
+  D-061 izričito ne širi; actor kolone ostaju aplikacijska invarijanta (`02` §6.5).
+- **Dodati `OutboxEvent`/`AsyncJob` „dok smo tu"** — **odbijeno.** D-062, `OD-P5-D2-1`, i D-063,
+  klauzula 3; tabela se ne uvodi prije svog konzumenta.
+- **Prepisati `18 / 11` unutar tijela D-062** — **odbijeno.** Historijski tekst se anotira, ne
+  prepisuje (precedent D-063).
+- **Odgoditi audit indekse u paket `012`** — **odbijeno.** `012` u Fazi 5 ne postoji; tabela bi
+  ostala bez indeksa koje njen vlastiti katalog propisuje.
+- **Preimenovati postojeće politike u `_policy` sufiks** — **odbijeno.** Deset primijenjenih
+  politika Faze 3/4 nosi konkretna imena; preimenovanje bi bila migracija sigurnosnih objekata bez
+  ijedne sigurnosne dobiti.
+- **Jedan monolitni `P5-I2` gate** — **odbijeno.** Četiri pod-gatea sprečavaju da strukturni korak
+  prećutno povuče sigurnosni, a sigurnosni prećutno razriješi `★`.
+
+## Posljedice
+
+- **`P5-I2` ima objavljen, potpun sigurnosni ugovor** i time ispunjava obavezu enumeracije iz
+  D-063, klauzule 4, **prije** izvršenja.
+- **`P5-I2` se izvršava kao četiri odvojena, pojedinačno autorizovana pod-gatea.**
+- **Post-`P5-I2` katalog je 13 tabela / 23 politike / 7 migracijskih direktorija** — mjerodavno.
+- **Novi test fajl `phase5-rls-grants.security.ts` postaje vlasnik steady-state sigurnosnog
+  kataloga**; `phase5-schema-catalogue.security.ts` zadržava strukturni katalog i
+  package-boundary ZERO-CAPABILITY tvrdnju nad migracijom `003`.
+- **`08` §12.9.4, stavka 18 (`18` / `11`) je anotirana** i više se ne smije čitati kao exit tvrdnja
+  `P5-I2`.
+- **`02` §25.8 dobija Faza-5 korekciju obrasca dokazivanja AAD trigera.**
+- **Checklist Faze 5 ostaje 49 / 8**; prognoza nakon punog `P5-I2` je **49 / 9**.
+
+## Security/privacy uticaj
+
+- **Nula nove sposobnosti u ovom gateu.** Ne dodjeljuje se nijedan grant, ne kreira nijedna
+  politika, nijedan trigger, nijedna funkcija i ne mijenja nijedan postojeći objekat.
+- **Sigurnosna površina se sužava, ne širi:** `idempotency_keys` dobija **column-level**, ne
+  table-level `UPDATE`; `audit_events` dobija **isključivo** `SELECT` + `INSERT`; funkcija paketa
+  `014` gubi `PUBLIC` `EXECUTE`.
+- **`audit_events` cross-practice čitljivost ostaje kategorički zabranjena** i sada ima objavljen
+  tačan skup politika koji to mehanički dokazuje.
+- **Nijedna Faza-3/4 invarijanta nije dirnuta.** `practice_memberships_self_select` ostaje
+  bajt-identična; `users` i dalje ima tačno dvije politike; deset postojećih politika se ne
+  preimenuje i ne mijenja.
+- **`FORCE RLS` se ne slabi ni u jednom testu** — korekcija B dokazuje trigger logiku na
+  privremenom objektu disposable baze, bez ijednog izuzetka nad produkcijskim tabelama.
+- **`★` RI-naspram-RLS dokaz ostaje tvrdi preduslov za `P5-I5`, doslovno nepromijenjen**, i
+  **neuspjeh je i dalje `HARD HOLD`**.
+
+## Migration/rollout
+
+**Ništa se ne izvršava u ovom gateu.** Nijedna migracija se ne kreira, ne imenuje konkretnim
+timestampom i ne primjenjuje; **nijedna baza se ne kontaktira.**
+
+Objavljeni redoslijed izvršenja Faze 5 ostaje `003` → `011`-slice → `013`-slice → `014`-slice.
+Prvi mutirajući korak `P5-I2` smije nastupiti tek kroz zasebno autorizovan pod-gate **`P5-I2A`**.
+
+## Test dokaz
+
+**Testovi se ne implementiraju i ne izvršavaju u ovom gateu.** Ugovori su zapisani u `OD-9`
+(vlasništvo i evolucija exact-set testova) i u korekciji B (trodijelni dokaz AAD trigera), a
+razrađeni u `08` §12.9.4. Obaveze iz D-062, Dio L.2, i D-063, klauzule 8, ostaju **nepromijenjene**.
+
+## Supersedes
+
+**Supersedira tačno tri stvari:**
+
+1. **sažetak „`18` politika nad `11` tabela"** kao **puni post-Faza-5/post-`P5-I2` katalog** —
+   u `02` §29.4, D-062, Dio I.1, i `08` §12.9.4, stavka 18. Zadržava se kao **PHI-only podzbir**;
+2. **frazu §11 preflight izvještaja `P5-I2` „migration chain (exact set, 6 files)"** — tačan broj
+   je **7**;
+3. **obrazac behavioural testa AAD trigera** koji je tražio `SQLSTATE 23514` od migratora nad
+   produkcijskom Faza-5 tabelom pod `FORCE RLS`-om (`02` §25.8, za Fazu 5).
+
+**Sve ostalo u D-062 i D-063 ostaje nepromijenjeno i na snazi.** **D-060 i D-061 se ne diraju ni u
+jednoj klauzuli.** `D-OPEN-004a`, `D-OPEN-007`, `D-OPEN-009` i `13` §19 ostaju **otvoreni i
+nepromijenjeni**.
+
+## Zavisnosti
+
+D-023, D-025, D-033, D-038, D-047, D-048, D-049, D-052, D-053, D-056, D-059, **D-060**, **D-061**,
+**D-062**, **D-063**; `02` §6.5, §15.2, §15.4, §17.1, §18.1, §19.2, §19.3, §21, §22.11, §22.13,
+§22.14, §23.4, §25.8, §29; `04` §7.2, §7.5, §7.6a; `08` §12.9; `12` §8.
+
+## Granice prema budućim fazama
+
+Naredni gate je **`P5-I2A`** — strukturni preduslov `P5-I2`, i **on se ovim zapisom NE autorizuje**;
+autorizacija je zaseban vlasnički potez. Do tada `P5-I2` ostaje **NOT IMPLEMENTED**, paket `011`
+**NOT IMPLEMENTED**, Faza-5 RLS/grantovi **NOT IMPLEMENTED**, Faza-5 AAD trigeri paketa `014`
+**NOT IMPLEMENTED**, **`★` NOT EXECUTED**, a **`P5-I5` neautorizovan**.
+
+Redoslijed gateova: `P5-D1-A` → `D-060` → `P5-G1` → `D-061` → `P5-D2` → `P5-D2-B` / `D-062` →
+`P5-I0` → `P5-I0-B` / `D-063` → `P5-I1` → `P5-I1-D` → `P5-I2` preflight →
+**`P5-I2-D` / `D-064` (ovaj zapis)** → `P5-I2A` → `P5-I2B` → `P5-I2C` → `P5-I2V` → `P5-I3` …
+`P5-I8`.
 
 ---
 
