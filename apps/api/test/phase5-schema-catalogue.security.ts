@@ -31,6 +31,17 @@ import {
  * capability at all — which is strictly stronger than a claim that the window is short. The
  * `false`/`false` assertions below are POSITIVE assertions of that intended state.
  *
+ * WHAT THIS FILE OWNS AFTER `P5-I2A` (D-064 `OD-9` part A).
+ * It keeps the STRUCTURAL CATALOGUE OF PACKAGE `003` and the package-boundary ZERO-CAPABILITY
+ * assertion over the five tables package `003` creates. Sub-gate `P5-I2A` added two tables of
+ * its own — `idempotency_keys` and `audit_events`, owned by the phase 5 slice of package
+ * `011` — so the assertions that are WHOLE-SCHEMA rather than package-scoped grew from their
+ * old exact set to a new exact set. That evolution is explicitly authorised by D-064 `OD-9`
+ * and is NOT a weakening; `exact` may never become `contains`, `subset` or `partial`. The
+ * package `011` contract itself is asserted by `phase5-package011-catalogue.security.ts`, and
+ * the future steady-state security catalogue of `P5-I2` belongs to
+ * `phase5-rls-grants.security.ts`.
+ *
  * WHAT THIS FILE DELIBERATELY DOES NOT PROVE.
  * Package `003` creates `encounters_responsible_physician_membership_fk`. It does NOT prove
  * how that key behaves under `FORCE ROW LEVEL SECURITY`, because no phase 5 table carries
@@ -53,6 +64,15 @@ const PHASE_5_TABLES = [
 
 /** The same five as a SQL list literal. Written out so every query names them identically. */
 const PHASE_5_TABLE_LIST = PHASE_5_TABLES.map((table) => `'${table}'`).join(', ');
+
+/**
+ * The two tables the phase 5 slice of package `011` creates (sub-gate `P5-I2A`).
+ *
+ * They are NOT package `003`'s and this file asserts no contract of their own for them —
+ * `phase5-package011-catalogue.security.ts` owns that. They are named here only because the
+ * WHOLE-SCHEMA assertions below must stay exact full-set comparisons (D-064 `OD-9`).
+ */
+const PACKAGE_011_TABLES = ['audit_events', 'idempotency_keys'] as const;
 
 /** The six tables of packages `002` and `013`, which package `003` must not touch. */
 const PHASE_3_AND_4_TABLES = [
@@ -372,20 +392,23 @@ describe('package 003 enums (02 §4.3-§4.8, §29.1)', () => {
 });
 
 describe('package 003 tables (02 §7.1-§7.3, §8.1, §8.2, §22.3)', () => {
-  it('given package 003 when applied then exactly the eleven business tables exist', async () => {
+  it('given package 003 when applied then exactly the thirteen business tables exist', async () => {
     const result = await migrator.query<{ tablename: string }>(
       `select tablename from pg_tables
         where schemaname = 'public' and tablename <> '_prisma_migrations'
         order by tablename`,
     );
 
-    // Six from packages `002`/`013` plus the five of package `003`. NOTHING from package
-    // `011` appears: `idempotency_keys` and `audit_events` were moved out of this slice by
-    // D-063 clause 3, and `outbox_events` and `async_jobs` are not created in phase 5 at all.
+    // Six from packages `002`/`013`, the five of package `003` and the two of the phase 5
+    // slice of package `011`, which sub-gate `P5-I2A` added AFTER this package. The old exact
+    // set of ELEVEN is superseded by this one (D-064 `OD-9`). `outbox_events` and `async_jobs`
+    // are still absent — phase 5 does not create them at all (D-064 `OD-5`).
     expect(result.rows.map((row) => row.tablename)).toStrictEqual([
+      'audit_events',
       'encounter_diagnoses',
       'encounter_documents',
       'encounters',
+      'idempotency_keys',
       'patient_references',
       'platform_role_assignments',
       'practice_membership_roles',
@@ -395,16 +418,22 @@ describe('package 003 tables (02 §7.1-§7.3, §8.1, §8.2, §22.3)', () => {
       'storage_objects',
       'users',
     ]);
-    expect(result.rows).toHaveLength(PHASE_5_TABLES.length + PHASE_3_AND_4_TABLES.length);
+    expect(result.rows).toHaveLength(
+      PHASE_5_TABLES.length + PHASE_3_AND_4_TABLES.length + PACKAGE_011_TABLES.length,
+    );
   });
 
-  it('given the deferred package 011 tables when looked for then none of them exists', async () => {
-    // D-063 clauses 2-3, made mechanical: a table pulled forward from the deferred `011`
-    // slice must fail here rather than pass silently.
+  it('given the still-deferred package 011 tables when looked for then none of them exists', async () => {
+    // D-064 `OD-5`, made mechanical. Sub-gate `P5-I2A` created `idempotency_keys` and
+    // `audit_events`; `outbox_events` and `async_jobs` are the other two §15 tables of the
+    // same package and have NO phase 5 consumer, so a table pulled forward from that deferred
+    // half must fail here rather than pass silently. This is the same exact-set assertion as
+    // before, narrowed to the set that is still deferred — the two that were created are now
+    // asserted positively above and in `phase5-package011-catalogue.security.ts`.
     const result = await migrator.query<{ tablename: string }>(
       `select tablename from pg_tables
         where schemaname = 'public'
-          and tablename in ('idempotency_keys', 'audit_events', 'outbox_events', 'async_jobs')`,
+          and tablename in ('outbox_events', 'async_jobs')`,
     );
 
     expect(result.rows).toStrictEqual([]);
@@ -547,9 +576,11 @@ describe('CHECK constraint catalogue (02 §29.7a; D-063 clauses 6-8; 08 §12.9.3
 });
 
 describe('foreign key catalogue (02 §29.2, §29.3; 08 §12.9.3 items 10, 11)', () => {
-  it('given package 003 when applied then exactly THIRTEEN foreign keys exist', async () => {
-    // Five from package `002` plus the eight of §29.2 — four canonically declared and four
-    // newly declared by D-062 Dio C.
+  it('given package 003 when applied then exactly FIFTEEN foreign keys exist', async () => {
+    // Five from package `002`, the eight of §29.2 — four canonically declared and four newly
+    // declared by D-062 Dio C — and the two of §29.9.1, added AFTER this package by the phase
+    // 5 slice of `011` (D-064 `OD-4`). The old exact set of THIRTEEN is superseded by this one
+    // (D-064 `OD-9`); the eight this file speaks for are asserted separately below.
     const result = await migrator.query<{ conname: string }>(
       `select con.conname
          from pg_constraint con
@@ -560,12 +591,14 @@ describe('foreign key catalogue (02 §29.2, §29.3; 08 §12.9.3 items 10, 11)', 
     );
 
     expect(result.rows.map((row) => row.conname)).toStrictEqual([
+      'audit_events_practice_fk',
       'encounter_diagnoses_encounter_fk',
       'encounter_documents_encounter_fk',
       'encounter_documents_source_storage_object_fk',
       'encounter_documents_storage_object_fk',
       'encounters_patient_reference_fk',
       'encounters_responsible_physician_membership_fk',
+      'idempotency_keys_practice_fk',
       'patient_references_practice_fk',
       'platform_role_assignments_user_fk',
       'practice_membership_roles_membership_fk',
@@ -574,7 +607,7 @@ describe('foreign key catalogue (02 §29.2, §29.3; 08 §12.9.3 items 10, 11)', 
       'practice_settings_practice_fk',
       'storage_objects_practice_fk',
     ]);
-    expect(result.rows).toHaveLength(13);
+    expect(result.rows).toHaveLength(15);
   });
 
   it('given EVERY foreign key when inspected then ON DELETE and ON UPDATE are NO ACTION', async () => {
@@ -582,7 +615,7 @@ describe('foreign key catalogue (02 §29.2, §29.3; 08 §12.9.3 items 10, 11)', 
     // DELETE capability at all, so it has no legitimate trigger and exactly one destructive
     // one — a single stray statement erasing a whole tenant's encounters, diagnoses and
     // documents. `SET NULL` is impossible over NOT NULL keys. This must hold for all
-    // thirteen, not only the eight new ones.
+    // fifteen, not only the eight this package declares.
     const result = await migrator.query<{
       conname: string;
       confdeltype: string;
@@ -596,7 +629,7 @@ describe('foreign key catalogue (02 §29.2, §29.3; 08 §12.9.3 items 10, 11)', 
         order by con.conname`,
     );
 
-    expect(result.rows).toHaveLength(13);
+    expect(result.rows).toHaveLength(15);
     for (const row of result.rows) {
       expect(row.confdeltype).toBe('a');
       expect(row.confupdtype).toBe('a');
@@ -695,8 +728,10 @@ describe('unique and index catalogue (02 §2.5, §29.6; 08 §12.9.3 items 13, 16
   });
 
   it('given all five phase 5 tables when inspected then each carries the unconditional unique (practice_id, id)', async () => {
-    // §2.5 / D-022. Eight of thirty tenant tables now carry it: three from package `002` and
-    // the five of package `003` (08 §12.9.3 item 13).
+    // §2.5 / D-022, unconditional. TEN of thirty tenant tables now carry it: three from
+    // package `002`, the five of package `003` (08 §12.9.3 item 13) and the two of the phase 5
+    // slice of `011`. The query is WHOLE-SCHEMA, so the old exact set of EIGHT is superseded
+    // by this one (D-064 `OD-9`).
     const result = await migrator.query<{ indexdef: string }>(
       `select indexdef from pg_indexes
         where schemaname = 'public' and indexname like '%_tenant_key'
@@ -704,16 +739,18 @@ describe('unique and index catalogue (02 §2.5, §29.6; 08 §12.9.3 items 13, 16
     );
 
     expect(result.rows.map((row) => row.indexdef)).toStrictEqual([
+      'CREATE UNIQUE INDEX audit_events_tenant_key ON public.audit_events USING btree (practice_id, id)',
       'CREATE UNIQUE INDEX encounter_diagnoses_tenant_key ON public.encounter_diagnoses USING btree (practice_id, id)',
       'CREATE UNIQUE INDEX encounter_documents_tenant_key ON public.encounter_documents USING btree (practice_id, id)',
       'CREATE UNIQUE INDEX encounters_tenant_key ON public.encounters USING btree (practice_id, id)',
+      'CREATE UNIQUE INDEX idempotency_keys_tenant_key ON public.idempotency_keys USING btree (practice_id, id)',
       'CREATE UNIQUE INDEX patient_references_tenant_key ON public.patient_references USING btree (practice_id, id)',
       'CREATE UNIQUE INDEX practice_membership_roles_tenant_key ON public.practice_membership_roles USING btree (practice_id, id)',
       'CREATE UNIQUE INDEX practice_memberships_tenant_key ON public.practice_memberships USING btree (practice_id, id)',
       'CREATE UNIQUE INDEX practice_settings_tenant_key ON public.practice_settings USING btree (practice_id, id)',
       'CREATE UNIQUE INDEX storage_objects_tenant_key ON public.storage_objects USING btree (practice_id, id)',
     ]);
-    expect(result.rows).toHaveLength(8);
+    expect(result.rows).toHaveLength(10);
   });
 });
 
@@ -791,15 +828,21 @@ describe('ZERO-CAPABILITY BOUNDARY after package 003 (02 §22.3; D-062 Dio B.3; 
     expect(result.rows).toStrictEqual([]);
   });
 
-  it('given the whole schema when inspected then the six phase 3/4 tables force RLS and the five new ones do not yet', async () => {
-    // THE INTERMEDIATE STATE, MODELLED EXACTLY. `false`/`false` on the five new tables is
-    // INTENDED and is not a defect: no runtime role can reach them, so there is nothing for a
-    // policy to restrict yet. `P5-I1` must NOT "fix" this by pulling `P5-I2` forward — doing
-    // so would grant capability outside the transaction that restricts it, which is precisely
-    // what D-049 clause 5 forbids.
+  it('given the whole schema when inspected then the six phase 3/4 tables force RLS and the seven phase 5 ones do not yet', async () => {
+    // THE INTERMEDIATE STATE, MODELLED EXACTLY. `false`/`false` on the five package `003`
+    // tables is INTENDED and is not a defect: no runtime role can reach them, so there is
+    // nothing for a policy to restrict yet. `P5-I1` must NOT "fix" this by pulling `P5-I2`
+    // forward — doing so would grant capability outside the transaction that restricts it,
+    // which is precisely what D-049 clause 5 forbids.
     //
-    // The six existing tables are asserted to have KEPT `true`/`true`. Package `003` must not
-    // disturb them, and this row-by-row comparison is the mechanical proof that it did not.
+    // The two tables of the phase 5 slice of `011` are `false`/`false` for exactly the same
+    // reason and by the same authority (D-064 `OD-1`): sub-gate `P5-I2A` is structural only,
+    // and `P5-I2B` owns their security transition. This query is WHOLE-SCHEMA, so its old
+    // exact set of ELEVEN rows is superseded by this one of THIRTEEN (D-064 `OD-9`).
+    //
+    // The six existing tables are asserted to have KEPT `true`/`true`. Neither package `003`
+    // nor the phase 5 slice of `011` may disturb them, and this row-by-row comparison is the
+    // mechanical proof that neither did.
     const result = await migrator.query<{
       relname: string;
       relrowsecurity: boolean;
@@ -813,9 +856,11 @@ describe('ZERO-CAPABILITY BOUNDARY after package 003 (02 §22.3; D-062 Dio B.3; 
     );
 
     expect(result.rows).toStrictEqual([
+      { relname: 'audit_events', relrowsecurity: false, relforcerowsecurity: false },
       { relname: 'encounter_diagnoses', relrowsecurity: false, relforcerowsecurity: false },
       { relname: 'encounter_documents', relrowsecurity: false, relforcerowsecurity: false },
       { relname: 'encounters', relrowsecurity: false, relforcerowsecurity: false },
+      { relname: 'idempotency_keys', relrowsecurity: false, relforcerowsecurity: false },
       { relname: 'patient_references', relrowsecurity: false, relforcerowsecurity: false },
       { relname: 'platform_role_assignments', relrowsecurity: true, relforcerowsecurity: true },
       { relname: 'practice_membership_roles', relrowsecurity: true, relforcerowsecurity: true },
@@ -825,7 +870,7 @@ describe('ZERO-CAPABILITY BOUNDARY after package 003 (02 §22.3; D-062 Dio B.3; 
       { relname: 'storage_objects', relrowsecurity: false, relforcerowsecurity: false },
       { relname: 'users', relrowsecurity: true, relforcerowsecurity: true },
     ]);
-    expect(result.rows).toHaveLength(11);
+    expect(result.rows).toHaveLength(13);
   });
 
   it('given schema public when inspected then no DEFAULT PRIVILEGE could have pre-granted the new tables', async () => {

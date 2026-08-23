@@ -17,18 +17,25 @@ import { runPrismaCli } from './support/run-prisma-cli.js';
  * assumes the accepted package set.
  *
  * The expectations below describe the *current* canonical database. Phase 2 owned package
- * 001 alone; phase 3 added package 002; phase 4 added package 013; phase 5 adds package 003,
- * so the assertions name all four explicitly rather than counting, and a package appearing or
- * disappearing is a defect, not a test omission. The assertion stays an EXACT chain — it is
- * deliberately not weakened to a containment check, because a package pulled forward from a
- * later phase (02 §22) must fail here rather than pass silently.
+ * 001 alone; phase 3 added package 002; phase 4 added package 013; phase 5 adds package 003
+ * and then the phase 5 slice of package 011, so the assertions name all five explicitly rather
+ * than counting, and a package appearing or disappearing is a defect, not a test omission. The
+ * assertion stays an EXACT chain — it is deliberately not weakened to a containment check,
+ * because a package pulled forward from a later phase (02 §22) must fail here rather than pass
+ * silently.
  *
  * PHASE 5 RECONCILIATION. Package `003_patient_encounter_documents` is applied AFTER `013`
- * even though its number is lower: package NUMBERS carry ownership, not execution order, and
- * D-052 already established that a package executes in the phase in which its tables exist.
- * The phase 5 slices of `011`, `013` and `014` are NOT part of this chain — D-063 clause 3
- * defers the `011` slice out of `P5-I1` altogether — so `idempotency_keys`, `audit_events`,
- * `outbox_events` and `async_jobs` must all still be absent from the table set below.
+ * even though its number is lower, and the phase 5 slice of `011` after both: package NUMBERS
+ * carry ownership, not execution order, and D-052 already established that a package executes
+ * in the phase in which its tables exist (02 §29.10; D-064 `OD-8`).
+ *
+ * The chain grew from FOUR to FIVE and the table set from ELEVEN to THIRTEEN with sub-gate
+ * `P5-I2A`, which creates `idempotency_keys` and `audit_events`. That is a deliberate,
+ * canonical old-exact-set -> new-exact-set evolution explicitly authorised by D-064 `OD-9`; it
+ * is NOT a weakening, and `exact` may never become `contains` or `subset`. The phase 5 slices
+ * of `013` and `014` are still NOT part of this chain — they belong to `P5-I2B` and `P5-I2C` —
+ * and `outbox_events` and `async_jobs` are not created in phase 5 at all (D-064 `OD-5`), so
+ * both must still be absent from the table set below.
  *
  * Nothing destructive runs here: no reset, no drop, no volume operation.
  */
@@ -41,13 +48,16 @@ const EXPECTED_MIGRATIONS = [
   '20260814013200_002_identity_and_practices',
   '20260816111141_013_rls_policies',
   '20260823104252_003_patient_encounter_documents',
+  '20260823211546_011_jobs_idempotency_outbox_audit_phase5',
 ] as const;
 
 /** Every business table the canonical history creates, in `order by tablename` order. */
 const EXPECTED_BUSINESS_TABLES = [
+  'audit_events',
   'encounter_diagnoses',
   'encounter_documents',
   'encounters',
+  'idempotency_keys',
   'patient_references',
   'platform_role_assignments',
   'practice_membership_roles',
@@ -142,7 +152,7 @@ describe('migration determinism', () => {
   });
 });
 
-describe('migration scope — packages 001, 002, 013 and 003', () => {
+describe('migration scope — packages 001, 002, 013, 003 and the 011 phase 5 slice', () => {
   it('given the migrated database when inspected then exactly the accepted business tables exist', async () => {
     // Drift detection, unchanged in intent from the phase 2 "no business table yet" spec:
     // the set is named exactly, so a table pulled forward from a later package (02 §22) or

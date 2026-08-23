@@ -56,18 +56,23 @@ const apiRoot = resolve(import.meta.dirname, '..');
 /**
  * The canonical chain, in application order.
  *
- * Package `003_patient_encounter_documents` carries a LOWER number but a LATER timestamp:
- * package numbers carry OWNERSHIP, not execution order (D-052, D-062 Dio B.3). It is listed
- * here because this assertion is an EXACT chain and must model the deployed reality; it
- * changes nothing this file proves. Package `003` issues no grant, no policy and no RLS flag
- * (02 §22.3, D-063 clause 2), so the §23.4 FORCE-RLS maintenance allowlist stays at exactly
- * six tables and no phase 5 table is ever seeded (D-062 Dio K).
+ * Package `003_patient_encounter_documents` carries a LOWER number but a LATER timestamp, and
+ * the phase 5 slice of `011_jobs_idempotency_outbox_audit` is later still: package numbers
+ * carry OWNERSHIP, not execution order (D-052, D-062 Dio B.3, D-064 `OD-8`). Both are listed
+ * here because this assertion is an EXACT chain and must model the deployed reality; neither
+ * changes anything this file proves. The chain grew from FOUR to FIVE with sub-gate `P5-I2A`
+ * — a canonical old-exact-set -> new-exact-set evolution authorised by D-064 `OD-9`, never a
+ * weakening. Package `003` and the phase 5 slice of `011` issue no grant, no policy and no RLS
+ * flag (02 §22.3, §22.11, D-063 clause 2, D-064 `OD-1`), so the §23.4 FORCE-RLS maintenance
+ * allowlist stays at exactly six tables and neither a phase 5 PHI table nor `idempotency_keys`
+ * nor `audit_events` is ever seeded (D-062 Dio K).
  */
 const EXPECTED_MIGRATIONS = [
   '20260810213856_001_extensions_and_roles',
   '20260814013200_002_identity_and_practices',
   '20260816111141_013_rls_policies',
   '20260823104252_003_patient_encounter_documents',
+  '20260823211546_011_jobs_idempotency_outbox_audit_phase5',
 ] as const;
 
 interface RowSecurityState {
