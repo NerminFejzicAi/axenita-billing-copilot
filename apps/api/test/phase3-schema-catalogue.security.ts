@@ -52,7 +52,7 @@ afterAll(async () => {
 });
 
 describe('migration history', () => {
-  it('given the disposable database when migrated then exactly packages 001, 002, 013 and 003 are applied', async () => {
+  it('given the disposable database when migrated then exactly packages 001, 002, 013, 003 and the 011 phase 5 slice are applied', async () => {
     const result = await migrator.query<{
       migration_name: string;
       finished: boolean;
@@ -69,11 +69,14 @@ describe('migration history', () => {
       '20260810213856_001_extensions_and_roles',
       '20260814013200_002_identity_and_practices',
       '20260816111141_013_rls_policies',
-      // Package `003` carries a LOWER number but a LATER timestamp: package numbers carry
-      // OWNERSHIP, not execution order (D-052, D-062 Dio B.3). The phase 5 slices of `011`,
-      // `013` and `014` are not applied yet — D-063 clause 3 defers the `011` slice out of
-      // `P5-I1` entirely.
+      // Package `003` carries a LOWER number but a LATER timestamp, and the phase 5 slice of
+      // `011` a later one still: package numbers carry OWNERSHIP, not execution order (D-052,
+      // D-062 Dio B.3, D-064 `OD-8`). The chain grew from FOUR to FIVE with sub-gate `P5-I2A`
+      // — a canonical old-exact-set -> new-exact-set evolution authorised by D-064 `OD-9`,
+      // never a weakening. The phase 5 slices of `013` and `014` are still not applied: they
+      // belong to `P5-I2B` and `P5-I2C`, and the canonical chain reaches SEVEN only then.
       '20260823104252_003_patient_encounter_documents',
+      '20260823211546_011_jobs_idempotency_outbox_audit_phase5',
     ]);
     expect(result.rows.every((row) => row.finished && !row.rolled_back)).toBe(true);
   });
@@ -124,21 +127,25 @@ describe('enums (02 §4.1, §4.2, §4.16)', () => {
 });
 
 describe('tables and ownership (02 §3.5, §6.1-§6.5)', () => {
-  it('given the canonical chain when applied then exactly the eleven accepted tables exist', async () => {
+  it('given the canonical chain when applied then exactly the thirteen accepted tables exist', async () => {
     const result = await migrator.query<{ tablename: string }>(
       `select tablename from pg_tables
         where schemaname = 'public' and tablename <> '_prisma_migrations'
         order by tablename`,
     );
 
-    // Six from packages `002`/`013` plus the five of package `003` (02 §22.3). NOTHING from
-    // package `011` appears: `idempotency_keys` and `audit_events` were deferred out of
-    // `P5-I1` by D-063 clause 3, and `outbox_events` and `async_jobs` are not created in
-    // phase 5 at all.
+    // Six from packages `002`/`013`, five from package `003` (02 §22.3) and the two of the
+    // phase 5 slice of package `011` (02 §22.11, §29.9). The old exact set of ELEVEN is
+    // superseded by this one — a canonical old-exact-set -> new-exact-set evolution authorised
+    // by D-064 `OD-9`, never a weakening. `outbox_events` and `async_jobs` are the other two
+    // §15 tables of package `011` and are still absent: phase 5 does not create them at all
+    // (D-064 `OD-5`).
     expect(result.rows.map((row) => row.tablename)).toStrictEqual([
+      'audit_events',
       'encounter_diagnoses',
       'encounter_documents',
       'encounters',
+      'idempotency_keys',
       'patient_references',
       'platform_role_assignments',
       'practice_membership_roles',
@@ -184,6 +191,17 @@ describe('constraints and indexes (02 §6.1-§6.5, §21, §22.2)', () => {
     );
 
     expect(result.rows).toStrictEqual([
+      // --- Phase 5 slice of package `011` (02 §29.9.1; D-064 `OD-4`). Its full contract —
+      // the column catalogue, the index set and the zero-capability boundary — is asserted by
+      // `phase5-package011-catalogue.security.ts`. The two rows appear here because THIS
+      // assertion is WHOLE-SCHEMA and must stay an exact full-set comparison. NO `CHECK` and
+      // NO key to `users` belongs to either new table.
+      { tbl: 'audit_events', conname: 'audit_events_pkey', def: 'PRIMARY KEY (id)' },
+      {
+        tbl: 'audit_events',
+        conname: 'audit_events_practice_fk',
+        def: 'FOREIGN KEY (practice_id) REFERENCES practices(id)',
+      },
       // --- Package `003` (02 §29.2, §29.7a). Their full contract — the 23-row CHECK
       // catalogue, the eight foreign keys and their MATCH type — is asserted by
       // `phase5-schema-catalogue.security.ts`. They appear here because THIS assertion is
@@ -302,6 +320,12 @@ describe('constraints and indexes (02 §6.1-§6.5, §21, §22.2)', () => {
         def: 'FOREIGN KEY (practice_id, responsible_physician_id) REFERENCES practice_memberships(practice_id, user_id)',
       },
       { tbl: 'encounters', conname: 'encounters_version_check', def: 'CHECK ((version >= 1))' },
+      { tbl: 'idempotency_keys', conname: 'idempotency_keys_pkey', def: 'PRIMARY KEY (id)' },
+      {
+        tbl: 'idempotency_keys',
+        conname: 'idempotency_keys_practice_fk',
+        def: 'FOREIGN KEY (practice_id) REFERENCES practices(id)',
+      },
       {
         tbl: 'patient_references',
         conname: 'patient_references_birth_year_check',
@@ -414,9 +438,11 @@ describe('constraints and indexes (02 §6.1-§6.5, §21, §22.2)', () => {
         order by con.conname`,
     );
 
-    // Five from package `002` plus the eight of 02 §29.2. Package `003` pins every one of its
-    // keys explicitly rather than relying on a Prisma default (02 §29.3, D-062 Dio C.4).
-    expect(result.rows.length).toBe(13);
+    // Five from package `002`, the eight of 02 §29.2 and the two of 02 §29.9.1. Package `003`
+    // and the phase 5 slice of package `011` both pin every one of their keys explicitly
+    // rather than relying on a Prisma default (02 §29.3, D-062 Dio C.4, D-064 `OD-4`). The old
+    // exact count of THIRTEEN is superseded by FIFTEEN (D-064 `OD-9`).
+    expect(result.rows.length).toBe(15);
     for (const row of result.rows) {
       expect(row.confdeltype).toBe('a');
       expect(row.confupdtype).toBe('a');
@@ -431,10 +457,16 @@ describe('constraints and indexes (02 §6.1-§6.5, §21, §22.2)', () => {
     );
 
     // No speculative index: 02 §6.3 proves every documented query path is already covered by
-    // an existing constraint after the singular role column was removed (D-038 clause 2), and
+    // an existing constraint after the singular role column was removed (D-038 clause 2),
     // none of the four phase 5 indexes of 02 §29.6 is speculative either — each has a
-    // documented query path in the frozen contract (D-062 Dio J).
+    // documented query path in the frozen contract (D-062 Dio J) — and the two audit indexes
+    // of 02 §21 are created by the package `011` CREATOR migration rather than deferred to
+    // package `012`, which does not exist in phase 5 (D-064 `OD-7`).
     expect(result.rows.map((row) => row.indexname)).toStrictEqual([
+      'audit_actor_idx',
+      'audit_events_pkey',
+      'audit_events_tenant_key',
+      'audit_resource_idx',
       'documents_encounter_idx',
       'encounter_diagnoses_encounter_code_key',
       'encounter_diagnoses_pkey',
@@ -446,6 +478,9 @@ describe('constraints and indexes (02 §6.1-§6.5, §21, §22.2)', () => {
       'encounters_responsible_physician_idx',
       'encounters_review_queue_idx',
       'encounters_tenant_key',
+      'idempotency_keys_pkey',
+      'idempotency_keys_scope_key',
+      'idempotency_keys_tenant_key',
       'patient_references_pkey',
       'patient_references_pseudonym_key',
       'patient_references_source_external_ref_key',
@@ -475,9 +510,11 @@ describe('constraints and indexes (02 §6.1-§6.5, §21, §22.2)', () => {
   });
 
   it('given the tenant tables when inspected then each carries the unconditional unique (practice_id, id)', async () => {
-    // 02 §2.5 / D-022. Three from package `002` and five from package `003` — eight of the
-    // thirty tenant tables now carry it (02 §29.7, 08 §12.9.3 item 13). On
-    // `practice_memberships` it doubles as the parent key of the composite FK.
+    // 02 §2.5 / D-022, unconditional. Three from package `002`, five from package `003` and
+    // the two of the phase 5 slice of package `011` — TEN of the thirty tenant tables now
+    // carry it (02 §29.7, 08 §12.9.3 item 13). The old exact set of EIGHT is superseded by
+    // this one (D-064 `OD-9`). On `practice_memberships` it doubles as the parent key of the
+    // composite FK.
     const result = await migrator.query<{ indexdef: string }>(
       `select indexdef from pg_indexes
         where schemaname = 'public' and indexname like '%_tenant_key'
@@ -485,9 +522,11 @@ describe('constraints and indexes (02 §6.1-§6.5, §21, §22.2)', () => {
     );
 
     expect(result.rows.map((row) => row.indexdef)).toStrictEqual([
+      'CREATE UNIQUE INDEX audit_events_tenant_key ON public.audit_events USING btree (practice_id, id)',
       'CREATE UNIQUE INDEX encounter_diagnoses_tenant_key ON public.encounter_diagnoses USING btree (practice_id, id)',
       'CREATE UNIQUE INDEX encounter_documents_tenant_key ON public.encounter_documents USING btree (practice_id, id)',
       'CREATE UNIQUE INDEX encounters_tenant_key ON public.encounters USING btree (practice_id, id)',
+      'CREATE UNIQUE INDEX idempotency_keys_tenant_key ON public.idempotency_keys USING btree (practice_id, id)',
       'CREATE UNIQUE INDEX patient_references_tenant_key ON public.patient_references USING btree (practice_id, id)',
       'CREATE UNIQUE INDEX practice_membership_roles_tenant_key ON public.practice_membership_roles USING btree (practice_id, id)',
       'CREATE UNIQUE INDEX practice_memberships_tenant_key ON public.practice_memberships USING btree (practice_id, id)',
@@ -676,7 +715,7 @@ describe('privilege catalogue (02 §20.2, §20.2a, §20.2b; D-047, D-049, D-051)
 });
 
 describe('RLS and policy catalogue (02 §17.2, §17.4, §17.5, §17.6; D-047, D-051)', () => {
-  it('given the canonical chain when applied then the SIX phase 3/4 tables force RLS and the five phase 5 tables do not yet', async () => {
+  it('given the canonical chain when applied then the SIX phase 3/4 tables force RLS and the SEVEN phase 5 tables do not yet', async () => {
     const result = await migrator.query<{
       relname: string;
       relrowsecurity: boolean;
@@ -696,18 +735,22 @@ describe('RLS and policy catalogue (02 §17.2, §17.4, §17.5, §17.6; D-047, D-
     // exposures. Package `003` must not disturb any of the six, and this row-by-row comparison
     // is the mechanical proof that it did not.
     //
-    // THE FIVE PHASE 5 TABLES ARE `false`/`false`, AND THAT IS THE ACCEPTED INTERMEDIATE STATE
-    // (02 §22.3, D-062 Dio B.3, D-063 clause 2). Package `003` issues no GRANT, so no runtime
-    // role can reach them at all and there is nothing yet for a policy to restrict; the
-    // ABSENCE OF A GRANT is the security control of that slice. RLS, FORCE RLS, the eight
-    // policies of §29.4 and the grants they restrict all arrive together, in ONE transaction,
-    // with the phase 5 slice of `013_rls_policies`. This assertion models that intermediate
-    // state EXACTLY rather than being broadened to tolerate it, so pulling either half forward
-    // — or leaving a phase 5 table `true`/`false` — fails here.
+    // THE SEVEN PHASE 5 TABLES ARE `false`/`false`, AND THAT IS THE ACCEPTED INTERMEDIATE
+    // STATE (02 §22.3, §22.11, D-062 Dio B.3, D-063 clause 2, D-064 `OD-1`). Package `003` and
+    // the phase 5 slice of package `011` both issue no GRANT, so no runtime role can reach any
+    // of the seven at all and there is nothing yet for a policy to restrict; the ABSENCE OF A
+    // GRANT is the security control of both slices. RLS, FORCE RLS, the eight policies of
+    // §29.4, the five of §29.4a and the grants they restrict all arrive together, in ONE
+    // transaction, with the phase 5 slice of `013_rls_policies`. This assertion models that
+    // intermediate state EXACTLY rather than being broadened to tolerate it, so pulling either
+    // half forward — or leaving a phase 5 table `true`/`false` — fails here. The old exact set
+    // of ELEVEN rows is superseded by this one of THIRTEEN (D-064 `OD-9`).
     expect(result.rows).toStrictEqual([
+      { relname: 'audit_events', relrowsecurity: false, relforcerowsecurity: false },
       { relname: 'encounter_diagnoses', relrowsecurity: false, relforcerowsecurity: false },
       { relname: 'encounter_documents', relrowsecurity: false, relforcerowsecurity: false },
       { relname: 'encounters', relrowsecurity: false, relforcerowsecurity: false },
+      { relname: 'idempotency_keys', relrowsecurity: false, relforcerowsecurity: false },
       { relname: 'patient_references', relrowsecurity: false, relforcerowsecurity: false },
       { relname: 'platform_role_assignments', relrowsecurity: true, relforcerowsecurity: true },
       { relname: 'practice_membership_roles', relrowsecurity: true, relforcerowsecurity: true },
@@ -717,7 +760,7 @@ describe('RLS and policy catalogue (02 §17.2, §17.4, §17.5, §17.6; D-047, D-
       { relname: 'storage_objects', relrowsecurity: false, relforcerowsecurity: false },
       { relname: 'users', relrowsecurity: true, relforcerowsecurity: true },
     ]);
-    expect(result.rows).toHaveLength(11);
+    expect(result.rows).toHaveLength(13);
   });
 
   it('given the canonical chain when applied then exactly TEN policies exist, with their accepted mode, command and roles', async () => {

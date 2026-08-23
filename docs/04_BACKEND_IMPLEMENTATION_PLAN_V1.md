@@ -1145,6 +1145,11 @@ backend/05-encounters-documents
 kanonski `main`, merge SHA `fcd88fbef6c398ae7f0404eb54edb8f7f8175634`. Ovo je zapis činjenice;
 prescripcija fazne grane iznad se **ne mijenja**. Dokazni blok je `05`, Faza 5, `Slice P5-I1`.
 
+**Stanje izvršenja pod-gatea `P5-I2A` (2026-08-24).** Strukturni pod-gate `P5-I2A` je izveden na
+**slice-skopiranoj** grani `feat/p5-i2a-package011-structure`, koja **još nije objavljena** — nije
+gurana, PR ne postoji, merge nije izvršen. Ovo je zapis činjenice; prescripcija fazne grane iznad
+se **ne mijenja**. Dokazni blok je `05`, Faza 5, `Slice P5-I2A`.
+
 ## 7.2 Scope baze
 
 - patient_references;
@@ -1264,16 +1269,20 @@ autorizaciju daje zaseban gate `P5-I0`, i on autorizuje **isključivo `P5-I1`**.
 | `P5-I7` | Čitanje, lista, filteri, arhiva | `P5-I5`, `P5-I6` |
 | `P5-I8` | Integracijsko i sigurnosno zatvaranje Faze 5 | sve |
 
-**Stanje slice-ova (2026-08-23).** **`P5-I1` je implementiran, nezavisno reviewovan**
+**Stanje slice-ova (2026-08-24).** **`P5-I1` je implementiran, nezavisno reviewovan**
 (`P5_I1_V_PASS_READY_FOR_PUBLICATION`) **i kanonski** — objavljen kroz **PR #30** i merged u
-kanonski `main`, merge SHA `fcd88fbef6c398ae7f0404eb54edb8f7f8175634`. Preostalih sedam slice-ova
-su **`NOT_STARTED`**. Raniji preduslov „`P5-I1` mora postati kanonski" je time **ispunjen**, ali to
-**nije autorizacija**: **`P5-I2` nije implementiran i nije autorizovan** — ni ovim zapisom, ni
-kanoničnošću `P5-I1`-a, ni dokumentacionom rekonsilijacijom. Njegovo pokretanje ostaje **zaseban,
-vlasnički kontrolisan, sigurnosno osjetljiv gate**. `P5-I2` i dalje posjeduje Faza-5 slice paketa
-`011`, runtime sigurnosnu granicu i **`★`** dokaz iz §7.6a, koji ostaje **tvrdi preduslov za
-`P5-I5`** uz `HARD HOLD` pri neuspjehu. Kompletan dokaz `P5-I1`-a je u `05`, Faza 5,
-blok `Slice P5-I1`.
+kanonski `main`, merge SHA `fcd88fbef6c398ae7f0404eb54edb8f7f8175634`. **`P5-I2` je
+`IN_PROGRESS` i `NOT COMPLETE`**: njegov strukturni pod-gate **`P5-I2A` je implementiran lokalno i
+nezavisno reviewovan** (`P5_I2A_V_PASS_READY_FOR_PUBLICATION`), ali **nije kanonski** — grana nije
+gurana, PR ne postoji, merge nije izvršen; **`P5-I2B`, `P5-I2C` i `P5-I2V` nisu implementirani i
+nisu autorizovani**, i **`P5-I2A` ih ne autorizuje**. Preostalih **šest** slice-ova
+(`P5-I3`–`P5-I8`) su **`NOT_STARTED`**. Raniji preduslov „`P5-I1` mora postati kanonski" je time
+**ispunjen**, ali to **nije autorizacija**: svaki pod-gate `P5-I2`-a traži **zaseban, vlasnički
+kontrolisan, sigurnosno osjetljiv gate**. `P5-I2` i dalje posjeduje Faza-5 slice paketa `011`
+(strukturno implementiran u `P5-I2A`, **ali još ne kanonski**), runtime sigurnosnu granicu
+(pod-gate `P5-I2B`) i **`★`** dokaz iz §7.6a (pod-gate `P5-I2V`), koji ostaje **tvrdi preduslov za
+`P5-I5`** uz `HARD HOLD` pri neuspjehu; **`P5-I5` ostaje neautorizovan**. Kompletan dokaz
+`P5-I1`-a je u `05`, Faza 5, blok `Slice P5-I1`, a `P5-I2A`-a u bloku `Slice P5-I2A`.
 
 ### Segmentacija `P5-I2` na četiri pod-gatea (D-064)
 
@@ -1290,6 +1299,17 @@ blok `Slice P5-I1`.
 `P5-I2B`; `P5-I2B` **ne autorizuje** `P5-I2C`; `P5-I2C` **ne razrješava `★`**. **`P5-I5` ostaje
 blokiran dok `P5-I2V PASS` ne postane kanonski.** Svaki pod-gate traži **zasebnu vlasničku
 autorizaciju**; **D-064 nijedan od njih ne autorizuje**.
+
+**Tekuće stanje pod-gateova (2026-08-24).** **`P5-I2A` je implementiran lokalno i nezavisno
+reviewovan** (`P5_I2A_V_PASS_READY_FOR_PUBLICATION`) na grani `feat/p5-i2a-package011-structure`,
+commitovima `828daa5ea385e087c2912e4f2b20f9d4bb3b7c5e` (struktura paketa `011`) i
+`a37f6e014cd9f34ac449d90b2527303abc7167b2` (kataloški testovi). Grana **nije gurana, PR ne postoji,
+merge nije izvršen** — `P5-I2A` je dakle **`NOT YET CANONICAL`**. **`P5-I2B` = `NOT IMPLEMENTED` /
+`NOT AUTHORIZED`**, **`P5-I2C` = `NOT IMPLEMENTED` / `NOT AUTHORIZED`**, **`P5-I2V` =
+`NOT EXECUTED`**. Sigurnosna tranzicija na **13 tabela `true`/`true` i 23 politike** (`02` §29.4a)
+**nije se dogodila**: nakon `P5-I2A` katalog je **6 tabela `true`/`true` i 7 tabela `false`/`false`
+uz nepromijenjenih 10 politika**, i ta tranzicija ostaje isključivo u vlasništvu `P5-I2B`. Dokazni
+blok je `05`, Faza 5, `Slice P5-I2A`.
 
 **Vlasništvo sigurnosnih testova (D-064, `OD-9`).** `phase5-schema-catalogue.security.ts`
 zadržava strukturni katalog paketa `003` i **package-boundary ZERO-CAPABILITY tvrdnju nad samom
