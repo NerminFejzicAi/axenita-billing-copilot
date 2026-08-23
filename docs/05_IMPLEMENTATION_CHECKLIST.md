@@ -2740,7 +2740,77 @@ Test obaveze koje iz ovoga slijede dokumentovane su u **`08` §12.9** i **još n
 njihovo postojanje **ne označava nijednu kućicu**.
 
 **Naredni gate:** **`P5-I0`** — implementacijska autorizacija Faze 5, koja autorizuje **isključivo**
-slice `P5-I1`.
+slice `P5-I1`. *(Izvršen. Gate `P5-I0` je prošao vlasnički pregled i otkrio dvije greške u D-062,
+objavljene kao **D-063** — vidi blok niže.)*
+
+## Objavljena korekcija implementacijske granice — D-063 (2026-08-23)
+
+**Ovaj zapis ne mijenja status faze i ne označava nijednu kućicu ispod.** Faza 5 ostaje
+`NOT_STARTED`; broj redova i broj označenih ostaje **49 / 0**. **Nijedan red implementacijskog
+checklista se ovom korekcijom ne dodaje, ne uklanja i ne označava.**
+
+Read-only gate **`P5-I0`** je prošao vlasnički pregled i, prije prvog implementacijskog slicea,
+otkrio **dvije greške** u objavljenom autoritetu D-062. Vlasnik je obje korekcije ratifikovao;
+objavljene su kao odluka **D-063**. **D-063 supersedira isključivo te dvije tačke D-062** — sve
+ostalo u D-062, kao i **D-060 i D-061 u cijelosti**, ostaje nepromijenjeno.
+
+**Korekcija A — Faza-5 slice paketa `011` se odgađa iz `P5-I1` u `P5-I2`.**
+
+`P5-I1` je istovremeno nosio obavezu da kreira `idempotency_keys` i `audit_events` **i** zabranu da
+im izda **ijedan** grant, `ENABLE`/`FORCE RLS` ili politiku, dok grant disciplina koja štiti pet
+PHI tabela (D-062, Dio B.3) za te dvije §15 tabele **nigdje nije bila zapisana**.
+
+| Slice | Obuhvat nakon D-063 |
+|---|---|
+| **`P5-I1`** | **isključivo:** Prisma schema Faze 5 (5 modela, 5 enuma, `NoAction`/`NoAction` na svakoj relaciji) · paket `003_patient_encounter_documents` · schema/katalog testovi paketa `003` |
+| **`P5-I1` NE sadrži** | paket `011` · paket `013` · paket `014` · **ijedan** `GRANT` · **ijedan** `REVOKE` · **ijednu** `ENABLE`/`FORCE RLS` zastavicu · **ijednu** politiku · **ijedan** trigger/funkciju · **ijedan** servis, modul, rutu ni DTO |
+| **`P5-I2`** | **Faza-5 slice paketa `011` (odgođen ovdje)** + Faza-5 slice paketa `013` i `014` + trajna negative-privilege regresija + **`★` RI-naspram-RLS dokaz** |
+
+**Obaveza koju `P5-I2` preuzima.** Prije izvršenja mora, za **svaku** od `idempotency_keys` i
+`audit_events`, eksplicitno nabrojati: paket koji je kreira · redoslijed izvršenja · `ENABLE ROW
+LEVEL SECURITY` · `FORCE ROW LEVEL SECURITY` · tačna tijela politika · tačne runtime grantove ·
+**negativne** grantove · tenant predikat · katalog tvrdnje.
+
+**Nijedna runtime rola ne smije dobiti `SELECT`, `INSERT` ni `UPDATE` nad tim tabelama prije nego
+što je njena ograničavajuća tenant politika na snazi. Stanje u kojem je `audit_events`
+runtime-čitljiv preko granica ordinacija je kategorički zabranjeno.**
+
+**Vlasništvo paketa, redoslijed migracija (`003` → `011`-slice → `013`-slice → `014`-slice) i
+zabrana kreiranja `outbox_events` i `async_jobs` u Fazi 5 ostaju nepromijenjeni.**
+
+**Korekcija B — katalog `CHECK` constrainata paketa `003` je 23, ne 18.**
+
+Mehaničko prebrojavanje **eksplicitno nabrojanih tijela constrainata** (`02` §7.1, §7.2, §7.3,
+§8.1, §8.2, §2.11.4) daje:
+
+| Tabela | Zamrznuti | Novi (D-062, Dio E) | Ukupno |
+|---|---:|---:|---:|
+| `patient_references` | **5** | 0 | **5** |
+| `encounters` | **6** | 0 | **6** |
+| `encounter_diagnoses` | **0** | 0 | **0** |
+| `storage_objects` | **1** | 0 | **1** |
+| `encounter_documents` | **8** | **3** | **11** |
+| **Ukupno** | **20** | **3** | **23** |
+
+Raniji sažetak **`18`**, i podjela koja `encounter_documents` pripisuje **`10`**, superseded su kao
+**aritmetička/dokumentaciona greška**. Historijski tekst je **zadržan i anotiran**, ne prepisan —
+trag nalaza gatea `P5-I0` je dio revizijskog zapisa. **Nijedno tijelo constrainta se ne mijenja, ne
+dodaje i ne uklanja.** Kanonska imena svih 23 objavljena su u `02` §29.7a i D-063, klauzuli 7.
+
+**Ugovor katalog testa (`P5-I1`).** Test mora nabrojati **potpun očekivani skup** i za **svaki**
+constraint tvrditi najmanje `conname`, tabelu vlasnika i `pg_get_constraintdef()`, uz **strogu
+jednakost punog skupa**. **Tvrdnja tačnog skupa se nikada ne smije oslabiti u `contains`/`subset`
+poređenje.** Numerički total `23` je dopunska, **ne primarna** tvrdnja; test koji provjerava
+isključivo `count = 23` je **nedovoljan** (`08` §12.9.3, stavka 14a).
+
+**Šta D-063 nije.** **Nije autorizacija implementacije** — `P5-I1` **nije** njome autorizovan, nego
+**sužen**. Nijedan servis, endpoint, tabela, migracija, Prisma model, politika, grant, trigger ni
+test nisu njome uvedeni. **Ne dira** D-060 ni D-061, **ne mijenja** referencijalne akcije D-062,
+**ne slabi** nijednu Faza-4 invarijantu i **ne mijenja** `★` RI-naspram-RLS dokaz, koji ostaje
+**tvrdi preduslov za `P5-I5`** uz **HARD HOLD** pri neuspjehu.
+
+**Naredni gate:** **`P5-I1`** — prvi implementacijski slice Faze 5, u **suženom** obuhvatu iz
+D-063, klauzula 1 i 2.
 
 ## Konkretan `TenantDatabaseService` facade — prenesena obaveza (D-056)
 

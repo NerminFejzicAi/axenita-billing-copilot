@@ -750,6 +750,29 @@ bi ovaj test to uhvatio odmah.
 16. **Četiri indeksa iz `02` §29.6 postoje**, uključujući `encounters_responsible_physician_idx` i
     `id desc` tie-breaker na sva tri encounter indeksa.
 
+**Stavka 14a — potpun katalog `CHECK` constrainata paketa `003`, stroga jednakost punog skupa
+(D-063, klauzule 6–8).** Katalog kanonskih imena je u `02` §29.7a. Test **nabraja potpun očekivani
+skup** i za **svaki** constraint tvrdi najmanje:
+
+```text
+conname
+conrelid::regclass          -- tabela vlasnik
+pg_get_constraintdef(oid)   -- doslovno tijelo
+```
+
+Očekivani skup i stvarni skup iz `pg_constraint` (`contype = 'c'`, nad pet tabela Faze 5) moraju
+biti **identični** — nijedan višak, nijedan manjak, nijedno odstupanje u imenu ni u tijelu.
+**Mjerodavan sastav je 20 zamrznutih + 3 nova = 23**: `patient_references` 5, `encounters` 6,
+`encounter_diagnoses` **0**, `storage_objects` 1, `encounter_documents` 8 + 3. **Raniji broj `18`
+je superseded aritmetička greška** i **ne smije se koristiti kao očekivana vrijednost.**
+
+**Numerički total `23` smije se tvrditi dodatno, ali nije primarni autoritet. Test koji provjerava
+isključivo `count = 23` je NEDOVOLJAN.** **Postojeća tvrdnja tačnog skupa se nikada ne smije
+oslabiti u `contains`/`subset` poređenje** — zabrana je trajna i važi za svaku buduću izmjenu ovog
+testa.
+
+**Izvršava se u slice-u `P5-I1`**, uz paket `003`.
+
 ### 12.9.4 RLS i grantovi Faze 5 — negativni ugovor
 
 17. `relrowsecurity` **i** `relforcerowsecurity` su `true` na svih pet tabela — **trajna regresija**.
@@ -768,6 +791,18 @@ bi ovaj test to uhvatio odmah.
     nepromijenjen. **`users` i dalje ima tačno dvije politike.**
 26. **`FORCE RLS` allowlista ostaje na šest tabela** — nijedna PHI tabela nije u njoj i nijedna nije
     seedana (`02` §23.4.4b).
+
+**Stavka 26a — Faza-5 slice paketa `011`, sigurnosni preduslov odgođen u `P5-I2` (D-063, klauzule
+3–5).** Faza-5 slice paketa `011` (`idempotency_keys`, `audit_events`) **ne izvršava se u
+`P5-I1`**. Prije njegovog izvršenja `P5-I2` mora, za **svaku** od te dvije tabele, objaviti i
+testom pokriti: paket koji je kreira · redoslijed izvršenja · `ENABLE ROW LEVEL SECURITY` ·
+`FORCE ROW LEVEL SECURITY` · tačna tijela politika · tačne runtime grantove po roli · **negativne
+grantove** (`copilot_system` = **nula**, `PUBLIC` = **nula**) · tenant predikat · katalog tvrdnje.
+
+**Nijedna runtime rola ne smije imati `SELECT`, `INSERT` ni `UPDATE` nad tim tabelama prije nego
+što je njena ograničavajuća tenant politika na snazi**, a **cross-practice čitljivost
+`audit_events` je kategorički zabranjena** — negativni test je **trajna regresija**.
+
 
 ### 12.9.5 Semantika arhive, statusa i odsutnih površina
 
@@ -2392,7 +2427,7 @@ očekivani status/kod, obaveznu audit asertaciju i da li blokira završetak faze
 | §17.1 D-036 permisije | e2e | Faza 10 | — | **da** |
 | §18.1 D-037 approval kodovi | contract + e2e | Faza 11 | — | **da** |
 | §11.1–11.2 state machine | unit + e2e | prema fazi vlasnika stanja; **Faza 5 pokriva table-driven test nad svih 15 tranzicija — 4 dosežne prolaze, 11 daje `409`** (D-062, Dio F) | — | **da** |
-| **§12.9 schema/RI/odgovorni ljekar (D-062)** — uključujući **`★` RI-naspram-RLS dokaz** | security/integration + contract | **Faza 5**; `★` u slice-u `P5-I2`, **blokirajuće prije `P5-I5`** | `003`, `013`, `014` | **da** |
+| **§12.9 schema/RI/odgovorni ljekar (D-062)** — uključujući **`★` RI-naspram-RLS dokaz** | security/integration + contract | **Faza 5**; **§12.9.3 katalog test (stavka 14a) u slice-u `P5-I1`**; `★` u slice-u `P5-I2`, **blokirajuće prije `P5-I5`** | `003`, `011`, `013`, `014` | **da** |
 | §20.1 error matrica | contract | Faza 12 | — | **da** |
 | §24.1 D-038 schema constrainti | integration | Faza 3 | `002_identity_and_practices` | **da** |
 | §24.2 D-038 životni ciklus | integration | Faza 3 | `002_identity_and_practices` | **da** |
