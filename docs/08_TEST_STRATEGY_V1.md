@@ -777,6 +777,18 @@ testa.
 
 17. `relrowsecurity` **i** `relforcerowsecurity` su `true` na svih pet tabela — **trajna regresija**.
 18. **Osam novih politika** postoji; ukupno **18** nad **11** tabela.
+    > **KOREKCIJA — D-064, `OD-6` (kasniji autoritet).** Brojevi `18` / `11` su **PHI-only /
+    > pre-paket-`011` podzbir** i **ne smiju se koristiti kao exit tvrdnja `P5-I2`**. Mjerodavan
+    > puni post-`P5-I2` katalog je **23 politike** nad **13 tabela** sa `ENABLE` + `FORCE`
+    > (10 Faza-3/4 + 8 PHI + 3 `idempotency_keys` + 2 `audit_events`; `02` §29.4a). Vlasnik te
+    > steady-state tvrdnje je **novi `phase5-rls-grants.security.ts`** (D-064, `OD-9`), koji uz
+    > politike posjeduje i tačne table/column grantove, **nula** `PUBLIC`, **nula**
+    > `copilot_system` nad Faza-5 tenant objektima, tenant izolaciju i negativno privilegijsko
+    > ponašanje. `phase5-schema-catalogue.security.ts` zadržava strukturni katalog paketa `003`
+    > i **package-boundary ZERO-CAPABILITY tvrdnju nad samom migracijom `003`**; `★` ostaje u
+    > zasebnom `phase5-responsible-physician-ri.security.ts`. Exact-set ekspektacije smiju
+    > evoluirati **stari tačan skup → novi tačan skup**; **`exact` → `contains`/`subset`/
+    > `partial` ostaje kategorički zabranjeno**.
 19. **`copilot_system` ima nula grantova** nad svih pet tabela; **`PUBLIC` nula**.
 20. **`storage_objects` nema nijedan grant i nijednu politiku**, i drži **nula redova**.
 21. **Tačan skup column-level `UPDATE` kolona** na `encounters` (12 kolona) i na
@@ -802,6 +814,29 @@ grantove** (`copilot_system` = **nula**, `PUBLIC` = **nula**) · tenant predikat
 **Nijedna runtime rola ne smije imati `SELECT`, `INSERT` ni `UPDATE` nad tim tabelama prije nego
 što je njena ograničavajuća tenant politika na snazi**, a **cross-practice čitljivost
 `audit_events` je kategorički zabranjena** — negativni test je **trajna regresija**.
+
+**Stavka 26b — objavljena enumeracija (D-064, `OD-1`–`OD-3`).** Obaveza iz stavke 26a je
+**ispunjena**; tačan katalog je `02` §29.4a. Testovi `P5-I2B` moraju tvrditi: `idempotency_keys`
+= `SELECT` + `INSERT` + **column-level** `UPDATE` nad **tačno** `response_status`,
+`response_body`, `locked_at`, `completed_at`, **bez** `DELETE`/`TRUNCATE`/blanket `UPDATE`-a, uz
+**tri** politike (`idempotency_keys_select|insert|update`, `UPDATE` sa `USING` **i**
+`WITH CHECK`); `audit_events` = **samo** `SELECT` + `INSERT`, **bez** `UPDATE`/`DELETE`/
+`TRUNCATE`, uz **dvije** politike (`audit_events_select|insert`); `copilot_system` i `PUBLIC` =
+**nula** nad obje. Pokušaj `UPDATE`-a nad uskraćenom kolonom `idempotency_keys` pada sa
+**`42501`**.
+
+**Stavka 26c — behavioural test AAD trigera, korigovan (D-064, korekcija B; `02` §25.8a).**
+**Ne smije se tražiti** `SQLSTATE 23514` od `copilot_migrator`-a nad **produkcijskom** Faza-5
+tabelom nakon `FORCE RLS`-a — migrator je i sam podložan `FORCE RLS`-u i nema primjenjivu
+politiku, pa red možda ne stigne do `BEFORE UPDATE` trigera. Dokaz se dijeli na **tri**:
+(1) **atačiranje/katalog** nad stvarnim tabelama — **tačno 3** trigera, tačna imena,
+`BEFORE UPDATE`, `FOR EACH ROW`, **bez `WHEN`**, tačna ciljna funkcija; (2) **runtime prva
+barijera** — `copilot_app` mutacija `id`/`practice_id` odbijena grantom/RLS-om, **bez tvrdnje
+da to dokazuje izvršenje trigera**; (3) **ponašanje funkcije** — **isključivo na guarded
+disposable bazi**, na **test-only privremenoj** tabeli sa `id` + `practice_id` i **istom
+kanonskom** funkcijom: zaštićena kolona → **`23514`**, nepromijenjene kolone → `NEW` / uspjeh,
+objekat nestaje ili se rollbackuje. **Bez** owner politike, četvrte role, `BYPASSRLS`-a, trajne
+test tabele i proširenja produkcijskog granta.
 
 
 ### 12.9.5 Semantika arhive, statusa i odsutnih površina

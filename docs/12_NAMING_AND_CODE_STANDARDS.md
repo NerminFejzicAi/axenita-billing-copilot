@@ -123,6 +123,14 @@ Naziv mora pokazati lock/tenant kontekst kada je bitno.
 - check `<table>_<rule>_check`;
 - policy `<table>_<operation>_policy`.
 
+**Grandfathering RLS politika (D-064).** Sve **primijenjene** RLS politike repozitorija nose
+konkretna imena oblika `<table>_<command>` **bez `_policy` sufiksa** — `users_self_select`,
+`practice_memberships_self_select`, `practice_settings_update`, `patient_references_select`,
+`idempotency_keys_update`, `audit_events_insert` i ostale. **Ta imena su kanonska i ne
+preimenuju se** radi generičkog pravila iznad; ratifikovana porodica `P5-I2` ih slijedi. Pravilo
+iznad ostaje generička preporuka i **ne nadjačava** nijedno već ratifikovano ili primijenjeno
+ime politike (`02` §29.4a.5).
+
 ---
 
 # 9. API

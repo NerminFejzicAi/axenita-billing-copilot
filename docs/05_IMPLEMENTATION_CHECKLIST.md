@@ -2835,7 +2835,60 @@ test nisu njome uvedeni. **Ne dira** D-060 ni D-061, **ne mijenja** referencijal
 **tvrdi preduslov za `P5-I5`** uz **HARD HOLD** pri neuspjehu.
 
 **Naredni gate:** **`P5-I1`** — prvi implementacijski slice Faze 5, u **suženom** obuhvatu iz
-D-063, klauzula 1 i 2.
+D-063, klauzula 1 i 2. *(Izvršen i kanonski — vidi blok `Slice P5-I1` niže. Naredni objavljeni
+autoritet je **D-064**.)*
+
+## Objavljena vlasnička ratifikacija — D-064 (2026-08-23)
+
+**Ovaj zapis ne mijenja status faze i ne označava, ne dodaje i ne uklanja nijednu kućicu ispod.**
+Faza 5 ostaje **`IN_PROGRESS`**, a broj redova i broj označenih ostaje **49 / 8**.
+
+Read-only preflight gate `P5-I2` je zaključen ishodom
+`P5_I2_PREFLIGHT_PASS_READY_FOR_OWNER_REVIEW` i vlasniku predao **devet** otvorenih
+sigurnosno-dizajnerskih pitanja. Vlasnik ih je sva riješio; rješenja su objavljena kao odluka
+**D-064**. **`OWNER_DECISIONS_REQUIRED` za `P5-I2` je time `0`.**
+
+**Ratifikovani ishodi — sažetak (normativni izvor je D-064):**
+
+| `OD` | Ishod |
+|---|---|
+| 1 | Faza-5 slice paketa `013` je **isključivi vlasnik** granta, `ENABLE`/`FORCE RLS`-a i politika za **svih sedam** tenant tabela `P5-I2`; Faza-5 slice paketa `011` kreira **isključivo strukturne** objekte, i njegovo međustanje ima **nula** sposobnosti |
+| 2 | `idempotency_keys`: `SELECT` + `INSERT` + **column-level** `UPDATE` nad `response_status`, `response_body`, `locked_at`, `completed_at`; **bez** `DELETE`/`TRUNCATE`/blanket `UPDATE`-a; **tri** politike |
+| 3 | `audit_events`: **samo** `SELECT` + `INSERT`; **bez** `UPDATE`/`DELETE`/`TRUNCATE`; **dvije** politike; cross-practice čitljivost **kategorički zabranjena** |
+| 4 | **Tačno dva** nova FK-a: `idempotency_keys_practice_fk`, `audit_events_practice_fk`, oba `NO ACTION`/`NO ACTION`; **nijedan** `→ users` FK |
+| 5 | Prisma dobija **tačno dva** modela — `IdempotencyKey`, `AuditEvent`; **bez** `OutboxEvent` i `AsyncJob` u Fazi 5 |
+| 6 | Puni post-`P5-I2` katalog = **13 tabela** `true`/`true` i **23 politike** (10 + 8 + 3 + 2); ranije `18 / 11` je **PHI-only podzbir**, ne exit tvrdnja |
+| 7 | Creator migracija paketa `011` kreira i `audit_resource_idx` i `audit_actor_idx` |
+| 8 | Imenovanje tri buduća direktorija je fiksirano; **konačan tačan broj migracija = 7** |
+| 9 | Exact-set ekspektacije smiju evoluirati **stari tačan skup → novi tačan skup**; `exact` → `contains`/`subset`/`partial` ostaje **zabranjeno**; uvodi se novi `phase5-rls-grants.security.ts` |
+
+**Dvije korekcije nađene u vlasničkom pregledu.** (A) Fraza §11 preflight izvještaja
+„migration chain (exact set, 6 files)" je **superseded** — tačan broj je **7**. (B) Behavioural
+test AAD trigera se **ne smije** tražiti kao `SQLSTATE 23514` od migratora nad produkcijskom
+Faza-5 tabelom pod `FORCE RLS`-om; dokaz se dijeli na **atačiranje/katalog**, **runtime prvu
+barijeru** i **ponašanje funkcije na privremenom objektu disposable baze** (`02` §25.8a).
+**Historijski preflight dokaz se ne prepisuje prećutno.**
+
+**Segmentacija implementacije.** `P5-I2` se izvršava kao **četiri** pod-gatea — **`P5-I2A`**
+(paket `011`, strukturno) → **`P5-I2B`** (paket `013`, RLS/grantovi) → **`P5-I2C`** (paket
+`014`, AAD trigeri) → **`P5-I2V`** (**`★`** dokaz). **Nijedan ne smije prećutno apsorbovati
+naredni**, i **`P5-I5` ostaje blokiran dok `P5-I2V PASS` ne postane kanonski** (`04` §7.5).
+
+**Prognoza checklista.** Nakon što **cijeli** `P5-I2` bude implementiran, verifikovan i kanonski,
+**jedini** red koji se prognozira kao novo završen je **`Schema → RLS`** — prognoza **49 / 9**.
+**`Tests → cross-tenant FK` se u `P5-I2` NE smije označiti**, jer značenje tog reda uključuje i
+kasnije API/`422` ponašanje koje posjeduje `P5-I5`. **Svi Services/API/facade redovi ostaju
+netaknuti.**
+
+**Šta D-064 nije.** **Nije autorizacija implementacije.** `P5-I2` ostaje **NOT IMPLEMENTED** i
+**NOT AUTHORIZED**; paket `011`, Faza-5 RLS/grantovi i Faza-5 AAD trigeri paketa `014` ostaju
+**NOT IMPLEMENTED**; **`★` ostaje NOT EXECUTED**; **`P5-I5` ostaje neautorizovan**. Nijedan
+servis, endpoint, tabela, migracija, Prisma model, politika, grant, trigger ni test nije njome
+uveden, i **nijedna baza nije kontaktirana**. **Ne dira** D-060, D-061 ni D-063, **ne zatvara**
+`D-OPEN-004a`, i **ne mijenja** `★` hard stop.
+
+**Naredni gate:** **`P5-I2A`** — strukturni preduslov `P5-I2`, koji zahtijeva **zasebnu**
+vlasničku autorizaciju.
 
 ## Konkretan `TenantDatabaseService` facade — prenesena obaveza (D-056)
 
