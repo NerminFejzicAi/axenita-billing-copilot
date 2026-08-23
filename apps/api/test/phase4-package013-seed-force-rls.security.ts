@@ -53,11 +53,21 @@ import { runPrismaCli } from './support/run-prisma-cli.js';
 
 const apiRoot = resolve(import.meta.dirname, '..');
 
-/** The canonical chain this package completes. */
+/**
+ * The canonical chain, in application order.
+ *
+ * Package `003_patient_encounter_documents` carries a LOWER number but a LATER timestamp:
+ * package numbers carry OWNERSHIP, not execution order (D-052, D-062 Dio B.3). It is listed
+ * here because this assertion is an EXACT chain and must model the deployed reality; it
+ * changes nothing this file proves. Package `003` issues no grant, no policy and no RLS flag
+ * (02 §22.3, D-063 clause 2), so the §23.4 FORCE-RLS maintenance allowlist stays at exactly
+ * six tables and no phase 5 table is ever seeded (D-062 Dio K).
+ */
 const EXPECTED_MIGRATIONS = [
   '20260810213856_001_extensions_and_roles',
   '20260814013200_002_identity_and_practices',
   '20260816111141_013_rls_policies',
+  '20260823104252_003_patient_encounter_documents',
 ] as const;
 
 interface RowSecurityState {

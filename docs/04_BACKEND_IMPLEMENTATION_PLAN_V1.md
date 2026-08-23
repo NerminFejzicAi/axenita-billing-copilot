@@ -1140,6 +1140,10 @@ feat(security): enforce tenant isolation with transactional RLS context
 backend/05-encounters-documents
 ```
 
+**Stanje izvršenja (2026-08-23).** Slice `P5-I1` je izveden na **slice-skopiranoj** grani
+`feat/p5-i1-schema-foundation`, koja **još nije objavljena**. Ovo je zapis činjenice; prescripcija
+fazne grane iznad se **ne mijenja**. Dokazni blok je `05`, Faza 5, `Slice P5-I1`.
+
 ## 7.2 Scope baze
 
 - patient_references;
@@ -1243,6 +1247,14 @@ autorizaciju daje zaseban gate `P5-I0`, i on autorizuje **isključivo `P5-I1`**.
 | `P5-I6` | Ručni unos dokumenta i redakcija | `P5-I3`, `P5-I5` |
 | `P5-I7` | Čitanje, lista, filteri, arhiva | `P5-I5`, `P5-I6` |
 | `P5-I8` | Integracijsko i sigurnosno zatvaranje Faze 5 | sve |
+
+**Stanje slice-ova (2026-08-23).** **`P5-I1` je implementiran i nezavisno reviewovan**
+(`P5_I1_V_PASS_READY_FOR_PUBLICATION`), ali **nije kanonski** — grana nije gurana, PR ne postoji,
+merge nije izvršen. Preostalih sedam slice-ova su **`NOT_STARTED`**. **`P5-I2` nije autorizovan**
+ovim zapisom i ne smije početi prije nego što `P5-I1` postane kanonski; on i dalje posjeduje
+Faza-5 slice paketa `011`, runtime sigurnosnu granicu i **`★`** dokaz iz §7.6a, koji ostaje **tvrdi
+preduslov za `P5-I5`** uz `HARD HOLD` pri neuspjehu. Kompletan dokaz `P5-I1`-a je u `05`, Faza 5,
+blok `Slice P5-I1`.
 
 ## 7.6 Acceptance
 

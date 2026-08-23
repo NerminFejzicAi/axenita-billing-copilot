@@ -5,8 +5,9 @@ import { connect, securityDatabase } from './support/phase3-security-context.js'
 
 /**
  * Mechanical verification of the CANONICAL MIGRATION CHAIN — packages
- * `001_extensions_and_roles`, `002_identity_and_practices` and `013_rls_policies` (02 §22.2,
- * §26.3 step 7; 08 §21.5.1, §21.6.1, §21.6.5, §21.7.2, §21.8).
+ * `001_extensions_and_roles`, `002_identity_and_practices`, `013_rls_policies` and
+ * `003_patient_encounter_documents` (02 §22.2, §22.3, §26.3 step 7; 08 §21.5.1, §21.6.1,
+ * §21.6.5, §21.7.2, §21.8).
  *
  * These are catalogue assertions, not behaviour assertions: the schema, the ownership, the
  * grant surface, the RLS flags and the policy set are read straight out of `pg_catalog` and
@@ -21,6 +22,22 @@ import { connect, securityDatabase } from './support/phase3-security-context.js'
  * privilege surface, the RLS flags of `practice_memberships` and `practice_settings`, and the
  * policy and context-function sets. Every phase 3 artifact is asserted to have SURVIVED
  * unchanged rather than deleted from the contract (D-047 clause 16, D-051 clauses 1, 5, 6).
+ *
+ * PHASE 5 RECONCILIATION (02 §22.3, §29; D-062; D-063). Package
+ * `003_patient_encounter_documents` adds five enums, five tables, nine unique indexes, eight
+ * foreign keys, 23 CHECK constraints and four non-unique indexes. Every assertion here that
+ * reads the WHOLE schema — the migration history, the enum catalogue, the table set, the
+ * constraint set, the index set, the tenant-key set and the RLS flags — is EXTENDED to model
+ * the new state EXACTLY. None of them is narrowed, broadened or turned into a containment
+ * check; the phase 5 contract itself (the 23-row CHECK catalogue, the foreign key MATCH types,
+ * the zero-capability boundary) is owned by `phase5-schema-catalogue.security.ts`.
+ *
+ * What package `003` DOES NOT change is asserted here just as strictly: it issues no grant, no
+ * policy and no RLS flag, so the `002`/`013` privilege catalogue, the ten policies and the
+ * three context functions below must all be BYTE-IDENTICAL to their phase 4 state. In
+ * particular `practice_memberships` receives no structural change of any kind — the
+ * responsible-physician foreign key is created on `encounters`, against a parent key that has
+ * existed since package `002` (D-061 clause 11, D-062 Dio B.4).
  */
 const database = securityDatabase();
 
@@ -35,7 +52,7 @@ afterAll(async () => {
 });
 
 describe('migration history', () => {
-  it('given the disposable database when migrated then exactly packages 001, 002 and 013 are applied', async () => {
+  it('given the disposable database when migrated then exactly packages 001, 002, 013 and 003 are applied', async () => {
     const result = await migrator.query<{
       migration_name: string;
       finished: boolean;
@@ -52,13 +69,18 @@ describe('migration history', () => {
       '20260810213856_001_extensions_and_roles',
       '20260814013200_002_identity_and_practices',
       '20260816111141_013_rls_policies',
+      // Package `003` carries a LOWER number but a LATER timestamp: package numbers carry
+      // OWNERSHIP, not execution order (D-052, D-062 Dio B.3). The phase 5 slices of `011`,
+      // `013` and `014` are not applied yet — D-063 clause 3 defers the `011` slice out of
+      // `P5-I1` entirely.
+      '20260823104252_003_patient_encounter_documents',
     ]);
     expect(result.rows.every((row) => row.finished && !row.rolled_back)).toBe(true);
   });
 });
 
 describe('enums (02 §4.1, §4.2, §4.16)', () => {
-  it('given package 002 when applied then the three phase 3 enums carry exactly their accepted values', async () => {
+  it('given the canonical chain when applied then the enum catalogue carries exactly its accepted values', async () => {
     const result = await migrator.query<{ typname: string; values: string }>(
       `select t.typname, string_agg(e.enumlabel, ',' order by e.enumsortorder) as values
          from pg_type t
@@ -69,8 +91,26 @@ describe('enums (02 §4.1, §4.2, §4.16)', () => {
         order by t.typname`,
     );
 
+    // Three from package `002` and five from package `003` (02 §29.1). The phase 5 value sets
+    // are frozen by 02 §4.3-§4.8 and are asserted in full by the phase 5 catalogue spec; they
+    // appear here because this assertion is WHOLE-SCHEMA and must stay exact.
     expect(result.rows).toStrictEqual([
+      {
+        typname: 'document_source',
+        values: 'MANUAL_TEXT,FILE_UPLOAD,AXENITA_API,CSV_IMPORT,FHIR_IMPORT,GENERATED',
+      },
+      {
+        typname: 'document_type',
+        values:
+          'CONSULTATION_NOTE,DIAGNOSIS_LIST,PROCEDURE_NOTE,REFERRAL,LAB_RESULT,BILLING_DRAFT,AUDIT_REPORT,OTHER',
+      },
+      {
+        typname: 'encounter_status',
+        values:
+          'DRAFT,READY_FOR_ANALYSIS,ANALYSIS_IN_PROGRESS,REVIEW_REQUIRED,APPROVED,EXPORT_PENDING,EXPORTED,CANCELLED,CLOSED',
+      },
       { typname: 'entity_status', values: 'ACTIVE,INACTIVE,SUSPENDED,ARCHIVED' },
+      { typname: 'integration_provider', values: 'AXENITA,MANUAL,CSV,FHIR,OTHER' },
       {
         typname: 'membership_role',
         values: 'PRACTICE_ADMIN,PHYSICIAN,MPA,BILLING_SPECIALIST,AUDITOR,READ_ONLY',
@@ -78,29 +118,39 @@ describe('enums (02 §4.1, §4.2, §4.16)', () => {
       // `SYSTEM_ADMIN` is a PLATFORM role and must never appear in `membership_role`
       // (D-038 clause 12).
       { typname: 'platform_role', values: 'SYSTEM_ADMIN' },
+      { typname: 'review_state', values: 'UNREVIEWED,CONFIRMED,CORRECTED,REJECTED' },
     ]);
   });
 });
 
 describe('tables and ownership (02 §3.5, §6.1-§6.5)', () => {
-  it('given package 002 when applied then exactly the six phase 3 tables exist', async () => {
+  it('given the canonical chain when applied then exactly the eleven accepted tables exist', async () => {
     const result = await migrator.query<{ tablename: string }>(
       `select tablename from pg_tables
         where schemaname = 'public' and tablename <> '_prisma_migrations'
         order by tablename`,
     );
 
+    // Six from packages `002`/`013` plus the five of package `003` (02 §22.3). NOTHING from
+    // package `011` appears: `idempotency_keys` and `audit_events` were deferred out of
+    // `P5-I1` by D-063 clause 3, and `outbox_events` and `async_jobs` are not created in
+    // phase 5 at all.
     expect(result.rows.map((row) => row.tablename)).toStrictEqual([
+      'encounter_diagnoses',
+      'encounter_documents',
+      'encounters',
+      'patient_references',
       'platform_role_assignments',
       'practice_membership_roles',
       'practice_memberships',
       'practice_settings',
       'practices',
+      'storage_objects',
       'users',
     ]);
   });
 
-  it('given every phase 3 table when inspected then copilot_migrator owns it and no runtime role does', async () => {
+  it('given every table when inspected then copilot_migrator owns it and no runtime role does', async () => {
     const result = await migrator.query<{ tablename: string; tableowner: string }>(
       `select tablename, tableowner from pg_tables
         where schemaname not in ('pg_catalog', 'information_schema')
@@ -134,6 +184,155 @@ describe('constraints and indexes (02 §6.1-§6.5, §21, §22.2)', () => {
     );
 
     expect(result.rows).toStrictEqual([
+      // --- Package `003` (02 §29.2, §29.7a). Their full contract — the 23-row CHECK
+      // catalogue, the eight foreign keys and their MATCH type — is asserted by
+      // `phase5-schema-catalogue.security.ts`. They appear here because THIS assertion is
+      // WHOLE-SCHEMA and must stay an exact full-set comparison.
+      {
+        tbl: 'encounter_diagnoses',
+        conname: 'encounter_diagnoses_encounter_fk',
+        def: 'FOREIGN KEY (practice_id, encounter_id) REFERENCES encounters(practice_id, id)',
+      },
+      { tbl: 'encounter_diagnoses', conname: 'encounter_diagnoses_pkey', def: 'PRIMARY KEY (id)' },
+      {
+        tbl: 'encounter_documents',
+        conname: 'encounter_documents_encounter_fk',
+        def: 'FOREIGN KEY (practice_id, encounter_id) REFERENCES encounters(practice_id, id)',
+      },
+      {
+        tbl: 'encounter_documents',
+        conname: 'encounter_documents_encryption_metadata_check',
+        def: "CHECK ((((normalized_text_ciphertext IS NULL) AND (redacted_text_ciphertext IS NULL)) OR (((encryption_algorithm)::text = 'AES-256-GCM'::text) AND (encryption_version >= 1) AND (encryption_key_ref IS NOT NULL) AND (encryption_key_version >= 1))))",
+      },
+      {
+        tbl: 'encounter_documents',
+        conname: 'encounter_documents_normalized_text_auth_tag_length_check',
+        def: 'CHECK (((normalized_text_auth_tag IS NULL) OR (octet_length(normalized_text_auth_tag) = 16)))',
+      },
+      {
+        tbl: 'encounter_documents',
+        conname: 'encounter_documents_normalized_text_envelope_check',
+        def: 'CHECK ((((normalized_text_ciphertext IS NULL) AND (normalized_text_iv IS NULL) AND (normalized_text_auth_tag IS NULL)) OR ((normalized_text_ciphertext IS NOT NULL) AND (normalized_text_iv IS NOT NULL) AND (normalized_text_auth_tag IS NOT NULL))))',
+      },
+      {
+        tbl: 'encounter_documents',
+        conname: 'encounter_documents_normalized_text_iv_length_check',
+        def: 'CHECK (((normalized_text_iv IS NULL) OR (octet_length(normalized_text_iv) = 12)))',
+      },
+      {
+        tbl: 'encounter_documents',
+        conname: 'encounter_documents_page_count_check',
+        def: 'CHECK (((page_count IS NULL) OR (page_count > 0)))',
+      },
+      { tbl: 'encounter_documents', conname: 'encounter_documents_pkey', def: 'PRIMARY KEY (id)' },
+      {
+        tbl: 'encounter_documents',
+        conname: 'encounter_documents_processing_status_check',
+        def: "CHECK (((processing_status)::text = ANY ((ARRAY['READY'::character varying, 'FAILED'::character varying])::text[])))",
+      },
+      {
+        tbl: 'encounter_documents',
+        conname: 'encounter_documents_redacted_artifact_consistency_check',
+        def: "CHECK (((((redaction_status)::text = 'COMPLETED'::text) AND (redacted_text_ciphertext IS NOT NULL) AND (redacted_text_hash IS NOT NULL)) OR (((redaction_status)::text = 'FAILED'::text) AND (redacted_text_ciphertext IS NULL) AND (redacted_text_hash IS NULL))))",
+      },
+      {
+        tbl: 'encounter_documents',
+        conname: 'encounter_documents_redacted_text_auth_tag_length_check',
+        def: 'CHECK (((redacted_text_auth_tag IS NULL) OR (octet_length(redacted_text_auth_tag) = 16)))',
+      },
+      {
+        tbl: 'encounter_documents',
+        conname: 'encounter_documents_redacted_text_envelope_check',
+        def: 'CHECK ((((redacted_text_ciphertext IS NULL) AND (redacted_text_iv IS NULL) AND (redacted_text_auth_tag IS NULL)) OR ((redacted_text_ciphertext IS NOT NULL) AND (redacted_text_iv IS NOT NULL) AND (redacted_text_auth_tag IS NOT NULL))))',
+      },
+      {
+        tbl: 'encounter_documents',
+        conname: 'encounter_documents_redacted_text_iv_length_check',
+        def: 'CHECK (((redacted_text_iv IS NULL) OR (octet_length(redacted_text_iv) = 12)))',
+      },
+      {
+        tbl: 'encounter_documents',
+        conname: 'encounter_documents_redaction_status_check',
+        def: "CHECK (((redaction_status)::text = ANY ((ARRAY['COMPLETED'::character varying, 'FAILED'::character varying])::text[])))",
+      },
+      {
+        tbl: 'encounter_documents',
+        conname: 'encounter_documents_source_storage_object_fk',
+        def: 'FOREIGN KEY (practice_id, source_storage_object_id) REFERENCES storage_objects(practice_id, id)',
+      },
+      {
+        tbl: 'encounter_documents',
+        conname: 'encounter_documents_storage_object_fk',
+        def: 'FOREIGN KEY (practice_id, storage_object_id) REFERENCES storage_objects(practice_id, id)',
+      },
+      {
+        tbl: 'encounters',
+        conname: 'encounters_encryption_metadata_check',
+        def: "CHECK (((external_encounter_ref_ciphertext IS NULL) OR (((encryption_algorithm)::text = 'AES-256-GCM'::text) AND (encryption_version >= 1) AND (encryption_key_ref IS NOT NULL) AND (encryption_key_version >= 1))))",
+      },
+      {
+        tbl: 'encounters',
+        conname: 'encounters_external_encounter_ref_auth_tag_length_check',
+        def: 'CHECK (((external_encounter_ref_auth_tag IS NULL) OR (octet_length(external_encounter_ref_auth_tag) = 16)))',
+      },
+      {
+        tbl: 'encounters',
+        conname: 'encounters_external_encounter_ref_envelope_check',
+        def: 'CHECK ((((external_encounter_ref_ciphertext IS NULL) AND (external_encounter_ref_iv IS NULL) AND (external_encounter_ref_auth_tag IS NULL)) OR ((external_encounter_ref_ciphertext IS NOT NULL) AND (external_encounter_ref_iv IS NOT NULL) AND (external_encounter_ref_auth_tag IS NOT NULL))))',
+      },
+      {
+        tbl: 'encounters',
+        conname: 'encounters_external_encounter_ref_iv_length_check',
+        def: 'CHECK (((external_encounter_ref_iv IS NULL) OR (octet_length(external_encounter_ref_iv) = 12)))',
+      },
+      {
+        tbl: 'encounters',
+        conname: 'encounters_patient_age_check',
+        def: 'CHECK (((patient_age_at_encounter IS NULL) OR ((patient_age_at_encounter >= 0) AND (patient_age_at_encounter <= 130))))',
+      },
+      {
+        tbl: 'encounters',
+        conname: 'encounters_patient_reference_fk',
+        def: 'FOREIGN KEY (practice_id, patient_reference_id) REFERENCES patient_references(practice_id, id)',
+      },
+      { tbl: 'encounters', conname: 'encounters_pkey', def: 'PRIMARY KEY (id)' },
+      {
+        tbl: 'encounters',
+        conname: 'encounters_responsible_physician_membership_fk',
+        def: 'FOREIGN KEY (practice_id, responsible_physician_id) REFERENCES practice_memberships(practice_id, user_id)',
+      },
+      { tbl: 'encounters', conname: 'encounters_version_check', def: 'CHECK ((version >= 1))' },
+      {
+        tbl: 'patient_references',
+        conname: 'patient_references_birth_year_check',
+        def: 'CHECK (((birth_year IS NULL) OR ((birth_year >= 1900) AND (birth_year <= 2200))))',
+      },
+      {
+        tbl: 'patient_references',
+        conname: 'patient_references_encryption_metadata_check',
+        def: "CHECK (((external_patient_ref_ciphertext IS NULL) OR (((encryption_algorithm)::text = 'AES-256-GCM'::text) AND (encryption_version >= 1) AND (encryption_key_ref IS NOT NULL) AND (encryption_key_version >= 1))))",
+      },
+      {
+        tbl: 'patient_references',
+        conname: 'patient_references_external_patient_ref_auth_tag_length_check',
+        def: 'CHECK (((external_patient_ref_auth_tag IS NULL) OR (octet_length(external_patient_ref_auth_tag) = 16)))',
+      },
+      {
+        tbl: 'patient_references',
+        conname: 'patient_references_external_patient_ref_envelope_check',
+        def: 'CHECK ((((external_patient_ref_ciphertext IS NULL) AND (external_patient_ref_iv IS NULL) AND (external_patient_ref_auth_tag IS NULL)) OR ((external_patient_ref_ciphertext IS NOT NULL) AND (external_patient_ref_iv IS NOT NULL) AND (external_patient_ref_auth_tag IS NOT NULL))))',
+      },
+      {
+        tbl: 'patient_references',
+        conname: 'patient_references_external_patient_ref_iv_length_check',
+        def: 'CHECK (((external_patient_ref_iv IS NULL) OR (octet_length(external_patient_ref_iv) = 12)))',
+      },
+      { tbl: 'patient_references', conname: 'patient_references_pkey', def: 'PRIMARY KEY (id)' },
+      {
+        tbl: 'patient_references',
+        conname: 'patient_references_practice_fk',
+        def: 'FOREIGN KEY (practice_id) REFERENCES practices(id)',
+      },
       {
         tbl: 'platform_role_assignments',
         conname: 'platform_role_assignments_pkey',
@@ -184,6 +383,17 @@ describe('constraints and indexes (02 §6.1-§6.5, §21, §22.2)', () => {
         def: 'CHECK ((version >= 1))',
       },
       { tbl: 'practices', conname: 'practices_pkey', def: 'PRIMARY KEY (id)' },
+      {
+        tbl: 'storage_objects',
+        conname: 'storage_objects_byte_size_check',
+        def: 'CHECK ((byte_size >= 0))',
+      },
+      { tbl: 'storage_objects', conname: 'storage_objects_pkey', def: 'PRIMARY KEY (id)' },
+      {
+        tbl: 'storage_objects',
+        conname: 'storage_objects_practice_fk',
+        def: 'FOREIGN KEY (practice_id) REFERENCES practices(id)',
+      },
       { tbl: 'users', conname: 'users_pkey', def: 'PRIMARY KEY (id)' },
     ]);
   });
@@ -204,7 +414,9 @@ describe('constraints and indexes (02 §6.1-§6.5, §21, §22.2)', () => {
         order by con.conname`,
     );
 
-    expect(result.rows.length).toBe(5);
+    // Five from package `002` plus the eight of 02 §29.2. Package `003` pins every one of its
+    // keys explicitly rather than relying on a Prisma default (02 §29.3, D-062 Dio C.4).
+    expect(result.rows.length).toBe(13);
     for (const row of result.rows) {
       expect(row.confdeltype).toBe('a');
       expect(row.confupdtype).toBe('a');
@@ -219,8 +431,25 @@ describe('constraints and indexes (02 §6.1-§6.5, §21, §22.2)', () => {
     );
 
     // No speculative index: 02 §6.3 proves every documented query path is already covered by
-    // an existing constraint after the singular role column was removed (D-038 clause 2).
+    // an existing constraint after the singular role column was removed (D-038 clause 2), and
+    // none of the four phase 5 indexes of 02 §29.6 is speculative either — each has a
+    // documented query path in the frozen contract (D-062 Dio J).
     expect(result.rows.map((row) => row.indexname)).toStrictEqual([
+      'documents_encounter_idx',
+      'encounter_diagnoses_encounter_code_key',
+      'encounter_diagnoses_pkey',
+      'encounter_diagnoses_tenant_key',
+      'encounter_documents_pkey',
+      'encounter_documents_tenant_key',
+      'encounters_patient_timeline_idx',
+      'encounters_pkey',
+      'encounters_responsible_physician_idx',
+      'encounters_review_queue_idx',
+      'encounters_tenant_key',
+      'patient_references_pkey',
+      'patient_references_pseudonym_key',
+      'patient_references_source_external_ref_key',
+      'patient_references_tenant_key',
       'platform_role_assignments_pkey',
       'platform_role_assignments_user_idx',
       'platform_role_assignments_user_role_key',
@@ -237,13 +466,18 @@ describe('constraints and indexes (02 §6.1-§6.5, §21, §22.2)', () => {
       'practices_code_key',
       'practices_pkey',
       'practices_status_idx',
+      'storage_objects_bucket_object_key',
+      'storage_objects_pkey',
+      'storage_objects_tenant_key',
       'users_auth_subject_key',
       'users_pkey',
     ]);
   });
 
   it('given the tenant tables when inspected then each carries the unconditional unique (practice_id, id)', async () => {
-    // 02 §2.5. On `practice_memberships` it doubles as the parent key of the composite FK.
+    // 02 §2.5 / D-022. Three from package `002` and five from package `003` — eight of the
+    // thirty tenant tables now carry it (02 §29.7, 08 §12.9.3 item 13). On
+    // `practice_memberships` it doubles as the parent key of the composite FK.
     const result = await migrator.query<{ indexdef: string }>(
       `select indexdef from pg_indexes
         where schemaname = 'public' and indexname like '%_tenant_key'
@@ -251,9 +485,14 @@ describe('constraints and indexes (02 §6.1-§6.5, §21, §22.2)', () => {
     );
 
     expect(result.rows.map((row) => row.indexdef)).toStrictEqual([
+      'CREATE UNIQUE INDEX encounter_diagnoses_tenant_key ON public.encounter_diagnoses USING btree (practice_id, id)',
+      'CREATE UNIQUE INDEX encounter_documents_tenant_key ON public.encounter_documents USING btree (practice_id, id)',
+      'CREATE UNIQUE INDEX encounters_tenant_key ON public.encounters USING btree (practice_id, id)',
+      'CREATE UNIQUE INDEX patient_references_tenant_key ON public.patient_references USING btree (practice_id, id)',
       'CREATE UNIQUE INDEX practice_membership_roles_tenant_key ON public.practice_membership_roles USING btree (practice_id, id)',
       'CREATE UNIQUE INDEX practice_memberships_tenant_key ON public.practice_memberships USING btree (practice_id, id)',
       'CREATE UNIQUE INDEX practice_settings_tenant_key ON public.practice_settings USING btree (practice_id, id)',
+      'CREATE UNIQUE INDEX storage_objects_tenant_key ON public.storage_objects USING btree (practice_id, id)',
     ]);
   });
 });
@@ -437,7 +676,7 @@ describe('privilege catalogue (02 §20.2, §20.2a, §20.2b; D-047, D-049, D-051)
 });
 
 describe('RLS and policy catalogue (02 §17.2, §17.4, §17.5, §17.6; D-047, D-051)', () => {
-  it('given the canonical chain when applied then ALL SIX tables carry ENABLE and FORCE row level security', async () => {
+  it('given the canonical chain when applied then the SIX phase 3/4 tables force RLS and the five phase 5 tables do not yet', async () => {
     const result = await migrator.query<{
       relname: string;
       relrowsecurity: boolean;
@@ -450,19 +689,35 @@ describe('RLS and policy catalogue (02 §17.2, §17.4, §17.5, §17.6; D-047, D-
         order by c.relname`,
     );
 
-    // Exactly SIX, every one of them `true`/`true`. The four owned by package `002` are NOT
-    // re-altered by `013` and are asserted here to have kept that state; `practice_memberships`
-    // (§17.3, D-051 clause 5) and `practice_settings` (§20.2b, §22.13) receive it in `013`,
-    // which is what closes both phase 3 intermediate exposures.
+    // The SIX business tables of packages `002`/`013` are every one of them `true`/`true`. The
+    // four owned by package `002` are NOT re-altered by `013` and are asserted here to have
+    // kept that state; `practice_memberships` (§17.3, D-051 clause 5) and `practice_settings`
+    // (§20.2b, §22.13) receive it in `013`, which is what closes both phase 3 intermediate
+    // exposures. Package `003` must not disturb any of the six, and this row-by-row comparison
+    // is the mechanical proof that it did not.
+    //
+    // THE FIVE PHASE 5 TABLES ARE `false`/`false`, AND THAT IS THE ACCEPTED INTERMEDIATE STATE
+    // (02 §22.3, D-062 Dio B.3, D-063 clause 2). Package `003` issues no GRANT, so no runtime
+    // role can reach them at all and there is nothing yet for a policy to restrict; the
+    // ABSENCE OF A GRANT is the security control of that slice. RLS, FORCE RLS, the eight
+    // policies of §29.4 and the grants they restrict all arrive together, in ONE transaction,
+    // with the phase 5 slice of `013_rls_policies`. This assertion models that intermediate
+    // state EXACTLY rather than being broadened to tolerate it, so pulling either half forward
+    // — or leaving a phase 5 table `true`/`false` — fails here.
     expect(result.rows).toStrictEqual([
+      { relname: 'encounter_diagnoses', relrowsecurity: false, relforcerowsecurity: false },
+      { relname: 'encounter_documents', relrowsecurity: false, relforcerowsecurity: false },
+      { relname: 'encounters', relrowsecurity: false, relforcerowsecurity: false },
+      { relname: 'patient_references', relrowsecurity: false, relforcerowsecurity: false },
       { relname: 'platform_role_assignments', relrowsecurity: true, relforcerowsecurity: true },
       { relname: 'practice_membership_roles', relrowsecurity: true, relforcerowsecurity: true },
       { relname: 'practice_memberships', relrowsecurity: true, relforcerowsecurity: true },
       { relname: 'practice_settings', relrowsecurity: true, relforcerowsecurity: true },
       { relname: 'practices', relrowsecurity: true, relforcerowsecurity: true },
+      { relname: 'storage_objects', relrowsecurity: false, relforcerowsecurity: false },
       { relname: 'users', relrowsecurity: true, relforcerowsecurity: true },
     ]);
-    expect(result.rows).toHaveLength(6);
+    expect(result.rows).toHaveLength(11);
   });
 
   it('given the canonical chain when applied then exactly TEN policies exist, with their accepted mode, command and roles', async () => {
