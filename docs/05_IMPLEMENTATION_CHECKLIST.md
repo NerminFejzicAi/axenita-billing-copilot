@@ -9,9 +9,9 @@
 
 | Polje | Vrijednost |
 |---|---|
-| Current phase | Faza 1 — `DONE`; Ecosystem Compatibility Audit `DONE`; Faza 2 — `DONE`; **D-OPEN-011 decision gate — `DONE` (D-047 prihvaćen 2026-08-12)**; **D-047 dokumentaciona rekonsilijacija — `DONE`, merged u kanonski `main` (PR #7)**; **D-048–D-051 governance gate — `DONE`, merged u kanonski `main` (PR #10)**; **Faza 3 — `DONE`, merged u kanonski `main` (PR #12, merge commit `5c2786d`) (§4)**; **Faza 4 — `DONE`, zatvorena (§5)**; **P4-5D je `MERGED` u kanonski `main` (PR #20)**; **retrospektivni evidence gate `P4-013` — `COMPLETE`** (`UNRESOLVED_REQUIRED = 0`, `SECURITY_CLOSURE_BLOCKERS = 0`; §5, „Gate zatvaranja Faze 4 — P4-013 — `COMPLETE`"); **prelazak `IN_PROGRESS → DONE` je izvršen zasebnim, vlasnički pregledanim gateom zatvaranja Faze 4 — odluka D-059** (§5, „Zatvaranje Faze 4 — D-059"). `DONE` je ovdje **rezervisani lifecycle status** i postaje kanonski **merge-om ove zatvaračke grane u `origin/main`**, po presedanu Faze 3 (`9af070d`); **Faza 5 ostaje `NOT_STARTED`** |
+| Current phase | Faza 1 — `DONE`; Ecosystem Compatibility Audit `DONE`; Faza 2 — `DONE`; **D-OPEN-011 decision gate — `DONE` (D-047 prihvaćen 2026-08-12)**; **D-047 dokumentaciona rekonsilijacija — `DONE`, merged u kanonski `main` (PR #7)**; **D-048–D-051 governance gate — `DONE`, merged u kanonski `main` (PR #10)**; **Faza 3 — `DONE`, merged u kanonski `main` (PR #12, merge commit `5c2786d`) (§4)**; **Faza 4 — `DONE`, zatvorena (§5)**; **P4-5D je `MERGED` u kanonski `main` (PR #20)**; **retrospektivni evidence gate `P4-013` — `COMPLETE`** (`UNRESOLVED_REQUIRED = 0`, `SECURITY_CLOSURE_BLOCKERS = 0`; §5, „Gate zatvaranja Faze 4 — P4-013 — `COMPLETE`"); **prelazak `IN_PROGRESS → DONE` je izvršen zasebnim, vlasnički pregledanim gateom zatvaranja Faze 4 — odluka D-059** (§5, „Zatvaranje Faze 4 — D-059"). `DONE` je ovdje **rezervisani lifecycle status** i postaje kanonski **merge-om ove zatvaračke grane u `origin/main`**, po presedanu Faze 3 (`9af070d`); **Faza 5 — `IN_PROGRESS`** (§6): prelazak je izvršen kanonskim slice-om **`P5-I1`** (PR #30, merge `fcd88fbe`), checklist **49 / 8**; Faza 5 **nije** `DONE` |
 | Current branch | Faza 3 je merged u kanonski `main`; implementacijski branch `backend/03-identity-practices` (tehnička implementacija HEAD, Gate 3E = `9f60d32c66023c4aad5ac34df267658ddfe5d6b1`; zatvarački dokumentacioni checkpoint = `2c7d7778a9ec1dae92fd0a5683d1f4afc7b36950`; završni head prije merge-a = `5c1699a0ea4d98e2f540c6e8cd9ae84997896a42`) je time potrošen. **Kanonska remote grana je `origin/main`. Živi kanonski commit se rezolvira iz te reference i ovaj dokument ga ne ugrađuje** (D-056, klauzule 15–16); tačni SHA-ovi ispod su **nepromjenljivi historijski lifecycle događaji**, ne živi pokazivač. Implementacijski branch Faze 4 `backend/04-practice-settings-patch` nosio je slice P4-5D i **merged je** u kanonski `main` kroz **PR #20** (`3658c6e2d9c08e3ca3f0c306d8dbeaf41a6a01f5`), pa je time potrošen. Historijski: `0866e530b6086e7dba7f0bc0d98b19eee69ee0d5` (PR #19, kanonski `main` neposredno prije merge-a P4-5D), `5c2786d689b50f73f49bfca52d2335ea50ee52c2` (PR #12, kanonski `main` po zatvaranju Faze 3), `251544f0b10abb00ee818f1ff5183c95b0ed0d03` (PR #11, kanonski `main` neposredno prije merge-a Faze 3) i `65e2552e13520ead86092f75ca3cc75d206b9f35` (PR #10) |
-| Last completed phase | **Faza 4 — Tenant/RLS, `DONE`** — zatvorena odlukom **D-059** (§5, „Zatvaranje Faze 4 — D-059"); aplikacija merged kroz PR #20 (`3658c6e`), retrospektivni evidence gate **P4-013** `COMPLETE`, `UNRESOLVED_REQUIRED = 0`. Prethodna: Faza 3 — Identity & Practices, `DONE` (PR #12, `5c2786d`). **Naredna faza — Faza 5 — Encounter/documents — je `NOT_STARTED` i ovim zatvaranjem nije autorizovana** (§6) |
+| Last completed phase | **Faza 4 — Tenant/RLS, `DONE`** — zatvorena odlukom **D-059** (§5, „Zatvaranje Faze 4 — D-059"); aplikacija merged kroz PR #20 (`3658c6e`), retrospektivni evidence gate **P4-013** `COMPLETE`, `UNRESOLVED_REQUIRED = 0`. Prethodna: Faza 3 — Identity & Practices, `DONE` (PR #12, `5c2786d`). **Naredna faza — Faza 5 — Encounter/documents — bila je `NOT_STARTED` u trenutku tog zatvaranja i njime nije autorizovana; tekući status Faze 5 je `IN_PROGRESS`** nakon kanonskog `P5-I1` (§6) |
 | Last commit | `c4b89d0` (Phase 2 implementation), merged via `dae9649`; dokumentarno zatvaranje `98910b3`, merged via `d6b5efe`; D-047 rekonsilijacija `76dbc6d` + `dda7538`, merged via `ec7d100` (PR #7); dokumentaciona usklađivanja merged via `2befadc` i `5d38ba8` (PR #8, PR #9); D-048–D-051 rekonsilijacija `b2a99ce`, merged via `65e2552` (PR #10); dokumentaciono zatvaranje governancea merged via `251544f` (PR #11); **Faza 3 — sedam commitova branča `backend/03-identity-practices` (Gate 3A–3E, tehnička implementacija `HEAD` = `9f60d32`; zatvarački dokumentacioni checkpoint `2c7d777`; korekcija reference kanonskog `main`-a `5c1699a`), merged via `5c2786d` (PR #12)** (§4, „Gate checkpointi Faze 3"); historijski kanonski `main` prije P4-5D = `0866e530b6086e7dba7f0bc0d98b19eee69ee0d5` (PR #19); **PR #20 (slice P4-5D) je `MERGED`, merge commit `3658c6e2d9c08e3ca3f0c306d8dbeaf41a6a01f5`**. Živi kanonski commit se rezolvira iz `origin/main` i ovdje se **ne** upisuje (D-056, klauzule 15–16) |
 | Local environment owner | Nermin Fejzic |
 | Test DB | `copilot_test` @ `localhost:5433` (compose profil `test`); dokazi Faze 3 nad realnim PostgreSQL-om rade na **jednokratnim** bazama `copilot_gate3b_<suffix>` @ `localhost` |
@@ -1135,7 +1135,9 @@ evidence gate **P4-013** je **`COMPLETE`** — `UNRESOLVED_REQUIRED = 0` i
 **Faza je zatvorena.** Prelazak `IN_PROGRESS → DONE` izvršen je **zasebnim, vlasnički pregledanim
 gateom zatvaranja Faze 4** — odlukom **D-059** (2026-08-21), nakon `PHASE4_FINAL_CLOSURE_AUDIT_PASS`
 nad kanonskim `9b8fcdd21a51935b7cc6cd810e0e91e44ec281e3`. Vidi „Zatvaranje Faze 4 — D-059" na
-kraju ove sekcije. **Zatvaranje ne autorizuje Fazu 5**, koja ostaje `NOT_STARTED` (§6).
+kraju ove sekcije. **Zatvaranje ne autorizuje Fazu 5**, koja je **u trenutku tog zatvaranja
+ostala `NOT_STARTED`** (§6). *(Historijska konstatacija, tačna na dan zatvaranja Faze 4; tekući
+status Faze 5 je `IN_PROGRESS`, checklist **49 / 8**, nakon kanonskog `P5-I1` — vidi vrh §6.)*
 
 **Obuhvat `P4-013` je rebaziran na ovu, kanonsku Fazu 4 — D-057 (2026-08-20).** Pokušaj 1 gatea
 `P4-013A` zaustavljen je sa `P4_013_SCOPE_RECONCILIATION_FAILURE` jer je D-056, klauzula 20
@@ -2533,6 +2535,11 @@ PHASE_5_STATUS                      NOT_STARTED
 PHASE_10_STATUS                     NOT_STARTED
 ```
 
+**Anotacija (`P5-I1-D`, 2026-08-23) — gornji blok se ne prepisuje.** On bilježi stanje **na dan
+zatvaranja Faze 4 (D-059)**; `PHASE_5_STATUS` iz njega je **historijska vrijednost tog trenutka**,
+a ne tekući status. Tekući status Faze 5 je **`IN_PROGRESS`**, checklist **49 / 8**, nakon
+kanonskog slice-a `P5-I1` (§6). `PHASE_10_STATUS` je i dalje `NOT_STARTED`.
+
 **Autoritet zatvaranja:** rubrik **D-056, dio C** (`UNRESOLVED_REQUIRED = 0` kao pravilo
 zatvaranja); **D-057** (kanonski strukturni obuhvat `P4-013` — 398 redova); **D-058** (vlasništvo
 faza za odobravanje/opoziv i dispozicija sedam redova); **`P4-013B`** (kanonska rekonsilijacija,
@@ -2560,9 +2567,11 @@ Ovaj zapis nastaje na zatvaračkoj grani i **postaje kanonski merge-om te grane 
   `SATISFIED_BY_EVIDENCE` u Fazi 4 i **ne mijenja dispoziciju**;
 - **`R314`–`R318`, `R370`** — `FUTURE_SCOPE`; **`R306`–`R313`** — `NOT_APPLICABLE_IN_V1`.
 
-**Granica prema Fazi 5.** D-059 zatvara **isključivo** Fazu 4. **Faza 5 ostaje `NOT_STARTED`**
-(§6) i **nije autorizovana** ovom odlukom; nijedna njena kućica nije označena. Pokretanje Faze 5
-je **zaseban gate**.
+**Granica prema Fazi 5.** D-059 zatvara **isključivo** Fazu 4. **Faza 5 je u trenutku ovog
+zatvaranja ostala `NOT_STARTED`** (§6) i **nije autorizovana** ovom odlukom; nijedna njena kućica
+tada nije bila označena. Pokretanje Faze 5 je bilo **zaseban gate**. *(Taj zaseban gate je
+naknadno izvršen — tekući status Faze 5 je `IN_PROGRESS`, checklist **49 / 8**, nakon kanonskog
+`P5-I1`; vidi vrh §6. Granica koju D-059 postavlja se time ne mijenja.)*
 
 **Konačnost.** Nijedna Faza-4 implementacijska remedijacija nije otvorena. Svaka buduća izmjena
 završenog ponašanja Faze 4 traži **novu, eksplicitnu odluku/governance putanju** — ovaj zapis
@@ -2577,15 +2586,17 @@ Status: `IN_PROGRESS`
 **Prelazak `NOT_STARTED` → `IN_PROGRESS` (2026-08-23).** Prvi implementacijski slice faze,
 **`P5-I1`**, je implementiran i **nezavisno reviewovan** ishodom
 `P5_I1_V_PASS_READY_FOR_PUBLICATION`. Ovo je **implementacijsko stanje**, a **ne** završetak faze:
-Faza 5 **nije** `DONE` i ne smije se tako označiti. Slice još **nije kanonski** — živi na
-neobjavljenoj grani i postaje kanonski tek merge-om u `main`. Dokazni blok je
+Faza 5 **nije** `DONE` i ne smije se tako označiti. Slice je **kanonski** — objavljen kroz
+**PR #30** i merged u `main` (merge SHA `fcd88fbef6c398ae7f0404eb54edb8f7f8175634`). Dokazni blok je
 **`Slice P5-I1`** niže; označene su isključivo osam schema kućica koje on dokazuje, čime brojanje
 Faze 5 prelazi sa **49 / 0** na **49 / 8**.
 
 ## Objavljen dizajnerski autoritet — D-060 (2026-08-22)
 
-**Ovaj zapis ne mijenja status faze i ne označava nijednu kućicu ispod.** Faza 5 ostaje
-`NOT_STARTED`, a njeno pokretanje je i dalje **zaseban gate**.
+**Ovaj zapis ne mijenja status faze i ne označava nijednu kućicu ispod.** Na dan ovog zapisa
+Faza 5 je ostala `NOT_STARTED`, a njeno pokretanje je i dalje bilo **zaseban gate**.
+*(Historijska publikaciona konstatacija, tačna na dan tog zapisa; tekući status Faze 5 je
+`IN_PROGRESS`, checklist **49 / 8**, nakon kanonskog `P5-I1` — vidi vrh §6.)*
 
 Odlukom **D-060** vlasnički su ratifikovani i objavljeni PHI/sigurnosni ugovori koje implementacija
 Faze 5 **mora** poštovati:
@@ -2626,8 +2637,10 @@ eventualni implementacijski gate. *(Oba gatea su izvršena i objavljena — kao 
 
 ## Objavljen dizajnerski autoritet — D-061 (2026-08-23)
 
-**Ovaj zapis ne mijenja status faze i ne označava nijednu kućicu ispod.** Faza 5 ostaje
-`NOT_STARTED`; broj redova i broj označenih ostaje **49 / 0**.
+**Ovaj zapis ne mijenja status faze i ne označava nijednu kućicu ispod.** Na dan ovog zapisa
+Faza 5 je ostala `NOT_STARTED`, a broj redova i broj označenih **49 / 0**.
+*(Historijska publikaciona konstatacija, tačna na dan tog zapisa; tekući status Faze 5 je
+`IN_PROGRESS`, checklist **49 / 8**, nakon kanonskog `P5-I1` — vidi vrh §6.)*
 
 Gate **`P5-G1`** je izvršen i objavljen kao odluka **D-061**. Ishod je **opcija G1-A —
 izostavljanje**:
@@ -2687,8 +2700,10 @@ RI-naspram-RLS dokaz mora proći u slice-u `P5-I2` prije encounter jezgra (`04` 
 
 ## Objavljen dizajnerski autoritet — D-062 (2026-08-23)
 
-**Ovaj zapis ne mijenja status faze i ne označava nijednu kućicu ispod.** Faza 5 ostaje
-`NOT_STARTED`; broj redova i broj označenih ostaje **49 / 0**.
+**Ovaj zapis ne mijenja status faze i ne označava nijednu kućicu ispod.** Na dan ovog zapisa
+Faza 5 je ostala `NOT_STARTED`, a broj redova i broj označenih **49 / 0**.
+*(Historijska publikaciona konstatacija, tačna na dan tog zapisa; tekući status Faze 5 je
+`IN_PROGRESS`, checklist **49 / 8**, nakon kanonskog `P5-I1` — vidi vrh §6.)*
 
 Gate **`P5-D2`** je izvršen i objavljen kao odluka **D-062**. Vlasnik je ratifikovao **preporučeni
 skup od četrnaest odluka** `OD-P5-D2-1` … `OD-P5-D2-14`, uz eksplicitnu potvrdu **`A + A+`** za
@@ -2753,9 +2768,11 @@ objavljene kao **D-063** — vidi blok niže.)*
 
 ## Objavljena korekcija implementacijske granice — D-063 (2026-08-23)
 
-**Ovaj zapis ne mijenja status faze i ne označava nijednu kućicu ispod.** Faza 5 ostaje
-`NOT_STARTED`; broj redova i broj označenih ostaje **49 / 0**. **Nijedan red implementacijskog
-checklista se ovom korekcijom ne dodaje, ne uklanja i ne označava.**
+**Ovaj zapis ne mijenja status faze i ne označava nijednu kućicu ispod.** Na dan ovog zapisa
+Faza 5 je ostala `NOT_STARTED`, a broj redova i broj označenih **49 / 0**. **Nijedan red
+implementacijskog checklista se ovom korekcijom ne dodaje, ne uklanja i ne označava.**
+*(Historijska publikaciona konstatacija, tačna na dan tog zapisa; tekući status Faze 5 je
+`IN_PROGRESS`, checklist **49 / 8**, nakon kanonskog `P5-I1` — vidi vrh §6.)*
 
 Read-only gate **`P5-I0`** je prošao vlasnički pregled i, prije prvog implementacijskog slicea,
 otkrio **dvije greške** u objavljenom autoritetu D-062. Vlasnik je obje korekcije ratifikovao;
@@ -2864,12 +2881,12 @@ Test result:
 D-054 klauzule 6-10 ponovo dokazane:
 ```
 
-## Slice `P5-I1` — schema foundation — **IMPLEMENTIRAN / NEZAVISNO REVIEWOVAN / NIJE OBJAVLJEN**
+## Slice `P5-I1` — schema foundation — **IMPLEMENTIRAN / NEZAVISNO REVIEWOVAN / OBJAVLJEN — KANONSKI**
 
 **Autoritet: D-063, klauzule 1–2**, u suženom obuhvatu koji je gate `P5-I0` autorizovao, uz D-060,
-D-061 i D-062 kao bazne ugovore. **Ovo nije kanonsko stanje.** Slice živi na lokalnoj, **neguranoj**
-grani, bez pull requesta i bez mergea; kanonski `main` je nepromijenjen. Kanonskim postaje tek
-publikacijskim gateom `P5-I1-P`.
+D-061 i D-062 kao bazne ugovore. **Ovo je kanonsko stanje.** Publikacijski gate `P5-I1-P` je
+izvršen: grana je gurana, **PR #30** je merged u kanonski `main`, merge SHA
+`fcd88fbef6c398ae7f0404eb54edb8f7f8175634`.
 
 ```text
 STATUS:            IMPLEMENTED / INDEPENDENTLY REVIEWED / NOT YET PUBLISHED
@@ -2881,6 +2898,18 @@ TEST:              fcbf4d11d742b7c3544ae9035a6663fb07ca5d67
                    test(schema): verify Phase 5 package 003 catalogue
 INDEPENDENT REVIEW: P5_I1_V_PASS_READY_FOR_PUBLICATION
 PUBLICATION:       NOT YET CANONICAL until branch merge
+```
+
+**Anotacija (`P5-I1-D`, 2026-08-23) — gornji blok se ne prepisuje.** On bilježi stanje slicea **u
+trenutku nezavisnog pregleda, prije publikacije**; `STATUS`, `BRANCH` i `PUBLICATION` iz njega su
+**historijske vrijednosti tog trenutka**, a ne tekući status. Commit SHA-ovi `7c7bc9d` i `fcbf4d1`
+i ishod nezavisnog pregleda ostaju nepromijenjeni. **Tekuće kanonsko stanje:**
+
+```text
+STATUS:            IMPLEMENTED / INDEPENDENTLY REVIEWED / PUBLISHED
+PUBLICATION:       CANONICAL
+PULL REQUEST:      #30   (MERGED)
+MERGE COMMIT:      fcd88fbef6c398ae7f0404eb54edb8f7f8175634
 ```
 
 **Napomena o grani.** `04` §7.1 imenuje faznu granu `backend/05-encounters-documents`. Ovaj slice je
