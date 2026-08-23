@@ -2890,6 +2890,17 @@ uveden, i **nijedna baza nije kontaktirana**. **Ne dira** D-060, D-061 ni D-063,
 **Naredni gate:** **`P5-I2A`** — strukturni preduslov `P5-I2`, koji zahtijeva **zasebnu**
 vlasničku autorizaciju.
 
+**Anotacija (`P5-I2A-C`, 2026-08-24) — gornji D-064 zapis se ne prepisuje.** Njegove tvrdnje
+opisuju obuhvat **odluke D-064** i stanje **u trenutku ratifikacije**, ne tekući status. Vlasnik je
+u međuvremenu autorizovao i izvršio **isključivo** pod-gate **`P5-I2A`**: on je **implementiran
+lokalno i nezavisno reviewovan**, **ali nije kanonski**. **`P5-I2` u cjelini ostaje
+`IN_PROGRESS` / `NOT COMPLETE`**; **`P5-I2B` i `P5-I2C` ostaju `NOT IMPLEMENTED` /
+`NOT AUTHORIZED`**, **`P5-I2V` ostaje `NOT EXECUTED`**, **`★` ostaje neizvršen** i **`P5-I5`
+ostaje neautorizovan**. Prognoza **49 / 9** i dalje je uslovljena **kompletnim, verifikovanim i
+kanonskim `P5-I2`**, ne samim `P5-I2A`-om; `P5-I2A` **nema vlastitu kućicu** čije bi se označavanje
+smjelo izvesti. Tekući dokaz je blok `Slice P5-I2A`. **Naredni gate je `P5-I2A-P` — publikacijski
+gate paketa `011`**, koji i dalje zahtijeva **zasebnu** vlasničku autorizaciju.
+
 ## Konkretan `TenantDatabaseService` facade — prenesena obaveza (D-056)
 
 **Premješteno iz Faze 4 odlukom D-056 (2026-08-20).** Ovo je **živa buduća obaveza**, ne odbačen
@@ -2998,7 +3009,9 @@ izmjena prescripcije `04` §7.1.
 - `relrowsecurity` i `relforcerowsecurity` su **`false`** na svih pet novih tabela, dok šest
   postojećih tabela zadržava `true`/`true`;
 - **nula trigera**, nula funkcija, nula novih rola, nijedan `SECURITY DEFINER`;
-- **paket `011` nije implementiran** — `idempotency_keys` i `audit_events` ne postoje;
+- **paket `011` u `P5-I1` nije implementiran** — `idempotency_keys` i `audit_events` u tom
+  trenutku ne postoje; njihovo **strukturno** uvođenje pripada pod-gateu `P5-I2A` (blok
+  `Slice P5-I2A`) i **u trenutku ovog zapisa nije kanonsko**;
 - **paketi `013` i `014` (Faza-5 slice) nisu dirani**;
 - **nula aplikacijskog koda** — izmjene su isključivo `apps/api/prisma/` i `apps/api/test/`;
 - **runtime sigurnosnu granicu i dalje posjeduje `P5-I2`** (D-063, korekcija A). Stanje bez grantova
@@ -3034,6 +3047,125 @@ kanonskog `main`-a. Nezavisni pregled `P5-I1-V` je potvrdio da uzrok **nije** `P
 **Šta ovaj slice ne tvrdi.** Ne zatvara Fazu 5, ne autorizuje `P5-I2`, ne zatvara `D-OPEN-004a`, ne
 mijenja nijednu Faza-4 invarijantu, ne dira izostavljanje co-member `displayName`-a (D-061) i ne
 uvodi nijednu novu odluku.
+
+## Pod-gate `P5-I2A` — struktura paketa `011` — **IMPLEMENTIRAN / NEZAVISNO REVIEWOVAN / NIJE KANONSKI**
+
+**Autoritet: D-064, `OD-1`, `OD-4`, `OD-5`, `OD-7`, `OD-8`, `OD-9`**, uz D-023, D-062 i D-063 kao
+bazne ugovore, u obuhvatu koji je vlasnik autorizovao za **isključivo** pod-gate `P5-I2A`.
+**Ovo nije kanonsko stanje** — grana nije gurana, PR ne postoji, merge nije izvršen. **`P5-I2` u
+cjelini ostaje `IN_PROGRESS` / `NOT COMPLETE`.**
+
+```text
+STATUS:              IMPLEMENTED / INDEPENDENTLY REVIEWED / NOT YET PUBLISHED
+BRANCH:              feat/p5-i2a-package011-structure   (nije gurana; bez PR-a; bez mergea)
+BASE:                origin/main 52202b063764c23987f867549d6cc48a154c3b6e
+IMPLEMENTATION:      828daa5ea385e087c2912e4f2b20f9d4bb3b7c5e
+                     feat(schema): add Phase 5 package 011 structure
+TEST:                a37f6e014cd9f34ac449d90b2527303abc7167b2
+                     test(schema): verify Phase 5 package 011 catalogue
+IMPLEMENTATION GATE: P5_I2A_PASS_COMMITTED_NOT_PUSHED
+INDEPENDENT REVIEW:  P5_I2A_V_PASS_READY_FOR_PUBLICATION
+PUBLICATION:         NOT YET CANONICAL until branch merge
+```
+
+**Dokazan obuhvat — rekonstruisan iz samih commitovanih artefakata, ne iz prethodne proze:**
+
+- **dva Prisma modela** — `IdempotencyKey` i `AuditEvent`; **bez** `OutboxEvent` i `AsyncJob`
+  (D-064, `OD-5`);
+- **dvije fizičke tabele** — `idempotency_keys` i `audit_events`;
+- **migration paket** —
+  `20260823211546_011_jobs_idempotency_outbox_audit_phase5/migration.sql`, hronološki posljednji
+  u lancu od **pet** direktorija;
+- **30 novih fizičkih kolona** — **12** na `idempotency_keys` i **18** na `audit_events`, po
+  kolonskim ugovorima `02` §15.2 i §15.4;
+- **dva nova FK-a** — `idempotency_keys_practice_fk` i `audit_events_practice_fk`, **oba**
+  eksplicitno `ON DELETE NO ACTION ON UPDATE NO ACTION`; **nijedan `→ users` FK** — akterske
+  kolone ostaju aplikacijska invarijanta (`02` §6.5). Ukupan FK katalog nakon `P5-I2A` = **15**;
+- **sedam** `PK`/`UNIQUE`/`INDEX` objekata nad te dvije tabele — `idempotency_keys_pkey`,
+  `audit_events_pkey`, `idempotency_keys_tenant_key`, `idempotency_keys_scope_key`,
+  `audit_events_tenant_key`, te **oba** `02` §21 audit indeksa `audit_resource_idx` i
+  `audit_actor_idx`;
+- **kataloški/regresijski testovi** — novi `phase5-package011-catalogue.security.ts`, uz
+  **exact-set → exact-set** evoluciju u `database-migration.integration.ts`,
+  `phase3-schema-catalogue.security.ts`, `phase4-package013-seed-force-rls.security.ts` i
+  `phase5-schema-catalogue.security.ts` (lanac 4 → 5, tabele 11 → 13, FK 13 → 15, tenant ključevi
+  8 → 10, RLS redovi 11 → 13). **Nijedna tvrdnja nije oslabljena** na
+  `contains`/`subset`/`partial`, a **dokaz paketa `003` je zadržan nepromijenjen**.
+
+**ZERO-CAPABILITY međustanje — dokazano kao pozitivno odsustvo (D-064, `OD-1`):**
+
+- **nula runtime grantova na nivou tabele i nula na nivou kolone** nad obje nove tabele;
+- **nula politika**; nijedan `ENABLE`/`FORCE ROW LEVEL SECURITY`; `relrowsecurity` i
+  `relforcerowsecurity` su **`false`** na obje;
+- `copilot_app` = **nula**, `copilot_system` = **nula**, `PUBLIC` = **nula**; `pg_default_acl`
+  ostaje **prazan**;
+- **nula trigera, nula funkcija, nula novih rola**, nijedan `SECURITY DEFINER`, nijedan
+  `BYPASSRLS`;
+- **nula DML-a i nula seeda**; migracija ne mijenja nijedan postojeći objekat;
+- broj politika u cijeloj šemi ostaje **10**, nepromijenjen.
+
+**Poslije `P5-I2A`: 13 business tabela — 6 `true`/`true` i 7 `false`/`false`.** Šest Faza-3/4
+tabela zadržava `true`/`true`; pet `P5-I1` tabela i dvije nove tabele paketa `011` su
+`false`/`false`. **To stanje je očekivano i sigurno, i nije defekt**: `copilot_migrator` je
+vlasnik, a nijedna runtime rola tabele uopšte ne doseže. **Tranziciju na 13 `true`/`true` i 23
+politike (`02` §29.4a) posjeduje isključivo `P5-I2B` i ona se nije dogodila.**
+
+**Sigurnosna i obuhvatna isključenja `P5-I2A`:** `RLS_CHANGED = NO`, `GRANTS_CHANGED = NO`,
+`POLICIES_CHANGED = NO`, `TRIGGERS_CHANGED = NO`, `FUNCTIONS_CHANGED = NO`. Nisu kreirani
+`outbox_events` ni `async_jobs`; nije uveden nijedan aplikacijski servis, ruta, kontroler, DTO,
+idempotency servis ni audit servis; **nema sadržaja `P5-I2B` ni `P5-I2C`**; **`★` RI-naspram-RLS
+dokaz nije izvršen** i **`P5-I5` ostaje neautorizovan**.
+
+**Izvršni dokaz pod-gatea** (`DB_MUTATED = TEST_DATABASES_ONLY` — korištene su i čuvane potrošne
+baze i kanonska dijeljena integraciona test baza; **nijedna** development, staging ni produkcijska
+baza nije mutirana):
+
+```text
+db:format                                            PASS
+db:validate                                          PASS
+db:generate                                          PASS
+fresh migracija 001 -> 002 -> 013 -> 003 -> 011      PASS
+test:security                                        PASS   668 / 668, 18 fajlova
+test:integration                                     PASS   46 / 46
+unit testovi                                         PASS   526 / 526
+e2e                                                  PASS   41 / 41
+lint                                                 PASS
+typecheck                                            PASS
+build                                                PASS
+format:check                                         FAIL — PRE-EXISTING, nije uzrokovan P5-I2A
+```
+
+**`format:check` — precizna distinkcija.** Jedini neuspjeh je i dalje u
+`apps/api/test/phase4-membership-role-assignment-constraints.security.ts`. Taj fajl je
+**bajt-identičan** kanonskom `origin/main`-u i **nije dirnut** nijednim `P5-I2A` commitom; nijedan
+fajl uveden ili izmijenjen u `P5-I2A` ne uvodi novi formatting neuspjeh. Popravak ostaje **zaseban
+zadatak**, izvan obuhvata ovog pod-gatea.
+
+**Nezavisni pregled `P5-I2A-V`** (`DB_CONTACTED = NO`, `FILES_CHANGED = NO`) verifikovao je:
+tačne kolonske ugovore **12 + 18**; tačno **dva** modela i **dvije** tabele; tačno **dva** nova
+FK-a i **15** ukupno; tačno **sedam** `PK`/`UNIQUE`/`INDEX` objekata; **odsustvo drifta** nad
+postojećim objektima; **nula sposobnosti**; **strogu `exact` → `exact` evoluciju**; očuvan dokaz
+paketa `003`; **odsustvo sadržaja `P5-I2B`**; razriješen incident komentara u generisanom klijentu
+u commitovanom stanju; i **čisto razdvojene commitove**. Ishod:
+**`P5_I2A_V_PASS_READY_FOR_PUBLICATION`**.
+
+**Korekcija broja specova — nesuštinska; historijski zapis se ne prepisuje prećutno.**
+Implementacijski izvještaj je za `phase5-package011-catalogue.security.ts` naveo **30 specova**.
+Nezavisni pregled je mehanički prebrojao **40 specova u 8 `describe` blokova**, i to je
+**mjerodavan stvarni broj**. Razlika je **reporting-count diskrepanca**, ne izmjena ugovora: deset
+dodatnih specova je **legitimno dodatno pokriće** — privilegijske sonde, katalog rola i
+`BYPASSRLS`, odsustvo funkcija i trigera te odsustvo drifta nad postojećim objektima. **Ugovor
+implementacije i ishod pregleda ostaju nepromijenjeni.**
+
+**Pregled imenovanja — zatvoren.** Nezavisni pregled je prihvatio `idempotency_keys_scope_key`,
+`idempotency_keys_tenant_key` i `audit_events_tenant_key` kao **usklađene sa presedanom
+repozitorija i `docs/12`**. **Nijedna vlasnička odluka o ovim imenima ne ostaje otvorena.**
+
+**Šta ovaj pod-gate ne tvrdi.** Ne zatvara Fazu 5 i **ne zatvara `P5-I2`**; **ne autorizuje
+`P5-I2B`, `P5-I2C` ni `P5-I2V`**; ne izvršava i ne razrješava **`★`**; ne autorizuje `P5-I5`; ne
+zatvara `D-OPEN-004a`; ne mijenja nijednu Faza-3/4 invarijantu; **ne označava nijednu kućicu** —
+Faza 5 ostaje **`IN_PROGRESS`**, checklist **49 / 8**, a redovi `Schema → RLS` i
+`Tests → cross-tenant FK` ostaju **neoznačeni**; i **ne uvodi nijednu novu odluku**.
 
 ## Schema
 
