@@ -2572,7 +2572,15 @@ zatvaranja se **ne otvara tiho**.
 
 # 6. Faza 5 — Encounter/documents
 
-Status: `NOT_STARTED`
+Status: `IN_PROGRESS`
+
+**Prelazak `NOT_STARTED` → `IN_PROGRESS` (2026-08-23).** Prvi implementacijski slice faze,
+**`P5-I1`**, je implementiran i **nezavisno reviewovan** ishodom
+`P5_I1_V_PASS_READY_FOR_PUBLICATION`. Ovo je **implementacijsko stanje**, a **ne** završetak faze:
+Faza 5 **nije** `DONE` i ne smije se tako označiti. Slice još **nije kanonski** — živi na
+neobjavljenoj grani i postaje kanonski tek merge-om u `main`. Dokazni blok je
+**`Slice P5-I1`** niže; označene su isključivo osam schema kućica koje on dokazuje, čime brojanje
+Faze 5 prelazi sa **49 / 0** na **49 / 8**.
 
 ## Objavljen dizajnerski autoritet — D-060 (2026-08-22)
 
@@ -2856,17 +2864,106 @@ Test result:
 D-054 klauzule 6-10 ponovo dokazane:
 ```
 
+## Slice `P5-I1` — schema foundation — **IMPLEMENTIRAN / NEZAVISNO REVIEWOVAN / NIJE OBJAVLJEN**
+
+**Autoritet: D-063, klauzule 1–2**, u suženom obuhvatu koji je gate `P5-I0` autorizovao, uz D-060,
+D-061 i D-062 kao bazne ugovore. **Ovo nije kanonsko stanje.** Slice živi na lokalnoj, **neguranoj**
+grani, bez pull requesta i bez mergea; kanonski `main` je nepromijenjen. Kanonskim postaje tek
+publikacijskim gateom `P5-I1-P`.
+
+```text
+STATUS:            IMPLEMENTED / INDEPENDENTLY REVIEWED / NOT YET PUBLISHED
+BRANCH:            feat/p5-i1-schema-foundation   (nije gurana; bez PR-a; bez mergea)
+BASE:              origin/main 103be9fe68fa203a5553711c80ca250248a7bd6c
+IMPLEMENTATION:    7c7bc9d62fe2bed741fcbc2aac142f0a41f8d8d5
+                   feat(schema): add Phase 5 schema foundation
+TEST:              fcbf4d11d742b7c3544ae9035a6663fb07ca5d67
+                   test(schema): verify Phase 5 package 003 catalogue
+INDEPENDENT REVIEW: P5_I1_V_PASS_READY_FOR_PUBLICATION
+PUBLICATION:       NOT YET CANONICAL until branch merge
+```
+
+**Napomena o grani.** `04` §7.1 imenuje faznu granu `backend/05-encounters-documents`. Ovaj slice je
+izveden na **slice-skopiranoj** grani `feat/p5-i1-schema-foundation`. To je zapis činjenice, ne
+izmjena prescripcije `04` §7.1.
+
+**Dokazan obuhvat — rekonstruisan iz samih commitovanih artefakata, ne iz prethodne proze:**
+
+- **pet enuma** — `integration_provider`, `encounter_status`, `review_state`, `document_type`,
+  `document_source` (Prisma i `CREATE TYPE` u paketu `003`);
+- **pet modela / pet tabela** — `patient_references`, `encounters`, `encounter_diagnoses`,
+  `storage_objects`, `encounter_documents`;
+- **migration paket `003`** — `20260823104252_003_patient_encounter_documents/migration.sql`;
+- **osam novih FK-ova**, **svaki** sa eksplicitnim `ON DELETE NO ACTION ON UPDATE NO ACTION`;
+  nijedan `CASCADE`, `RESTRICT`, `SET NULL` ni `SET DEFAULT` nigdje u paketu;
+- **devet unique indeksa/constrainata**, uključujući `(practice_id, id)` tenant ključ na svih pet
+  novih tabela;
+- **četiri ne-unique indeksa** — `encounters_review_queue_idx`, `encounters_patient_timeline_idx`,
+  `encounters_responsible_physician_idx`, `documents_encounter_idx`;
+- **23 imenovana `CHECK` constrainta**, svaki kao `ALTER TABLE ... ADD CONSTRAINT "<ime>" CHECK`,
+  distribucija **5 / 6 / 0 / 1 / 11** po `patient_references` / `encounters` /
+  `encounter_diagnoses` / `storage_objects` / `encounter_documents`. `encounter_diagnoses` bez
+  ijednog `CHECK`-a je **ratifikovano odsustvo**, ne propust. Autoritet ostaje **20 + 3 = 23**
+  (D-062, Dio E nad zamrznutim katalogom);
+- **katalog/regresijski testovi paketa `003`** — novi `phase5-schema-catalogue.security.ts`, uz
+  exact-set proširenja `database-migration.integration.ts`, `phase3-schema-catalogue.security.ts` i
+  `phase4-package013-seed-force-rls.security.ts`. Nijedna postojeća tvrdnja nije oslabljena.
+
+**Sigurnosna granica — dokazana kao pozitivno odsustvo:**
+
+- **nula runtime grantova** i nula `REVOKE`-a;
+- **nula RLS politika**; nijedan `ENABLE`/`FORCE ROW LEVEL SECURITY`;
+- `relrowsecurity` i `relforcerowsecurity` su **`false`** na svih pet novih tabela, dok šest
+  postojećih tabela zadržava `true`/`true`;
+- **nula trigera**, nula funkcija, nula novih rola, nijedan `SECURITY DEFINER`;
+- **paket `011` nije implementiran** — `idempotency_keys` i `audit_events` ne postoje;
+- **paketi `013` i `014` (Faza-5 slice) nisu dirani**;
+- **nula aplikacijskog koda** — izmjene su isključivo `apps/api/prisma/` i `apps/api/test/`;
+- **runtime sigurnosnu granicu i dalje posjeduje `P5-I2`** (D-063, korekcija A). Stanje bez grantova
+  je namjerno i sigurno: nijedna runtime rola tabele uopšte ne doseže;
+- **`★` RI-naspram-RLS dokaz ostaje tvrdi preduslov prije `P5-I5`**, sa `HARD HOLD` pri neuspjehu
+  (`04` §7.6a). `P5-I1` ga niti izvršava niti mijenja.
+
+**Izvršni dokaz slicea** (`DB_MUTATED = TEST_DATABASES_ONLY` — korištene su i čuvane potrošne baze i
+kanonska dijeljena integraciona test baza; **nijedna** development, staging ni produkcijska baza
+nije mutirana):
+
+```text
+db:format                                    PASS
+db:validate                                  PASS
+db:generate                                  PASS
+fresh migracija 001 -> 002 -> 013 -> 003     PASS
+test:security                                PASS
+test:integration                             PASS
+unit testovi                                 PASS
+e2e                                          PASS
+lint                                         PASS
+typecheck                                    PASS
+build                                        PASS
+format:check                                 FAIL — PRE-EXISTING, nije uzrokovan P5-I1
+```
+
+**`format:check` — precizna distinkcija.** Jedini neuspjeh je u
+`apps/api/test/phase4-membership-role-assignment-constraints.security.ts`. Taj fajl **nije dirnut**
+nijednim od dva `P5-I1` commita; posljednji ga je mijenjao commit `111d91d`, koji je predak
+kanonskog `main`-a. Nezavisni pregled `P5-I1-V` je potvrdio da uzrok **nije** `P5-I1`. Popravak
+**nije** u obuhvatu ni ovog slicea ni ovog gatea i ostaje zaseban zadatak.
+
+**Šta ovaj slice ne tvrdi.** Ne zatvara Fazu 5, ne autorizuje `P5-I2`, ne zatvara `D-OPEN-004a`, ne
+mijenja nijednu Faza-4 invarijantu, ne dira izostavljanje co-member `displayName`-a (D-061) i ne
+uvodi nijednu novu odluku.
+
 ## Schema
 
-- [ ] patient_references.
-- [ ] encounters.
-- [ ] encounter_diagnoses.
-- [ ] storage_objects.
-- [ ] encounter_documents.
-- [ ] composite FK.
+- [x] patient_references.
+- [x] encounters.
+- [x] encounter_diagnoses.
+- [x] storage_objects.
+- [x] encounter_documents.
+- [x] composite FK.
 - [ ] RLS.
-- [ ] indexes.
-- [ ] checks.
+- [x] indexes.
+- [x] checks.
 
 ## Services
 
