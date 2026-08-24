@@ -776,11 +776,20 @@ testa.
 ### 12.9.4 RLS i grantovi Faze 5 — negativni ugovor
 
 17. `relrowsecurity` **i** `relforcerowsecurity` su `true` na svih pet tabela — **trajna regresija**.
-18. **Osam novih politika** postoji; ukupno **18** nad **11** tabela.
-    > **KOREKCIJA — D-064, `OD-6` (kasniji autoritet).** Brojevi `18` / `11` su **PHI-only /
-    > pre-paket-`011` podzbir** i **ne smiju se koristiti kao exit tvrdnja `P5-I2`**. Mjerodavan
-    > puni post-`P5-I2` katalog je **23 politike** nad **13 tabela** sa `ENABLE` + `FORCE`
-    > (10 Faza-3/4 + 8 PHI + 3 `idempotency_keys` + 2 `audit_events`; `02` §29.4a). Vlasnik te
+18. **Deset novih politika Faze 5** postoji — tačno imenovani katalog `02` §29.4:
+    `patient_references_select`, `patient_references_insert`, `encounters_select`,
+    `encounters_insert`, `encounters_update`, `encounter_diagnoses_select`,
+    `encounter_diagnoses_insert`, `encounter_documents_select`, `encounter_documents_insert`,
+    `encounter_documents_update`. **`storage_objects` ima nula politika.**
+    > **KOREKCIJA — D-065, `RULING 1` (tekući autoritet).** Ranija formulacija ove stavke —
+    > „**Osam novih politika** postoji; ukupno **18** nad **11** tabela" — je **superseded**:
+    > PHI politika ima **deset**, ne osam, pa je i izvedeni `18 / 11` netačan. Nezavisno od
+    > aritmetike, `18 / 11` je bio i **PHI-only / pre-paket-`011` podzbir** koji se **ne smije
+    > koristiti kao exit tvrdnja `P5-I2`** (D-064, `OD-6`, u tom dijelu očuvan). Mjerodavan
+    > puni post-`P5-I2B` katalog je **25 politika** nad **13 tabela** sa `ENABLE` + `FORCE`
+    > (10 Faza-3/4 + 10 PHI + 3 `idempotency_keys` + 2 `audit_events` = 25; `02` §29.4a).
+    > `P5-I2B` uvodi **15** novih politika. **Nijedno ime politike se ne uklanja da bi se stari
+    > zbir `23` održao.** Vlasnik te
     > steady-state tvrdnje je **novi `phase5-rls-grants.security.ts`** (D-064, `OD-9`), koji uz
     > politike posjeduje i tačne table/column grantove, **nula** `PUBLIC`, **nula**
     > `copilot_system` nad Faza-5 tenant objektima, tenant izolaciju i negativno privilegijsko
@@ -838,6 +847,26 @@ kanonskom** funkcijom: zaštićena kolona → **`23514`**, nepromijenjene kolone
 objekat nestaje ili se rollbackuje. **Bez** owner politike, četvrte role, `BYPASSRLS`-a, trajne
 test tabele i proširenja produkcijskog granta.
 
+**Stavka 26d — eksplicitna transakcija migracije `P5-I2B` (D-065, `RULING 2`; `02` §29.4a.0).**
+Faza-5 migracija paketa `013` mora nositi **tačno jednu eksplicitnu `BEGIN` / `COMMIT`
+transakcijsku granicu najvišeg nivoa**, doslovno napisanu u `migration.sql`. **`REVOKE`,
+`GRANT`, `ENABLE ROW LEVEL SECURITY`, `FORCE ROW LEVEL SECURITY` i `CREATE POLICY` za svih
+sedam tabela `P5-I2B` idu unutar te iste transakcije**, **bez međukoraka `COMMIT`** i **bez
+transakcijski prekidajućeg iskaza**. **Dokaz atomičnosti se ne smije oslanjati na pretpostavku
+da Prisma implicitno omotava `migration.sql` u transakciju** — ta pretpostavka je **zabranjena
+kao osnov sigurnosne tvrdnje**. Ovo je izvršni mehanizam obaveze iz D-064, `OD-1`, i **vrijedi
+specifično za ovu migraciju**; D-065 ne uvodi opštu projektnu politiku transakcijskog omotavanja
+migracija. **Ova stavka opisuje budući, još neautorizovan `P5-I2B`; nijedan postojeći izvršni
+test se njome ne mijenja.**
+
+**Stavka 26e — zastarjeli komentari u testovima (D-065).** Neizvršni komentari u
+`phase3-schema-catalogue.security.ts` i `phase5-schema-catalogue.security.ts` koji §29.4 opisuju
+kao „eight policies" su **zastarjeli i podređeni** korigovanoj kanonskoj dokumentaciji — tačno
+je **deset**. **Nijedna izvršna asercija tih fajlova nije zahvaćena** (one tvrde **nula**
+politika nad pet PHI tabela i **tačno deset** politika u cijeloj šemi, što je i dalje tačno
+zatečeno stanje). Komentari se ispravljaju **isključivo** u zasebno autorizovanom
+implementacijskom gateu `P5-I2B`, zajedno sa evolucijom exact-set asercija po D-064, `OD-9` —
+**stari tačan skup → novi tačan skup**, nikada `exact` → `contains`/`subset`/`partial`.
 
 ### 12.9.5 Semantika arhive, statusa i odsutnih površina
 

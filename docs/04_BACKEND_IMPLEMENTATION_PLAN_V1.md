@@ -1192,10 +1192,21 @@ međustanje ima **nula grantova, nula politika, `relrowsecurity = false`,
 `response_body`, `locked_at`, `completed_at`; `audit_events` = **samo** `SELECT` + `INSERT`.
 `copilot_system` i `PUBLIC` = **nula** nad obje. Tačan katalog: `02` §29.4a, §29.9, §29.10.
 
-**Puni post-`P5-I2` katalog je 13 tabela sa `ENABLE` + `FORCE` i 23 politike** (10 Faza-3/4 + 8
-PHI + 3 + 2), a kanonski lanac migracija tada sadrži **tačno sedam** direktorija (`001`, `002`,
-`013` Faza-4, `003`, `011_phase5`, `013_phase5`, `014_phase5`). **Ranije objavljeno `18 / 11` je
-PHI-only podzbir i ne smije se koristiti kao exit tvrdnja `P5-I2`** (D-064, `OD-6`, `OD-8`).
+**Puni post-`P5-I2` katalog je 13 tabela sa `ENABLE` + `FORCE` i 25 politika** (10 Faza-3/4 + 10
+PHI + 3 `idempotency_keys` + 2 `audit_events`), a kanonski lanac migracija tada sadrži **tačno
+sedam** direktorija (`001`, `002`, `013` Faza-4, `003`, `011_phase5`, `013_phase5`,
+`014_phase5`). **`P5-I2B` uvodi tačno 15 novih politika.** **Ranije objavljeni `18 / 11` i
+`23` se ne smiju koristiti kao exit tvrdnja `P5-I2`**: `18 / 11` je PHI-only podzbir (D-064,
+`OD-6`), a total `23` je **superseded D-065, `RULING 1`** — PHI član je bio `8` umjesto stvarnih
+`10` imenovanih politika iz `02` §29.4. **Mjerodavan je imenovani katalog `02` §29.4 / §29.4a;
+nijedno ime politike se ne uklanja radi starog zbira** (D-064, `OD-8`, ostaje na snazi).
+
+**Transakcijski mehanizam (D-065, `RULING 2`).** Faza-5 slice paketa `013` je **jedna** migracija
+sa **tačno jednom eksplicitnom `BEGIN` / `COMMIT` transakcijskom granicom najvišeg nivoa**;
+`REVOKE`, `GRANT`, `ENABLE RLS`, `FORCE RLS` i `CREATE POLICY` za **svih sedam** tabela idu
+**unutar te iste transakcije**, **bez međukoraka `COMMIT`** i **bez transakcijski prekidajućeg
+iskaza**. **Atomičnost se ne smije oslanjati na pretpostavku da Prisma implicitno omotava
+`migration.sql` u transakciju** — tačan ugovor: `02` §29.4a.0.
 
 **`storage_objects` nema pisca u Fazi 5** — upload putanja je `DEFERRED` (`03` §13.2). Tabela se
 kreira jer je FK roditelj, drži **nula redova**, i **ne dobija nijedan grant ni politiku**.
@@ -1311,10 +1322,22 @@ autorizaciju**; **D-064 nijedan od njih ne autorizuje**.
 `2e606ed3690653ecaef9126ffb8b9fb67e9354b3` — `P5-I2A` je dakle **`CANONICAL`**, a Faza-5 slice
 paketa `011` je kanonski. **`P5-I2B` = `NOT IMPLEMENTED` / `NOT AUTHORIZED`**, **`P5-I2C` =
 `NOT IMPLEMENTED` / `NOT AUTHORIZED`**, **`P5-I2V` = `NOT EXECUTED`**. Sigurnosna tranzicija na
-**13 tabela `true`/`true` i 23 politike** (`02` §29.4a) **nije se dogodila**: nakon `P5-I2A`
+**13 tabela `true`/`true` i 25 politika** (`02` §29.4a) **nije se dogodila**: nakon `P5-I2A`
 katalog je **6 tabela `true`/`true` i 7 tabela `false`/`false` uz nepromijenjenih 10 politika**,
 i ta tranzicija ostaje isključivo u vlasništvu `P5-I2B`. Dokazni blok je `05`, Faza 5,
 `Slice P5-I2A`.
+
+**`P5-I2B` Security Boundary Preflight — `HOLD`, pa D-065 (2026-08-25).** Read-only preflight
+`P5-I2B` je završio ishodom **`HOLD`** sa razlogom **`POLICY_CATALOGUE_ARITHMETIC_INCONSISTENT`**:
+objavljeni PHI zbir (`8`) nije se poklapao sa vlastitim imenovanim katalogom (`10` politika,
+`02` §29.4), pa ni izvedeni total `23`. Vlasnički pregled je uz to zatražio da mehanizam
+atomičnosti bude eksplicitan prije implementacije. Oba blokera rješava **D-065**: imenovani
+katalog je mjerodavan, PHI = **10**, `P5-I2B` = **15** novih politika, puni total = **25**;
+migracija nosi **eksplicitnu `BEGIN` / `COMMIT`** transakciju. **D-065 ne autorizuje
+implementaciju.** **Preflight `P5-I2B` se mora ponoviti** nad kanonskim `main`-om koji sadrži
+D-065, i **samo** ishod `P5_I2B_PREFLIGHT_PASS_READY_FOR_OWNER_AUTHORIZATION` smije voditi u
+zaseban vlasnički autorizacijski gate. Do tada: **`P5-I2B` = `NOT IMPLEMENTED` /
+`NOT AUTHORIZED`**.
 
 **Vlasništvo sigurnosnih testova (D-064, `OD-9`).** `phase5-schema-catalogue.security.ts`
 zadržava strukturni katalog paketa `003` i **package-boundary ZERO-CAPABILITY tvrdnju nad samom

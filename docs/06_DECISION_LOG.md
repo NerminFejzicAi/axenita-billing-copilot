@@ -6829,6 +6829,15 @@ Ukupno **8 novih politika**. Nakon Faze 5: **18 politika** nad **11 tabela** sa 
 > sa `ENABLE` + `FORCE` (10 Faza-3/4 + 8 PHI + 3 `idempotency_keys` + 2 `audit_events`).
 > Tijelo D-062 se **ne prepisuje** — anotira se, po precedentu D-063. Vidi `02` §29.4a.
 
+> **Superseded za aritmetiku politika `P5-I2B` — D-065, `RULING 1`; imenovani katalog
+> kontroliše. Vidi D-065.** Član „**8** novih politika" je **aritmetička greška** u odnosu na
+> tabelu I.1 neposredno iznad, koja nabraja **deset** imenovanih politika (`patient_references`
+> 2, `encounters` 3, `encounter_diagnoses` 2, `storage_objects` 0, `encounter_documents` 3).
+> Time je i izvedeni `18 / 11` netačan, a i `23` iz korekcije D-064 iznad. **Kanonski je: PHI =
+> 10, `P5-I2B` = 15 novih politika, puni post-`P5-I2B` total = 25 nad 13 tabela
+> (`10 + 10 + 3 + 2`).** **Nijedna politika se ne briše da bi stari zbir ostao tačan.** Tijela
+> D-062 i D-064 se **ne prepisuju** — anotiraju se, po precedentu D-063.
+
 ## I.2 Normativna ograničenja dizajna politika
 
 - **`practice_id` je `NOT NULL` na svih pet** (`02` §2.5), pa pretpostavka §17.1 vrijedi i nijedan
@@ -7073,6 +7082,10 @@ granice.** Ta situacija u ovom gateu **nije nastupila**.
   vlasništvom paketa, state semantikom, RLS/grant površinom i indeksima.
 - **Broj tenant tabela sa `unique (practice_id, id)` raste sa 3 na 8 od 30.**
 - **Broj politika raste sa 10 na 18; broj tabela sa `ENABLE` + `FORCE RLS` sa 6 na 11.**
+  *(**Superseded za aritmetiku politika `P5-I2B` — D-065, `RULING 1`**: PHI politika ima **10**,
+  ne 8, pa je PHI-only međuzbir **20**, a **puni post-`P5-I2B` katalog je 25 politika nad 13
+  tabela**. Ni `18 / 11` ni `23` nisu valjana exit tvrdnja `P5-I2`. Imenovani katalog kontroliše.
+  Vidi D-065.)*
 - Buduća funkcija uklanjanja člana mora koristiti `active = false` ili eksplicitno odlučiti o
   historijskim referencama (Dio D.1.2).
 
@@ -7496,6 +7509,14 @@ pet PHI tabela (D-062, Dio B.3).
 transakcije.** **Nijedno commitovano međustanje ne smije izložiti runtime sposobnost bez njenog
 tenant ograničenja.**
 
+> **DOPUNA MEHANIZMA — D-065, `RULING 2`.** Zahtjev iznad ostaje **nepromijenjen u namjeri**;
+> D-065 mu dodaje **izvršni mehanizam**: „JEDNA transakcija" znači **tačno jedna eksplicitna
+> `BEGIN` / `COMMIT` transakcijska granica najvišeg nivoa, doslovno napisana u `migration.sql`**.
+> **Atomičnost se ne smije oslanjati na pretpostavku da Prisma implicitno omotava `migration.sql`
+> u transakciju.** Svi iskazi — `REVOKE`, `GRANT`, `ENABLE RLS`, `FORCE RLS`, `CREATE POLICY` —
+> idu unutar te iste transakcije, **bez međukoraka `COMMIT`** i **bez transakcijski prekidajućeg
+> iskaza**. Vidi D-065 i `02` §29.4a.0.
+
 ### `OD-2` — runtime grant `idempotency_keys`
 
 `copilot_app`:
@@ -7640,6 +7661,16 @@ Na **svih 13** tabela vrijedi `relrowsecurity = true` **i** `relforcerowsecurity
 
 **Nijedan implementator ne smije koristiti `18 / 11` kao exit asercija `P5-I2`.**
 
+> **Superseded za aritmetiku — D-065, `RULING 1`; imenovani katalog kontroliše. Vidi D-065.**
+> Zabrana korištenja `18 / 11` kao exit tvrdnje **ostaje na snazi**, ali je i sam total **23**
+> iz tabele iznad **netačan**: PHI član je bio **8**, a imenovani katalog `02` §29.4 nabraja
+> **deset** politika (`patient_references` 2, `encounters` 3, `encounter_diagnoses` 2,
+> `storage_objects` 0, `encounter_documents` 3). **Kanonska aritmetika je `10 + 10 + 3 + 2 = 25`
+> politika nad 13 tabela**; `P5-I2B` uvodi **15** novih. Broj tabela **13** ostaje
+> **nepromijenjen i tačan**. **Nijedno ime politike se ne uklanja da bi total `23` opstao** —
+> `encounters_update` i `encounter_documents_update` ostaju obavezni, `storage_objects` ostaje
+> `ENABLE` + `FORCE` sa nula politika i nula grantova. Tijelo D-064 se **ne prepisuje**.
+
 ### `OD-7` — vlasništvo audit indeksa
 
 Faza-5 **creator** migracija paketa `011` kreira i **oba** audit indeksa iz `02` §21:
@@ -7719,6 +7750,10 @@ baze.
 ponašanja `P5-I2`: 13 tabela `true`/`true` · **tačno 23** politike · tačni table grantovi · tačni
 column grantovi · **nula** `PUBLIC` · **nula** `copilot_system` nad Faza-5 tenant objektima ·
 tenant izolacija · negativno privilegijsko ponašanje.
+*(**Superseded za broj politika — D-065, `RULING 1`**: očekivana vrijednost je **tačno 25**, ne
+23. Ostatak ugovora ovog fajla — 13 tabela, grantovi, negativne tvrdnje, izolacija — ostaje
+**nepromijenjen**, kao i zabrana slabljenja `exact` u `contains`/`subset`/`partial` iz `OD-9`.
+Vidi D-065.)*
 
 **C. zaseban `phase5-responsible-physician-ri.security.ts`** — i dalje **preporučen**. `★` dokaz
 mora ostati **vizuelno i mehanički izolovan** od ostatka sigurnosnog paketa.
@@ -7926,11 +7961,14 @@ netaknuti.**
   D-063, klauzule 4, **prije** izvršenja.
 - **`P5-I2` se izvršava kao četiri odvojena, pojedinačno autorizovana pod-gatea.**
 - **Post-`P5-I2` katalog je 13 tabela / 23 politike / 7 migracijskih direktorija** — mjerodavno.
+  *(**Superseded za broj politika — D-065, `RULING 1`**: **13 tabela / 25 politika / 7
+  migracijskih direktorija**. Vidi D-065.)*
 - **Novi test fajl `phase5-rls-grants.security.ts` postaje vlasnik steady-state sigurnosnog
   kataloga**; `phase5-schema-catalogue.security.ts` zadržava strukturni katalog i
   package-boundary ZERO-CAPABILITY tvrdnju nad migracijom `003`.
 - **`08` §12.9.4, stavka 18 (`18` / `11`) je anotirana** i više se ne smije čitati kao exit tvrdnja
-  `P5-I2`.
+  `P5-I2`. *(**Dopunjeno — D-065, `RULING 1`**: sama stavka 18 je uz to i **aritmetički
+  korigovana** — PHI politika ima **deset**, ne osam.)*
 - **`02` §25.8 dobija Faza-5 korekciju obrasca dokazivanja AAD trigera.**
 - **Checklist Faze 5 ostaje 49 / 8**; prognoza nakon punog `P5-I2` je **49 / 9**.
 
@@ -8000,6 +8038,307 @@ Redoslijed gateova: `P5-D1-A` → `D-060` → `P5-G1` → `D-061` → `P5-D2` �
 
 ---
 
+
+# D-065 — `P5-I2B` pomirenje sigurnosnog ugovora
+
+- **Status:** ACCEPTED / OWNER-RATIFIED
+- **Datum:** 2026-08-25
+- **Tip:** vlasnički ratifikovana **governance korekcija** sigurnosnog ugovora pod-gatea
+  `P5-I2B`. **Dokumentacija isključivo.**
+- **Amandman na:** **D-062, Dio I.1** (izvedeni zbir politika) i **D-064, `OD-1` i `OD-6`**
+  (izvedeni total politika; mehanizam atomičnosti). Sva ostala tijela D-062 i D-064 ostaju
+  **nepromijenjena i na snazi**. **D-060, D-061 i D-063 se ne diraju ni u jednoj klauzuli.**
+- **Ovaj gate ne autorizuje implementaciju.** `P5-I2B` **nije implementiran i nije autorizovan** —
+  ni ovom odlukom, ni kanoničnošću `P5-I2A`-a. Faza 5 ostaje `IN_PROGRESS`, implementacijski
+  checklist Faze 5 ostaje **49 / 8**, i nijedna migracija, schema, RLS, grant, politika, Prisma
+  model ni izvršna test asercija se ovom odlukom ne kreira i ne mijenja.
+
+## Kontekst/problem — trigger
+
+Read-only **Security Boundary Preflight** pod-gatea `P5-I2B` završio je ishodom **`HOLD`**, sa
+razlogom **`B-1` = `POLICY_CATALOGUE_ARITHMETIC_INCONSISTENT`**.
+
+**Nalaz 1 — unutrašnja kontradikcija kataloga politika.** `02` §29.4 i D-062, Dio I.1, nabrajaju
+**deset** imenovanih Faza-5 PHI politika, a njihov vlastiti sažetak u istom odjeljku tvrdi
+**osam**. Iz te greške izveden je i `18 / 11`, a potom i puni total **23** iz D-064, `OD-6`
+(`10 + 8 + 3 + 2`). Katalog imena i katalog brojeva **nisu se poklapali**, pa `P5-I2B` nije imao
+jednoznačnu exit tvrdnju.
+
+**Nalaz 2 — mehanizam atomičnosti nije bio izvršno jednoznačan.** D-064, `OD-1`, traži da grant,
+`ENABLE`, `FORCE` i politike nastanu „unutar JEDNE transakcije", ali **ne propisuje kako** se ta
+jedna transakcija postiže. Nijedna postojeća migracija repozitorija (`001`, `002`, `013`, `003`,
+`011_phase5`) ne sadrži eksplicitan `begin;` / `commit;` — sve se oslanjaju na implicitno
+ponašanje migration runtimea. Za **sigurnosnu** migraciju to je neprihvatljiva pretpostavka:
+sigurnosna tvrdnja ne smije zavisiti od neopisanog ponašanja alata.
+
+Vlasnik je oba nalaza riješio. Ovaj zapis je **objava** tih rješenja.
+
+## Odluka
+
+### `RULING 1` — katalog politika
+
+- **Imenovani katalog politika je autoritativan.** Brojevi se ispravljaju prema imenima; **imena
+  se nikada ne uklanjaju da bi zbir odgovarao.**
+- **Faza-5 PHI politika ima 10, ne 8.**
+- **`P5-I2B` uvodi 15 novih politika.**
+- **Puni post-`P5-I2B` total je 25 politika** nad **13** tabela sa `ENABLE` + `FORCE`.
+- **`storage_objects` ostaje `ENABLE` + `FORCE ROW LEVEL SECURITY` sa nula politika i nula
+  runtime grantova.**
+- **`encounters_update` ostaje obavezna.**
+- **`encounter_documents_update` ostaje obavezna.**
+- **Nijedna sigurnosna sposobnost se ne uklanja radi zastarjelog totala.**
+
+**Obavezna aritmetika:**
+
+```text
+  10  postojeće politike Faze 3/4
++ 10  Faza-5 PHI politike
++  3  idempotency_keys
++  2  audit_events
+= 25  ukupno
+```
+
+**Deset Faza-5 PHI politika:**
+
+```text
+patient_references_select
+patient_references_insert
+
+encounters_select
+encounters_insert
+encounters_update
+
+encounter_diagnoses_select
+encounter_diagnoses_insert
+
+encounter_documents_select
+encounter_documents_insert
+encounter_documents_update
+```
+
+**`storage_objects` namjerno ima nula politika.**
+
+**Dodatnih pet politika `P5-I2B`:**
+
+```text
+idempotency_keys_select
+idempotency_keys_insert
+idempotency_keys_update
+
+audit_events_select
+audit_events_insert
+```
+
+**Posljedice za izvedene tvrdnje:**
+
+- historijske i tekuće izvedene tvrdnje „**8** PHI politika" su **superseded**;
+- historijske i tekuće izvedene tvrdnje „**23** politike nakon `P5-I2`" su **superseded**;
+- historijska `18 / 11` PHI-podzbir aritmetika **nije valjana puna exit tvrdnja `P5-I2`** —
+  ta zabrana iz D-064, `OD-6`, **ostaje na snazi**;
+- **tenant predikat se ne mijenja** — ostaje doslovno `02` §17.1, neoslabljen;
+- broj tabela **13** ostaje **nepromijenjen i tačan**.
+
+### `RULING 2` — eksplicitna transakcija
+
+- **Faza-5 migracija paketa `013` (`P5-I2B`) mora biti jedna eksplicitno transakcijska
+  PostgreSQL migracija.**
+- Mora sadržavati **tačno jednu transakcijsku granicu najvišeg nivoa**:
+
+```sql
+begin;
+
+-- svi sigurnosni iskazi P5-I2B
+
+commit;
+```
+
+- **Atomičnost se NE smije oslanjati na pretpostavku da Prisma migration runtime projekta
+  implicitno omotava `migration.sql` u transakciju.**
+- **Sve** operacije `P5-I2B` pripadaju toj jednoj eksplicitnoj transakciji, za **svih sedam**
+  tabela (`patient_references`, `encounters`, `encounter_diagnoses`, `storage_objects`,
+  `encounter_documents`, `idempotency_keys`, `audit_events`):
+  - `REVOKE`
+  - `GRANT`
+  - `ENABLE ROW LEVEL SECURITY`
+  - `FORCE ROW LEVEL SECURITY`
+  - `CREATE POLICY`
+- **Nijedan međukoračni `COMMIT`.**
+- **Nijedan transakcijski prekidajući iskaz.**
+- Ovo je **izvršni mehanizam** obaveze atomičnosti iz D-064, `OD-1`; **namjeravana sigurnosna
+  granica se ne mijenja.**
+- **Ovaj ruling ne autorizuje kreiranje te migracije u ovom gateu.**
+- **Ovaj ruling se ne proširuje u opštu projektnu politiku transakcijskog omotavanja migracija** —
+  vrijedi **specifično** za Faza-5 sigurnosnu migraciju paketa `013`.
+
+## Očuvanje historijskog zapisa
+
+**Ranija aritmetika `8` / `18` / `23` ostaje u Decision Logu kao historijski dokaz superseded
+izvođenja i ne smije se tiho izbrisati.** Tijela D-062 i D-064 se **ne prepisuju**; anotiraju se
+supersession napomenom koja pokazuje na D-065, po precedentu D-063.
+
+Anotirani lokusi:
+
+- **D-062, Dio I.1** — „Ukupno **8** novih politika … **18** politika nad **11** tabela";
+- **D-062, `Posljedice`** — „Broj politika raste sa 10 na 18 …";
+- **D-064, `OD-1`** — „unutar JEDNE transakcije" (dopuna mehanizma, `RULING 2`);
+- **D-064, `OD-6`** — tabela `10 + 8 + 3 + 2 = 23`;
+- **D-064, `OD-9`, dio B** — „tačno **23** politike" kao ugovor `phase5-rls-grants.security.ts`;
+- **D-064, `Posljedice`** — „13 tabela / 23 politike / 7 migracijskih direktorija".
+
+**Historijski vlasnički zapis se suštinski ne mijenja** — mijenja se samo ono što je **tekuća
+normativna tvrdnja** u dokumentima tekućeg autoriteta (`02`, `04`, `05`, `08`).
+
+## Neizvršni komentari u testovima
+
+Preflight je utvrdio zastarjelu formulaciju „eight policies" u neizvršnim komentarima:
+
+```text
+apps/api/test/phase3-schema-catalogue.security.ts
+apps/api/test/phase5-schema-catalogue.security.ts
+```
+
+- **Neizvršna zastarjela komentarska formulacija u testovima je podređena korigovanoj kanonskoj
+  dokumentaciji.** Kanonski broj je **deset**.
+- **Nijedna izvršna asercija ovim gateom nije promijenjena.** Izvršne asercije tih fajlova tvrde
+  **nula** politika nad pet PHI tabela i **tačno deset** politika u cijeloj šemi — što je i dalje
+  **tačno zatečeno stanje** nakon `P5-I2A`.
+- **Izvršne exact-set asercije evoluiraju isključivo u zasebno autorizovanom implementacijskom
+  gateu `P5-I2B`, pod D-064, `OD-9`** — **stari tačan skup → novi tačan skup**, bez slabljenja.
+  **`exact` → `contains`/`subset`/`partial` ostaje kategorički zabranjeno.**
+
+## Obuhvat
+
+D-065:
+
+- **rješava** aritmetički bloker preflighta `P5-I2B`;
+- **rješava** dvosmislenost mehanizma transakcije;
+- **NE autorizuje** implementaciju `P5-I2B`;
+- **NE kreira** nijednu migraciju;
+- **NE ispunjava** `P5-I2B`;
+- **NE autorizuje** `P5-I2C`;
+- **NE izvršava i ne slabi** `P5-I2V` / **`★`**;
+- **NE odblokira** `P5-I5`;
+- **NE zatvara** `P5-I2` ni Fazu 5.
+
+## Naredni obavezni gate
+
+Nakon što D-065 postane kanonski:
+
+**Security Boundary Preflight `P5-I2B` mora se ponoviti** nad novim kanonskim `main`-om.
+
+**Samo** ishod
+
+```text
+P5_I2B_PREFLIGHT_PASS_READY_FOR_OWNER_AUTHORIZATION
+```
+
+smije voditi u **zaseban** vlasnički autorizacijski gate implementacije.
+
+## Razlog
+
+- **Katalog imena je jedina provjerljiva istina.** Broj politika je izvedena veličina; ime
+  politike je objekat u `pg_policies`. Kada se to dvoje razilazi, ispravlja se broj — jer
+  suprotan smjer znači **brisanje sigurnosne sposobnosti radi računske ljepote**. `10` PHI
+  politika je ono što `02` §29.4 stvarno nabraja i što `P5-I2B` stvarno mora kreirati.
+- **Netačan exit broj je sigurnosni rizik, ne kozmetika.** Exact-set test koji očekuje `23`
+  pao bi nad ispravnom implementacijom sa `25`, i pritisak bi bio da se **implementacija**
+  prilagodi testu — tj. da se izbriše `encounters_update` ili `encounter_documents_update`.
+  Korekcija prije implementacije uklanja taj pritisak.
+- **Sigurnosna tvrdnja ne smije zavisiti od nedokumentovanog ponašanja alata.** „Jedna
+  transakcija" bez eksplicitnog `begin;` / `commit;` znači da atomičnost garantuje **Prisma**,
+  a ne migracija. Ako se to ponašanje promijeni verzijom, opcijom ili prvim iskazom koji ne
+  može u transakcionom bloku, dobija se commitovano međustanje u kojem runtime rola ima `GRANT`
+  bez politike koja ga ograničava — **tačno stanje koje D-064, `OD-1`, zabranjuje**. Eksplicitan
+  blok čini garanciju svojstvom fajla, čitljivim u code reviewu.
+- **Precedent postoji u repozitoriju.** Maintenance protokol `02` §23.4 (D-048) već propisuje
+  eksplicitnu `begin;` … `commit;` granicu za `NO FORCE` → DML → `FORCE` sekvencu, iz istog
+  razloga.
+
+## Alternative
+
+- **Ukloniti `encounters_update` i `encounter_documents_update` da bi PHI broj bio 8** —
+  **odbijeno**. Obje su zahtijevane funkcionalnošću Faze 5 (`PATCH /encounters`, arhiviranje
+  dokumenta); bez njih runtime rola ima `UPDATE` grant bez ograničavajuće politike ili
+  funkcionalnost uopšte ne radi. Prilagođavanje sigurnosti zastarjelom broju je **anti-obrazac**.
+- **Zadržati `23` i tretirati razliku kao „dokumentacionu nepreciznost"** — **odbijeno**.
+  Razlika bi se materijalizovala kao pad exact-set testa u implementacijskom gateu, gdje je
+  najskuplja i najopasnija.
+- **Osloniti se na implicitno transakcijsko omotavanje Prisme** — **odbijeno**. Vidi `Razlog`.
+- **Proglasiti eksplicitni `BEGIN`/`COMMIT` opštom politikom za sve migracije** — **odbijeno u
+  ovom gateu**. Postojeće migracije su primijenjene i ne smiju se mijenjati (`AGENTS.md` §5.1);
+  opšta politika je zaseban zahvat sa vlastitim dokazom. D-065 obavezuje **samo** paket `013`
+  Faze 5.
+
+## Posljedice
+
+- **`P5-I2B` ima jednoznačan, unutrašnje konzistentan sigurnosni ugovor** — po imenima i po
+  brojevima.
+- **Očekivani exact-set testa steady-statea je 25 politika nad 13 tabela**, a `P5-I2B` uvodi
+  **15** novih.
+- **Migracija paketa `013` Faze 5 mora nositi eksplicitan `begin;` / `commit;` blok.**
+- **Preflight `P5-I2B` se mora ponoviti**; njegov `HOLD` **nije** razriješen samim postojanjem
+  ove odluke, nego tek ponovljenim `PASS`-om nad kanonskim `main`-om.
+- **Checklist Faze 5 ostaje 49 / 8.** Odluka o pomirenju **nije** završena implementacijska
+  stavka i **ne smije** naduvati zvaničnu aritmetiku checklista.
+- **`P5-I2A` ostaje kanonski i nedirnut.**
+
+## Security/privacy uticaj
+
+- **Nula nove sposobnosti.** Odluka ne dodaje nijedan grant, nijednu rolu, nijednu politiku i
+  nijedan izuzetak.
+- **Sigurnosna površina se povećava u odnosu na zastarjeli zapis, ne smanjuje** — dvije politike
+  koje su ranije nedostajale u zbiru (`encounters_update`, `encounter_documents_update`) time su
+  **potvrđene kao obavezne**, umjesto da tiho ispadnu.
+- **`storage_objects` ostaje dokazivo nedosežan** — `ENABLE` + `FORCE`, nula politika, nula
+  grantova, nula redova.
+- **Tenant predikat ostaje neoslabljen** i **cross-practice čitljivost `audit_events` ostaje
+  kategorički zabranjena** (D-063, klauzula 5).
+- **Eksplicitna transakcija uklanja jedini put do commitovanog stanja „grant bez politike".**
+
+## Migration/rollout
+
+**Nijedna migracija se ovom odlukom ne kreira, ne mijenja i ne izvršava.** Nijedna baza se ne
+kontaktira. Kanonski lanac ostaje na **pet** primijenjenih direktorija; očekivani konačan broj
+nakon punog `P5-I2` ostaje **sedam** (D-064, `OD-8`, nepromijenjen).
+
+## Test dokaz
+
+**Testovi se ovim gateom ne implementiraju, ne mijenjaju i ne izvršavaju.** Korigovani ugovori
+zapisani su u `08` §12.9.4, stavke 18, 26d i 26e, i u `02` §29.4a. Njihova izvršna realizacija
+pripada zasebno autorizovanom `P5-I2B`.
+
+## Supersedes
+
+- **D-062, Dio I.1** — izvedeni zbir „8 novih politika / 18 nad 11 tabela" (aritmetika);
+- **D-062, `Posljedice`** — „broj politika raste sa 10 na 18";
+- **D-064, `OD-6`** — total `23` i član `8 PHI` (broj tabela **13** ostaje na snazi);
+- **D-064, `OD-9`, dio B** — „tačno 23 politike" → **tačno 25**;
+- **D-064, `Posljedice`** — „13 tabela / 23 politike".
+
+**Dopunjuje bez ukidanja:** **D-064, `OD-1`** — zahtjev jedne transakcije ostaje, dobija
+eksplicitan mehanizam.
+
+**Ostaje na snazi bez izmjene:** D-064 `OD-2`, `OD-3`, `OD-4`, `OD-5`, `OD-7`, `OD-8`, `OD-9`
+(zabrana slabljenja), obje korekcije D-064, `★` hard stop, segmentacija na četiri pod-gatea,
+i cjelokupni D-060, D-061, D-063.
+
+## Zavisnosti
+
+- **D-062** — schema i dizajn politika Faze 5;
+- **D-063** — obaveza enumeracije prije izvršenja;
+- **D-064** — sigurnosna granica i implementacijski ugovor `P5-I2`;
+- **D-048** — precedent eksplicitne transakcijske granice u sigurnosnom SQL-u;
+- **D-050** — kanonski workflow autorstva migracija.
+
+## Granice prema budućim fazama
+
+- **`P5-I2B` ostaje `NOT IMPLEMENTED` i `NOT AUTHORIZED`.**
+- **`P5-I2C` ostaje `NOT IMPLEMENTED` i `NOT AUTHORIZED`.**
+- **`P5-I2V` / `★` ostaje `NOT EXECUTED`.**
+- **`P5-I5` ostaje `BLOCKED`** dok `P5-I2V PASS` ne postane kanonski.
+- **`P5-I2` nije zatvoren; Faza 5 nije `DONE`.**
+
+---
 
 # Otvorene odluke
 
