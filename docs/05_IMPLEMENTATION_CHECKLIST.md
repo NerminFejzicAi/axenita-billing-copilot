@@ -2892,14 +2892,17 @@ vlasničku autorizaciju.
 
 **Anotacija (`P5-I2A-C`, 2026-08-24) — gornji D-064 zapis se ne prepisuje.** Njegove tvrdnje
 opisuju obuhvat **odluke D-064** i stanje **u trenutku ratifikacije**, ne tekući status. Vlasnik je
-u međuvremenu autorizovao i izvršio **isključivo** pod-gate **`P5-I2A`**: on je **implementiran
-lokalno i nezavisno reviewovan**, **ali nije kanonski**. **`P5-I2` u cjelini ostaje
+u međuvremenu autorizovao i izvršio **isključivo** pod-gate **`P5-I2A`**: on je **implementiran,
+nezavisno reviewovan i kanonski** — objavljen kroz **PR #33**, merge SHA
+`2e606ed3690653ecaef9126ffb8b9fb67e9354b3`. **`P5-I2` u cjelini ostaje
 `IN_PROGRESS` / `NOT COMPLETE`**; **`P5-I2B` i `P5-I2C` ostaju `NOT IMPLEMENTED` /
 `NOT AUTHORIZED`**, **`P5-I2V` ostaje `NOT EXECUTED`**, **`★` ostaje neizvršen** i **`P5-I5`
 ostaje neautorizovan**. Prognoza **49 / 9** i dalje je uslovljena **kompletnim, verifikovanim i
 kanonskim `P5-I2`**, ne samim `P5-I2A`-om; `P5-I2A` **nema vlastitu kućicu** čije bi se označavanje
-smjelo izvesti. Tekući dokaz je blok `Slice P5-I2A`. **Naredni gate je `P5-I2A-P` — publikacijski
-gate paketa `011`**, koji i dalje zahtijeva **zasebnu** vlasničku autorizaciju.
+smjelo izvesti. Tekući dokaz je blok `Slice P5-I2A`. **Publikacijski gate `P5-I2A-P` je izvršen**
+— PR #33 je merged u kanonski `main`; **naredni gate je `P5-I2A-D-P` — publikacijski gate ove
+post-publikacijske rekonsilijacije**, koji i dalje zahtijeva **zasebnu** vlasničku autorizaciju.
+**`P5-I2B` time nije autorizovan.**
 
 ## Konkretan `TenantDatabaseService` facade — prenesena obaveza (D-056)
 
@@ -3011,7 +3014,8 @@ izmjena prescripcije `04` §7.1.
 - **nula trigera**, nula funkcija, nula novih rola, nijedan `SECURITY DEFINER`;
 - **paket `011` u `P5-I1` nije implementiran** — `idempotency_keys` i `audit_events` u tom
   trenutku ne postoje; njihovo **strukturno** uvođenje pripada pod-gateu `P5-I2A` (blok
-  `Slice P5-I2A`) i **u trenutku ovog zapisa nije kanonsko**;
+  `Slice P5-I2A`), koje **u trenutku ovog `P5-I1` zapisa još nije bilo kanonsko** — kanonsko je
+  postalo tek merge-om PR-a #33 (`2e606ed3690653ecaef9126ffb8b9fb67e9354b3`);
 - **paketi `013` i `014` (Faza-5 slice) nisu dirani**;
 - **nula aplikacijskog koda** — izmjene su isključivo `apps/api/prisma/` i `apps/api/test/`;
 - **runtime sigurnosnu granicu i dalje posjeduje `P5-I2`** (D-063, korekcija A). Stanje bez grantova
@@ -3048,12 +3052,14 @@ kanonskog `main`-a. Nezavisni pregled `P5-I1-V` je potvrdio da uzrok **nije** `P
 mijenja nijednu Faza-4 invarijantu, ne dira izostavljanje co-member `displayName`-a (D-061) i ne
 uvodi nijednu novu odluku.
 
-## Pod-gate `P5-I2A` — struktura paketa `011` — **IMPLEMENTIRAN / NEZAVISNO REVIEWOVAN / NIJE KANONSKI**
+## Pod-gate `P5-I2A` — struktura paketa `011` — **IMPLEMENTIRAN / NEZAVISNO REVIEWOVAN / OBJAVLJEN — KANONSKI**
 
 **Autoritet: D-064, `OD-1`, `OD-4`, `OD-5`, `OD-7`, `OD-8`, `OD-9`**, uz D-023, D-062 i D-063 kao
 bazne ugovore, u obuhvatu koji je vlasnik autorizovao za **isključivo** pod-gate `P5-I2A`.
-**Ovo nije kanonsko stanje** — grana nije gurana, PR ne postoji, merge nije izvršen. **`P5-I2` u
-cjelini ostaje `IN_PROGRESS` / `NOT COMPLETE`.**
+**Ovo je kanonsko stanje.** Publikacijski gate `P5-I2A-P` je izvršen: grana je gurana, **PR #33**
+je merged u kanonski `main`, merge SHA `2e606ed3690653ecaef9126ffb8b9fb67e9354b3`. **`P5-I2` u
+cjelini ipak ostaje `IN_PROGRESS` / `NOT COMPLETE`**, a **`P5-I2B` ostaje `NOT IMPLEMENTED` /
+`NOT AUTHORIZED`**.
 
 ```text
 STATUS:              IMPLEMENTED / INDEPENDENTLY REVIEWED / NOT YET PUBLISHED
@@ -3067,6 +3073,26 @@ IMPLEMENTATION GATE: P5_I2A_PASS_COMMITTED_NOT_PUSHED
 INDEPENDENT REVIEW:  P5_I2A_V_PASS_READY_FOR_PUBLICATION
 PUBLICATION:         NOT YET CANONICAL until branch merge
 ```
+
+**Anotacija (`P5-I2A-D`, 2026-08-24) — gornji blok se ne prepisuje.** On bilježi stanje pod-gatea
+**u trenutku `P5-I2A-C`, prije publikacije**; `STATUS`, `BRANCH` i `PUBLICATION` iz njega su
+**historijske vrijednosti tog trenutka**, a ne tekući status. Commit SHA-ovi
+`828daa5ea385e087c2912e4f2b20f9d4bb3b7c5e` i `a37f6e014cd9f34ac449d90b2527303abc7167b2`,
+dokazni commit `df7a1a55a6f13598fccf3f9a4d415821c60d0bb3`, `IMPLEMENTATION GATE` i ishod
+nezavisnog pregleda ostaju nepromijenjeni. **Tekuće kanonsko stanje:**
+
+```text
+STATUS:              IMPLEMENTED / INDEPENDENTLY REVIEWED / PUBLISHED
+PUBLICATION:         CANONICAL
+PULL REQUEST:        #33   (MERGED)
+MERGE COMMIT:        2e606ed3690653ecaef9126ffb8b9fb67e9354b3
+PARENT 1:            52202b063764c23987f867549d6cc48a154c3b6e
+PARENT 2:            df7a1a55a6f13598fccf3f9a4d415821c60d0bb3
+```
+
+**Kanonicalnost `P5-I2A` ne autorizuje `P5-I2B`.** `P5-I2B` i `P5-I2C` ostaju **`NOT IMPLEMENTED` /
+`NOT AUTHORIZED`**, `P5-I2V` ostaje **`NOT EXECUTED`**, `P5-I5` ostaje **neautorizovan**, a
+`P5-I2` u cjelini ostaje **`IN_PROGRESS` / `NOT COMPLETE`**.
 
 **Dokazan obuhvat — rekonstruisan iz samih commitovanih artefakata, ne iz prethodne proze:**
 
