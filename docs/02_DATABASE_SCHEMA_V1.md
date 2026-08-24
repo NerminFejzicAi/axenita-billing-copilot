@@ -5828,8 +5828,15 @@ Ukupno **8 novih politika**. Nakon Faze 5: **18 politika** nad **11 tabela** sa 
 ## 29.4a Puni post-`P5-I2` sigurnosni katalog — mjerodavan (D-064, `OD-1`, `OD-6`)
 
 **Normativni izvor: D-064.** Ovaj odjeljak je **tekući autoritet** za puno stanje sigurnosnih
-objekata nakon što `P5-I2` bude implementiran i kanonski. **`P5-I2` nije implementiran i nije
-autorizovan** — ovo je objavljeni ciljni katalog, ne zatečeno stanje.
+objekata nakon što `P5-I2` bude implementiran i kanonski. **`P5-I2` je `IN_PROGRESS` i
+`NOT COMPLETE`** (2026-08-24): njegov **strukturni** pod-gate **`P5-I2A` je implementiran,
+nezavisno reviewovan i kanonski** — objavljen kroz **PR #33**, merge SHA
+`2e606ed3690653ecaef9126ffb8b9fb67e9354b3` — čime je Faza-5 slice paketa `011` postao kanonski.
+**Puni sigurnosni katalog ovog odjeljka nije implementiran**: isključivo ga posjeduje Faza-5
+slice paketa `013`, pod-gate **`P5-I2B`**, koji je **`NOT IMPLEMENTED` i `NOT AUTHORIZED`** i
+koji **`P5-I2A` ne autorizuje**. **13 tabela `true`/`true` i 23 politike ostaju objavljeni ciljni
+katalog, ne zatečeno stanje** — zatečeno stanje nakon `P5-I2A` je **6 tabela `true`/`true`,
+7 `false`/`false` i ukupno 10 politika**.
 
 ### 29.4a.1 Vlasništvo sigurnosnih iskaza po paketu
 
@@ -6061,7 +6068,12 @@ envelope i `encryption_*` kolone `patient_references` (write-back je iza `D-OPEN
 
 **Normativni izvor: D-064.** Faza-5 slice paketa `011` kreira **isključivo strukturne**
 objekte za `idempotency_keys` i `audit_events` (§22.11); njihovu sigurnost isključivo
-posjeduje Faza-5 slice paketa `013` (§29.4a.1). **Nije implementiran i nije autorizovan.**
+posjeduje Faza-5 slice paketa `013` (§29.4a.1). **Faza-5 slice paketa `011` je implementiran i
+kanonski** — pod-gate `P5-I2A`, **PR #33**, merge SHA
+`2e606ed3690653ecaef9126ffb8b9fb67e9354b3`. **Faza-5 slice paketa `013` — pod-gate `P5-I2B` —
+nije implementiran i nije autorizovan**, pa obje tabele i dalje stoje u strukturnom međustanju
+iz §29.4a.1: **nula** runtime grantova, **nula** politika, `relrowsecurity = false`,
+`relforcerowsecurity = false`.
 
 ### 29.9.1 `practices` FK-ovi — tačno dva
 
