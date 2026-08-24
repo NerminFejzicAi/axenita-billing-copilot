@@ -4748,8 +4748,10 @@ Proširenje allowliste je **eksplicitna klauzula ovog paketa** — tiho prošire
 
 **Faza-5 slice (D-062, Dio I).** Ovaj paket dobija Faza-5 slice nad **pet** tabela koje kreira
 paket `003`. Interni redoslijed je onaj ovog paketa, doslovno: **grantovi → `ENABLE` + `FORCE
-ROW LEVEL SECURITY` → politike**, sve u **jednoj transakciji**. Slice uvodi **osam** politika i
-tačne grantove iz §29.4 i §29.5.
+ROW LEVEL SECURITY` → politike**, sve u **jednoj eksplicitnoj `BEGIN` / `COMMIT` transakciji**
+(§29.4a.0, D-065, `RULING 2`). Slice uvodi **deset** politika i tačne grantove iz §29.4 i §29.5.
+*(Broj **osam** je bio izvedena aritmetička greška — **superseded D-065, `RULING 1`**; mjerodavan
+je imenovani katalog §29.4, koji nabraja **deset** politika.)*
 
 **`storage_objects` dobija `ENABLE` + `FORCE ROW LEVEL SECURITY`, ali nijednu politiku i nijedan
 grant** — nijedna ruta Faze 5 je ne čita ni ne piše (upload putanja je `DEFERRED`). Default deny,
@@ -4767,8 +4769,8 @@ se ne seeda, pa nijedna `§23.4.4b` klauzula ne postoji.
 grantove nad pet PHI tabela (§29.4, §29.5), Faza-5 slice ovog paketa je **isključivi vlasnik**
 grantova, `ENABLE`/`FORCE ROW LEVEL SECURITY` i politika i za `idempotency_keys`
 (**tri** politike, column-level `UPDATE`) i `audit_events` (**dvije** politike, bez `UPDATE`
-i `DELETE`). Grant, `ENABLE`, `FORCE` i politike nastaju **u jednoj transakciji**. Tačan
-katalog: **§29.4a**.
+i `DELETE`). Grant, `ENABLE`, `FORCE` i politike nastaju **u jednoj eksplicitnoj `BEGIN` /
+`COMMIT` transakciji** (§29.4a.0, D-065, `RULING 2`). Tačan katalog: **§29.4a**.
 
 ## 22.14 `014_immutability_triggers`
 
@@ -5811,32 +5813,69 @@ practice_id = nullif(current_setting('app.practice_id', true), '')::uuid
 - **nijedan permission predikat** — permisije ostaju u aplikaciji (`03` §3.7.1, §28.5; `15`);
 - **nijedan archive/soft-delete predikat** — `archived_at` je upitno pitanje, ne sigurnosna
   granica; u politici bi sakrio redove od audita i učinio arhivu nepovratnom;
-- **nijedan podupit ni u jednoj od osam politika** — sve su obična poređenja kolone sa GUC-om, čime
-  strukturno ne postoji površina za curenje co-member identiteta;
+- **nijedan podupit ni u jednoj od deset politika** — sve su obična poređenja kolone sa GUC-om,
+  čime strukturno ne postoji površina za curenje co-member identiteta;
 - **nijedna politika ne referencira `users` ni `practice_memberships`**;
 - **nema bootstrap izuzetka i nijedan se ne smije dodati** — bez `app.practice_id` predikat daje
   nula redova za svaku ordinaciju (fail-closed);
 - **`FORCE` je obavezan uz `ENABLE`** — bez njega vlasnik zaobilazi svaku politiku.
 
-Ukupno **8 novih politika**. Nakon Faze 5: **18 politika** nad **11 tabela** sa `ENABLE` + `FORCE`.
+**Tabela iznad nabraja tačno DESET imenovanih politika Faze 5** nad pet PHI tabela:
+`patient_references` **2**, `encounters` **3**, `encounter_diagnoses` **2**, `storage_objects`
+**0**, `encounter_documents` **3**. **Imenovani katalog je mjerodavan; izvedeni brojevi nisu.**
 
-> **KOREKCIJA — D-064, `OD-6` (kasniji autoritet).** Broj `18 / 11` je **PHI-only /
-> pre-paket-`011` podzbir** — tačan za pet PHI tabela plus zatečeno stanje Faze 3/4, ali
-> **netačan kao puni post-`P5-I2` katalog** i **zabranjen kao exit tvrdnja `P5-I2`**. Mjerodavan
-> puni katalog je **23 politike** nad **13 tabela** — vidi **§29.4a**.
+> **KOREKCIJA — D-065, `RULING 1` (tekući autoritet).** Ranije ovdje objavljeno „Ukupno **8**
+> novih politika. Nakon Faze 5: **18 politika** nad **11 tabela**" je **superseded**. Broj `8`
+> je bio **aritmetička greška** u odnosu na vlastiti imenovani katalog ovog odjeljka — Faza-5
+> PHI politika ima **deset**, ne osam. Izvedeni `18 / 11` je time **dvostruko neupotrebljiv**:
+> aritmetički netačan **i** samo PHI-only / pre-paket-`011` podzbir, **zabranjen kao exit tvrdnja
+> `P5-I2`** (D-064, `OD-6`, u tom dijelu očuvan). **Nijedna politika se ne uklanja da bi se
+> stari zbir održao.** Mjerodavan puni post-`P5-I2B` katalog je **25 politika** nad **13
+> tabela** — vidi **§29.4a**.
 
-## 29.4a Puni post-`P5-I2` sigurnosni katalog — mjerodavan (D-064, `OD-1`, `OD-6`)
+## 29.4a Puni post-`P5-I2` sigurnosni katalog — mjerodavan (D-064, `OD-1`, `OD-6`; D-065)
 
-**Normativni izvor: D-064.** Ovaj odjeljak je **tekući autoritet** za puno stanje sigurnosnih
-objekata nakon što `P5-I2` bude implementiran i kanonski. **`P5-I2` je `IN_PROGRESS` i
+**Normativni izvor: D-064, kako je korigovan D-065.** Ovaj odjeljak je **tekući autoritet** za
+puno stanje sigurnosnih objekata nakon što `P5-I2` bude implementiran i kanonski. **`P5-I2` je `IN_PROGRESS` i
 `NOT COMPLETE`** (2026-08-24): njegov **strukturni** pod-gate **`P5-I2A` je implementiran,
 nezavisno reviewovan i kanonski** — objavljen kroz **PR #33**, merge SHA
 `2e606ed3690653ecaef9126ffb8b9fb67e9354b3` — čime je Faza-5 slice paketa `011` postao kanonski.
 **Puni sigurnosni katalog ovog odjeljka nije implementiran**: isključivo ga posjeduje Faza-5
 slice paketa `013`, pod-gate **`P5-I2B`**, koji je **`NOT IMPLEMENTED` i `NOT AUTHORIZED`** i
-koji **`P5-I2A` ne autorizuje**. **13 tabela `true`/`true` i 23 politike ostaju objavljeni ciljni
+koji **`P5-I2A` ne autorizuje**. **13 tabela `true`/`true` i 25 politika ostaju objavljeni ciljni
 katalog, ne zatečeno stanje** — zatečeno stanje nakon `P5-I2A` je **6 tabela `true`/`true`,
 7 `false`/`false` i ukupno 10 politika**.
+
+**`P5-I2B` je i dalje `NOT IMPLEMENTED` i `NOT AUTHORIZED`.** D-065 pomiruje aritmetiku i fiksira
+transakcijski mehanizam; **on ne autorizuje implementaciju**, ne kreira migraciju paketa `013`
+Faze 5 i ne mijenja status nijednog pod-gatea.
+
+### 29.4a.0 Transakcijski mehanizam — eksplicitan `BEGIN` / `COMMIT` (D-065, `RULING 2`)
+
+**Faza-5 slice paketa `013` je JEDNA migracija sa TAČNO JEDNOM eksplicitnom transakcijskom
+granicom najvišeg nivoa:**
+
+```sql
+begin;
+
+-- svi sigurnosni iskazi P5-I2B
+
+commit;
+```
+
+**Atomičnost se NE smije oslanjati na pretpostavku da migration runtime projekta implicitno
+omotava `migration.sql` u transakciju.** Zahtjev je ispunjen **samo** doslovno napisanim
+`begin;` … `commit;` u samom fajlu migracije.
+
+**Unutar te jedne transakcije** su **svi** iskazi `P5-I2B` za **svih sedam** tabela iz §29.4a.1:
+`REVOKE` · `GRANT` · `ENABLE ROW LEVEL SECURITY` · `FORCE ROW LEVEL SECURITY` · `CREATE POLICY`.
+
+**Nijedan međukoračni `COMMIT`. Nijedan transakcijski prekidajući iskaz.**
+
+Ovo je **izvršni mehanizam** obaveze atomičnosti iz D-064, `OD-1` — **ne mijenja** namjeravanu
+sigurnosnu granicu, nego uklanja njenu jedinu implementacijsku dvosmislenost. **Vrijedi
+specifično za Faza-5 sigurnosnu migraciju paketa `013`**; D-065 **ne uvodi** opštu projektnu
+politiku transakcijskog omotavanja migracija.
 
 ### 29.4a.1 Vlasništvo sigurnosnih iskaza po paketu
 
@@ -5852,25 +5891,55 @@ postoji nijedna runtime sposobnost** — isti obrazac koji paket `003` već kori
 tabela (§29.5, D-062, Dio B.3).
 
 **Faza-5 migracija paketa `013` izdaje grant, `ENABLE`, `FORCE` i pripadajuće politike unutar
-JEDNE transakcije. Nijedno commitovano međustanje ne smije izložiti runtime sposobnost bez
-njenog tenant ograničenja.**
+JEDNE eksplicitne `BEGIN` / `COMMIT` transakcije (§29.4a.0). Nijedno commitovano međustanje ne
+smije izložiti runtime sposobnost bez njenog tenant ograničenja.**
 
-### 29.4a.2 Puni katalog — 13 tabela / 23 politike
+### 29.4a.2 Puni katalog — 13 tabela / 25 politika (D-065, `RULING 1`)
 
 | Veličina | Vrijednost |
 |---|---:|
 | tabela sa `ENABLE` + `FORCE ROW LEVEL SECURITY` | **13** |
-| ukupno politika | **23** |
+| ukupno politika | **25** |
 
 Na **svih 13** tabela vrijedi `relrowsecurity = true` **i** `relforcerowsecurity = true`.
 
 | Izvor | Politika |
 |---|---:|
 | postojeće politike Faze 3/4 | **10** |
-| pet PHI tabela Faze 5 (§29.4) | **8** |
+| pet PHI tabela Faze 5 (§29.4) | **10** |
 | `idempotency_keys` (§29.4a.3) | **3** |
 | `audit_events` (§29.4a.4) | **2** |
-| **Ukupno** | **23** |
+| **Ukupno** | **25** |
+
+**Aritmetika: `10 + 10 + 3 + 2 = 25`.** Novih politika u `P5-I2B` ima **15** (`10` PHI + `3` +
+`2`).
+
+> **KOREKCIJA — D-065, `RULING 1`.** Ranije objavljeni total **23** (izveden iz `10 + 8 + 3 + 2`)
+> je **superseded**: PHI član je bio `8` umjesto stvarnih `10` imenovanih politika iz §29.4.
+> **Imenovani katalog kontroliše; zbir se ispravlja prema imenima, a ne obrnuto.** **Nijedno
+> ime politike se ne briše da bi stari total `23` ostao tačan** — `encounters_update` i
+> `encounter_documents_update` su i dalje **obavezni**, a `storage_objects` i dalje ima **nula**
+> politika i **nula** runtime grantova uz `ENABLE` + `FORCE`.
+
+**Petnaest novih politika `P5-I2B` — tačna imena:**
+
+```text
+patient_references_select
+patient_references_insert
+encounters_select
+encounters_insert
+encounters_update
+encounter_diagnoses_select
+encounter_diagnoses_insert
+encounter_documents_select
+encounter_documents_insert
+encounter_documents_update
+idempotency_keys_select
+idempotency_keys_insert
+idempotency_keys_update
+audit_events_select
+audit_events_insert
+```
 
 ### 29.4a.3 `idempotency_keys` — runtime grant i politike (D-064, `OD-2`)
 
