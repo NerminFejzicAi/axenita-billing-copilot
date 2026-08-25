@@ -785,6 +785,21 @@ dokaz AAD trigera) pripada **`P5-I2C`**, koji je **`NOT IMPLEMENTED` i `NOT AUTH
 **`★` RI-naspram-RLS dokaz** (`phase5-responsible-physician-ri.security.ts`) pripada
 **`P5-I2V`**, koji je **`NOT EXECUTED`**. **Dokaz paketa `014` je odsutan.**
 
+**Statusna napomena (D-067, 2026-08-26) — napomena iznad se ne prepisuje.** Njen popis izuzetaka
+je tačan **na dan D-066** i **više ne opisuje tekuće stanje**. **Stavka `26c` je izvršena i
+kanonska** — pod-gate **`P5-I2C`**, implementacijski commit
+`fc6b38cea354f680f88ff9bf75d5e68a84538740`, audit `P5_I2C_I_A_PASS_READY_FOR_PUBLICATION`,
+**PR #38**, merge SHA `46e65a7819e29e6e7bdb9cee6ec71bd90c0eb2ee`, migracija
+`20260825214248_014_immutability_triggers_phase5`. **Trajni vlasnik njenog izvršnog dokaza je
+`apps/api/test/phase5-aad-immutability.security.ts`**, uveden tim pod-gateom po D-064, `OD-9`.
+**Dokaz paketa `014` više NIJE odsutan.**
+
+**Preostaje tačno jedan izuzetak:** **`★` RI-naspram-RLS dokaz**
+(`apps/api/test/phase5-responsible-physician-ri.security.ts`) pripada **`P5-I2V`**, koji je
+**`NOT EXECUTED` i `NOT AUTHORIZED`**. **Taj fajl i dalje NE POSTOJI**, i **paket `014` mu ne
+doprinosi nijednim dijelom** — `SQLSTATE 42501` nije zero-rows `SELECT` dokaz koji **`★`**
+zahtijeva.
+
 17. `relrowsecurity` **i** `relforcerowsecurity` su `true` na svih pet tabela — **trajna regresija**.
     > **DOPUNA OBUHVATA — D-066 (tekući autoritet); tvrdnja iznad se ne slabi.** Pet PHI tabela
     > ostaje **doslovno** obavezno. **Puni `FORCE RLS` skup je nakon `P5-I2B` `13 / 13` tenant
@@ -877,6 +892,33 @@ disposable bazi**, na **test-only privremenoj** tabeli sa `id` + `practice_id` i
 kanonskom** funkcijom: zaštićena kolona → **`23514`**, nepromijenjene kolone → `NEW` / uspjeh,
 objekat nestaje ili se rollbackuje. **Bez** owner politike, četvrte role, `BYPASSRLS`-a, trajne
 test tabele i proširenja produkcijskog granta.
+
+**STATUS — IZVRŠENO I KANONSKI (D-067, 2026-08-26).** Kvalifikacija „**BUDUĆA — vlasništvo
+`P5-I2C`, koji je `NOT IMPLEMENTED` i `NOT AUTHORIZED`**" u naslovu stavke je **tačna na dan
+D-066** i **više ne opisuje tekuće stanje**. Sva **tri** propisana dokaza su izvedena i trajno su
+u vlasništvu `apps/api/test/phase5-aad-immutability.security.ts` (`P5-I2C`, **PR #38**):
+
+- **(1) atačiranje/katalog** — **tačno tri** ne-interna trigera u schemi, tačna imena,
+  `BEFORE UPDATE`, `FOR EACH ROW`, **bez `WHEN`**, **bez `UPDATE OF`**, tačna ciljna funkcija
+  `app_security.reject_aad_bound_column_change()`; uz to **`app_security` = 4 funkcije**, sve
+  `SECURITY INVOKER`, **nijedan `SECURITY DEFINER` nigdje u bazi**, i **tačan ACL** funkcije
+  (`PUBLIC`, `copilot_app`, `copilot_system` = **nula** `EXECUTE`);
+- **(2) runtime prva barijera** — stvarni `copilot_app` nad sve tri stvarne Faza-5 tabele pada sa
+  **`42501`**, uz **eksplicitnu tvrdnju da to NE dokazuje izvršenje trigera** i da
+  **`42501 ≠ 23514`**;
+- **(3) ponašanje funkcije** — na **guarded disposable bazi**, nad **test-only privremenom**
+  tabelom sa **istom kanonskom** funkcijom: izmjena **samo `id`** → **`23514`**, izmjena **samo
+  `practice_id`** → **`23514`**, uz kanonsku poruku
+  `AAD-bound column (id, practice_id) is immutable after INSERT`; **ne-AAD `UPDATE` uspijeva**,
+  **dodjela iste vrijednosti uspijeva**, i **nijedan test objekat ne preživi**.
+
+**Nijedna zabrana nije prekršena:** bez owner politike, četvrte role, `BYPASSRLS`-a, trajne test
+tabele i proširenja produkcijskog granta; **`FORCE RLS` nije oslabljen**. **Produkcijski
+`SQLSTATE 23514` od migratora se ni ovdje ne traži i nije tvrđen.**
+
+**Obuhvat je tri trigera, ne pet.** `candidate_evidence_aad_immutable_trg` i
+`external_resource_links_aad_immutable_trg` **ostaju budući** — njihove tabele u Fazi 5 ne postoje
+(`02` §22.14). **Nijedna asercija ne tvrdi da svih pet trigera postoji.**
 
 **Stavka 26d — eksplicitna transakcija migracije `P5-I2B` (D-065, `RULING 2`; `02` §29.4a.0).**
 Faza-5 migracija paketa `013` mora nositi **tačno jednu eksplicitnu `BEGIN` / `COMMIT`

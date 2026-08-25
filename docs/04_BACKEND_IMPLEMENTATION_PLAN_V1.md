@@ -1206,6 +1206,17 @@ politika je ispunjen i kanonski** — uveo ga je `P5-I2B` (PR #36). **Lanac migr
 primijenjenih direktorija**; sedmi, `014_phase5`, pripada **`P5-I2C`** i **nije implementiran ni
 autorizovan**.
 
+**AŽURIRANJE STATUSA (D-067, 2026-08-26) — pasus iznad se ne prepisuje.** Rečenica „**Lanac
+migracija ima šest primijenjenih direktorija**; sedmi, `014_phase5`, pripada **`P5-I2C`** i
+**nije implementiran ni autorizovan**" je **tačna na dan svog zapisa** i **više ne opisuje tekuće
+stanje**. **Faza-5 slice paketa `014` je implementiran, auditiran i kanonski** (`P5-I2C`,
+**PR #38**, merge SHA `46e65a7819e29e6e7bdb9cee6ec71bd90c0eb2ee`; migracija
+`20260825214248_014_immutability_triggers_phase5`). **Zatečeni tačan broj primijenjenih
+migracijskih direktorija = 7**, i **nijedna Faza-5 migracija ne preostaje** — očekivani konačan
+broj iz D-064, `OD-8`, je **dostignut**. **Katalog `13` tabela i `25` politika se time NE
+mijenja**: paket `014` ne izdaje nijedan `GRANT`, nijedan table-level `REVOKE`, nijednu RLS
+zastavicu i nijednu politiku (`02` §22.14, §29.4a).
+
 **Transakcijski mehanizam (D-065, `RULING 2`).** Faza-5 slice paketa `013` je **jedna** migracija
 sa **tačno jednom eksplicitnom `BEGIN` / `COMMIT` transakcijskom granicom najvišeg nivoa**;
 `REVOKE`, `GRANT`, `ENABLE RLS`, `FORCE RLS` i `CREATE POLICY` za **svih sedam** tabela idu
@@ -1307,6 +1318,19 @@ ostaje neautorizovan**. Kompletan dokaz `P5-I1`-a je u `05`, Faza 5, blok `Slice
 `P5-I2A`-a u bloku `Slice P5-I2A`, a `P5-I2B`-a u bloku `Pod-gate P5-I2B — Faza-5 slice paketa
 013`.
 
+**AŽURIRANJE STATUSA (D-067, 2026-08-26) — pasus iznad se ne prepisuje.** Rečenica „**`P5-I2C` i
+`P5-I2V` nisu implementirani i nisu autorizovani**" je **tačna na dan svog zapisa (2026-08-25)**
+i **više ne opisuje tekuće stanje** za `P5-I2C`. **Pod-gate `P5-I2C` je implementiran, nezavisno
+auditiran** (`P5_I2C_I_A_PASS_READY_FOR_PUBLICATION`)**, kanonski i formalno zatvoren** (D-067) —
+implementacijski commit `fc6b38cea354f680f88ff9bf75d5e68a84538740`, objavljen kroz **PR #38**,
+merge SHA `46e65a7819e29e6e7bdb9cee6ec71bd90c0eb2ee`, migracija
+`20260825214248_014_immutability_triggers_phase5`. **Faza-5 slice paketa `014` je time kanonski i
+`P5-I2` ga više ne posjeduje kao budući posao.** **Nepromijenjeno ostaje:** **`P5-I2V` / `★` nije
+izvršen i nije autorizovan** i **`P5-I2C` ga ne autorizuje**; **`P5-I5` ostaje neautorizovan** uz
+`HARD HOLD` pri neuspjehu **`★`**; **`P5-I2` ostaje `IN_PROGRESS` / `NOT COMPLETE`**; preostalih
+**šest** slice-ova (`P5-I3`–`P5-I8`) ostaje **`NOT_STARTED`**. Kompletan dokaz `P5-I2C`-a je u
+`05`, Faza 5, blok `Pod-gate P5-I2C — Faza-5 slice paketa 014`.
+
 ### Segmentacija `P5-I2` na četiri pod-gatea (D-064)
 
 `P5-I2` se **ne izvršava kao jedan potez**. Ratifikovana su četiri pod-gatea:
@@ -1348,6 +1372,30 @@ Dokazni blok je `05`, Faza 5, `Pod-gate P5-I2B — Faza-5 slice paketa 013`.
 **`P5-I2` u cjelini i dalje NIJE zatvoren.** Kanoničnost `P5-I2B` **ne autorizuje `P5-I2C`**, **ne
 izvršava i ne slabi `★`**, i **ne odblokira `P5-I5`**. **Faza 5 ostaje `IN_PROGRESS`.**
 
+**Tekuće stanje pod-gateova (2026-08-26; D-067).** **`P5-I2A` = `CANONICAL`** (PR #33).
+**`P5-I2B` = `CANONICAL` / `FORMALLY CLOSED`** (PR #36). **`P5-I2C` = `IMPLEMENTED` / `AUDITED` /
+`MERGED` / `CANONICAL` / `FORMALLY CLOSED`** — commit
+`fc6b38cea354f680f88ff9bf75d5e68a84538740`, audit `P5_I2C_I_A_PASS_READY_FOR_PUBLICATION`,
+**PR #38**, merge SHA `46e65a7819e29e6e7bdb9cee6ec71bd90c0eb2ee`, migracija
+`20260825214248_014_immutability_triggers_phase5`, vlasnik dokaza
+`apps/api/test/phase5-aad-immutability.security.ts`. **`P5-I2V` / `★` = `NOT EXECUTED` i
+`NOT AUTHORIZED`.**
+
+Zatečeno stanje paketa `014` je **tačno jedna funkcija** —
+`app_security.reject_aad_bound_column_change()`, `SECURITY INVOKER`, `search_path = pg_catalog,
+pg_temp`, sa `REVOKE ALL … FROM PUBLIC` i **bez ijednog `EXECUTE` granta** — i **tačno tri**
+trigera (`patient_references_aad_immutable_trg`, `encounters_aad_immutable_trg`,
+`encounter_documents_aad_immutable_trg`), svi `BEFORE UPDATE` `FOR EACH ROW`, **bez `WHEN`** i
+**bez `UPDATE OF`**, sve unutar **jedne eksplicitne `BEGIN` / `COMMIT`** transakcije. **Preostala
+dva trigera iz `02` §19.3 ostaju budući** — njihove tabele u Fazi 5 ne postoje. Sigurnosno stanje
+`P5-I2B` je **regresijski dokazano netaknutim**: `13 / 13`, **25** politika, tačni column
+grantovi, `storage_objects` na nuli, `§23.4` allowlista **tačno 6**. Dokazni blok je `05`,
+Faza 5, `Pod-gate P5-I2C — Faza-5 slice paketa 014`.
+
+**`P5-I2` u cjelini i dalje NIJE zatvoren.** Kanoničnost `P5-I2C` **ne izvršava i ne slabi `★`**,
+**ne autorizuje `P5-I2V`** i **ne odblokira `P5-I5`**. **Faza 5 ostaje `IN_PROGRESS`.**
+**Naredni obavezni gate je `P5-I2V`**, i traži **zaseban vlasnički potez**.
+
 **`P5-I2B` Security Boundary Preflight — `HOLD`, pa D-065 (2026-08-25).** Read-only preflight
 `P5-I2B` je završio ishodom **`HOLD`** sa razlogom **`POLICY_CATALOGUE_ARITHMETIC_INCONSISTENT`**:
 objavljeni PHI zbir (`8`) nije se poklapao sa vlastitim imenovanim katalogom (`10` politika,
@@ -1376,6 +1424,18 @@ zasebnom
 **`phase5-responsible-physician-ri.security.ts`**. Exact-set ekspektacije smiju evoluirati
 **stari tačan skup → novi tačan skup**; **`exact` → `contains`/`subset`/`partial` ostaje
 kategorički zabranjeno**.
+
+**STATUS vlasništva testova (D-067, 2026-08-26).** `phase5-rls-grants.security.ts` ostaje vlasnik
+steady-state sigurnosnog kataloga `P5-I2` (`P5-I2B`, PR #36). **Novi
+`apps/api/test/phase5-aad-immutability.security.ts` je trajni vlasnik steady-state dokaza
+`P5-I2C`** — uveden i kanonski od PR #38: lanac migracija **= 7**, statički dokaz eksplicitne
+transakcije i tačnog obuhvata forward SQL-a paketa `014`, **četiri** funkcije u `app_security`
+sve `SECURITY INVOKER`, **nijedan `SECURITY DEFINER` nigdje u bazi**, tačan ACL funkcije,
+**tačno tri** ne-interna trigera, **prva barijera `42501`**, **druga barijera `23514`** na
+test-only privremenoj tabeli, uspjeh ne-AAD i same-value `UPDATE`-a, te **regresija `P5-I2B`**.
+Exact-set ekspektacije su evoluirale isključivo **stari tačan skup → novi tačan skup**;
+**nijedna tvrdnja nije oslabljena**. **`phase5-responsible-physician-ri.security.ts` i dalje NE
+POSTOJI** — **`★`** pripada `P5-I2V`, koji je **`NOT EXECUTED`**.
 
 ## 7.6 Acceptance
 

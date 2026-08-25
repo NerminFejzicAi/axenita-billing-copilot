@@ -8040,6 +8040,18 @@ autorizacija je zaseban vlasnički potez. Do tada `P5-I2` ostaje **NOT IMPLEMENT
 > **NOT IMPLEMENTED** i **NOT AUTHORIZED**, **`★` je NOT EXECUTED**, **`P5-I5` je neautorizovan**,
 > i **`P5-I2` u cjelini nije zatvoren**.
 
+> **ANOTACIJA STATUSA — D-067 (2026-08-26); ni pasus ni anotacija iznad se ne prepisuju.**
+> Rečenica „Faza-5 AAD trigeri paketa `014` (`P5-I2C`) su **NOT IMPLEMENTED** i
+> **NOT AUTHORIZED**" je **tačan historijski zapis stanja na dan D-066 (2026-08-25)** i ostaje
+> nepromijenjena. **Ona više ne opisuje tekuće stanje.** Vlasnik je nakon D-066 **zasebnim
+> potezom** autorizovao pod-gate `P5-I2C`; implementacija je izvedena commitom
+> `fc6b38cea354f680f88ff9bf75d5e68a84538740`, nezavisno auditirana ishodom
+> `P5_I2C_I_A_PASS_READY_FOR_PUBLICATION` i objavljena kroz **PR #38**, merge SHA
+> `46e65a7819e29e6e7bdb9cee6ec71bd90c0eb2ee`. **Sve tri Faza-5 migracije su time kanonske; broj
+> migracijskih direktorija = 7.** **Ostatak pasusa ostaje doslovno na snazi:** **`★` je
+> NOT EXECUTED**, **`P5-I5` je neautorizovan**, i **`P5-I2` u cjelini nije zatvoren** — vidi
+> **D-067**.
+
 Redoslijed gateova: `P5-D1-A` → `D-060` → `P5-G1` → `D-061` → `P5-D2` → `P5-D2-B` / `D-062` →
 `P5-I0` → `P5-I0-B` / `D-063` → `P5-I1` → `P5-I1-D` → `P5-I2` preflight →
 **`P5-I2-D` / `D-064` (ovaj zapis)** → `P5-I2A` → `P5-I2B` → `P5-I2C` → `P5-I2V` → `P5-I3` …
@@ -8616,10 +8628,443 @@ izmjene**. **D-060, D-061, D-062 i D-063 se ne diraju.**
 - **`P5-I2` ostaje `IN_PROGRESS` / `NOT COMPLETE`.**
 - **Faza 5 ostaje `IN_PROGRESS`; nije `DONE`.**
 
+> **ANOTACIJA STATUSA — D-067 (2026-08-26); lista iznad se ne prepisuje.** Druga stavka
+> („**`P5-I2C` ostaje `NOT IMPLEMENTED` i `NOT AUTHORIZED`**") je **tačan historijski zapis
+> stanja na dan D-066** i ostaje nepromijenjena; **ona više ne opisuje tekuće stanje**.
+> **`P5-I2C` je od 2026-08-25 `IMPLEMENTED` / `AUDITED` / `MERGED` / `CANONICAL` i formalno je
+> zatvoren D-067** — commit `fc6b38cea354f680f88ff9bf75d5e68a84538740`, **PR #38**, merge SHA
+> `46e65a7819e29e6e7bdb9cee6ec71bd90c0eb2ee`, migracija
+> `20260825214248_014_immutability_triggers_phase5`, vlasnik dokaza
+> `apps/api/test/phase5-aad-immutability.security.ts`. **Sve ostale stavke liste ostaju doslovno
+> na snazi i nepromijenjene:** `P5-I2B` je `CANONICAL` i `FORMALLY CLOSED`, **`P5-I2V` / `★`
+> ostaje `NOT EXECUTED`**, **`P5-I5` ostaje `BLOCKED`**, **`P5-I2` ostaje `IN_PROGRESS` /
+> `NOT COMPLETE`**, i **Faza 5 ostaje `IN_PROGRESS`**. Rečenica *Naredni obavezni gate* ispod
+> („`P5-I2C` … ovom odlukom nije autorizovan") je takođe historijski tačna — D-066 ga zaista
+> nije autorizovao; **naredni obavezni gate je od D-067 `P5-I2V`**.
+
 ## Naredni obavezni gate
 
 **`P5-I2C`** — Faza-5 slice paketa `014` (AAD funkcija i tri trigera). **Ovom odlukom nije
 autorizovan**; autorizacija je **zaseban vlasnički potez**.
+
+---
+
+# D-067 — `P5-I2C` post-merge pomirenje implementacije i formalno zatvaranje pod-gatea
+
+- **Status:** ACCEPTED / OWNER-RATIFIED
+- **Datum:** 2026-08-26
+- **Tip:** vlasnički ratifikovano **činjenično pomirenje** governance dokumentacije sa **već
+  kanonskom** implementacijom pod-gatea `P5-I2C`, i **formalno zatvaranje** tog pod-gatea.
+  **Dokumentacija isključivo.**
+- **Amandman na:** **statusne tvrdnje** — ne na sigurnosni dizajn. Sigurnosni ugovor iz **D-064**,
+  njegova korekcija iz **D-065** i statusno pomirenje **D-066** ostaju **doslovno na snazi i
+  nepromijenjeni**. **D-060, D-061, D-062 i D-063 se ne diraju ni u jednoj klauzuli.**
+- **Ova odluka NE uvodi nijedan novi sigurnosni dizajn.** Ne dodaje se nijedan grant, nijedna
+  rola, nijedna politika, nijedan trigger, nijedna funkcija i nijedan izuzetak. Ne kreira se i ne
+  mijenja se nijedna migracija, schema, Prisma model ni izvršna test asercija. **Nijedna baza nije
+  kontaktirana.**
+- **Ova odluka NE redizajnira paket `014`** i **NE autorizuje `★`**. `P5-I2V` ostaje
+  neautorizovan i neizvršen.
+
+## Kontekst/problem — trigger
+
+D-066 je formalno zatvorio pod-gate `P5-I2B` i izričito zabilježio da **ne autorizuje `P5-I2C`**.
+Vlasnik je nakon toga, **zasebnim potezom**, autorizovao pod-gate `P5-I2C`, implementacija je
+izvedena, **nezavisno auditirana** i **objavljena u kanonski `main`**.
+
+Time je nastao isti oblik **statusnog drifta** koji je D-066 uklonio za `P5-I2B`: kanonska
+dokumentacija je na više mjesta i dalje tvrdila `P5-I2C` = `NOT IMPLEMENTED` / `NOT AUTHORIZED` i
+paket `014` = **budući**, dok je `P5-I2C` već bio kanonski. Te tvrdnje su bile tačne **na dan
+svog zapisa**, a **netačne kao tekući status**.
+
+**Ovaj zapis ne bira nijednu opciju.** On **konstatuje činjenice** i uklanja drift.
+
+## Odluka
+
+### `RULING A` — `P5-I2C` je kanonski i formalno zatvoren
+
+**`P5-I2C` = `IMPLEMENTED` / `AUDITED` / `MERGED` / `CANONICAL` / `FORMALLY CLOSED`.**
+
+**Vlasnička autorizacija pod-gatea `P5-I2C` je potrošena** dovršenom kanonskom implementacijom.
+Formulacije „implementiran na grani", „čeka publikaciju", „nije autorizovan" i „paket `014` je
+budući" **više se ne smiju koristiti kao tekući status `P5-I2C`**.
+
+**Kanonski dokaz:**
+
+```text
+IMPLEMENTATION COMMIT:  fc6b38cea354f680f88ff9bf75d5e68a84538740
+                        feat(db): implement P5-I2C AAD immutability
+INDEPENDENT AUDIT:      P5_I2C_I_A_PASS_READY_FOR_PUBLICATION
+PULL REQUEST:           #38   (MERGED)
+MERGE COMMIT:           46e65a7819e29e6e7bdb9cee6ec71bd90c0eb2ee
+PARENT 1:               0b85b15fc058f1a1ad7ede46e76f7ba97a6ae509
+PARENT 2:               fc6b38cea354f680f88ff9bf75d5e68a84538740
+CANONICAL MIGRATION:    apps/api/prisma/migrations/
+                        20260825214248_014_immutability_triggers_phase5/migration.sql
+CANONICAL OWNER TEST:   apps/api/test/phase5-aad-immutability.security.ts
+```
+
+**Implementacija je nezavisno auditirana prije publikacije, a auditirani commit je merged
+nepromijenjen.** `fc6b38ce` je `parent 2` merge commita `46e65a78` i njegov je predak; **stablo
+merge commita je identično stablu implementacijskog commita** (`82b52fec`) — merge nije uveo
+nijednu izmjenu preko auditiranog stanja.
+
+### `RULING B` — kanonsko stanje paketa `014`
+
+Sljedeće je **zatečeno kanonsko stanje**, ne ciljni katalog:
+
+| Svojstvo | Vrijednost |
+|---|---|
+| migracijskih direktorija | **7** |
+| Faza-5 migracija paketa `014` | **kanonska** — `20260825214248_014_immutability_triggers_phase5` |
+| eksplicitna transakcija | **1** `BEGIN` / **1** `COMMIT`, na najvišem nivou |
+| novih funkcija | **1** — `app_security.reject_aad_bound_column_change()` |
+| funkcija u `app_security` | **4** |
+| novih trigera | **3** |
+| ne-internih trigera u schemi | **3** |
+| ACL mutacija nad tabelama | **nula** |
+| aplikacijski izvor / `schema.prisma` | **nula izmjena** |
+
+**Funkcija — doslovno kako je `02` §19.3 zamrzava:**
+
+```text
+app_security.reject_aad_bound_column_change()
+  RETURNS trigger
+  LANGUAGE plpgsql
+  SECURITY INVOKER
+  SET search_path = pg_catalog, pg_temp
+```
+
+- **Zaštićene kolone reda:** `id` i `practice_id` — i **nijedna druga**.
+- **Poređenje je `IS DISTINCT FROM`**, ne `<>`. `<>` daje `NULL` kada je bilo koja strana `NULL`,
+  a `NULL` u `IF`-u bi propao na `RETURN NEW` — AAD-vezana kolona prepisana u `NULL` ili iz
+  `NULL` prošla bi tiho. `IS DISTINCT FROM` je `NULL`-safe i uz to čini **dodjelu iste
+  vrijednosti** uspješnom, što je ispravan ishod: AAD vezivanje je nepromijenjeno.
+- **Odbijanje:** `SQLSTATE 23514`, poruka
+  `AAD-bound column (id, practice_id) is immutable after INSERT`.
+- **Uspjeh:** `RETURN NEW`.
+
+**ACL funkcije — tačan zatečeni skup:**
+
+```text
+REVOKE ALL ON FUNCTION app_security.reject_aad_bound_column_change() FROM PUBLIC;
+
+PUBLIC            — nijedan EXECUTE
+copilot_app       — nijedan EXECUTE
+copilot_system    — nijedan EXECUTE
+copilot_migrator  — isključivo vlasnička prava
+```
+
+**Nijedan `GRANT EXECUTE` nije izdat i nijedan se ne smije izdati** (D-064). Semantika izvršenja
+trigera time nije okrnjena: PostgreSQL provjerava `EXECUTE` **u trenutku kreiranja trigera** —
+ovdje, od vlasnika, unutar iste migracije — a poslije funkciju izvršava sistem u kontekstu
+trigera, ne pozivalac kroz direktan poziv.
+
+**Trigeri — tačno tri, tačna imena:**
+
+```text
+patient_references_aad_immutable_trg
+encounters_aad_immutable_trg
+encounter_documents_aad_immutable_trg
+```
+
+Sva tri su **`BEFORE UPDATE`**, **`FOR EACH ROW`**, **bez `WHEN` klauzule**, **bez
+`UPDATE OF`**, i sva tri pokazuju na **istu** kanonsku funkciju. Golo `UPDATE` je namjerno:
+`UPDATE OF` sužava uslov okidanja u definiciji trigera, gdje ga kasnija izmjena scheme može tiho
+prerasti; funkcija sama poredi stari i novi red i ostaje tačna bez obzira koje kolone iskaz
+imenuje.
+
+**Atomičnost.** Faza-5 migracija paketa `014` nosi **tačno jedan** `BEGIN` i **tačno jedan**
+`COMMIT` doslovno napisan u `migration.sql`, sa funkcijom, njenim `REVOKE`-om i sva tri trigera
+unutar te iste transakcije, bez međukoraka `COMMIT`. **Atomičnost je svojstvo fajla, ne
+pretpostavka o migration runtimeu.** Ovo je **lokalni sigurnosni izbor za ovu migraciju**; D-065,
+`RULING 2`, propisuje eksplicitnu granicu za Faza-5 slice paketa `013` i **ne uspostavlja opštu
+projektnu politiku** transakcijskog omotavanja migracija.
+
+**Tri od pet, namjerno.** `02` §19.3 imenuje **pet** AAD trigera. `candidate_evidence` i
+`external_resource_links` **ne postoje u Fazi 5**, pa `candidate_evidence_aad_immutable_trg` i
+`external_resource_links_aad_immutable_trg` **ostaju budući** i pripadaju fazi vlasnika njihovog
+stanja (`02` §22.14). **Ne smije se tvrditi da svih pet trigera iz §19.3 postoji.**
+
+### `RULING C` — dvije nezavisne barijere, trajno razdvojene
+
+`P5-I2C` trajno dokazuje **dvije nezavisne barijere**, i **nijedna nije dokaz za drugu**
+(`02` §25.8a, dokazi 2 i 3).
+
+**PRVA BARIJERA — privilegija.** Stvarni `copilot_app` nad stvarnim Faza-5 tabelama: pokušaj
+mutacije `id` ili `practice_id` pada sa **`SQLSTATE 42501`**, jer `copilot_app` nema column-level
+`UPDATE` nad tim kolonama (`02` §29.5). **Ovo dokazuje privilegijsku granicu `P5-I2B`. Ovo NE
+dokazuje da je trigger okinuo.**
+
+**DRUGA BARIJERA — ponašanje funkcije.** `copilot_migrator` / test owner, **isključivo na
+guarded disposable bazi**, nad **test-only privremenom** tabelom, sa **istom kanonskom**
+funkcijom:
+
+```text
+izmjena samo id            → SQLSTATE 23514
+izmjena samo practice_id   → SQLSTATE 23514
+izmjena ne-AAD kolone      → uspjeh
+dodjela iste vrijednosti   → uspjeh
+```
+
+Uz to je dokazano da **nijedan test objekat ne preživi** — privremeni objekat nestaje ili se
+eksplicitno rollbackuje.
+
+**`42501` ≠ `23514`.** Dvije barijere moraju ostati **semantički razdvojene**; zamjena jedne
+drugom je zabranjena, i test ih eksplicitno razdvaja.
+
+### `RULING D` — `P5-I2B` je očuvan, nije redizajniran
+
+`P5-I2C` **ne redizajnira `P5-I2B`**. Očuvano kanonsko sigurnosno stanje:
+
+| Svojstvo | Vrijednost |
+|---|---|
+| tenant tabela pod `ENABLE` + `FORCE RLS` | **13 / 13** |
+| ukupan katalog politika | **25** |
+| tačni table grantovi | **nepromijenjeni** |
+| tačni column grantovi | **nepromijenjeni** |
+| `storage_objects` | **nula runtime sposobnosti** |
+| `PUBLIC` nad tabelama `P5-I2B` | **nula** |
+| `copilot_system` nad tabelama `P5-I2B` | **nula** |
+| `§23.4` maintenance allowlista | **tačno 6** — neproširena |
+| role | **nepromijenjene**, sve `NOBYPASSRLS` |
+| politike `copilot_migrator`-a | **nula** |
+
+**Jedina ACL mutacija paketa `014` je `REVOKE` nad njegovom vlastitom funkcijom.** Nijedan iskaz
+ovog paketa ne dira ACL ni RLS zastavicu nijedne tabele.
+
+### `RULING E` — statičke package granice su očuvane
+
+**Svih šest migracija koje prethode paketu `014` ostaju bajt-nepromijenjene.** Trajni dokaz
+ostaje:
+
+- **paket `003`** — statička zero-capability granica;
+- **paket `011`** — statička zero-capability granica;
+- **Faza-5 migracija paketa `013` (`P5-I2B`)** — statički dokaz da **nije** kreirala nijedan
+  objekat paketa `014`, ni funkciju ni trigger;
+- **paket `014` (`P5-I2C`)** — vlasnik **tačno** jedne funkcije i **tri** trigera.
+
+**Vlasništvo starijih paketa se ne prepisuje.** Statički package-boundary dokazi dokazuju
+**forward SQL svog paketa**, ne tekuće živo stanje, pa ih kanoničnost `P5-I2C` ne obesmišljava.
+
+### `RULING F` — checklist Faze 5 ostaje **49 / 8**
+
+**Nijedna kućica se ovim zatvaranjem ne označava.**
+
+**Checklist nema nijedan red u vlasništvu `P5-I2C`.** Jedini Faza-5 red koji `P5-I2` uopšte može
+označiti je **`Schema → RLS`**, a njegov **ratifikovani kriterij prihvatanja** je — doslovno,
+D-064, *Prognoza checklista*, potvrđeno anotacijama `P5-I2A-C` i `P5-I2B-D` te D-066,
+`RULING C` — **kompletan, verifikovan i kanonski `P5-I2`**, a ne pojedinačni pod-gate.
+**`P5-I2V` / `★` nije izvršen**, pa **antecedent nije ispunjen** i red ostaje **neoznačen**.
+
+**`Tests → cross-tenant FK` se u `P5-I2` ne smije označiti** (D-064) — značenje tog reda uključuje
+i kasnije API/`422` ponašanje koje posjeduje `P5-I5`. **Svi Services/API/facade redovi ostaju
+netaknuti.**
+
+**Zvanična aritmetika, prebrojana iz stvarnog stanja kućica u `05` §6:**
+
+```text
+                   prije      poslije
+ukupno redova      49         49
+označeno            8          8
+neoznačeno         41         41
+notacija           49 / 8     49 / 8
+```
+
+**Prognoza nakon punog `P5-I2` ostaje 49 / 9** i **ostaje prognoza**.
+
+### `RULING G` — očuvanje historijskog zapisa
+
+**Historijske tvrdnje „`P5-I2C` NOT IMPLEMENTED", „`P5-I2C` NOT AUTHORIZED" i „paket `014` je
+budući" unutar ranijih, datiranih vlasničkih odluka su historijski tačne i ne smiju se
+prepisivati.** Tijela **D-064**, **D-065** i **D-066** se **ne mijenjaju**; dobijaju **kratku
+statusnu anotaciju** koja pokazuje na D-067, po precedentu D-063, D-065 i D-066.
+
+**Tekuće normativne sekcije izvan historijskih zapisa odluka moraju odražavati novo kanonsko
+stanje** — `02`, `04`, `05` i `08`.
+
+## Obuhvat
+
+D-067:
+
+- **konstatuje** kanoničnost i formalno zatvaranje `P5-I2C`;
+- **pomiruje** tekuće statusne tvrdnje `02`, `04`, `05` i `08`;
+- **NE mijenja** nijednu klauzulu sigurnosnog ugovora D-064 / D-065 / D-066;
+- **NE redizajnira** paket `014`;
+- **NE uvodi** nijedan novi sigurnosni dizajn;
+- **NE označava** nijednu kućicu checklista;
+- **NE izvršava, ne slabi i ne autorizuje** `P5-I2V` / **`★`**;
+- **NE odblokira** `P5-I5`;
+- **NE zatvara** `P5-I2` ni Fazu 5;
+- **NE tvrdi** da svih pet AAD trigera iz `02` §19.3 postoji.
+
+## Razlog
+
+- **Potrošena autorizacija mora biti vidljiva kao potrošena.** Dokumentacija koja i dalje tvrdi
+  „paket `014` je budući" nad već kanonskom migracijom stvara dvije podjednako opasne greške:
+  ponovno „autorizovanje" već izvršenog posla, i tretiranje kanonskog AAD sprovođenja kao da još
+  ne postoji.
+- **Zatvaranje pod-gatea nije zatvaranje roditelja.** `P5-I2C` je **treći od četiri** pod-gatea.
+  D-064 izričito zabranjuje da gate prećutno apsorbuje naredni; formalno zatvaranje `P5-I2C`
+  zato **mora** biti zapisano zajedno sa nepromijenjenim statusom `P5-I2V` i `P5-I2`.
+- **Dvije barijere su dvije tvrdnje.** Zapisati `42501` i `23514` kao „isto odbijanje" značilo bi
+  izgubiti tačno onaj dokaz zbog kojeg je `02` §25.8a i napisan.
+- **Aritmetika checklista se izvodi, ne pretpostavlja.** `P5-I2C` **nema** vlastitu kućicu, a red
+  `Schema → RLS` traži **kompletan** `P5-I2`. Označiti ga sada značilo bi prećutno tvrditi da je
+  **`★`** nekako obuhvaćen.
+- **Historijski zapis je dokaz, ne šum.** Datirane vlasničke tvrdnje su jedini trag redoslijeda
+  odlučivanja. Prepisati ih značilo bi izgubiti dokaz da `P5-I2C` **nije** bio prećutno
+  autorizovan D-066-om.
+
+## Alternative
+
+- **Označiti `Schema → RLS` i objaviti 49 / 9** — **odbijeno.** Kriterij prihvatanja tog reda je
+  **cijeli** `P5-I2` (D-064), a `P5-I2V` nije izvršen.
+- **Proglasiti `P5-I2` zatvorenim jer su „sve tri migracije gotove"** — **odbijeno.**
+  Segmentacija na **četiri** pod-gatea je ratifikovana upravo da bi se to spriječilo; `P5-I2V` je
+  pod-gate, ne formalnost.
+- **Tvrditi da `42501` iz prve barijere dokazuje trigger** — **odbijeno**, i **trajno**. To je
+  tačan defekt koji `02` §25.8a zabranjuje.
+- **Dokumentovati svih pet trigera §19.3 kao postojeće** — **odbijeno.** Dvije tabele ne postoje
+  u Fazi 5; njihovi trigeri su budući (`02` §22.14).
+- **Prepisati D-064 / D-065 / D-066 tako da glase kao da je `P5-I2C` oduvijek bio implementiran**
+  — **odbijeno.** Vidi `RULING G`.
+
+## Posljedice
+
+- **`P5-I2C` je formalno zatvoren** i njegov status se u tekućim normativnim sekcijama više ne
+  vodi kao budući ili neautorizovan.
+- **Kanonski lanac migracija ima sedam direktorija** — očekivani konačan broj nakon punog
+  `P5-I2` (D-064, `OD-8`) je time **dostignut**. **Nijedna Faza-5 migracija ne preostaje.**
+- **Sve tri Faza-5 migracije su kanonske**; `02` §29.10 više nema budući direktorij.
+- **`02` §19.3, §22.14, §25.8 i §25.8a više ne opisuju budući posao** za tri Faza-5 trigera —
+  opisuju zatečeno stanje, sa `phase5-aad-immutability.security.ts` kao trajnim vlasnikom dokaza.
+- **Checklist Faze 5 ostaje 49 / 8.**
+- **Naredni obavezni gate je `P5-I2V`**, i **ovom odlukom nije autorizovan**.
+
+## Security/privacy uticaj
+
+- **Nula nove sposobnosti.** Odluka je isključivo dokumentaciona.
+- **Sigurnosna površina se ne mijenja** — grantovi, politike, `FORCE RLS` i allowlista ostaju
+  tačno onakvi kakvi su merged u `46e65a78`.
+- **Sigurnosna površina se u odnosu na prethodni zapis povećava, ne smanjuje:** tri Faza-5 tabele
+  koje nose ciphertext dobile su **`BEFORE UPDATE` sprovođenje AAD nepromjenjivosti**, koje RLS
+  po konstrukciji ne može dati — same-tenant prepisivanje `id`-a ili `practice_id`-a je iz ugla
+  politike legalno, a proizvelo bi **trajno nedekriptabilne podatke**.
+- **Nijedan `SECURITY DEFINER` nije uveden**; funkcija je `SECURITY INVOKER`, i dokaz to tvrdi nad
+  **cijelom** bazom, ne samo nad `app_security`.
+- **`PUBLIC` ne drži `EXECUTE`** nad sigurnosnom funkcijom; nijedna runtime rola ne može je
+  pozvati direktno.
+- **`★` RI-naspram-RLS dokaz ostaje tvrdi preduslov za `P5-I5`, doslovno nepromijenjen**, i
+  **neuspjeh je i dalje `HARD HOLD`**.
+
+## Migration/rollout
+
+**Nijedna migracija se ovom odlukom ne kreira, ne mijenja, ne preimenuje i ne izvršava; nijedna
+baza nije kontaktirana.** Kanonski primijenjen lanac je:
+
+```text
+001          extensions and roles
+002          identity and practices
+013          [Faza-4 slice]
+003          [P5-I1]
+011_phase5   [P5-I2A]   20260823211546_011_jobs_idempotency_outbox_audit_phase5
+013_phase5   [P5-I2B]   20260825013452_013_rls_policies_phase5
+014_phase5   [P5-I2C]   20260825214248_014_immutability_triggers_phase5
+```
+
+**Nijedna Faza-5 migracija ne preostaje.** `02` §29.10 je time ispunjen: **tačan broj
+migracijskih direktorija = 7**.
+
+## Test dokaz
+
+**Testovi se ovom odlukom ne implementiraju, ne mijenjaju i ne izvršavaju.** Trajni vlasnik
+steady-state dokaza `P5-I2C` je **`apps/api/test/phase5-aad-immutability.security.ts`**, uveden
+kanonskom implementacijom `P5-I2C` po D-064, `OD-9`. Taj fajl posjeduje:
+
+- **tačan lanac migracija = 7**, i tvrdnju da paket `014` dodaje **tačno jedan** direktorij;
+- **statički dokaz eksplicitne transakcije** nad tekstom migracije — jedan `BEGIN`, jedan
+  `COMMIT`, bez transakcijski prekidajućeg iskaza;
+- **tačno jedna funkcija, tačno tri trigera, nijedan grant, nijedna politika, nijedna RLS
+  zastavica, nijedna rola i nijedan red** u forward SQL-u paketa;
+- **`app_security` drži tačno četiri funkcije**, sve `SECURITY INVOKER`, i **nijedna funkcija
+  nigdje u bazi nije `SECURITY DEFINER`**;
+- **tačan ACL funkcije** — `PUBLIC`, `copilot_app` i `copilot_system` bez `EXECUTE`;
+- **tačno tri ne-interna trigera** u schemi, sa tačnim kataloškim bitovima `BEFORE` + `ROW` +
+  `UPDATE` i bez `WHEN`;
+- **prvu barijeru** — `42501` pod stvarnim `copilot_app`-om, uz eksplicitnu tvrdnju da
+  `42501 ≠ 23514`;
+- **drugu barijeru** — `23514` nad test-only privremenom tabelom, za `id` i za `practice_id`
+  zasebno, uz kanonsku poruku;
+- **uspjeh ne-AAD `UPDATE`-a** i **uspjeh dodjele iste vrijednosti**;
+- **odsustvo curenja test objekata**;
+- **regresiju `P5-I2B`** — `13 / 13`, **25** politika, tačan column-grant katalog,
+  `storage_objects` bez sposobnosti, `PUBLIC` i `copilot_system` na nuli, role `NOBYPASSRLS`,
+  allowlista **tačno 6**;
+- **eksplicitnu tvrdnju da `★` nije razriješen** i da `P5-I5` ostaje `BLOCKED`.
+
+**Exact-set ekspektacije su evoluirale isključivo `stari tačan skup → novi tačan skup`**;
+**nijedna tvrdnja nije oslabljena** u `contains`/`subset`/`partial`. Statički package-boundary
+dokazi paketa `003`, `011` i Faza-5 paketa `013` su **očuvani**.
+
+**`apps/api/test/phase5-responsible-physician-ri.security.ts` i dalje NE POSTOJI** — **`★`**
+dokaz je budući i u vlasništvu `P5-I2V`.
+
+## Supersedes
+
+**Supersedira isključivo statusne tvrdnje, i to tačno tri:**
+
+1. **`P5-I2C` = `NOT IMPLEMENTED`** — kao **tekuću** tvrdnju, gdje god stoji izvan datiranog
+   historijskog zapisa odluke;
+2. **`P5-I2C` = `NOT AUTHORIZED`** — kao **tekuću** tvrdnju, iz istog razloga;
+3. **„paket `014` je budući / odsutan", „broj migracijskih direktorija = 6"** i **„dokaz paketa
+   `014` je odsutan"** — kao tekuće tvrdnje.
+
+**Ne supersedira nijednu sigurnosnu klauzulu.** D-064 (`OD-1`–`OD-9`, obje korekcije, `★` hard
+stop, segmentacija na četiri pod-gatea), D-065 (`RULING 1`, `RULING 2`) i D-066
+(`RULING A`–`RULING D`) ostaju **na snazi bez izmjene**. **D-060, D-061, D-062 i D-063 se ne
+diraju.**
+
+## Zavisnosti
+
+- **D-064** — sigurnosna granica i implementacijski ugovor `P5-I2`; segmentacija na četiri
+  pod-gatea; higijena ACL-a funkcije paketa `014`; korekcija B obrasca dokazivanja; `OD-9`
+  vlasništvo testova;
+- **D-065** — korigovana aritmetika kataloga politika i eksplicitni transakcijski mehanizam;
+- **D-066** — statusno pomirenje i formalno zatvaranje `P5-I2B`;
+- **D-062** (`OD-P5-D2-1`) — repointiranje AAD slicea paketa `014` na Fazu 5;
+- **D-025**, klauzula 12 — kanonski AAD i njegovo vezivanje;
+- **D-050** — kanonski workflow autorstva migracija.
+
+## Granice prema budućim fazama
+
+- **`P5-I2C` je `CANONICAL` i `FORMALLY CLOSED`.**
+- **`P5-I2V` / `★` ostaje `NOT EXECUTED` i `NOT AUTHORIZED`.**
+- **`P5-I5` ostaje `BLOCKED`** dok `P5-I2V PASS` ne postane kanonski.
+- **`P5-I2` ostaje `IN_PROGRESS` / `NOT COMPLETE`.**
+- **Faza 5 ostaje `IN_PROGRESS`; nije `DONE`.**
+- **Preostala dva AAD trigera iz `02` §19.3** — `candidate_evidence_aad_immutable_trg` i
+  `external_resource_links_aad_immutable_trg` — **ostaju budući**, u fazi vlasnika stanja svojih
+  tabela (`02` §22.14).
+
+## Naredni obavezni gate
+
+**`P5-I2V`** — **`★`** RI-naspram-RLS dokaz iz `04` §7.6a, uz trajne regresije. **Ovom odlukom
+nije autorizovan**; autorizacija je **zaseban vlasnički potez**.
+
+**`★` traži, u JEDNOJ transakciji, pod stvarnim `copilot_app`-om i stvarnim `FORCE RLS`-om,
+istovremeno:**
+
+```text
+A.  INSERT encountera sa responsible_physician_id co-membera iste ordinacije
+    USPIJEVA kroz composite FK;
+B.  direktan SELECT tog istog practice_memberships reda, u istoj transakciji
+    i istom kontekstu, vraća NULA REDOVA.
+```
+
+**`SQLSTATE 42501` NIJE ekvivalent dokazu B**, i **paket `014` ne doprinosi dokazu B ni u jednom
+dijelu.** Ne autorizuju se: `SECURITY DEFINER`, `BYPASSRLS`, nova rola, owner politika,
+proširenje politike, drugi klijent ni proširenje allowliste.
 
 ---
 
