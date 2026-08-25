@@ -38,8 +38,11 @@ import {
  * be deleted to make an obsolete total add up.
  *
  * WHAT THIS FILE DELIBERATELY DOES NOT PROVE.
- * It does not create or assert a single package `014` object — the AAD immutability function
- * and its three triggers belong to sub-gate `P5-I2C`, which `P5-I2B` does NOT authorise. It
+ * It does not OWN a single package `014` object — the AAD immutability function and its three
+ * triggers belong to sub-gate `P5-I2C` and to `phase5-aad-immutability.security.ts`. The live
+ * catalogue assertion in section G names them because they are now applied, and the STATIC
+ * scan of this package's own forward SQL in section B — which proves `P5-I2B` created none of
+ * them — is PERMANENT and must never be edited to accommodate them. It
  * does not discharge the `★` RI-versus-RLS proof either: an ordinary `encounters` INSERT
  * naming a responsible physician through the composite foreign key is NOT the `★` proof and
  * must never be presented as one. `★` belongs to the dedicated `P5-I2V` gate and remains a
@@ -49,14 +52,14 @@ const database = securityDatabase();
 const apiRoot = resolve(import.meta.dirname, '..');
 
 /**
- * The canonical migration chain after `P5-I2B` — EXACTLY SIX directories, in application
+ * The canonical migration chain after `P5-I2C` — EXACTLY SEVEN directories, in application
  * order (§29.10; D-064 `OD-8`, correction A).
  *
  * Package numbers carry OWNERSHIP, not execution order (D-052), which is why `013` precedes
- * `003` and why the phase 5 slice of `013` follows the phase 5 slice of `011`. The old exact
- * set of FIVE is superseded by this one of SIX — a deliberate canonical evolution under
- * D-064 `OD-9`, never a weakening. The chain reaches SEVEN only with `P5-I2C`, which this
- * gate does not authorise.
+ * `003` and why the phase 5 slices of `013` and `014` follow the phase 5 slice of `011`. The
+ * old exact set of SIX is superseded by this one of SEVEN — a deliberate canonical evolution
+ * under D-064 `OD-9`, never a weakening. SEVEN is the FINAL phase 5 count: §29.10 names no
+ * eighth directory.
  */
 const EXPECTED_MIGRATIONS = [
   '20260810213856_001_extensions_and_roles',
@@ -65,10 +68,17 @@ const EXPECTED_MIGRATIONS = [
   '20260823104252_003_patient_encounter_documents',
   '20260823211546_011_jobs_idempotency_outbox_audit_phase5',
   '20260825013452_013_rls_policies_phase5',
+  '20260825214248_014_immutability_triggers_phase5',
 ] as const;
 
 /** The phase 5 slice of package `013` — the migration this file speaks for. */
 const PACKAGE_013_PHASE_5_MIGRATION = EXPECTED_MIGRATIONS[5];
+
+/**
+ * The phase 5 slice of package `014` — NOT this file's subject, named only so the position of
+ * the `013` slice can be stated exactly now that it is no longer the final element.
+ */
+const PACKAGE_014_PHASE_5_MIGRATION = EXPECTED_MIGRATIONS[6];
 
 /**
  * The SEVEN tenant tables whose security this slice exclusively owns (§29.4a.1, D-064 `OD-1`).
@@ -479,8 +489,8 @@ async function seedEncounter(client: Client, practiceId: string): Promise<void> 
 // A. MIGRATION CHAIN
 // =============================================================================
 
-describe('migration chain after P5-I2B (02 §29.10; D-064 `OD-8`, correction A)', () => {
-  it('given the repository when inspected then EXACTLY SIX migration directories exist', () => {
+describe('migration chain after P5-I2C (02 §29.10; D-064 `OD-8`, correction A)', () => {
+  it('given the repository when inspected then EXACTLY SEVEN migration directories exist', () => {
     const directories = readdirSync(resolve(apiRoot, 'prisma/migrations'), {
       withFileTypes: true,
     })
@@ -489,15 +499,22 @@ describe('migration chain after P5-I2B (02 §29.10; D-064 `OD-8`, correction A)'
       .sort();
 
     expect(directories).toStrictEqual([...EXPECTED_MIGRATIONS]);
-    expect(directories).toHaveLength(6);
+    expect(directories).toHaveLength(7);
   });
 
-  it('given the phase 5 slice of package 013 then it is chronologically LAST and named canonically', () => {
+  it('given the phase 5 slice of package 013 then it sits at its canonical position and 014 is last', () => {
+    // POSITION IS ASSERTED BY INDEX, NOT BY `at(-1)`. Until `P5-I2C` this slice WAS the final
+    // element, so `at(-1) === PACKAGE_013_PHASE_5_MIGRATION` was an accurate way to pin it.
+    // It is no longer final. Keeping that form would fail, and deleting it without replacement
+    // would silently stop pinning this slice anywhere in the chain — so the exact statement is
+    // restated as an INDEX assertion for `013` plus a final-element assertion for `014`.
     expect(PACKAGE_013_PHASE_5_MIGRATION).toMatch(/^\d{14}_013_rls_policies_phase5$/);
-    expect(EXPECTED_MIGRATIONS.at(-1)).toBe(PACKAGE_013_PHASE_5_MIGRATION);
+    expect(EXPECTED_MIGRATIONS.indexOf(PACKAGE_013_PHASE_5_MIGRATION)).toBe(5);
+    expect(PACKAGE_014_PHASE_5_MIGRATION).toMatch(/^\d{14}_014_immutability_triggers_phase5$/);
+    expect(EXPECTED_MIGRATIONS.at(-1)).toBe(PACKAGE_014_PHASE_5_MIGRATION);
   });
 
-  it('given the migrated database when inspected then exactly those six are recorded as applied', async () => {
+  it('given the migrated database when inspected then exactly those seven are recorded as applied', async () => {
     const result = await migrator.query<{
       migration_name: string;
       finished_at: Date | null;
@@ -1319,10 +1336,17 @@ describe('negative privilege surfaces after P5-I2B (02 §19.2, §20, §29.7; D-0
     expect(ownerPolicies.rows).toStrictEqual([]);
   });
 
-  it('given the schema then P5-I2B created no function, no trigger and nothing SECURITY DEFINER', async () => {
-    // `P5-I2B` DOES NOT AUTHORISE `P5-I2C`. `reject_aad_bound_column_change` and the three
-    // `*_aad_immutable_trg` triggers belong to the phase 5 slice of package `014` and must be
-    // ABSENT here.
+  it('given the schema then the LIVE function and trigger catalogue is the P5-I2C one, and nothing is SECURITY DEFINER', async () => {
+    // `P5-I2B` STILL CREATES NEITHER. That remains provable from the STATIC forward-SQL scan
+    // of THIS package's own `migration.sql` in section B, which is deliberately UNCHANGED and
+    // permanent. This assertion is about the LIVE database, which now also carries the phase 5
+    // slice of package `014`: the live catalogue records the whole applied chain, the static
+    // scan records PACKAGE OWNERSHIP, and neither may be read as the other.
+    //
+    // The old exact sets — THREE functions and ZERO triggers — are superseded by FOUR and
+    // THREE: a canonical old-exact-set -> new-exact-set evolution (D-064 `OD-9`), never a
+    // weakening. The shape, ACL and behaviour of the package `014` objects are owned by
+    // `phase5-aad-immutability.security.ts`, not by this file.
     const functions = await migrator.query<{ proname: string; prosecdef: boolean }>(
       `select p.proname, p.prosecdef from pg_proc p
          join pg_namespace n on n.oid = p.pronamespace
@@ -1331,6 +1355,7 @@ describe('negative privilege surfaces after P5-I2B (02 §19.2, §20, §29.7; D-0
     );
 
     expect(functions.rows.map((row) => row.proname)).toStrictEqual([
+      'reject_aad_bound_column_change',
       'set_auth_subject_context',
       'set_request_context',
       'set_user_context',
@@ -1345,7 +1370,11 @@ describe('negative privilege surfaces after P5-I2B (02 §19.2, §20, §29.7; D-0
         order by t.tgname`,
     );
 
-    expect(triggers.rows).toStrictEqual([]);
+    expect(triggers.rows.map((row) => row.tgname)).toStrictEqual([
+      'encounter_documents_aad_immutable_trg',
+      'encounters_aad_immutable_trg',
+      'patient_references_aad_immutable_trg',
+    ]);
   });
 });
 

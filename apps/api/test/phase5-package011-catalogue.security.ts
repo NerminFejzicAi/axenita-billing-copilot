@@ -65,14 +65,13 @@ const TABLES_THAT_MUST_NOT_EXIST = [
 ] as const;
 
 /**
- * The canonical migration chain after `P5-I2B` — EXACTLY SIX directories, in application
+ * The canonical migration chain after `P5-I2C` — EXACTLY SEVEN directories, in application
  * order (§29.10; D-064 `OD-8`, correction A).
  *
  * Package numbers carry OWNERSHIP, not execution order (D-052), which is why `013` precedes
- * `003` and why the phase 5 slice of `013` follows the phase 5 slice of `011`. The old exact
- * set of FIVE is superseded by this one of SIX (D-064 `OD-9`). The canonical chain after the
- * whole of `P5-I2` will contain SEVEN — `014_phase5` follows in `P5-I2C`, which is not
- * authorised by `P5-I2B`.
+ * `003` and why the phase 5 slices of `013` and `014` follow the phase 5 slice of `011`. The
+ * old exact set of SIX is superseded by this one of SEVEN (D-064 `OD-9`), which is the
+ * canonical chain after the whole of `P5-I2`; §29.10 names no eighth directory.
  */
 const EXPECTED_MIGRATIONS = [
   '20260810213856_001_extensions_and_roles',
@@ -81,10 +80,17 @@ const EXPECTED_MIGRATIONS = [
   '20260823104252_003_patient_encounter_documents',
   '20260823211546_011_jobs_idempotency_outbox_audit_phase5',
   '20260825013452_013_rls_policies_phase5',
+  '20260825214248_014_immutability_triggers_phase5',
 ] as const;
 
 /** The phase 5 slice of package `011` — the migration this file speaks for. */
 const PACKAGE_011_MIGRATION = EXPECTED_MIGRATIONS[4];
+
+/** The phase 5 slice of package `013`, at its canonical position — no longer the final one. */
+const PACKAGE_013_PHASE_5_MIGRATION = EXPECTED_MIGRATIONS[5];
+
+/** The phase 5 slice of package `014` — the chronologically LAST migration since `P5-I2C`. */
+const PACKAGE_014_PHASE_5_MIGRATION = EXPECTED_MIGRATIONS[6];
 
 /**
  * The THIRTEEN business tables the canonical chain creates after `P5-I2A`, in
@@ -364,11 +370,11 @@ afterAll(async () => {
 });
 
 describe('migration chain after P5-I2B (02 §29.10; D-064 `OD-8`, correction A)', () => {
-  it('given the repository when inspected then EXACTLY SIX migration directories exist', () => {
+  it('given the repository when inspected then EXACTLY SEVEN migration directories exist', () => {
     // Identity and order, not a count: a wrong package applied in the right number would
-    // otherwise pass (00 §6.2). The old exact set of FIVE is superseded by this one — a
-    // deliberate canonical evolution under D-064 `OD-9`, never a weakening. The chain reaches
-    // SEVEN only after `P5-I2C`, which `P5-I2B` does not authorise.
+    // otherwise pass (00 §6.2). The old exact set of SIX is superseded by this one — a
+    // deliberate canonical evolution under D-064 `OD-9`, never a weakening. SEVEN is the FINAL
+    // phase 5 count (§29.10).
     const directories = readdirSync(resolve(apiRoot, 'prisma/migrations'), {
       withFileTypes: true,
     })
@@ -379,7 +385,7 @@ describe('migration chain after P5-I2B (02 §29.10; D-064 `OD-8`, correction A)'
     expect(directories).toStrictEqual([...EXPECTED_MIGRATIONS]);
   });
 
-  it('given the migrated database when inspected then exactly those six are recorded as applied', async () => {
+  it('given the migrated database when inspected then exactly those seven are recorded as applied', async () => {
     const result = await migrator.query<{
       migration_name: string;
       finished_at: Date | null;
@@ -403,9 +409,19 @@ describe('migration chain after P5-I2B (02 §29.10; D-064 `OD-8`, correction A)'
     // why `013` precedes `003` in the chain and why this slice follows both. It was
     // chronologically LAST until `P5-I2B`; the ORDER, not the position, is what §29.4a.1
     // requires: structure first, capability second, never the reverse.
+    //
+    // POSITION IS NOW ASSERTED BY INDEX, NOT BY `at(-1)`. Until `P5-I2C` the `013` phase 5
+    // slice was the final element, so asserting that was equivalent to asserting its position.
+    // It is no longer final, so the exact statement becomes: `011` at index 4, `013` phase 5 at
+    // index 5, and `014` phase 5 as the new last element. Leaving the old final-element form
+    // would either fail or, if repaired by deletion, silently stop pinning where either slice
+    // sits.
     expect(PACKAGE_011_MIGRATION).toMatch(/^\d{14}_011_jobs_idempotency_outbox_audit_phase5$/);
     expect(EXPECTED_MIGRATIONS.indexOf(PACKAGE_011_MIGRATION)).toBe(4);
-    expect(EXPECTED_MIGRATIONS.at(-1)).toMatch(/^\d{14}_013_rls_policies_phase5$/);
+    expect(PACKAGE_013_PHASE_5_MIGRATION).toMatch(/^\d{14}_013_rls_policies_phase5$/);
+    expect(EXPECTED_MIGRATIONS.indexOf(PACKAGE_013_PHASE_5_MIGRATION)).toBe(5);
+    expect(PACKAGE_014_PHASE_5_MIGRATION).toMatch(/^\d{14}_014_immutability_triggers_phase5$/);
+    expect(EXPECTED_MIGRATIONS.at(-1)).toBe(PACKAGE_014_PHASE_5_MIGRATION);
   });
 });
 
@@ -987,7 +1003,7 @@ describe('the package 011 privilege surface after P5-I2B (D-064 `OD-1`, `OD-9`; 
     ]);
   });
 
-  it('given schema app_security then neither package 011 nor P5-I2B added a function or trigger', async () => {
+  it('given schema app_security then the LIVE catalogue is the four functions and three triggers of P5-I2C', async () => {
     const functions = await migrator.query<{ proname: string; prosecdef: boolean }>(
       `select p.proname, p.prosecdef from pg_proc p
          join pg_namespace n on n.oid = p.pronamespace
@@ -995,11 +1011,18 @@ describe('the package 011 privilege surface after P5-I2B (D-064 `OD-1`, `OD-9`; 
         order by p.proname`,
     );
 
-    // The three phase 3/4 context functions and nothing else. In particular
-    // `reject_aad_bound_column_change` — package `014`, sub-gate `P5-I2C` — must be ABSENT,
-    // and no function is `SECURITY DEFINER`. `P5-I2B` creates neither: it owns grants, RLS
-    // flags and policies, and DOES NOT AUTHORISE `P5-I2C`.
+    // The three phase 3/4 context functions plus `reject_aad_bound_column_change`, which the
+    // phase 5 slice of package `014` created under sub-gate `P5-I2C`. The old exact set of
+    // THREE is superseded by this one of FOUR — a canonical old-exact-set -> new-exact-set
+    // evolution (D-064 `OD-9`), never a weakening. No function is `SECURITY DEFINER`.
+    //
+    // NEITHER PACKAGE `011` NOR `P5-I2B` CREATED ANY OF THEM. That stays provable from the
+    // STATIC forward-SQL scans, which inspect those packages' own files and are deliberately
+    // left untouched: the LIVE catalogue records the whole applied chain, while the static
+    // scans record PACKAGE OWNERSHIP. Conflating the two would let a later package quietly
+    // acquire an earlier one's objects.
     expect(functions.rows.map((row) => row.proname)).toStrictEqual([
+      'reject_aad_bound_column_change',
       'set_auth_subject_context',
       'set_request_context',
       'set_user_context',
@@ -1014,7 +1037,14 @@ describe('the package 011 privilege surface after P5-I2B (D-064 `OD-1`, `OD-9`; 
         order by t.tgname`,
     );
 
-    expect(triggers.rows).toStrictEqual([]);
+    // The old exact set was EMPTY; this one of THREE supersedes it. The full shape of each
+    // trigger — timing, level, absent `WHEN`, target function and function ACL — is owned by
+    // `phase5-aad-immutability.security.ts`.
+    expect(triggers.rows.map((row) => row.tgname)).toStrictEqual([
+      'encounter_documents_aad_immutable_trg',
+      'encounters_aad_immutable_trg',
+      'patient_references_aad_immutable_trg',
+    ]);
   });
 });
 

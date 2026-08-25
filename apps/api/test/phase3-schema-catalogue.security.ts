@@ -61,7 +61,7 @@ afterAll(async () => {
 });
 
 describe('migration history', () => {
-  it('given the disposable database when migrated then exactly packages 001, 002, 013, 003 and both phase 5 slices are applied', async () => {
+  it('given the disposable database when migrated then exactly packages 001, 002, 013, 003 and all three phase 5 slices are applied', async () => {
     const result = await migrator.query<{
       migration_name: string;
       finished: boolean;
@@ -78,15 +78,16 @@ describe('migration history', () => {
       '20260810213856_001_extensions_and_roles',
       '20260814013200_002_identity_and_practices',
       '20260816111141_013_rls_policies',
-      // Package `003` carries a LOWER number but a LATER timestamp, and both phase 5 slices
-      // later ones still: package numbers carry OWNERSHIP, not execution order (D-052,
-      // D-062 Dio B.3, D-064 `OD-8`). The chain grew from FOUR to FIVE with sub-gate `P5-I2A`
-      // and from FIVE to SIX with `P5-I2B` — canonical old-exact-set -> new-exact-set
-      // evolutions authorised by D-064 `OD-9`, never a weakening. The phase 5 slice of `014`
-      // is still not applied: it belongs to `P5-I2C`, and the chain reaches SEVEN only then.
+      // Package `003` carries a LOWER number but a LATER timestamp, and all three phase 5
+      // slices later ones still: package numbers carry OWNERSHIP, not execution order (D-052,
+      // D-062 Dio B.3, D-064 `OD-8`). The chain grew from FOUR to FIVE with sub-gate `P5-I2A`,
+      // from FIVE to SIX with `P5-I2B` and from SIX to SEVEN with `P5-I2C` — canonical
+      // old-exact-set -> new-exact-set evolutions authorised by D-064 `OD-9`, never a
+      // weakening. SEVEN is the FINAL phase 5 count (02 §29.10).
       '20260823104252_003_patient_encounter_documents',
       '20260823211546_011_jobs_idempotency_outbox_audit_phase5',
       '20260825013452_013_rls_policies_phase5',
+      '20260825214248_014_immutability_triggers_phase5',
     ]);
     expect(result.rows.every((row) => row.finished && !row.rolled_back)).toBe(true);
   });
@@ -1122,12 +1123,20 @@ describe('RLS and policy catalogue (02 §17.2, §17.4, §17.5, §17.6; D-047, D-
   });
 });
 
-describe('context functions (02 §16.1, §16.2.2, §16.2.3, §16.2.4)', () => {
-  it('given the canonical chain when applied then app_security holds exactly THREE context functions, all SECURITY INVOKER', async () => {
+describe('app_security functions (02 §16.1, §16.2.2, §16.2.3, §16.2.4, §19.3)', () => {
+  it('given the canonical chain when applied then app_security holds exactly FOUR functions, all SECURITY INVOKER', async () => {
     // Two belong to package `002` and are NOT touched by `013`; `set_request_context` belongs
-    // to `013` (§16.2.3, §22.13). All three carry a fixed `search_path` and none is
+    // to `013` (§16.2.3, §22.13). The fourth, `reject_aad_bound_column_change`, belongs to the
+    // phase 5 slice of package `014` (`P5-I2C`, 02 §19.3, §22.14) — the old exact set of THREE
+    // is superseded by this one of FOUR, a canonical old-exact-set -> new-exact-set evolution
+    // (D-064 `OD-9`), never a weakening. All four carry a fixed `search_path` and none is
     // `SECURITY DEFINER` — a `SECURITY DEFINER` variant is a PERMANENTLY REJECTED alternative
     // (D-047 clause 2, D-048 clause 1, D-052 clause B.3).
+    //
+    // The `search_path` values DIFFER on purpose: the three context functions resolve `public`
+    // tables in their bodies and keep `public, pg_temp` (§16.2), while the AAD function
+    // resolves nothing but record fields and carries the `pg_catalog, pg_temp` that §19.3
+    // freezes for it. Neither is "corrected" towards the other.
     const result = await migrator.query<{ proname: string; prosecdef: boolean; config: string }>(
       `select p.proname, p.prosecdef, array_to_string(p.proconfig, ',') as config
          from pg_proc p
@@ -1138,6 +1147,11 @@ describe('context functions (02 §16.1, §16.2.2, §16.2.3, §16.2.4)', () => {
 
     expect(result.rows).toStrictEqual([
       {
+        proname: 'reject_aad_bound_column_change',
+        prosecdef: false,
+        config: 'search_path=pg_catalog, pg_temp',
+      },
+      {
         proname: 'set_auth_subject_context',
         prosecdef: false,
         config: 'search_path=public, pg_temp',
@@ -1145,7 +1159,7 @@ describe('context functions (02 §16.1, §16.2.2, §16.2.3, §16.2.4)', () => {
       { proname: 'set_request_context', prosecdef: false, config: 'search_path=public, pg_temp' },
       { proname: 'set_user_context', prosecdef: false, config: 'search_path=public, pg_temp' },
     ]);
-    expect(result.rows).toHaveLength(3);
+    expect(result.rows).toHaveLength(4);
   });
 
   it('given set_request_context when inspected then PUBLIC holds no EXECUTE and only copilot_app does', async () => {

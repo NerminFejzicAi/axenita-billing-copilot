@@ -1091,7 +1091,7 @@ describe('no existing-object drift (D-062 Dio B.4; D-063 clause 2)', () => {
     ]);
   });
 
-  it('given schema app_security when inspected then no SECURITY DEFINER function exists and no trigger was added', async () => {
+  it('given schema app_security when inspected then no SECURITY DEFINER function exists and the live catalogue is the P5-I2C one', async () => {
     const functions = await migrator.query<{ proname: string; prosecdef: boolean }>(
       `select p.proname, p.prosecdef
          from pg_proc p
@@ -1100,8 +1100,14 @@ describe('no existing-object drift (D-062 Dio B.4; D-063 clause 2)', () => {
         order by p.proname`,
     );
 
+    // The three phase 3/4 context functions plus `reject_aad_bound_column_change` from the
+    // phase 5 slice of `014_immutability_triggers` (`P5-I2C`). The old exact set of THREE is
+    // superseded by this one of FOUR — a canonical old-exact-set -> new-exact-set evolution
+    // (D-064 `OD-9`), never a weakening. Package `003` still creates NEITHER, which stays
+    // provable from the STATIC scan of its own forward SQL further down this file.
     expect(functions.rows.filter((row) => row.prosecdef)).toStrictEqual([]);
     expect(functions.rows.map((row) => row.proname)).toStrictEqual([
+      'reject_aad_bound_column_change',
       'set_auth_subject_context',
       'set_request_context',
       'set_user_context',
@@ -1117,8 +1123,15 @@ describe('no existing-object drift (D-062 Dio B.4; D-063 clause 2)', () => {
     );
 
     // The three AAD immutability triggers of §19.3 belong to the phase 5 slice of
-    // `014_immutability_triggers`, not to this package.
-    expect(triggers.rows).toStrictEqual([]);
+    // `014_immutability_triggers`, NOT to this package. They are applied now, so the live set
+    // names them; their shape, ACL and behaviour are owned by
+    // `phase5-aad-immutability.security.ts`. The old exact set was EMPTY and this one of THREE
+    // supersedes it.
+    expect(triggers.rows.map((row) => row.tgname)).toStrictEqual([
+      'encounter_documents_aad_immutable_trg',
+      'encounters_aad_immutable_trg',
+      'patient_references_aad_immutable_trg',
+    ]);
   });
 });
 
