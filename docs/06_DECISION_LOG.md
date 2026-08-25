@@ -8031,6 +8031,15 @@ autorizacija je zaseban vlasnički potez. Do tada `P5-I2` ostaje **NOT IMPLEMENT
 **NOT IMPLEMENTED**, Faza-5 RLS/grantovi **NOT IMPLEMENTED**, Faza-5 AAD trigeri paketa `014`
 **NOT IMPLEMENTED**, **`★` NOT EXECUTED**, a **`P5-I5` neautorizovan**.
 
+> **ANOTACIJA STATUSA — D-066 (2026-08-25); pasus iznad se ne prepisuje.** Nabrajanje
+> „**NOT IMPLEMENTED**" je **tačan historijski zapis stanja na dan D-064 (2026-08-23)** i ostaje
+> nepromijenjeno. **Dvije od tih stavki su u međuvremenu ispunjene zasebno autorizovanim
+> pod-gateovima:** paket `011` je kanonski od `P5-I2A` (PR #33), a **Faza-5 RLS/grantovi su
+> kanonski od `P5-I2B`** (PR #36, merge `0e4d113f0eedddcd2db890180767768c5b422264`; D-066).
+> **Ostatak pasusa ostaje doslovno na snazi:** Faza-5 AAD trigeri paketa `014` (`P5-I2C`) su
+> **NOT IMPLEMENTED** i **NOT AUTHORIZED**, **`★` je NOT EXECUTED**, **`P5-I5` je neautorizovan**,
+> i **`P5-I2` u cjelini nije zatvoren**.
+
 Redoslijed gateova: `P5-D1-A` → `D-060` → `P5-G1` → `D-061` → `P5-D2` → `P5-D2-B` / `D-062` →
 `P5-I0` → `P5-I0-B` / `D-063` → `P5-I1` → `P5-I1-D` → `P5-I2` preflight →
 **`P5-I2-D` / `D-064` (ovaj zapis)** → `P5-I2A` → `P5-I2B` → `P5-I2C` → `P5-I2V` → `P5-I3` …
@@ -8052,6 +8061,17 @@ Redoslijed gateova: `P5-D1-A` → `D-060` → `P5-G1` → `D-061` → `P5-D2` �
   ni ovom odlukom, ni kanoničnošću `P5-I2A`-a. Faza 5 ostaje `IN_PROGRESS`, implementacijski
   checklist Faze 5 ostaje **49 / 8**, i nijedna migracija, schema, RLS, grant, politika, Prisma
   model ni izvršna test asercija se ovom odlukom ne kreira i ne mijenja.
+
+> **ANOTACIJA STATUSA — D-066 (2026-08-25); tijelo D-065 se ne prepisuje.** Formulacija
+> „`P5-I2B` nije implementiran i nije autorizovan" je **tačan historijski zapis stanja na dan
+> D-065** i ostaje nepromijenjena kao takva. **Ona više ne opisuje tekuće stanje.** Vlasnik je
+> nakon D-065 autorizovao pod-gate `P5-I2B`; implementacija je izvedena commitom
+> `6efee207c9ca52a22ca2cdeb97773832931711e7`, nezavisno auditirana ishodom
+> `P5_I2B_I_A_PASS_READY_FOR_PUBLICATION` i objavljena kroz **PR #36**, merge SHA
+> `0e4d113f0eedddcd2db890180767768c5b422264`. **Autorizacija je time potrošena.** Tekući status
+> `P5-I2B` je `IMPLEMENTED` / `AUDITED` / `MERGED` / `CANONICAL` / **formalno zatvoren**, po
+> D-066. **Checklist Faze 5 i dalje stoji na 49 / 8** — vidi D-066, `RULING C`. `P5-I2C`,
+> `P5-I2V` / `★`, `P5-I5` i `P5-I2` u cjelini **ostaju nepromijenjeni** i otvoreni.
 
 ## Kontekst/problem — trigger
 
@@ -8337,6 +8357,269 @@ i cjelokupni D-060, D-061, D-063.
 - **`P5-I2V` / `★` ostaje `NOT EXECUTED`.**
 - **`P5-I5` ostaje `BLOCKED`** dok `P5-I2V PASS` ne postane kanonski.
 - **`P5-I2` nije zatvoren; Faza 5 nije `DONE`.**
+
+> **ANOTACIJA STATUSA — D-066 (2026-08-25); lista iznad se ne prepisuje.** Prva stavka je
+> **historijska granica na dan D-065** i ostaje zapisana kao takva. **Superseded je isključivo u
+> toj jednoj stavci:** `P5-I2B` je danas **kanonski i formalno zatvoren** (D-066; PR #36, merge
+> `0e4d113f0eedddcd2db890180767768c5b422264`). **Preostale četiri stavke ostaju doslovno na
+> snazi:** `P5-I2C` = `NOT IMPLEMENTED` / `NOT AUTHORIZED`; `P5-I2V` / `★` = `NOT EXECUTED`;
+> `P5-I5` = `BLOCKED`; `P5-I2` nije zatvoren i Faza 5 nije `DONE`.
+
+---
+
+# D-066 — `P5-I2B` post-merge pomirenje implementacije i formalno zatvaranje pod-gatea
+
+- **Status:** ACCEPTED / OWNER-RATIFIED
+- **Datum:** 2026-08-25
+- **Tip:** vlasnički ratifikovano **činjenično pomirenje** governance dokumentacije sa **već
+  kanonskom** implementacijom pod-gatea `P5-I2B`, i **formalno zatvaranje** tog pod-gatea.
+  **Dokumentacija isključivo.**
+- **Amandman na:** **statusne tvrdnje** — ne na sigurnosni dizajn. Sigurnosni ugovor iz **D-064**
+  i njegova korekcija iz **D-065** ostaju **doslovno na snazi i nepromijenjeni**. **D-060, D-061,
+  D-062 i D-063 se ne diraju ni u jednoj klauzuli.**
+- **Ova odluka NE uvodi nijedan novi sigurnosni dizajn.** Ne dodaje se nijedan grant, nijedna
+  rola, nijedna politika, nijedan trigger, nijedna funkcija i nijedan izuzetak. Ne kreira se i ne
+  mijenja se nijedna migracija, schema, Prisma model ni izvršna test asercija. **Nijedna baza nije
+  kontaktirana.**
+- **Ova odluka NE autorizuje nijedan naredni gate.** `P5-I2C` i `P5-I2V` / `★` ostaju
+  neautorizovani.
+
+## Kontekst/problem — trigger
+
+D-065 je zatvorio dva blokera preflighta `P5-I2B` i izričito zabilježio da **ne autorizuje
+implementaciju**. Vlasnik je nakon toga, **zasebnim potezom**, autorizovao pod-gate `P5-I2B`,
+implementacija je izvedena, **nezavisno auditirana** i **objavljena u kanonski `main`**.
+
+Time je nastao **statusni drift**: kanonska dokumentacija je na više mjesta i dalje tvrdila
+`P5-I2B` = `NOT IMPLEMENTED` / `NOT AUTHORIZED`, dok je `P5-I2B` već bio kanonski. Te tvrdnje su
+bile tačne **na dan svog zapisa**, a **netačne kao tekući status**.
+
+**Ovaj zapis ne bira nijednu opciju.** On **konstatuje činjenice** i uklanja drift.
+
+## Odluka
+
+### `RULING A` — `P5-I2B` je kanonski i formalno zatvoren
+
+**`P5-I2B` = `IMPLEMENTED` / `AUDITED` / `MERGED` / `CANONICAL` / `FORMALLY CLOSED`.**
+
+**Vlasnička autorizacija pod-gatea `P5-I2B` je potrošena** dovršenom kanonskom implementacijom.
+Formulacije „implementiran na grani", „čeka publikaciju" i „nije autorizovan" **više se ne smiju
+koristiti kao tekući status `P5-I2B`**.
+
+**Kanonski dokaz:**
+
+```text
+IMPLEMENTATION COMMIT:  6efee207c9ca52a22ca2cdeb97773832931711e7
+                        feat(db): implement P5-I2B RLS security boundary
+INDEPENDENT AUDIT:      P5_I2B_I_A_PASS_READY_FOR_PUBLICATION
+PULL REQUEST:           #36   (MERGED)
+MERGE COMMIT:           0e4d113f0eedddcd2db890180767768c5b422264
+PARENT 1:               3cfbf5ea7909998c0ea8d24b9ccacd74500ae897
+PARENT 2:               6efee207c9ca52a22ca2cdeb97773832931711e7
+CANONICAL MIGRATION:    apps/api/prisma/migrations/
+                        20260825013452_013_rls_policies_phase5/migration.sql
+CANONICAL OWNER TEST:   apps/api/test/phase5-rls-grants.security.ts
+```
+
+**Implementacija je nezavisno auditirana prije publikacije, a auditirani commit je merged
+nepromijenjen.** `6efee207` je `parent 2` merge commita `0e4d113f` i njegov je predak — merge nije
+uveo nijednu izmjenu preko auditiranog stanja.
+
+### `RULING B` — kanonsko post-`P5-I2B` sigurnosno stanje
+
+Sljedeće je **zatečeno kanonsko stanje**, ne ciljni katalog:
+
+| Svojstvo | Vrijednost |
+|---|---|
+| migracijskih direktorija | **6** |
+| novih politika u `P5-I2B` | **15** |
+| ukupan katalog politika | **25** (`10 + 10 + 3 + 2`) |
+| tenant tabela pod `ENABLE` + `FORCE RLS` | **13 / 13** |
+| `§23.4` maintenance allowlista | **6** tabela — **neproširena** |
+| aplikacijski izvor / `schema.prisma` | **nula izmjena** |
+
+- **`storage_objects` ostaje `ENABLE` + `FORCE ROW LEVEL SECURITY` sa nula politika i nula
+  runtime grantova** — default-deny je sigurnosna kontrola, ne propust.
+- **Tačna ograničena `UPDATE` površina ostaje kako je ratifikovana:** column-level `UPDATE` nad
+  `encounters` (12 kolona), `encounter_documents` (**isključivo** `archived_at`) i
+  `idempotency_keys` (`response_status`, `response_body`, `locked_at`, `completed_at`). **Nijedan
+  table-level `UPDATE`, nijedan `DELETE`, nijedan `TRUNCATE`, nijedna sekvencijalna privilegija.**
+- **`PUBLIC` ima nula runtime sposobnosti** nad svih sedam tabela `P5-I2B` — `REVOKE ALL … FROM
+  PUBLIC` prethodi **svakom** grantu.
+- **`copilot_system` ima nula runtime sposobnosti** nad tih sedam tabela.
+- **Statički dokaz zero-capability granice paketa `003` je očuvan.**
+- **Statički dokaz zero-capability granice paketa `011` je očuvan.**
+- **Tenant predikat `02` §17.1 je unesen doslovno i neoslabljeno** u svih 15 politika.
+
+**Atomičnost.** Faza-5 migracija paketa `013` nosi **kanonski eksplicitan transakcijski mehanizam
+najvišeg nivoa koji D-065, `RULING 2`, zahtijeva** — **jedan** `BEGIN` i **jedan** `COMMIT`
+doslovno napisani u `migration.sql`, sa svim `REVOKE`, `GRANT`, `ENABLE RLS`, `FORCE RLS` i
+`CREATE POLICY` iskazima unutar te iste transakcije, bez međukoraka `COMMIT`. **Atomičnost je
+svojstvo fajla, ne pretpostavka o migration runtimeu.**
+
+### `RULING C` — checklist Faze 5 ostaje **49 / 8**
+
+**Nijedna kućica se ovim zatvaranjem ne označava.**
+
+Jedini Faza-5 red koji `P5-I2` uopšte može označiti je **`Schema → RLS`**, a njegov **ratifikovani
+kriterij prihvatanja** je — doslovno, D-064, *Prognoza checklista*, potvrđeno anotacijom
+`P5-I2A-C` — **kompletan, verifikovan i kanonski `P5-I2`**, a ne pojedinačni pod-gate. `P5-I2C` i
+`P5-I2V` nisu izvršeni, pa **antecedent nije ispunjen** i red ostaje **neoznačen**.
+
+**`Tests → cross-tenant FK` se u `P5-I2` ne smije označiti** (D-064) — značenje tog reda uključuje
+i kasnije API/`422` ponašanje koje posjeduje `P5-I5`. **Svi Services/API/facade redovi ostaju
+netaknuti.**
+
+**Zvanična aritmetika, prebrojana iz stvarnog stanja kućica u `05` §6:**
+
+```text
+ukupno redova      49
+označeno           8
+neoznačeno         41
+notacija           49 / 8   (nepromijenjeno)
+```
+
+**Prognoza nakon punog `P5-I2` ostaje 49 / 9** i **ostaje prognoza**.
+
+### `RULING D` — očuvanje historijskog zapisa
+
+**Historijske tvrdnje „`P5-I2B` NOT IMPLEMENTED" i „`P5-I2B` NOT AUTHORIZED" unutar ranijih,
+datiranih vlasničkih odluka su historijski tačne i ne smiju se prepisivati.** Tijela **D-064** i
+**D-065** se **ne mijenjaju**; dobijaju **kratku statusnu anotaciju** koja pokazuje na D-066, po
+precedentu D-063 i D-065.
+
+**Tekuće normativne sekcije izvan historijskih zapisa odluka moraju odražavati novo kanonsko
+stanje** — `02`, `04`, `05` i `08`.
+
+## Obuhvat
+
+D-066:
+
+- **konstatuje** kanoničnost i formalno zatvaranje `P5-I2B`;
+- **pomiruje** tekuće statusne tvrdnje `02`, `04`, `05` i `08`;
+- **NE mijenja** nijednu klauzulu sigurnosnog ugovora D-064 / D-065;
+- **NE uvodi** nijedan novi sigurnosni dizajn;
+- **NE označava** nijednu kućicu checklista;
+- **NE autorizuje** `P5-I2C`;
+- **NE izvršava i ne slabi** `P5-I2V` / **`★`**;
+- **NE odblokira** `P5-I5`;
+- **NE zatvara** `P5-I2` ni Fazu 5;
+- **NE dokumentuje** paket `014` kao implementiran.
+
+## Razlog
+
+- **Potrošena autorizacija mora biti vidljiva kao potrošena.** Dokumentacija koja i dalje tvrdi
+  „nije autorizovan" nad već kanonskom sigurnosnom migracijom stvara dvije podjednako opasne
+  greške: ponovno „autorizovanje" već izvršenog posla, i tretiranje kanonske sigurnosne granice
+  kao da još ne postoji.
+- **Zatvaranje pod-gatea nije zatvaranje roditelja.** `P5-I2B` je jedan od **četiri** pod-gatea.
+  D-064 izričito zabranjuje da gate prećutno apsorbuje naredni; formalno zatvaranje `P5-I2B`
+  zato **mora** biti zapisano zajedno sa nepromijenjenim statusom `P5-I2C`, `P5-I2V` i `P5-I2`.
+- **Aritmetika checklista se izvodi, ne pretpostavlja.** Kriterij reda `Schema → RLS` je
+  ratifikovan kao **kompletan** `P5-I2`. Označiti ga sada značilo bi tvrditi ispunjenje uslova
+  koji nije nastupio — i, gore, prećutno tvrditi da su `P5-I2C` i `★` nekako obuhvaćeni.
+- **Historijski zapis je dokaz, ne šum.** Datirane vlasničke tvrdnje su jedini trag redoslijeda
+  odlučivanja. Prepisati ih značilo bi izgubiti dokaz da `P5-I2B` **nije** bio prećutno
+  autorizovan D-065-om.
+
+## Alternative
+
+- **Označiti `Schema → RLS` i objaviti 49 / 9** — **odbijeno.** Kriterij prihvatanja tog reda je
+  **cijeli** `P5-I2` (D-064), a `P5-I2C` i `P5-I2V` nisu izvršeni. To bi bila naduvana progres
+  aritmetika i prećutna apsorpcija dva neautorizovana gatea.
+- **Proglasiti `P5-I2` zatvorenim jer je „sigurnosni dio gotov"** — **odbijeno.** Segmentacija na
+  četiri pod-gatea je ratifikovana upravo da bi se to spriječilo.
+- **Prepisati D-064 / D-065 tako da glase kao da je `P5-I2B` oduvijek bio implementiran** —
+  **odbijeno.** Vidi `RULING D`.
+- **Ne zapisivati zatvaranje i pustiti da kanoničnost implicitno „važi"** — **odbijeno.** Statusni
+  drift je već jednom proizveo blokirajući `HOLD` (preflight `P5-I2B`, `B-1`).
+
+## Posljedice
+
+- **`P5-I2B` je formalno zatvoren** i njegov status se u tekućim normativnim sekcijama više ne
+  vodi kao budući ili neautorizovan.
+- **Kanonski lanac migracija ima šest direktorija**; očekivani konačan broj nakon punog `P5-I2`
+  ostaje **sedam** (D-064, `OD-8`) — nedostaje isključivo `014_phase5`, vlasništvo `P5-I2C`.
+- **Steady-state sigurnosni katalog `02` §29.4a više nije samo ciljni katalog** — on je zatečeno
+  stanje, sa `phase5-rls-grants.security.ts` kao trajnim vlasnikom dokaza.
+- **Checklist Faze 5 ostaje 49 / 8.**
+- **Naredni implementacijski pod-gate je `P5-I2C`**, i **ovom odlukom nije autorizovan**.
+
+## Security/privacy uticaj
+
+- **Nula nove sposobnosti.** Odluka je isključivo dokumentaciona.
+- **Sigurnosna površina se ne mijenja** — grantovi, politike, `FORCE RLS` i allowlista ostaju
+  tačno onakvi kakvi su merged u `0e4d113f`.
+- **Sigurnosna površina se u odnosu na prethodni zapis povećava, ne smanjuje:** sedam tabela je
+  prešlo iz stanja „bez RLS-a, ali i bez ijednog granta" u **`ENABLE` + `FORCE` sa tačno
+  ograničenim grantom i tenant politikom**.
+- **`storage_objects` ostaje dokazivo nedosežan** — `ENABLE` + `FORCE`, nula politika, nula
+  grantova, nula redova.
+- **`audit_events` je append-only na nivou granta**, i cross-practice čitljivost ostaje
+  kategorički zabranjena (D-063, klauzula 5).
+- **`★` RI-naspram-RLS dokaz ostaje tvrdi preduslov za `P5-I5`, doslovno nepromijenjen**, i
+  **neuspjeh je i dalje `HARD HOLD`**.
+
+## Migration/rollout
+
+**Nijedna migracija se ovom odlukom ne kreira, ne mijenja, ne preimenuje i ne izvršava; nijedna
+baza nije kontaktirana.** Kanonski primijenjen lanac je:
+
+```text
+001          extensions and roles
+002          identity and practices
+013          [Faza-4 slice]
+003          [P5-I1]
+011_phase5   [P5-I2A]
+013_phase5   [P5-I2B]   20260825013452_013_rls_policies_phase5
+```
+
+**Preostaje `014_phase5`** — vlasništvo `P5-I2C`, **neautorizovano**.
+
+## Test dokaz
+
+**Testovi se ovom odlukom ne implementiraju, ne mijenjaju i ne izvršavaju.** Trajni vlasnik
+steady-state sigurnosnog dokaza je **`apps/api/test/phase5-rls-grants.security.ts`**, uveden
+kanonskom implementacijom `P5-I2B` po D-064, `OD-9`, dio B. Exact-set ekspektacije su evoluirale
+**stari tačan skup → novi tačan skup**; **nijedna tvrdnja nije oslabljena** u
+`contains`/`subset`/`partial`. Statički package-boundary dokazi paketa `003` i paketa `011` su
+**očuvani**. **Dokaz paketa `014` i `★` dokaz ostaju odsutni i budući.**
+
+## Supersedes
+
+**Supersedira isključivo statusne tvrdnje, i to tačno tri:**
+
+1. **`P5-I2B` = `NOT IMPLEMENTED`** — kao **tekuću** tvrdnju, gdje god stoji izvan datiranog
+   historijskog zapisa odluke;
+2. **`P5-I2B` = `NOT AUTHORIZED`** — kao **tekuću** tvrdnju, iz istog razloga;
+3. **„Faza-5 RLS/grantovi `NOT IMPLEMENTED`"** i **„puni sigurnosni katalog `02` §29.4a nije
+   zatečeno stanje"** — kao tekuće tvrdnje.
+
+**Ne supersedira nijednu sigurnosnu klauzulu.** D-064 (`OD-1`–`OD-9`, obje korekcije, `★` hard
+stop, segmentacija na četiri pod-gatea) i D-065 (`RULING 1`, `RULING 2`) ostaju **na snazi bez
+izmjene**. **D-060, D-061, D-062 i D-063 se ne diraju.**
+
+## Zavisnosti
+
+- **D-064** — sigurnosna granica i implementacijski ugovor `P5-I2`; segmentacija na četiri
+  pod-gatea; `OD-9` vlasništvo testova;
+- **D-065** — korigovana aritmetika kataloga politika i eksplicitni transakcijski mehanizam;
+- **D-062, D-063** — dizajn i implementacijska granica Faze 5;
+- **D-050** — kanonski workflow autorstva migracija.
+
+## Granice prema budućim fazama
+
+- **`P5-I2B` je `CANONICAL` i `FORMALLY CLOSED`.**
+- **`P5-I2C` ostaje `NOT IMPLEMENTED` i `NOT AUTHORIZED`.**
+- **`P5-I2V` / `★` ostaje `NOT EXECUTED`.**
+- **`P5-I5` ostaje `BLOCKED`** dok `P5-I2V PASS` ne postane kanonski.
+- **`P5-I2` ostaje `IN_PROGRESS` / `NOT COMPLETE`.**
+- **Faza 5 ostaje `IN_PROGRESS`; nije `DONE`.**
+
+## Naredni obavezni gate
+
+**`P5-I2C`** — Faza-5 slice paketa `014` (AAD funkcija i tri trigera). **Ovom odlukom nije
+autorizovan**; autorizacija je **zaseban vlasnički potez**.
 
 ---
 

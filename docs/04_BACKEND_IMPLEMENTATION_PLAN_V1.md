@@ -1201,6 +1201,11 @@ sedam** direktorija (`001`, `002`, `013` Faza-4, `003`, `011_phase5`, `013_phase
 `10` imenovanih politika iz `02` §29.4. **Mjerodavan je imenovani katalog `02` §29.4 / §29.4a;
 nijedno ime politike se ne uklanja radi starog zbira** (D-064, `OD-8`, ostaje na snazi).
 
+**Zatečeno kanonsko stanje (2026-08-25; D-066).** Katalog **13 tabela `true`/`true` i 25
+politika je ispunjen i kanonski** — uveo ga je `P5-I2B` (PR #36). **Lanac migracija ima šest
+primijenjenih direktorija**; sedmi, `014_phase5`, pripada **`P5-I2C`** i **nije implementiran ni
+autorizovan**.
+
 **Transakcijski mehanizam (D-065, `RULING 2`).** Faza-5 slice paketa `013` je **jedna** migracija
 sa **tačno jednom eksplicitnom `BEGIN` / `COMMIT` transakcijskom granicom najvišeg nivoa**;
 `REVOKE`, `GRANT`, `ENABLE RLS`, `FORCE RLS` i `CREATE POLICY` za **svih sedam** tabela idu
@@ -1287,15 +1292,20 @@ kanonski `main`, merge SHA `fcd88fbef6c398ae7f0404eb54edb8f7f8175634`. **`P5-I2`
 `IN_PROGRESS` i `NOT COMPLETE`**: njegov strukturni pod-gate **`P5-I2A` je implementiran,
 nezavisno reviewovan** (`P5_I2A_V_PASS_READY_FOR_PUBLICATION`) **i kanonski** — objavljen kroz
 **PR #33** i merged u kanonski `main`, merge SHA
-`2e606ed3690653ecaef9126ffb8b9fb67e9354b3`; **`P5-I2B`, `P5-I2C` i `P5-I2V` nisu implementirani
-i nisu autorizovani**, i **`P5-I2A` ih ne autorizuje**. Preostalih **šest** slice-ova
-(`P5-I3`–`P5-I8`) su **`NOT_STARTED`**. Raniji preduslov „`P5-I1` mora postati kanonski" je time
-**ispunjen**, ali to **nije autorizacija**: svaki pod-gate `P5-I2`-a traži **zaseban, vlasnički
-kontrolisan, sigurnosno osjetljiv gate**. `P5-I2` i dalje posjeduje Faza-5 slice paketa `011`
-(strukturno implementiran u `P5-I2A` i **kanonski** od PR #33), runtime sigurnosnu granicu
-(pod-gate `P5-I2B`) i **`★`** dokaz iz §7.6a (pod-gate `P5-I2V`), koji ostaje **tvrdi preduslov za
-`P5-I5`** uz `HARD HOLD` pri neuspjehu; **`P5-I5` ostaje neautorizovan**. Kompletan dokaz
-`P5-I1`-a je u `05`, Faza 5, blok `Slice P5-I1`, a `P5-I2A`-a u bloku `Slice P5-I2A`.
+`2e606ed3690653ecaef9126ffb8b9fb67e9354b3`. **Pod-gate `P5-I2B` je takođe implementiran,
+nezavisno auditiran** (`P5_I2B_I_A_PASS_READY_FOR_PUBLICATION`) **, kanonski i formalno zatvoren**
+(D-066) — implementacijski commit `6efee207c9ca52a22ca2cdeb97773832931711e7`, objavljen kroz
+**PR #36**, merge SHA `0e4d113f0eedddcd2db890180767768c5b422264`. **`P5-I2C` i `P5-I2V` nisu
+implementirani i nisu autorizovani**, i **`P5-I2B` ih ne autorizuje**. Preostalih **šest**
+slice-ova (`P5-I3`–`P5-I8`) su **`NOT_STARTED`**. Raniji preduslov „`P5-I1` mora postati kanonski"
+je time **ispunjen**, ali to **nije autorizacija**: svaki preostali pod-gate `P5-I2`-a traži
+**zaseban, vlasnički kontrolisan, sigurnosno osjetljiv gate**. Faza-5 slice paketa `011`
+(`P5-I2A`, PR #33) i **runtime sigurnosna granica** (`P5-I2B`, PR #36) su **kanonski**; `P5-I2` i
+dalje posjeduje Faza-5 slice paketa `014` (pod-gate `P5-I2C`) i **`★`** dokaz iz §7.6a (pod-gate
+`P5-I2V`), koji ostaje **tvrdi preduslov za `P5-I5`** uz `HARD HOLD` pri neuspjehu; **`P5-I5`
+ostaje neautorizovan**. Kompletan dokaz `P5-I1`-a je u `05`, Faza 5, blok `Slice P5-I1`,
+`P5-I2A`-a u bloku `Slice P5-I2A`, a `P5-I2B`-a u bloku `Pod-gate P5-I2B — Faza-5 slice paketa
+013`.
 
 ### Segmentacija `P5-I2` na četiri pod-gatea (D-064)
 
@@ -1320,12 +1330,23 @@ autorizaciju**; **D-064 nijedan od njih ne autorizuje**.
 `a37f6e014cd9f34ac449d90b2527303abc7167b2` (kataloški testovi), uz dokazni commit
 `df7a1a55a6f13598fccf3f9a4d415821c60d0bb3`. Grana je **gurana i merged kroz PR #33**, merge SHA
 `2e606ed3690653ecaef9126ffb8b9fb67e9354b3` — `P5-I2A` je dakle **`CANONICAL`**, a Faza-5 slice
-paketa `011` je kanonski. **`P5-I2B` = `NOT IMPLEMENTED` / `NOT AUTHORIZED`**, **`P5-I2C` =
-`NOT IMPLEMENTED` / `NOT AUTHORIZED`**, **`P5-I2V` = `NOT EXECUTED`**. Sigurnosna tranzicija na
-**13 tabela `true`/`true` i 25 politika** (`02` §29.4a) **nije se dogodila**: nakon `P5-I2A`
-katalog je **6 tabela `true`/`true` i 7 tabela `false`/`false` uz nepromijenjenih 10 politika**,
-i ta tranzicija ostaje isključivo u vlasništvu `P5-I2B`. Dokazni blok je `05`, Faza 5,
-`Slice P5-I2A`.
+paketa `011` je kanonski. Dokazni blok je `05`, Faza 5, `Slice P5-I2A`.
+
+**Tekuće stanje pod-gateova (2026-08-25; D-066).** **`P5-I2A` = `CANONICAL`** (PR #33).
+**`P5-I2B` = `IMPLEMENTED` / `AUDITED` / `MERGED` / `CANONICAL` / `FORMALLY CLOSED`** — commit
+`6efee207c9ca52a22ca2cdeb97773832931711e7`, audit `P5_I2B_I_A_PASS_READY_FOR_PUBLICATION`,
+**PR #36**, merge SHA `0e4d113f0eedddcd2db890180767768c5b422264`, migracija
+`20260825013452_013_rls_policies_phase5`, vlasnik dokaza
+`apps/api/test/phase5-rls-grants.security.ts`. **`P5-I2C` = `NOT IMPLEMENTED` /
+`NOT AUTHORIZED`**, **`P5-I2V` / `★` = `NOT EXECUTED`**. Sigurnosna tranzicija na **13 tabela
+`true`/`true` i 25 politika** (`02` §29.4a) **je izvršena i kanonska** — `P5-I2B` je uveo **15**
+novih politika unutar **jedne eksplicitne `BEGIN` / `COMMIT`** transakcije; raniji zapis
+„6 `true`/`true`, 7 `false`/`false`, 10 politika" je bio **međustanje nakon `P5-I2A`** i više ne
+opisuje tekuće stanje. **§23.4 maintenance allowlista ostaje na šest tabela**, neproširena.
+Dokazni blok je `05`, Faza 5, `Pod-gate P5-I2B — Faza-5 slice paketa 013`.
+
+**`P5-I2` u cjelini i dalje NIJE zatvoren.** Kanoničnost `P5-I2B` **ne autorizuje `P5-I2C`**, **ne
+izvršava i ne slabi `★`**, i **ne odblokira `P5-I5`**. **Faza 5 ostaje `IN_PROGRESS`.**
 
 **`P5-I2B` Security Boundary Preflight — `HOLD`, pa D-065 (2026-08-25).** Read-only preflight
 `P5-I2B` je završio ishodom **`HOLD`** sa razlogom **`POLICY_CATALOGUE_ARITHMETIC_INCONSISTENT`**:
@@ -1339,10 +1360,19 @@ D-065, i **samo** ishod `P5_I2B_PREFLIGHT_PASS_READY_FOR_OWNER_AUTHORIZATION` sm
 zaseban vlasnički autorizacijski gate. Do tada: **`P5-I2B` = `NOT IMPLEMENTED` /
 `NOT AUTHORIZED`**.
 
+**Anotacija (D-066, 2026-08-25) — pasus iznad se ne prepisuje.** On opisuje **redoslijed gateova
+kako je stajao na dan D-065** i tačan je kao takav. **Ta sekvenca je u međuvremenu dovršena:**
+preflight je ponovljen, vlasnik je autorizovao pod-gate zasebnim potezom, implementacija je
+izvedena i nezavisno auditirana, a auditirani commit je merged nepromijenjen kroz **PR #36**.
+**Zaključna rečenica „Do tada: `P5-I2B` = `NOT IMPLEMENTED` / `NOT AUTHORIZED`" je time
+historijska i više ne opisuje tekući status** — vidi *Tekuće stanje pod-gateova (2026-08-25)*
+iznad i **D-066**.
+
 **Vlasništvo sigurnosnih testova (D-064, `OD-9`).** `phase5-schema-catalogue.security.ts`
 zadržava strukturni katalog paketa `003` i **package-boundary ZERO-CAPABILITY tvrdnju nad samom
-migracijom `003`**; novi **`phase5-rls-grants.security.ts`** postaje vlasnik steady-state
-sigurnosnog kataloga `P5-I2`; **`★`** ostaje u zasebnom
+migracijom `003`**; **`phase5-rls-grants.security.ts`** je vlasnik steady-state
+sigurnosnog kataloga `P5-I2` — **uveden i kanonski od `P5-I2B`** (PR #36); **`★`** ostaje u
+zasebnom
 **`phase5-responsible-physician-ri.security.ts`**. Exact-set ekspektacije smiju evoluirati
 **stari tačan skup → novi tačan skup**; **`exact` → `contains`/`subset`/`partial` ostaje
 kategorički zabranjeno**.

@@ -5835,20 +5835,27 @@ practice_id = nullif(current_setting('app.practice_id', true), '')::uuid
 
 ## 29.4a Puni post-`P5-I2` sigurnosni katalog — mjerodavan (D-064, `OD-1`, `OD-6`; D-065)
 
-**Normativni izvor: D-064, kako je korigovan D-065.** Ovaj odjeljak je **tekući autoritet** za
-puno stanje sigurnosnih objekata nakon što `P5-I2` bude implementiran i kanonski. **`P5-I2` je `IN_PROGRESS` i
-`NOT COMPLETE`** (2026-08-24): njegov **strukturni** pod-gate **`P5-I2A` je implementiran,
-nezavisno reviewovan i kanonski** — objavljen kroz **PR #33**, merge SHA
-`2e606ed3690653ecaef9126ffb8b9fb67e9354b3` — čime je Faza-5 slice paketa `011` postao kanonski.
-**Puni sigurnosni katalog ovog odjeljka nije implementiran**: isključivo ga posjeduje Faza-5
-slice paketa `013`, pod-gate **`P5-I2B`**, koji je **`NOT IMPLEMENTED` i `NOT AUTHORIZED`** i
-koji **`P5-I2A` ne autorizuje**. **13 tabela `true`/`true` i 25 politika ostaju objavljeni ciljni
-katalog, ne zatečeno stanje** — zatečeno stanje nakon `P5-I2A` je **6 tabela `true`/`true`,
-7 `false`/`false` i ukupno 10 politika**.
+**Normativni izvor: D-064, kako je korigovan D-065, uz statusno pomirenje D-066.** Ovaj odjeljak
+je **tekući autoritet** za puno stanje sigurnosnih objekata Faze 5.
 
-**`P5-I2B` je i dalje `NOT IMPLEMENTED` i `NOT AUTHORIZED`.** D-065 pomiruje aritmetiku i fiksira
-transakcijski mehanizam; **on ne autorizuje implementaciju**, ne kreira migraciju paketa `013`
-Faze 5 i ne mijenja status nijednog pod-gatea.
+**Katalog ovog odjeljka je ZATEČENO KANONSKO STANJE (2026-08-25).** Faza-5 slice paketa `013` —
+pod-gate **`P5-I2B`** — je **implementiran, nezavisno auditiran i kanonski**: implementacijski
+commit `6efee207c9ca52a22ca2cdeb97773832931711e7`, audit ishod
+`P5_I2B_I_A_PASS_READY_FOR_PUBLICATION`, objavljen kroz **PR #36**, merge SHA
+`0e4d113f0eedddcd2db890180767768c5b422264`. **Kanonska migracija je
+`20260825013452_013_rls_policies_phase5`**, a trajni vlasnik dokaza je
+`apps/api/test/phase5-rls-grants.security.ts`. **`P5-I2B` je time formalno zatvoren (D-066).**
+
+**Zatečeno stanje je 13 tabela `true`/`true` i ukupno 25 politika** — `P5-I2B` je uveo **15**
+novih politika i preveo sedam Faza-5 tenant tabela iz `false`/`false` u `ENABLE` + `FORCE`.
+Raniji zapis „6 tabela `true`/`true`, 7 `false`/`false`, 10 politika" je bio tačan **međustanje
+nakon `P5-I2A`** i **više ne opisuje tekuće stanje**.
+
+**Zatvaranje `P5-I2B` ne zatvara `P5-I2`.** **`P5-I2` ostaje `IN_PROGRESS` / `NOT COMPLETE`**:
+**`P5-I2C`** (Faza-5 slice paketa `014`) ostaje **`NOT IMPLEMENTED` i `NOT AUTHORIZED`**, a
+**`P5-I2V` / `★`** ostaje **`NOT EXECUTED`**. **`P5-I5` ostaje `BLOCKED`** i **Faza 5 ostaje
+`IN_PROGRESS`**. Strukturni pod-gate **`P5-I2A`** je kanonski od **PR #33**, merge SHA
+`2e606ed3690653ecaef9126ffb8b9fb67e9354b3`.
 
 ### 29.4a.0 Transakcijski mehanizam — eksplicitan `BEGIN` / `COMMIT` (D-065, `RULING 2`)
 
@@ -5866,6 +5873,12 @@ commit;
 **Atomičnost se NE smije oslanjati na pretpostavku da migration runtime projekta implicitno
 omotava `migration.sql` u transakciju.** Zahtjev je ispunjen **samo** doslovno napisanim
 `begin;` … `commit;` u samom fajlu migracije.
+
+**Ispunjeno i kanonski (D-066).** Kanonska migracija
+`20260825013452_013_rls_policies_phase5/migration.sql` nosi **tačno jedan** `BEGIN` i **tačno
+jedan** `COMMIT` na najvišem nivou, sa svih **15** `CREATE POLICY` iskaza te svim `REVOKE`,
+`GRANT`, `ENABLE ROW LEVEL SECURITY` i `FORCE ROW LEVEL SECURITY` iskazima unutar te iste
+transakcije. **Atomičnost je time svojstvo fajla, ne pretpostavka o runtimeu.**
 
 **Unutar te jedne transakcije** su **svi** iskazi `P5-I2B` za **svih sedam** tabela iz §29.4a.1:
 `REVOKE` · `GRANT` · `ENABLE ROW LEVEL SECURITY` · `FORCE ROW LEVEL SECURITY` · `CREATE POLICY`.
@@ -6139,10 +6152,19 @@ envelope i `encryption_*` kolone `patient_references` (write-back je iza `D-OPEN
 objekte za `idempotency_keys` i `audit_events` (§22.11); njihovu sigurnost isključivo
 posjeduje Faza-5 slice paketa `013` (§29.4a.1). **Faza-5 slice paketa `011` je implementiran i
 kanonski** — pod-gate `P5-I2A`, **PR #33**, merge SHA
-`2e606ed3690653ecaef9126ffb8b9fb67e9354b3`. **Faza-5 slice paketa `013` — pod-gate `P5-I2B` —
-nije implementiran i nije autorizovan**, pa obje tabele i dalje stoje u strukturnom međustanju
-iz §29.4a.1: **nula** runtime grantova, **nula** politika, `relrowsecurity = false`,
-`relforcerowsecurity = false`.
+`2e606ed3690653ecaef9126ffb8b9fb67e9354b3`.
+
+**Strukturno međustanje je zatvoreno (D-066).** **Faza-5 slice paketa `013` — pod-gate `P5-I2B` —
+je implementiran, nezavisno auditiran i kanonski** (**PR #36**, merge SHA
+`0e4d113f0eedddcd2db890180767768c5b422264`; migracija
+`20260825013452_013_rls_policies_phase5`). Obje tabele su time izašle iz zero-capability
+međustanja iz §29.4a.1 i danas nose `ENABLE` + `FORCE ROW LEVEL SECURITY`, tačan ograničen grant
+i tenant politike po §29.4a: `idempotency_keys` = `SELECT` + `INSERT` + column-level `UPDATE`
+(`response_status`, `response_body`, `locked_at`, `completed_at`) uz **tri** politike;
+`audit_events` = **samo** `SELECT` + `INSERT` uz **dvije** politike; `copilot_system` i `PUBLIC`
+= **nula** nad obje. **Statički package-boundary dokaz zero-capability međustanja paketa `011`
+je očuvan** kao trajna regresija — on dokazuje **forward SQL paketa `011`**, a ne tekuće živo
+stanje.
 
 ### 29.9.1 `practices` FK-ovi — tačno dva
 
@@ -6180,7 +6202,7 @@ izvan ta dva FK-a.
 
 ## 29.10 Imenovanje i broj migracijskih direktorija Faze 5 (D-064, `OD-8`)
 
-Nepromjenjiva konvencija za **tri buduća** Faza-5 direktorija:
+Nepromjenjiva konvencija za tri Faza-5 direktorija:
 
 ```text
 <timestamp>_011_jobs_idempotency_outbox_audit_phase5
@@ -6190,6 +6212,14 @@ Nepromjenjiva konvencija za **tri buduća** Faza-5 direktorija:
 
 **Timestampovi se ne izmišljaju unaprijed** — biraju se isključivo u trenutku autorstva
 pojedine migracije.
+
+**Zatečeno kanonsko stanje (2026-08-25; D-066) — dva od tri su kreirana, jedan je budući:**
+
+```text
+20260823211546_011_jobs_idempotency_outbox_audit_phase5   KANONSKI   (P5-I2A, PR #33)
+20260825013452_013_rls_policies_phase5                    KANONSKI   (P5-I2B, PR #36)
+<timestamp>_014_immutability_triggers_phase5              BUDUĆI     (P5-I2C, NEAUTORIZOVAN)
+```
 
 **Kanonski hronološki lanac nakon uspješnog `P5-I2` sadrži TAČNO SEDAM direktorija:**
 
@@ -6206,3 +6236,7 @@ pojedine migracije.
 **Broj paketa izražava vlasništvo, ne hronološki redoslijed timestampova** (D-052) — otuda
 `013` prethodi `003`, a `013_phase5` slijedi nakon `011_phase5`. **Očekivani konačni tačan
 broj migracija = 7.**
+
+**Zatečeni tačan broj primijenjenih direktorija = 6** (D-066). Nedostaje isključivo
+`014_phase5`, čije vlasništvo pripada **`P5-I2C`**, koji je **`NOT IMPLEMENTED` i
+`NOT AUTHORIZED`**. **Paket `014` se ne smije dokumentovati kao implementiran.**
