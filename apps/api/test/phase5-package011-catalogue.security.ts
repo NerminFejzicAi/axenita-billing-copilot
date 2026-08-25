@@ -20,23 +20,27 @@ import { connect, securityDatabase } from './support/phase3-security-context.js'
  * set to be REPLACED by a new exact set when a canonical slice deliberately changes the
  * database; it NEVER authorises `exact` -> `contains` / `subset` / `partial`.
  *
- * THE STATE THIS FILE PROVES IS DELIBERATELY ZERO-CAPABILITY (D-064 `OD-1`).
+ * THE ZERO-CAPABILITY EVIDENCE OF THIS SLICE IS A STATIC PROOF (D-064 `OD-1`, `OD-9`).
  * The phase 5 slice of package `011` creates two tables and issues NO grant, NO revoke, NO
- * `ENABLE`/`FORCE ROW LEVEL SECURITY`, NO policy, NO function and NO trigger. After it, and
- * BEFORE the phase 5 slice of `013_rls_policies`, `idempotency_keys` and `audit_events` each
- * carry `relrowsecurity = false`, `relforcerowsecurity = false`, ZERO policies and ZERO
- * runtime grants. That is not a defect to be "fixed" here by pulling `P5-I2B` forward: the
- * ABSENCE OF A GRANT IS THE SECURITY CONTROL of this slice. `copilot_migrator` owns both
- * tables, `pg_default_acl` is empty, and neither runtime role holds `CREATE` on schema
- * `public`, so no runtime role can reach either table at all. Grants, RLS and the five
- * policies of §29.4a arrive together, in ONE transaction, with package `013` (D-049 clause 5).
- * The `false`/`false` assertions below are POSITIVE assertions of that intended state.
+ * `ENABLE`/`FORCE ROW LEVEL SECURITY`, NO policy, NO function and NO trigger. Between it and
+ * the phase 5 slice of `013_rls_policies` both tables carried `relrowsecurity = false`,
+ * `relforcerowsecurity = false`, ZERO policies and ZERO runtime grants — the ABSENCE OF A
+ * GRANT WAS THE SECURITY CONTROL of this slice, and that window contained no capability at
+ * all rather than merely a short exposure.
+ *
+ * Sub-gate `P5-I2B` deliberately ends that window: grants, `ENABLE`, `FORCE` and the five
+ * policies of §29.4a arrive together, in ONE explicit transaction, with package `013` (D-049
+ * clause 5, §29.4a.0). The LIVE assertions below therefore evolved from their old exact set to
+ * the new one (D-064 `OD-9`), while the STATIC PACKAGE-BOUNDARY PROOF at the bottom of this
+ * file — that migration `011` ITSELF introduced no runtime capability — is UNCHANGED,
+ * UNWEAKENED AND PERMANENT. Migration `011` is never edited (AGENTS.md §5.1).
  *
  * WHAT THIS FILE DELIBERATELY DOES NOT PROVE.
- * It says nothing about the runtime grants, the tenant policies or the append-only contract of
- * either table — those belong to `P5-I2B` and to the future `phase5-rls-grants.security.ts`
- * (D-064 `OD-9` part B). It does not discharge the `★` RI-versus-RLS proof, which belongs to
- * `P5-I2V` and stays a HARD precondition of `P5-I5`.
+ * It does not own the runtime grants, the tenant policies or the append-only contract of
+ * either table — those belong to `P5-I2B` and to `phase5-rls-grants.security.ts` (D-064
+ * `OD-9` part B); what it asserts about them here is only that this slice did not create them.
+ * It does not discharge the `★` RI-versus-RLS proof, which belongs to `P5-I2V` and stays a
+ * HARD precondition of `P5-I5`.
  */
 const database = securityDatabase();
 const apiRoot = resolve(import.meta.dirname, '..');
@@ -61,13 +65,14 @@ const TABLES_THAT_MUST_NOT_EXIST = [
 ] as const;
 
 /**
- * The canonical migration chain after `P5-I2A` — EXACTLY FIVE directories, in application
+ * The canonical migration chain after `P5-I2B` — EXACTLY SIX directories, in application
  * order (§29.10; D-064 `OD-8`, correction A).
  *
  * Package numbers carry OWNERSHIP, not execution order (D-052), which is why `013` precedes
- * `003` and why the phase 5 slice of `011` is chronologically last. The canonical chain after
- * the whole of `P5-I2` will contain SEVEN — `013_phase5` and `014_phase5` follow in `P5-I2B`
- * and `P5-I2C`, and neither is authorised by this gate.
+ * `003` and why the phase 5 slice of `013` follows the phase 5 slice of `011`. The old exact
+ * set of FIVE is superseded by this one of SIX (D-064 `OD-9`). The canonical chain after the
+ * whole of `P5-I2` will contain SEVEN — `014_phase5` follows in `P5-I2C`, which is not
+ * authorised by `P5-I2B`.
  */
 const EXPECTED_MIGRATIONS = [
   '20260810213856_001_extensions_and_roles',
@@ -75,6 +80,7 @@ const EXPECTED_MIGRATIONS = [
   '20260816111141_013_rls_policies',
   '20260823104252_003_patient_encounter_documents',
   '20260823211546_011_jobs_idempotency_outbox_audit_phase5',
+  '20260825013452_013_rls_policies_phase5',
 ] as const;
 
 /** The phase 5 slice of package `011` — the migration this file speaks for. */
@@ -357,12 +363,12 @@ afterAll(async () => {
   await migrator.end();
 });
 
-describe('migration chain after P5-I2A (02 §29.10; D-064 `OD-8`, correction A)', () => {
-  it('given the repository when inspected then EXACTLY FIVE migration directories exist', () => {
+describe('migration chain after P5-I2B (02 §29.10; D-064 `OD-8`, correction A)', () => {
+  it('given the repository when inspected then EXACTLY SIX migration directories exist', () => {
     // Identity and order, not a count: a wrong package applied in the right number would
-    // otherwise pass (00 §6.2). The old exact set of FOUR is superseded by this one — a
+    // otherwise pass (00 §6.2). The old exact set of FIVE is superseded by this one — a
     // deliberate canonical evolution under D-064 `OD-9`, never a weakening. The chain reaches
-    // SEVEN only after `P5-I2B` and `P5-I2C`, neither of which this gate authorises.
+    // SEVEN only after `P5-I2C`, which `P5-I2B` does not authorise.
     const directories = readdirSync(resolve(apiRoot, 'prisma/migrations'), {
       withFileTypes: true,
     })
@@ -373,7 +379,7 @@ describe('migration chain after P5-I2A (02 §29.10; D-064 `OD-8`, correction A)'
     expect(directories).toStrictEqual([...EXPECTED_MIGRATIONS]);
   });
 
-  it('given the migrated database when inspected then exactly those five are recorded as applied', async () => {
+  it('given the migrated database when inspected then exactly those six are recorded as applied', async () => {
     const result = await migrator.query<{
       migration_name: string;
       finished_at: Date | null;
@@ -391,12 +397,15 @@ describe('migration chain after P5-I2A (02 §29.10; D-064 `OD-8`, correction A)'
     }
   });
 
-  it('given the phase 5 slice of package 011 then it is chronologically LAST and named canonically', () => {
+  it('given the phase 5 slice of package 011 then it is named canonically and precedes the 013 slice', () => {
     // §29.10 fixes the directory suffix `_011_jobs_idempotency_outbox_audit_phase5`. The
     // package number expresses OWNERSHIP, not chronological order (D-052) — which is exactly
-    // why `013` precedes `003` in the chain and why this slice follows both.
+    // why `013` precedes `003` in the chain and why this slice follows both. It was
+    // chronologically LAST until `P5-I2B`; the ORDER, not the position, is what §29.4a.1
+    // requires: structure first, capability second, never the reverse.
     expect(PACKAGE_011_MIGRATION).toMatch(/^\d{14}_011_jobs_idempotency_outbox_audit_phase5$/);
-    expect(EXPECTED_MIGRATIONS.at(-1)).toBe(PACKAGE_011_MIGRATION);
+    expect(EXPECTED_MIGRATIONS.indexOf(PACKAGE_011_MIGRATION)).toBe(4);
+    expect(EXPECTED_MIGRATIONS.at(-1)).toMatch(/^\d{14}_013_rls_policies_phase5$/);
   });
 });
 
@@ -756,11 +765,16 @@ describe('foreign key contract — EXACTLY TWO NEW (02 §29.9.1; D-064 `OD-4`)',
   });
 });
 
-describe('ZERO-CAPABILITY BOUNDARY after package 011 (D-064 `OD-1`)', () => {
-  it('given both new tables when inspected then NO role other than the owner holds a table privilege', async () => {
+describe('the package 011 privilege surface after P5-I2B (D-064 `OD-1`, `OD-9`; §29.4a.3, §29.4a.4)', () => {
+  it('given both new tables then the table-level grant set is EXACTLY the P5-I2B one', async () => {
     // `copilot_migrator` is excluded because it is the table OWNER and holds every privilege
-    // by definition. Every other grantee — `copilot_app`, `copilot_system`, `PUBLIC` — must
-    // hold NOTHING, because this slice issues no GRANT at all.
+    // by definition. The old exact set was EMPTY, which was correct while this slice was the
+    // last word on both tables; the phase 5 slice of `013_rls_policies` deliberately replaces
+    // it with the surface of §29.4a.3 and §29.4a.4 (D-064 `OD-9`).
+    //
+    // `audit_events` receives `SELECT` + `INSERT` AND NOTHING ELSE — the append-only contract
+    // of §15.4 enforced by the GRANT, which is the PRIMARY control (§19.2). `copilot_system`
+    // and `PUBLIC` still hold NOTHING; that half of the boundary is permanent (D-023).
     const result = await migrator.query<{
       table_name: string;
       grantee: string;
@@ -772,13 +786,21 @@ describe('ZERO-CAPABILITY BOUNDARY after package 011 (D-064 `OD-1`)', () => {
         order by table_name, grantee, privilege_type`,
     );
 
-    expect(result.rows).toStrictEqual([]);
+    expect(result.rows).toStrictEqual([
+      { table_name: 'audit_events', grantee: 'copilot_app', privilege_type: 'INSERT' },
+      { table_name: 'audit_events', grantee: 'copilot_app', privilege_type: 'SELECT' },
+      { table_name: 'idempotency_keys', grantee: 'copilot_app', privilege_type: 'INSERT' },
+      { table_name: 'idempotency_keys', grantee: 'copilot_app', privilege_type: 'SELECT' },
+    ]);
   });
 
-  it('given both new tables when inspected then NO role other than the owner holds a column privilege', async () => {
+  it('given both new tables then the ONLY column-level UPDATE is on idempotency_keys', async () => {
     // The other half of the surface: a column grant never appears in `role_table_grants`, so
     // it has to be asserted separately (§20.2b). The column-level `UPDATE` of §29.4a.3 belongs
-    // to `P5-I2B` and must NOT exist yet.
+    // to `P5-I2B`; `audit_events` receives NO `UPDATE` of any kind, at any granularity.
+    //
+    // The exact four columns are owned by `phase5-rls-grants.security.ts`; asserted here is
+    // only that no other table and no other privilege joined them.
     const result = await migrator.query<{
       table_name: string;
       grantee: string;
@@ -787,16 +809,27 @@ describe('ZERO-CAPABILITY BOUNDARY after package 011 (D-064 `OD-1`)', () => {
       `select distinct table_name, grantee, privilege_type
          from information_schema.role_column_grants
         where table_schema = 'public' and table_name in (${PACKAGE_011_TABLE_LIST})
-          and grantee <> 'copilot_migrator'
+          and grantee <> 'copilot_migrator' and privilege_type <> 'SELECT'
+          and privilege_type <> 'INSERT'
         order by table_name, grantee, privilege_type`,
     );
 
-    expect(result.rows).toStrictEqual([]);
+    expect(result.rows).toStrictEqual([
+      { table_name: 'idempotency_keys', grantee: 'copilot_app', privilege_type: 'UPDATE' },
+    ]);
   });
 
-  it('given copilot_app, copilot_system and PUBLIC when probed then no privilege of any kind is held', async () => {
+  it('given copilot_app, copilot_system and PUBLIC when probed then only SELECT and INSERT are held', async () => {
     // `has_table_privilege` is asked directly, so an inherited or implicit privilege that
-    // never materialises as an `information_schema` row also fails.
+    // never materialises as an `information_schema` row also fails. It reports TABLE-LEVEL
+    // privilege only, so `UPDATE` is `false` even on `idempotency_keys`: its `UPDATE` is
+    // column-level, which is exactly the narrowing D-064 `OD-2` requires over a blanket grant
+    // that would have carried `practice_id` and `idempotency_key` with it.
+    //
+    // NO `DELETE` AND NO `TRUNCATE` ANYWHERE, and `copilot_system` and `PUBLIC` hold NOTHING —
+    // both tables are tenant tables and the platform identity never reaches tenant data
+    // (D-023). For `audit_events` that is also D-063 clause 5: cross-practice audit
+    // readability is categorically forbidden.
     const privileges = ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES'];
     const grantees = ['copilot_app', 'copilot_system', 'public'];
 
@@ -812,30 +845,41 @@ describe('ZERO-CAPABILITY BOUNDARY after package 011 (D-064 `OD-1`)', () => {
             table,
             grantee,
             privilege,
-            held: false,
+            held: grantee === 'copilot_app' && (privilege === 'SELECT' || privilege === 'INSERT'),
           });
         }
       }
     }
   });
 
-  it('given both new tables when inspected then ZERO policies exist on them', async () => {
+  it('given both new tables then EXACTLY the FIVE §29.4a policies exist on them', async () => {
     // The three `idempotency_keys` policies and the two of `audit_events` (§29.4a) belong to
-    // the phase 5 slice of `013_rls_policies`, in the SAME transaction as the grants they
-    // restrict. Pulling either half forward is exactly what D-049 clause 5 forbids.
+    // the phase 5 slice of `013_rls_policies` and were created in the SAME transaction as the
+    // grants they restrict. Pulling either half forward is exactly what D-049 clause 5 forbids,
+    // and the old exact set of ZERO is superseded by this one of FIVE (D-064 `OD-9`).
+    //
+    // `audit_events` has NO update and NO delete policy, matching the absence of those grants.
     const result = await migrator.query<{ tablename: string; policyname: string }>(
       `select tablename, policyname from pg_policies
         where schemaname = 'public' and tablename in (${PACKAGE_011_TABLE_LIST})
         order by tablename, policyname`,
     );
 
-    expect(result.rows).toStrictEqual([]);
+    expect(result.rows).toStrictEqual([
+      { tablename: 'audit_events', policyname: 'audit_events_insert' },
+      { tablename: 'audit_events', policyname: 'audit_events_select' },
+      { tablename: 'idempotency_keys', policyname: 'idempotency_keys_insert' },
+      { tablename: 'idempotency_keys', policyname: 'idempotency_keys_select' },
+      { tablename: 'idempotency_keys', policyname: 'idempotency_keys_update' },
+    ]);
   });
 
-  it('given both new tables when inspected then relrowsecurity and relforcerowsecurity are FALSE', async () => {
-    // THE INTERMEDIATE STATE, MODELLED EXACTLY. `false`/`false` is INTENDED and is not a
-    // defect: no runtime role can reach either table, so there is nothing yet for a policy to
-    // restrict. `P5-I2A` must NOT "fix" this by pulling `P5-I2B` forward.
+  it('given both new tables when inspected then relrowsecurity and relforcerowsecurity are TRUE', async () => {
+    // THE STEADY STATE, MODELLED EXACTLY. Both stood `false`/`false` after `P5-I2A`, which was
+    // INTENDED and not a defect: no runtime role could reach either table, so there was
+    // nothing yet for a policy to restrict, and `P5-I2A` must not have "fixed" it by pulling
+    // `P5-I2B` forward. `P5-I2B` now sets both flags in the same transaction as the grants
+    // (D-049 clause 5), and the old exact `false`/`false` set is superseded (D-064 `OD-9`).
     const result = await migrator.query<{
       relname: string;
       relrowsecurity: boolean;
@@ -849,17 +893,19 @@ describe('ZERO-CAPABILITY BOUNDARY after package 011 (D-064 `OD-1`)', () => {
     );
 
     expect(result.rows).toStrictEqual([
-      { relname: 'audit_events', relrowsecurity: false, relforcerowsecurity: false },
-      { relname: 'idempotency_keys', relrowsecurity: false, relforcerowsecurity: false },
+      { relname: 'audit_events', relrowsecurity: true, relforcerowsecurity: true },
+      { relname: 'idempotency_keys', relrowsecurity: true, relforcerowsecurity: true },
     ]);
   });
 
-  it('given the whole schema when inspected then SIX tables force RLS and SEVEN do not yet', async () => {
-    // The whole-schema view of the same intermediate state, row by row. The six tables of
-    // packages `002`/`013` are asserted to have KEPT `true`/`true` — this slice must not
-    // disturb any of them, and this comparison is the mechanical proof that it did not. The
-    // five `P5-I1` tables and the two new ones are all `false`/`false`. The old exact set of
-    // ELEVEN rows is superseded by this one of THIRTEEN (D-064 `OD-9`).
+  it('given the whole schema when inspected then ALL THIRTEEN tables force RLS after P5-I2B', async () => {
+    // The whole-schema view of the same steady state, row by row. The six tables of packages
+    // `002`/`013` are asserted to have KEPT `true`/`true` — neither this slice nor `P5-I2B`
+    // may disturb any of them, and this comparison is the mechanical proof that neither did.
+    // The five `P5-I1` tables and the two new ones stood `false`/`false` until `P5-I2B` moved
+    // all seven to `true`/`true` in one explicit transaction (§29.4a.0). The old exact set —
+    // six `true`/`true` plus seven `false`/`false` — is superseded by this one of thirteen
+    // `true`/`true` (D-064 `OD-9`).
     const result = await migrator.query<{
       relname: string;
       relrowsecurity: boolean;
@@ -873,29 +919,30 @@ describe('ZERO-CAPABILITY BOUNDARY after package 011 (D-064 `OD-1`)', () => {
     );
 
     expect(result.rows).toStrictEqual([
-      { relname: 'audit_events', relrowsecurity: false, relforcerowsecurity: false },
-      { relname: 'encounter_diagnoses', relrowsecurity: false, relforcerowsecurity: false },
-      { relname: 'encounter_documents', relrowsecurity: false, relforcerowsecurity: false },
-      { relname: 'encounters', relrowsecurity: false, relforcerowsecurity: false },
-      { relname: 'idempotency_keys', relrowsecurity: false, relforcerowsecurity: false },
-      { relname: 'patient_references', relrowsecurity: false, relforcerowsecurity: false },
+      { relname: 'audit_events', relrowsecurity: true, relforcerowsecurity: true },
+      { relname: 'encounter_diagnoses', relrowsecurity: true, relforcerowsecurity: true },
+      { relname: 'encounter_documents', relrowsecurity: true, relforcerowsecurity: true },
+      { relname: 'encounters', relrowsecurity: true, relforcerowsecurity: true },
+      { relname: 'idempotency_keys', relrowsecurity: true, relforcerowsecurity: true },
+      { relname: 'patient_references', relrowsecurity: true, relforcerowsecurity: true },
       { relname: 'platform_role_assignments', relrowsecurity: true, relforcerowsecurity: true },
       { relname: 'practice_membership_roles', relrowsecurity: true, relforcerowsecurity: true },
       { relname: 'practice_memberships', relrowsecurity: true, relforcerowsecurity: true },
       { relname: 'practice_settings', relrowsecurity: true, relforcerowsecurity: true },
       { relname: 'practices', relrowsecurity: true, relforcerowsecurity: true },
-      { relname: 'storage_objects', relrowsecurity: false, relforcerowsecurity: false },
+      { relname: 'storage_objects', relrowsecurity: true, relforcerowsecurity: true },
       { relname: 'users', relrowsecurity: true, relforcerowsecurity: true },
     ]);
     expect(result.rows).toHaveLength(13);
-    expect(result.rows.filter((row) => row.relforcerowsecurity)).toHaveLength(6);
-    expect(result.rows.filter((row) => !row.relrowsecurity)).toHaveLength(7);
+    expect(result.rows.filter((row) => row.relforcerowsecurity)).toHaveLength(13);
+    expect(result.rows.filter((row) => !row.relrowsecurity)).toHaveLength(0);
   });
 
-  it('given the whole schema when inspected then still EXACTLY TEN policies exist', async () => {
-    // `P5-I2A` creates none. The eight phase 5 PHI policies of §29.4 and the five of §29.4a
-    // arrive with `P5-I2B`, taking the canonical total to 23 over 13 tables (D-064 `OD-6`).
-    // Until then the count must stay at the phase 3/4 ten.
+  it('given the whole schema when inspected then EXACTLY TWENTY-FIVE policies exist', async () => {
+    // `P5-I2A` creates none of its own. The TEN phase 5 PHI policies of §29.4 and the FIVE of
+    // §29.4a arrive with `P5-I2B`, taking the canonical total to 25 over 13 tables (D-065
+    // `RULING 1`). The old exact value of `10` is superseded by `25` (D-064 `OD-9`); the
+    // superseded totals `8` PHI, `18 / 11` and `23` must never reappear as an expected value.
     const result = await migrator.query<{ total: string }>(
       `select count(*)::text as total
          from pg_policy p
@@ -904,7 +951,7 @@ describe('ZERO-CAPABILITY BOUNDARY after package 011 (D-064 `OD-1`)', () => {
         where n.nspname = 'public'`,
     );
 
-    expect(result.rows[0]?.total).toBe('10');
+    expect(result.rows[0]?.total).toBe('25');
   });
 
   it('given schema public when inspected then no DEFAULT PRIVILEGE could have pre-granted the new tables', async () => {
@@ -940,7 +987,7 @@ describe('ZERO-CAPABILITY BOUNDARY after package 011 (D-064 `OD-1`)', () => {
     ]);
   });
 
-  it('given schema app_security when inspected then package 011 added no function and no trigger', async () => {
+  it('given schema app_security then neither package 011 nor P5-I2B added a function or trigger', async () => {
     const functions = await migrator.query<{ proname: string; prosecdef: boolean }>(
       `select p.proname, p.prosecdef from pg_proc p
          join pg_namespace n on n.oid = p.pronamespace
@@ -950,7 +997,8 @@ describe('ZERO-CAPABILITY BOUNDARY after package 011 (D-064 `OD-1`)', () => {
 
     // The three phase 3/4 context functions and nothing else. In particular
     // `reject_aad_bound_column_change` — package `014`, sub-gate `P5-I2C` — must be ABSENT,
-    // and no function is `SECURITY DEFINER`.
+    // and no function is `SECURITY DEFINER`. `P5-I2B` creates neither: it owns grants, RLS
+    // flags and policies, and DOES NOT AUTHORISE `P5-I2C`.
     expect(functions.rows.map((row) => row.proname)).toStrictEqual([
       'set_auth_subject_context',
       'set_request_context',
@@ -970,7 +1018,7 @@ describe('ZERO-CAPABILITY BOUNDARY after package 011 (D-064 `OD-1`)', () => {
   });
 });
 
-describe('package 011 forward SQL — static package boundary (D-064 `OD-1`, `OD-5`)', () => {
+describe('package 011 forward SQL — static package boundary, PERMANENT (D-064 `OD-1`, `OD-5`)', () => {
   /**
    * The migration's OPERATIONAL SQL, with comments stripped.
    *
@@ -995,6 +1043,12 @@ describe('package 011 forward SQL — static package boundary (D-064 `OD-1`, `OD
   it('given the package 011 forward SQL then it issues NO security statement of any kind', () => {
     // D-064 `OD-1`, made mechanical. The phase 5 slice of `013_rls_policies` is the EXCLUSIVE
     // owner of every one of these for both new tables; the slice of `014` owns the triggers.
+    //
+    // THIS ASSERTION IS PERMANENT AND SURVIVES `P5-I2B` UNCHANGED. The LIVE state of both
+    // tables deliberately changed — they now carry grants, RLS and five policies — but what
+    // must stay provable forever is that MIGRATION `011` ITSELF introduced no runtime
+    // capability. It is already applied and is never edited (AGENTS.md §5.1, 00 §6.2), so this
+    // can only fail if someone rewrites history.
     const operational = operationalSql();
 
     expect(/\bgrant\b/i.test(operational)).toBe(false);
@@ -1111,10 +1165,14 @@ describe('no existing-object drift (D-061 clause 11; D-064 `OD-5`)', () => {
     ]);
   });
 
-  it('given the eleven pre-existing tables when inspected then their grant catalogue is unchanged', async () => {
-    // The phase 3/4 grant surface is byte-identical to its `P5-I1` state, and the five `P5-I1`
-    // tables still hold nothing. This slice issues no GRANT, so the whole-schema table grant
-    // catalogue must be exactly what package `002`/`013` left behind.
+  it('given the four phase 3/4 grant rows then they are byte-identical to their phase 4 state', async () => {
+    // THE PART THAT MUST NEVER CHANGE. Neither this slice nor `P5-I2B` may touch the phase 3/4
+    // privilege surface, and in particular no grant on `practice_memberships` may be added,
+    // narrowed or removed (D-061 clause 11, D-062 Dio B.4, §29.7).
+    //
+    // The six phase 5 rows above them belong to `P5-I2B` and their contract is owned by
+    // `phase5-rls-grants.security.ts`; the whole-schema query stays an exact full set, so its
+    // old set of four rows is superseded by this one of ten (D-064 `OD-9`).
     const result = await migrator.query<{ table_name: string; grantee: string; privs: string }>(
       `select table_name, grantee, string_agg(privilege_type, ',' order by privilege_type) as privs
          from information_schema.role_table_grants
@@ -1124,6 +1182,12 @@ describe('no existing-object drift (D-061 clause 11; D-064 `OD-5`)', () => {
     );
 
     expect(result.rows).toStrictEqual([
+      { table_name: 'audit_events', grantee: 'copilot_app', privs: 'INSERT,SELECT' },
+      { table_name: 'encounter_diagnoses', grantee: 'copilot_app', privs: 'INSERT,SELECT' },
+      { table_name: 'encounter_documents', grantee: 'copilot_app', privs: 'INSERT,SELECT' },
+      { table_name: 'encounters', grantee: 'copilot_app', privs: 'INSERT,SELECT' },
+      { table_name: 'idempotency_keys', grantee: 'copilot_app', privs: 'INSERT,SELECT' },
+      { table_name: 'patient_references', grantee: 'copilot_app', privs: 'INSERT,SELECT' },
       { table_name: 'platform_role_assignments', grantee: 'copilot_app', privs: 'SELECT' },
       { table_name: 'platform_role_assignments', grantee: 'copilot_system', privs: 'SELECT' },
       { table_name: 'practice_membership_roles', grantee: 'copilot_app', privs: 'SELECT' },
@@ -1131,22 +1195,27 @@ describe('no existing-object drift (D-061 clause 11; D-064 `OD-5`)', () => {
     ]);
   });
 
-  it('given the five P5-I1 tables when inspected then they are still zero-capability', async () => {
-    // `P5-I2A` must not pull `P5-I2B` forward for the PHI tables either. The package `003`
-    // zero-capability boundary is unchanged by this slice.
-    const result = await migrator.query<{
-      table_name: string;
-      grantee: string;
-      privilege_type: string;
-    }>(
-      `select table_name, grantee, privilege_type from information_schema.role_table_grants
-        where table_schema = 'public'
-          and table_name in ('patient_references', 'encounters', 'encounter_diagnoses',
-                             'storage_objects', 'encounter_documents')
+  it('given storage_objects then it is STILL zero-capability, alone among the P5-I1 five', async () => {
+    // The four other `P5-I1` tables received the §29.5 surface with `P5-I2B`; `storage_objects`
+    // deliberately received NOTHING and keeps `ENABLE` + `FORCE ROW LEVEL SECURITY` with zero
+    // policies, which is default-deny. It exists only as the foreign-key parent of
+    // `encounter_documents`, and no phase 5 route reads or writes it.
+    //
+    // This must NOT be "fixed" by adding a policy or a privilege (D-065 `RULING 1`).
+    const result = await migrator.query<{ grantee: string; privilege_type: string }>(
+      `select grantee, privilege_type from information_schema.role_table_grants
+        where table_schema = 'public' and table_name = 'storage_objects'
           and grantee <> 'copilot_migrator'
-        order by table_name, grantee, privilege_type`,
+        order by grantee, privilege_type`,
     );
 
     expect(result.rows).toStrictEqual([]);
+
+    const policies = await migrator.query<{ policyname: string }>(
+      `select policyname from pg_policies
+        where schemaname = 'public' and tablename = 'storage_objects'`,
+    );
+
+    expect(policies.rows).toStrictEqual([]);
   });
 });

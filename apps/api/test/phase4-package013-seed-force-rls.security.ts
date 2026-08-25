@@ -57,15 +57,21 @@ const apiRoot = resolve(import.meta.dirname, '..');
  * The canonical chain, in application order.
  *
  * Package `003_patient_encounter_documents` carries a LOWER number but a LATER timestamp, and
- * the phase 5 slice of `011_jobs_idempotency_outbox_audit` is later still: package numbers
- * carry OWNERSHIP, not execution order (D-052, D-062 Dio B.3, D-064 `OD-8`). Both are listed
- * here because this assertion is an EXACT chain and must model the deployed reality; neither
- * changes anything this file proves. The chain grew from FOUR to FIVE with sub-gate `P5-I2A`
- * — a canonical old-exact-set -> new-exact-set evolution authorised by D-064 `OD-9`, never a
- * weakening. Package `003` and the phase 5 slice of `011` issue no grant, no policy and no RLS
- * flag (02 §22.3, §22.11, D-063 clause 2, D-064 `OD-1`), so the §23.4 FORCE-RLS maintenance
- * allowlist stays at exactly six tables and neither a phase 5 PHI table nor `idempotency_keys`
- * nor `audit_events` is ever seeded (D-062 Dio K).
+ * both phase 5 slices are later still: package numbers carry OWNERSHIP, not execution order
+ * (D-052, D-062 Dio B.3, D-064 `OD-8`). All three are listed here because this assertion is an
+ * EXACT chain and must model the deployed reality; none of them changes anything this file
+ * proves. The chain grew from FOUR to FIVE with sub-gate `P5-I2A` and from FIVE to SIX with
+ * `P5-I2B` — canonical old-exact-set -> new-exact-set evolutions authorised by D-064 `OD-9`,
+ * never a weakening.
+ *
+ * WHAT `P5-I2B` DOES NOT CHANGE HERE, AND MUST NEVER: the §23.4 FORCE-RLS MAINTENANCE
+ * ALLOWLIST STAYS AT EXACTLY SIX TABLES. The phase 5 slice of `013_rls_policies` puts seven
+ * further tables under `ENABLE` + `FORCE ROW LEVEL SECURITY`, but §23.4.4b (D-062 Dio K)
+ * records that NO phase 5 table is ever seeded, so trusted DML never touches one and the
+ * maintenance window stays permanently away from medical data. A table under FORCE is NOT
+ * automatically a maintenance-window table, and this file asserts both halves separately: the
+ * allowlist contract below stays at six, while the whole-schema FORCE count is owned by
+ * `phase5-rls-grants.security.ts`.
  */
 const EXPECTED_MIGRATIONS = [
   '20260810213856_001_extensions_and_roles',
@@ -73,6 +79,7 @@ const EXPECTED_MIGRATIONS = [
   '20260816111141_013_rls_policies',
   '20260823104252_003_patient_encounter_documents',
   '20260823211546_011_jobs_idempotency_outbox_audit_phase5',
+  '20260825013452_013_rls_policies_phase5',
 ] as const;
 
 interface RowSecurityState {

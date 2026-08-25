@@ -33,11 +33,20 @@ import { connect, securityDatabase } from './support/phase3-security-context.js'
  * the zero-capability boundary) is owned by `phase5-schema-catalogue.security.ts`.
  *
  * What package `003` DOES NOT change is asserted here just as strictly: it issues no grant, no
- * policy and no RLS flag, so the `002`/`013` privilege catalogue, the ten policies and the
- * three context functions below must all be BYTE-IDENTICAL to their phase 4 state. In
- * particular `practice_memberships` receives no structural change of any kind — the
- * responsible-physician foreign key is created on `encounters`, against a parent key that has
- * existed since package `002` (D-061 clause 11, D-062 Dio B.4).
+ * policy and no RLS flag, and the three context functions below must be BYTE-IDENTICAL to
+ * their phase 4 state. In particular `practice_memberships` receives no structural change of
+ * any kind — the responsible-physician foreign key is created on `encounters`, against a
+ * parent key that has existed since package `002` (D-061 clause 11, D-062 Dio B.4).
+ *
+ * `P5-I2B` RECONCILIATION (02 §29.4, §29.4a, §29.5; D-064 `OD-9`; D-065 `RULING 1`). The
+ * phase 5 slice of `013_rls_policies` deliberately changes the security steady state: the
+ * seven phase 5 tenant tables receive their grants, `ENABLE` + `FORCE ROW LEVEL SECURITY` and
+ * fifteen new policies, all in ONE explicit transaction. The whole-schema assertions here —
+ * the RLS flags, the policy catalogue, the `WITH CHECK` catalogue and the table-level grant
+ * catalogue — are therefore REPLACED BY NEW EXACT SETS, never broadened into containment
+ * checks. The TEN phase 3/4 policies are still asserted individually and must stay
+ * byte-identical; the steady-state contract of the fifteen new ones is owned by
+ * `phase5-rls-grants.security.ts` (D-064 `OD-9` part B).
  */
 const database = securityDatabase();
 
@@ -52,7 +61,7 @@ afterAll(async () => {
 });
 
 describe('migration history', () => {
-  it('given the disposable database when migrated then exactly packages 001, 002, 013, 003 and the 011 phase 5 slice are applied', async () => {
+  it('given the disposable database when migrated then exactly packages 001, 002, 013, 003 and both phase 5 slices are applied', async () => {
     const result = await migrator.query<{
       migration_name: string;
       finished: boolean;
@@ -69,14 +78,15 @@ describe('migration history', () => {
       '20260810213856_001_extensions_and_roles',
       '20260814013200_002_identity_and_practices',
       '20260816111141_013_rls_policies',
-      // Package `003` carries a LOWER number but a LATER timestamp, and the phase 5 slice of
-      // `011` a later one still: package numbers carry OWNERSHIP, not execution order (D-052,
+      // Package `003` carries a LOWER number but a LATER timestamp, and both phase 5 slices
+      // later ones still: package numbers carry OWNERSHIP, not execution order (D-052,
       // D-062 Dio B.3, D-064 `OD-8`). The chain grew from FOUR to FIVE with sub-gate `P5-I2A`
-      // — a canonical old-exact-set -> new-exact-set evolution authorised by D-064 `OD-9`,
-      // never a weakening. The phase 5 slices of `013` and `014` are still not applied: they
-      // belong to `P5-I2B` and `P5-I2C`, and the canonical chain reaches SEVEN only then.
+      // and from FIVE to SIX with `P5-I2B` — canonical old-exact-set -> new-exact-set
+      // evolutions authorised by D-064 `OD-9`, never a weakening. The phase 5 slice of `014`
+      // is still not applied: it belongs to `P5-I2C`, and the chain reaches SEVEN only then.
       '20260823104252_003_patient_encounter_documents',
       '20260823211546_011_jobs_idempotency_outbox_audit_phase5',
+      '20260825013452_013_rls_policies_phase5',
     ]);
     expect(result.rows.every((row) => row.finished && !row.rolled_back)).toBe(true);
   });
@@ -537,7 +547,7 @@ describe('constraints and indexes (02 §6.1-§6.5, §21, §22.2)', () => {
 });
 
 describe('privilege catalogue (02 §20.2, §20.2a, §20.2b; D-047, D-049, D-051)', () => {
-  it('given package 002 when applied then exactly these table-level grants exist', async () => {
+  it('given the canonical chain when applied then exactly these table-level grants exist', async () => {
     const result = await migrator.query<{ table_name: string; grantee: string; privs: string }>(
       `select table_name, grantee, string_agg(privilege_type, ',' order by privilege_type) as privs
          from information_schema.role_table_grants
@@ -546,9 +556,25 @@ describe('privilege catalogue (02 §20.2, §20.2a, §20.2b; D-047, D-049, D-051)
         order by table_name, grantee`,
     );
 
-    // No INSERT, no UPDATE, no DELETE for any runtime role anywhere in this package
-    // (D-047 clause 15, D-033 clause 13, D-038 clause 24, D-023 clause 11).
+    // PACKAGE `002` STILL GRANTS NO INSERT, UPDATE OR DELETE anywhere (D-047 clause 15,
+    // D-033 clause 13, D-038 clause 24, D-023 clause 11) — the four phase 3/4 rows at the
+    // bottom are byte-identical to their phase 4 state.
+    //
+    // The six `INSERT,SELECT` rows above them belong to `P5-I2B` (§29.5, §29.4a.3, §29.4a.4).
+    // NO `UPDATE` APPEARS IN THIS RESULT AT ALL, because every phase 5 `UPDATE` grant is
+    // COLUMN-LEVEL and therefore lives only in `role_column_grants` — which is exactly what
+    // makes `practice_id` and `id` immovable at the privilege level. `storage_objects` is
+    // ABSENT ON PURPOSE: it receives zero capability (§29.5), and `copilot_system` and
+    // `PUBLIC` hold nothing on any phase 5 table (D-023).
+    //
+    // The old exact set of FOUR rows is superseded by this one of TEN (D-064 `OD-9`).
     expect(result.rows).toStrictEqual([
+      { table_name: 'audit_events', grantee: 'copilot_app', privs: 'INSERT,SELECT' },
+      { table_name: 'encounter_diagnoses', grantee: 'copilot_app', privs: 'INSERT,SELECT' },
+      { table_name: 'encounter_documents', grantee: 'copilot_app', privs: 'INSERT,SELECT' },
+      { table_name: 'encounters', grantee: 'copilot_app', privs: 'INSERT,SELECT' },
+      { table_name: 'idempotency_keys', grantee: 'copilot_app', privs: 'INSERT,SELECT' },
+      { table_name: 'patient_references', grantee: 'copilot_app', privs: 'INSERT,SELECT' },
       { table_name: 'platform_role_assignments', grantee: 'copilot_app', privs: 'SELECT' },
       { table_name: 'platform_role_assignments', grantee: 'copilot_system', privs: 'SELECT' },
       { table_name: 'practice_membership_roles', grantee: 'copilot_app', privs: 'SELECT' },
@@ -715,7 +741,7 @@ describe('privilege catalogue (02 §20.2, §20.2a, §20.2b; D-047, D-049, D-051)
 });
 
 describe('RLS and policy catalogue (02 §17.2, §17.4, §17.5, §17.6; D-047, D-051)', () => {
-  it('given the canonical chain when applied then the SIX phase 3/4 tables force RLS and the SEVEN phase 5 tables do not yet', async () => {
+  it('given the canonical chain when applied then ALL THIRTEEN tables carry ENABLE and FORCE RLS', async () => {
     const result = await migrator.query<{
       relname: string;
       relrowsecurity: boolean;
@@ -732,38 +758,39 @@ describe('RLS and policy catalogue (02 §17.2, §17.4, §17.5, §17.6; D-047, D-
     // four owned by package `002` are NOT re-altered by `013` and are asserted here to have
     // kept that state; `practice_memberships` (§17.3, D-051 clause 5) and `practice_settings`
     // (§20.2b, §22.13) receive it in `013`, which is what closes both phase 3 intermediate
-    // exposures. Package `003` must not disturb any of the six, and this row-by-row comparison
-    // is the mechanical proof that it did not.
+    // exposures. Neither package `003` nor either phase 5 slice may disturb any of the six,
+    // and this row-by-row comparison is the mechanical proof that none did.
     //
-    // THE SEVEN PHASE 5 TABLES ARE `false`/`false`, AND THAT IS THE ACCEPTED INTERMEDIATE
-    // STATE (02 §22.3, §22.11, D-062 Dio B.3, D-063 clause 2, D-064 `OD-1`). Package `003` and
-    // the phase 5 slice of package `011` both issue no GRANT, so no runtime role can reach any
-    // of the seven at all and there is nothing yet for a policy to restrict; the ABSENCE OF A
-    // GRANT is the security control of both slices. RLS, FORCE RLS, the eight policies of
-    // §29.4, the five of §29.4a and the grants they restrict all arrive together, in ONE
-    // transaction, with the phase 5 slice of `013_rls_policies`. This assertion models that
-    // intermediate state EXACTLY rather than being broadened to tolerate it, so pulling either
-    // half forward — or leaving a phase 5 table `true`/`false` — fails here. The old exact set
-    // of ELEVEN rows is superseded by this one of THIRTEEN (D-064 `OD-9`).
+    // THE SEVEN PHASE 5 TABLES ARE NOW `true`/`true` TOO. They stood `false`/`false` after
+    // `P5-I1` and `P5-I2A`, which was the accepted INTERMEDIATE state precisely because
+    // neither slice issued a GRANT: a table no runtime role can reach needs no policy. The
+    // phase 5 slice of `013_rls_policies` (`P5-I2B`) issues the grants, `ENABLE`, `FORCE` and
+    // the ten policies of §29.4 plus the five of §29.4a TOGETHER, inside ONE explicit
+    // `BEGIN`/`COMMIT` transaction (§29.4a.0, D-065 `RULING 2`), so no committed state ever
+    // exposes a capability without the tenant policy that constrains it (D-049 clause 5).
+    //
+    // The old exact set — six `true`/`true` plus seven `false`/`false` — is superseded by this
+    // one of thirteen `true`/`true` (D-064 `OD-9`). A phase 5 table left `true`/`false`, or
+    // any of the six flipped, fails here.
     expect(result.rows).toStrictEqual([
-      { relname: 'audit_events', relrowsecurity: false, relforcerowsecurity: false },
-      { relname: 'encounter_diagnoses', relrowsecurity: false, relforcerowsecurity: false },
-      { relname: 'encounter_documents', relrowsecurity: false, relforcerowsecurity: false },
-      { relname: 'encounters', relrowsecurity: false, relforcerowsecurity: false },
-      { relname: 'idempotency_keys', relrowsecurity: false, relforcerowsecurity: false },
-      { relname: 'patient_references', relrowsecurity: false, relforcerowsecurity: false },
+      { relname: 'audit_events', relrowsecurity: true, relforcerowsecurity: true },
+      { relname: 'encounter_diagnoses', relrowsecurity: true, relforcerowsecurity: true },
+      { relname: 'encounter_documents', relrowsecurity: true, relforcerowsecurity: true },
+      { relname: 'encounters', relrowsecurity: true, relforcerowsecurity: true },
+      { relname: 'idempotency_keys', relrowsecurity: true, relforcerowsecurity: true },
+      { relname: 'patient_references', relrowsecurity: true, relforcerowsecurity: true },
       { relname: 'platform_role_assignments', relrowsecurity: true, relforcerowsecurity: true },
       { relname: 'practice_membership_roles', relrowsecurity: true, relforcerowsecurity: true },
       { relname: 'practice_memberships', relrowsecurity: true, relforcerowsecurity: true },
       { relname: 'practice_settings', relrowsecurity: true, relforcerowsecurity: true },
       { relname: 'practices', relrowsecurity: true, relforcerowsecurity: true },
-      { relname: 'storage_objects', relrowsecurity: false, relforcerowsecurity: false },
+      { relname: 'storage_objects', relrowsecurity: true, relforcerowsecurity: true },
       { relname: 'users', relrowsecurity: true, relforcerowsecurity: true },
     ]);
     expect(result.rows).toHaveLength(13);
   });
 
-  it('given the canonical chain when applied then exactly TEN policies exist, with their accepted mode, command and roles', async () => {
+  it('given the canonical chain when applied then exactly TWENTY-FIVE policies exist, with their accepted mode, command and roles', async () => {
     const result = await migrator.query<{
       tbl: string;
       polname: string;
@@ -784,7 +811,125 @@ describe('RLS and policy catalogue (02 §17.2, §17.4, §17.5, §17.6; D-047, D-
         order by c.relname, p.polname`,
     );
 
+    // THE FIFTEEN POLICIES OF `P5-I2B` COME FIRST in `order by relname, polname`, because
+    // every one of their tables sorts before `platform_role_assignments`. The named catalogue
+    // of §29.4a.2 is authoritative and the count follows the names, never the reverse: the
+    // superseded totals `8` PHI, `18 / 11` and `23` must never reappear as an expected value
+    // (D-065 `RULING 1`). `storage_objects` is ABSENT ON PURPOSE with ZERO policies — its
+    // `ENABLE` + `FORCE` with no policy is default-deny and is the security control (§29.4).
+    //
+    // The steady-state contract of these fifteen is owned by `phase5-rls-grants.security.ts`;
+    // they are listed here because this assertion is WHOLE-SCHEMA and must stay an exact full
+    // set (D-064 `OD-9`).
     expect(result.rows).toStrictEqual([
+      {
+        tbl: 'audit_events',
+        polname: 'audit_events_insert',
+        mode: 'PERMISSIVE',
+        command: 'a',
+        roles: 'copilot_app',
+      },
+      {
+        tbl: 'audit_events',
+        polname: 'audit_events_select',
+        mode: 'PERMISSIVE',
+        command: 'r',
+        roles: 'copilot_app',
+      },
+      {
+        tbl: 'encounter_diagnoses',
+        polname: 'encounter_diagnoses_insert',
+        mode: 'PERMISSIVE',
+        command: 'a',
+        roles: 'copilot_app',
+      },
+      {
+        tbl: 'encounter_diagnoses',
+        polname: 'encounter_diagnoses_select',
+        mode: 'PERMISSIVE',
+        command: 'r',
+        roles: 'copilot_app',
+      },
+      {
+        tbl: 'encounter_documents',
+        polname: 'encounter_documents_insert',
+        mode: 'PERMISSIVE',
+        command: 'a',
+        roles: 'copilot_app',
+      },
+      {
+        tbl: 'encounter_documents',
+        polname: 'encounter_documents_select',
+        mode: 'PERMISSIVE',
+        command: 'r',
+        roles: 'copilot_app',
+      },
+      // MANDATORY (D-065 `RULING 1`). It constrains the single-column `archived_at` grant and
+      // may never be deleted to make an obsolete policy total add up.
+      {
+        tbl: 'encounter_documents',
+        polname: 'encounter_documents_update',
+        mode: 'PERMISSIVE',
+        command: 'w',
+        roles: 'copilot_app',
+      },
+      {
+        tbl: 'encounters',
+        polname: 'encounters_insert',
+        mode: 'PERMISSIVE',
+        command: 'a',
+        roles: 'copilot_app',
+      },
+      {
+        tbl: 'encounters',
+        polname: 'encounters_select',
+        mode: 'PERMISSIVE',
+        command: 'r',
+        roles: 'copilot_app',
+      },
+      // MANDATORY (D-065 `RULING 1`). It constrains the twelve-column `UPDATE` grant of §29.5.
+      {
+        tbl: 'encounters',
+        polname: 'encounters_update',
+        mode: 'PERMISSIVE',
+        command: 'w',
+        roles: 'copilot_app',
+      },
+      {
+        tbl: 'idempotency_keys',
+        polname: 'idempotency_keys_insert',
+        mode: 'PERMISSIVE',
+        command: 'a',
+        roles: 'copilot_app',
+      },
+      {
+        tbl: 'idempotency_keys',
+        polname: 'idempotency_keys_select',
+        mode: 'PERMISSIVE',
+        command: 'r',
+        roles: 'copilot_app',
+      },
+      {
+        tbl: 'idempotency_keys',
+        polname: 'idempotency_keys_update',
+        mode: 'PERMISSIVE',
+        command: 'w',
+        roles: 'copilot_app',
+      },
+      {
+        tbl: 'patient_references',
+        polname: 'patient_references_insert',
+        mode: 'PERMISSIVE',
+        command: 'a',
+        roles: 'copilot_app',
+      },
+      {
+        tbl: 'patient_references',
+        polname: 'patient_references_select',
+        mode: 'PERMISSIVE',
+        command: 'r',
+        roles: 'copilot_app',
+      },
       {
         tbl: 'platform_role_assignments',
         polname: 'platform_role_assignments_self_select',
@@ -824,9 +969,10 @@ describe('RLS and policy catalogue (02 §17.2, §17.4, §17.5, §17.6; D-047, D-
         command: 'r',
         roles: 'copilot_app',
       },
-      // The ONLY non-SELECT policy in the whole catalogue. `w` is `FOR UPDATE`; it exists
-      // because `013` grants a bounded column-level UPDATE, and D-049 clause 5 forbids that
-      // grant to exist without the tenant policy that constrains it.
+      // `w` is `FOR UPDATE`; it exists because `013` grants a bounded column-level UPDATE, and
+      // D-049 clause 5 forbids that grant to exist without the tenant policy that constrains
+      // it. It was the ONLY non-SELECT policy until `P5-I2B` added six INSERT and three
+      // UPDATE policies above, each for exactly the same reason.
       {
         tbl: 'practice_settings',
         polname: 'practice_settings_update',
@@ -865,15 +1011,18 @@ describe('RLS and policy catalogue (02 §17.2, §17.4, §17.5, §17.6; D-047, D-
         roles: 'copilot_app',
       },
     ]);
-    expect(result.rows).toHaveLength(10);
+    expect(result.rows).toHaveLength(25);
   });
 
-  it('given the catalogue when inspected then EXACTLY ONE policy carries a WITH CHECK expression', async () => {
-    // Nine of the ten policies are FOR SELECT, where a WITH CHECK expression would mean an
-    // unaccounted write path. The tenth is `practice_settings_update`, and there the pairing is
-    // NORMATIVE rather than redundant (§17.1): `USING` decides which rows may be updated, while
-    // `WITH CHECK` forbids moving a row OUT of the established tenant by rewriting
-    // `practice_id`. Omitting it would leave the tenant key movable.
+  it('given the catalogue when inspected then EXACTLY TEN policies carry a WITH CHECK expression', async () => {
+    // Fifteen of the twenty-five policies are FOR SELECT, where a WITH CHECK expression would
+    // mean an unaccounted write path. The other ten are the six phase 5 INSERT policies, the
+    // three phase 5 UPDATE policies and `practice_settings_update`. On every UPDATE policy the
+    // pairing is NORMATIVE rather than redundant (§17.1): `USING` decides which rows may be
+    // updated, while `WITH CHECK` forbids moving a row OUT of the established tenant by
+    // rewriting `practice_id`. Omitting it would leave the tenant key movable.
+    //
+    // The old exact set of ONE is superseded by this one of TEN (D-064 `OD-9`).
     const result = await migrator.query<{ polname: string; withcheck: string }>(
       `select p.polname, pg_get_expr(p.polwithcheck, p.polrelid) as withcheck
          from pg_policy p
@@ -883,11 +1032,25 @@ describe('RLS and policy catalogue (02 §17.2, §17.4, §17.5, §17.6; D-047, D-
         order by p.polname`,
     );
 
-    expect(result.rows.map((row) => row.polname)).toStrictEqual(['practice_settings_update']);
+    expect(result.rows.map((row) => row.polname)).toStrictEqual([
+      'audit_events_insert',
+      'encounter_diagnoses_insert',
+      'encounter_documents_insert',
+      'encounter_documents_update',
+      'encounters_insert',
+      'encounters_update',
+      'idempotency_keys_insert',
+      'idempotency_keys_update',
+      'patient_references_insert',
+      'practice_settings_update',
+    ]);
 
-    // The WITH CHECK predicate is the SAME canonical tenant predicate as the USING one.
+    // On `practice_settings_update` the WITH CHECK predicate is the SAME canonical tenant
+    // predicate as the USING one. The same pairing on the three phase 5 UPDATE policies is
+    // asserted by `phase5-rls-grants.security.ts`, which owns their contract.
     const using = await policyExpression(migrator, 'practice_settings_update');
-    expect(result.rows[0]?.withcheck).toBe(using);
+    const settings = result.rows.find((row) => row.polname === 'practice_settings_update');
+    expect(settings?.withcheck).toBe(using);
     expect(using).toContain("current_setting('app.practice_id'::text, true)");
   });
 
