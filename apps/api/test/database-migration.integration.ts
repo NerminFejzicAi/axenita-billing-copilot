@@ -18,8 +18,9 @@ import { runPrismaCli } from './support/run-prisma-cli.js';
  *
  * The expectations below describe the *current* canonical database. Phase 2 owned package
  * 001 alone; phase 3 added package 002; phase 4 added package 013; phase 5 adds package 003,
- * then the phase 5 slice of package 011 and then the phase 5 slice of package 013, so the
- * assertions name all six explicitly rather than counting, and a package appearing or
+ * then the phase 5 slice of package 011, then the phase 5 slice of package 013 and finally
+ * the phase 5 slice of package 014, so the
+ * assertions name all seven explicitly rather than counting, and a package appearing or
  * disappearing is a defect, not a test omission. The
  * assertion stays an EXACT chain — it is deliberately not weakened to a containment check,
  * because a package pulled forward from a later phase (02 §22) must fail here rather than pass
@@ -31,18 +32,24 @@ import { runPrismaCli } from './support/run-prisma-cli.js';
  * in the phase in which its tables exist (02 §29.10; D-064 `OD-8`).
  *
  * The chain grew from FOUR to FIVE and the table set from ELEVEN to THIRTEEN with sub-gate
- * `P5-I2A`, which creates `idempotency_keys` and `audit_events`, and from FIVE to SIX with
- * sub-gate `P5-I2B`, which adds the phase 5 security slice of `013_rls_policies`. Both are
+ * `P5-I2A`, which creates `idempotency_keys` and `audit_events`, from FIVE to SIX with
+ * sub-gate `P5-I2B`, which adds the phase 5 security slice of `013_rls_policies`, and from
+ * SIX to SEVEN with sub-gate `P5-I2C`, which adds the phase 5 AAD slice of
+ * `014_immutability_triggers`. All three are
  * deliberate, canonical old-exact-set -> new-exact-set evolutions explicitly authorised by
- * D-064 `OD-9`; neither is a weakening, and `exact` may never become `contains` or `subset`.
+ * D-064 `OD-9`; none is a weakening, and `exact` may never become `contains` or `subset`.
+ * SEVEN is the FINAL phase 5 count (02 §29.10).
  *
  * `P5-I2B` CREATES NO TABLE. It issues only grants, `ENABLE`/`FORCE ROW LEVEL SECURITY` and
  * policies, inside one explicit `BEGIN`/`COMMIT` boundary (02 §29.4a.0, D-065 `RULING 2`), so
  * the table set below is UNCHANGED at THIRTEEN — that invariance is itself an assertion. The
  * security catalogue it creates is owned by `phase5-rls-grants.security.ts`.
  *
- * The phase 5 slice of `014` is still NOT part of this chain — it belongs to `P5-I2C`, which
- * `P5-I2B` does not authorise — and `outbox_events` and `async_jobs` are not created in phase
+ * `P5-I2C` CREATES NO TABLE EITHER. The phase 5 slice of `014` adds one function, its
+ * `REVOKE` and three `BEFORE UPDATE` triggers inside one explicit `BEGIN`/`COMMIT` boundary,
+ * so the table set below is UNCHANGED at THIRTEEN — that invariance is itself an assertion.
+ * The AAD catalogue it creates is owned by `phase5-aad-immutability.security.ts`.
+ * `outbox_events` and `async_jobs` are not created in phase
  * 5 at all (D-064 `OD-5`), so both must still be absent from the table set below.
  *
  * Nothing destructive runs here: no reset, no drop, no volume operation.
@@ -58,6 +65,7 @@ const EXPECTED_MIGRATIONS = [
   '20260823104252_003_patient_encounter_documents',
   '20260823211546_011_jobs_idempotency_outbox_audit_phase5',
   '20260825013452_013_rls_policies_phase5',
+  '20260825214248_014_immutability_triggers_phase5',
 ] as const;
 
 /** Every business table the canonical history creates, in `order by tablename` order. */
