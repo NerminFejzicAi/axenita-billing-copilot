@@ -775,7 +775,24 @@ testa.
 
 ### 12.9.4 RLS i grantovi Faze 5 — negativni ugovor
 
+**Statusna napomena (D-066, 2026-08-25) — ovaj odjeljak više ne opisuje budući posao.** Ugovori
+17–26e su **implementirani i kanonski** pod-gateom **`P5-I2B`** (implementacijski commit
+`6efee207c9ca52a22ca2cdeb97773832931711e7`, audit `P5_I2B_I_A_PASS_READY_FOR_PUBLICATION`,
+**PR #36**, merge SHA `0e4d113f0eedddcd2db890180767768c5b422264`). **Trajni vlasnik njihovog
+izvršnog dokaza je `apps/api/test/phase5-rls-grants.security.ts`**, uveden tim pod-gateom po
+D-064, `OD-9`, dio B. **Izuzeci koji ostaju budući i neizvršeni:** stavka **26c** (behavioural
+dokaz AAD trigera) pripada **`P5-I2C`**, koji je **`NOT IMPLEMENTED` i `NOT AUTHORIZED`**, i
+**`★` RI-naspram-RLS dokaz** (`phase5-responsible-physician-ri.security.ts`) pripada
+**`P5-I2V`**, koji je **`NOT EXECUTED`**. **Dokaz paketa `014` je odsutan.**
+
 17. `relrowsecurity` **i** `relforcerowsecurity` su `true` na svih pet tabela — **trajna regresija**.
+    > **DOPUNA OBUHVATA — D-066 (tekući autoritet); tvrdnja iznad se ne slabi.** Pet PHI tabela
+    > ostaje **doslovno** obavezno. **Puni `FORCE RLS` skup je nakon `P5-I2B` `13 / 13` tenant
+    > tabela** — pet PHI tabela, `idempotency_keys`, `audit_events` i šest Faza-3/4 tabela — i
+    > **taj puni skup je zatečeno kanonsko stanje**, u vlasništvu
+    > `phase5-rls-grants.security.ts`. **`§23.4` maintenance allowlista ostaje na tačno šest
+    > tabela** i **nije proširena** (`02` §23.4.4b) — allowlist i `FORCE` skup **nisu isti skup**,
+    > i to je namjerno.
 18. **Deset novih politika Faze 5** postoji — tačno imenovani katalog `02` §29.4:
     `patient_references_select`, `patient_references_insert`, `encounters_select`,
     `encounters_insert`, `encounters_update`, `encounter_diagnoses_select`,
@@ -790,7 +807,7 @@ testa.
     > (10 Faza-3/4 + 10 PHI + 3 `idempotency_keys` + 2 `audit_events` = 25; `02` §29.4a).
     > `P5-I2B` uvodi **15** novih politika. **Nijedno ime politike se ne uklanja da bi se stari
     > zbir `23` održao.** Vlasnik te
-    > steady-state tvrdnje je **novi `phase5-rls-grants.security.ts`** (D-064, `OD-9`), koji uz
+    > steady-state tvrdnje je **`phase5-rls-grants.security.ts`** (D-064, `OD-9`), koji uz
     > politike posjeduje i tačne table/column grantove, **nula** `PUBLIC`, **nula**
     > `copilot_system` nad Faza-5 tenant objektima, tenant izolaciju i negativno privilegijsko
     > ponašanje. `phase5-schema-catalogue.security.ts` zadržava strukturni katalog paketa `003`
@@ -798,6 +815,17 @@ testa.
     > zasebnom `phase5-responsible-physician-ri.security.ts`. Exact-set ekspektacije smiju
     > evoluirati **stari tačan skup → novi tačan skup**; **`exact` → `contains`/`subset`/
     > `partial` ostaje kategorički zabranjeno**.
+    >
+    > **STATUS — D-066 (2026-08-25).** `phase5-rls-grants.security.ts` **postoji i kanonski je**
+    > (`P5-I2B`, PR #36) i **jeste** vlasnik ove steady-state tvrdnje: **25 politika nad 13
+    > tabela**, od čega je `P5-I2B` uveo **15**. Evolucija je izvedena **isključivo `stari tačan
+    > skup → novi tačan skup`**; **nijedna tvrdnja nije oslabljena** u
+    > `contains`/`subset`/`partial`. **Statički package-boundary ZERO-CAPABILITY dokaz paketa
+    > `003` je očuvan**, kao i **statički package-boundary dokaz paketa `011`**
+    > (`phase5-package011-catalogue.security.ts`) — oba dokazuju **forward SQL svog paketa**, ne
+    > tekuće živo stanje, pa ih kanoničnost `P5-I2B` ne obesmišljava. **`★` dokaz
+    > `phase5-responsible-physician-ri.security.ts` i dalje NE POSTOJI** — pripada `P5-I2V`,
+    > koji je **`NOT EXECUTED`**.
 19. **`copilot_system` ima nula grantova** nad svih pet tabela; **`PUBLIC` nula**.
 20. **`storage_objects` nema nijedan grant i nijednu politiku**, i drži **nula redova**.
 21. **Tačan skup column-level `UPDATE` kolona** na `encounters` (12 kolona) i na
@@ -824,8 +852,10 @@ grantove** (`copilot_system` = **nula**, `PUBLIC` = **nula**) · tenant predikat
 što je njena ograničavajuća tenant politika na snazi**, a **cross-practice čitljivost
 `audit_events` je kategorički zabranjena** — negativni test je **trajna regresija**.
 
-**Stavka 26b — objavljena enumeracija (D-064, `OD-1`–`OD-3`).** Obaveza iz stavke 26a je
-**ispunjena**; tačan katalog je `02` §29.4a. Testovi `P5-I2B` moraju tvrditi: `idempotency_keys`
+**Stavka 26b — objavljena enumeracija (D-064, `OD-1`–`OD-3`); IMPLEMENTIRANA I KANONSKA
+(D-066).** Obaveza iz stavke 26a je **ispunjena** i **izvršno pokrivena** —
+`phase5-rls-grants.security.ts`, `P5-I2B`, PR #36. Tačan katalog je `02` §29.4a. Testovi
+`P5-I2B` tvrde: `idempotency_keys`
 = `SELECT` + `INSERT` + **column-level** `UPDATE` nad **tačno** `response_status`,
 `response_body`, `locked_at`, `completed_at`, **bez** `DELETE`/`TRUNCATE`/blanket `UPDATE`-a, uz
 **tri** politike (`idempotency_keys_select|insert|update`, `UPDATE` sa `USING` **i**
@@ -834,7 +864,8 @@ grantove** (`copilot_system` = **nula**, `PUBLIC` = **nula**) · tenant predikat
 **nula** nad obje. Pokušaj `UPDATE`-a nad uskraćenom kolonom `idempotency_keys` pada sa
 **`42501`**.
 
-**Stavka 26c — behavioural test AAD trigera, korigovan (D-064, korekcija B; `02` §25.8a).**
+**Stavka 26c — behavioural test AAD trigera, korigovan (D-064, korekcija B; `02` §25.8a).
+BUDUĆA — vlasništvo `P5-I2C`, koji je `NOT IMPLEMENTED` i `NOT AUTHORIZED` (D-066).**
 **Ne smije se tražiti** `SQLSTATE 23514` od `copilot_migrator`-a nad **produkcijskom** Faza-5
 tabelom nakon `FORCE RLS`-a — migrator je i sam podložan `FORCE RLS`-u i nema primjenjivu
 politiku, pa red možda ne stigne do `BEFORE UPDATE` trigera. Dokaz se dijeli na **tri**:
@@ -856,8 +887,15 @@ transakcijski prekidajućeg iskaza**. **Dokaz atomičnosti se ne smije oslanjati
 da Prisma implicitno omotava `migration.sql` u transakciju** — ta pretpostavka je **zabranjena
 kao osnov sigurnosne tvrdnje**. Ovo je izvršni mehanizam obaveze iz D-064, `OD-1`, i **vrijedi
 specifično za ovu migraciju**; D-065 ne uvodi opštu projektnu politiku transakcijskog omotavanja
-migracija. **Ova stavka opisuje budući, još neautorizovan `P5-I2B`; nijedan postojeći izvršni
-test se njome ne mijenja.**
+migracija.
+
+**STATUS — ISPUNJENO I KANONSKI (D-066, 2026-08-25).** Ranija napomena „ova stavka opisuje
+budući, još neautorizovan `P5-I2B`" je **historijska** i više ne opisuje tekuće stanje. Kanonska
+migracija `20260825013452_013_rls_policies_phase5/migration.sql` nosi **tačno jedan** `BEGIN` i
+**tačno jedan** `COMMIT` na najvišem nivou, sa svih **15** `CREATE POLICY` iskaza te svim
+`REVOKE`, `GRANT`, `ENABLE RLS` i `FORCE RLS` iskazima unutar te iste transakcije. **Taj ugovor
+je izvršno dokazan statički**, nad samim tekstom migracije, u
+`apps/api/test/phase5-rls-grants.security.ts`.
 
 **Stavka 26e — zastarjeli komentari u testovima (D-065).** Neizvršni komentari u
 `phase3-schema-catalogue.security.ts` i `phase5-schema-catalogue.security.ts` koji §29.4 opisuju
@@ -867,6 +905,11 @@ politika nad pet PHI tabela i **tačno deset** politika u cijeloj šemi, što je
 zatečeno stanje). Komentari se ispravljaju **isključivo** u zasebno autorizovanom
 implementacijskom gateu `P5-I2B`, zajedno sa evolucijom exact-set asercija po D-064, `OD-9` —
 **stari tačan skup → novi tačan skup**, nikada `exact` → `contains`/`subset`/`partial`.
+
+**STATUS — IZVRŠENO (D-066, 2026-08-25).** Gate `P5-I2B` je izvršen i kanonski (PR #36).
+Zastarjela komentarska formulacija i exact-set asercije oba fajla su evoluirale **u tom gateu i
+nigdje drugdje**, isključivo **stari tačan skup → novi tačan skup**. **Nijedna tvrdnja nije
+oslabljena** u `contains`/`subset`/`partial`, i **nijedna primijenjena migracija nije editovana.**
 
 ### 12.9.5 Semantika arhive, statusa i odsutnih površina
 
