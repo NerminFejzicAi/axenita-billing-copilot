@@ -1140,17 +1140,78 @@ describe('P5-I2B security state is untouched by P5-I2C (02 §29.4a; D-065 `RULIN
 // =============================================================================
 
 describe('P5-I2C does NOT discharge ★ (D-064 `★` hard stop; 02 §29.4a)', () => {
-  it('given the repository then the ★ owner test does not exist and is not authored here', () => {
-    // `P5-I2V` owns `phase5-responsible-physician-ri.security.ts`. `P5-I2C` must not create
-    // it, and must not smuggle its assertions into this file.
+  /**
+   * This spec file's OWN source, with comments stripped.
+   *
+   * Comments MUST be stripped, for exactly the reason the package `003`, `011`, `013` and
+   * `014` forward-SQL scans strip them: this file DOCUMENTS both `★` halves in prose in order
+   * to record why it does not execute them, and flagging that prose would push a future author
+   * to delete the very text that carries the gate boundary.
+   *
+   * The path is `import.meta.filename` rather than a written-out path, so the scan cannot be
+   * pointed at some other, more convenient file.
+   */
+  const operationalSelfSource = (): string =>
+    readFileSync(import.meta.filename, 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, ' ')
+      .split('\n')
+      .map((line) => line.replace(/\/\/.*$/, ''))
+      .join('\n');
+
+  it('given the repository then the ★ owner test EXISTS and is owned by P5-I2V, not by this file', () => {
+    // THE LIVE-STATE HALF, AND WHY IT FLIPPED.
     //
-    // The `★` proof needs BOTH halves in ONE transaction: a same-practice co-member
-    // responsible-physician INSERT that SUCCEEDS through the composite foreign key, AND a
-    // direct `SELECT` of that same membership row returning ZERO ROWS. Nothing in this file
-    // executes either half, and SQLSTATE `42501` is NOT equivalent to the second one.
+    // `P5-I2V` has since created `phase5-responsible-physician-ri.security.ts`, so the old
+    // expectation `false` is now FALSE ABOUT THE WORLD. D-064 `OD-9` governs exactly this
+    // case: such an assertion is RESTATED in the form that stays true forever, and is NEVER
+    // deleted. The live-state half therefore becomes `true`, and the claim that actually
+    // carries the gate boundary — `P5-I2C` ITSELF authored NEITHER `★` half — is preserved
+    // PERMANENTLY as the static self-scan below.
+    //
+    // The two are different claims and must never be collapsed into one: the repository now
+    // CONTAINS `★`, while THIS package still does not IMPLEMENT it.
     expect(existsSync(resolve(apiRoot, 'test/phase5-responsible-physician-ri.security.ts'))).toBe(
-      false,
+      true,
     );
+  });
+
+  it('given this file own source then it implements NEITHER ★ half (P5-I2C package boundary)', () => {
+    // THE PACKAGE-OWNERSHIP HALF, MADE MECHANICAL AND PERMANENT (D-064 `OD-9`).
+    //
+    // `★` needs BOTH halves in ONE transaction: a same-practice co-member
+    // responsible-physician INSERT that SUCCEEDS through the composite foreign key, AND a
+    // direct `SELECT` of that same membership row returning ZERO ROWS. This file executes
+    // NEITHER, and that is proven from its own source rather than asserted in prose.
+    const operational = operationalSelfSource();
+
+    // Sanity: the scan really read a populated source file, so a silently empty read cannot
+    // make every check below vacuously true.
+    expect(operational.length).toBeGreaterThan(1000);
+
+    // ★ HALF A — a co-member responsible-physician assignment. Every `insert into encounters`
+    // in this file omits `responsible_physician_id` from its column list entirely, so no
+    // statement here can assign a responsible physician at all, whichever identity it used.
+    const encounterInserts = [
+      ...operational.matchAll(/insert\s+into\s+encounters\b([\s\S]*?)\bvalues\b/gi),
+    ];
+
+    expect(encounterInserts).toHaveLength(1);
+
+    for (const [, columns] of encounterInserts) {
+      expect(/\bresponsible_physician_id\b/i.test(columns ?? '')).toBe(false);
+    }
+
+    // ★ HALF B — a direct read of `practice_memberships`. This file never reads that table in
+    // any form, so it cannot observe the zero-rows half either. `42501` is NOT equivalent to
+    // it, and no assertion in this file may ever be read as standing in for it.
+    expect(/\bfrom\s+"?practice_memberships"?\b/i.test(operational)).toBe(false);
+    expect(/\bjoin\s+"?practice_memberships"?\b/i.test(operational)).toBe(false);
+
+    // And no DML of any kind reaches that table: `P5-I2C` neither reads nor writes it
+    // (D-061 clause 11, §29.7).
+    expect(/\binsert\s+into\s+"?practice_memberships"?\b/i.test(operational)).toBe(false);
+    expect(/\bupdate\s+"?practice_memberships"?\b/i.test(operational)).toBe(false);
+    expect(/\bdelete\s+from\s+"?practice_memberships"?\b/i.test(operational)).toBe(false);
   });
 
   it('given P5-I5 then it remains BLOCKED behind P5-I2V, which this gate does not execute', () => {
