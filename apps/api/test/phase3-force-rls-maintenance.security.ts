@@ -72,9 +72,23 @@ describe('steady state after migration and after seed (08 §21.6.1, §21.8)', ()
     },
   );
 
-  it('given the whole schema then EXACTLY these six tables carry ENABLE and FORCE, and no other', async () => {
-    // The counted form of the assertion above. A seventh table silently acquiring FORCE, or one
-    // of the six silently losing it, must fail here (02 §20.4, §25.1.2).
+  it('given the whole schema then EXACTLY these thirteen tables carry ENABLE and FORCE, and no other', async () => {
+    // The counted form of the assertion above. A fourteenth table silently acquiring FORCE, or
+    // one of the thirteen silently losing it, must fail here (02 §20.4, §25.1.2).
+    //
+    // THE ALLOWLIST AND THE FORCE SET ARE NO LONGER THE SAME SET, AND THAT IS THE POINT.
+    // Until sub-gate `P5-I2B` every FORCE table was also a §23.4 maintenance-window table, so
+    // this assertion could compare against the allowlist itself. `P5-I2B` puts the SEVEN phase
+    // 5 tenant tables under `ENABLE` + `FORCE` (§29.4, §29.4a, D-065 `RULING 1`) WITHOUT
+    // extending the allowlist by a single entry, because §23.4.4b (D-062 Dio K) records that
+    // no phase 5 table is ever seeded and trusted DML never touches one.
+    //
+    // The old exact set of SIX is therefore superseded by this exact set of THIRTEEN (D-064
+    // `OD-9`), and the SIX allowlisted tables are asserted to be a strict subset of it — which
+    // is the invariant that actually matters: a maintenance-window table must be under FORCE,
+    // never the other way round. Extending the allowlist to a phase 5 table is forbidden and
+    // fails the phase gate (§23.4.4, 08 §26.2); that prohibition is asserted separately in
+    // `phase5-rls-grants.security.ts` and in the D-052 allowlist contract below.
     const result = await migrator.query<{ relname: string }>(
       `select c.relname
          from pg_class c
@@ -86,10 +100,29 @@ describe('steady state after migration and after seed (08 §21.6.1, §21.8)', ()
 
     // Both sides are sorted in JavaScript rather than compared in the database's order, so the
     // assertion cannot become collation dependent.
-    expect(result.rows.map((row) => row.relname).sort()).toStrictEqual(
-      [...FORCE_RLS_MAINTENANCE_ALLOWLIST].sort(),
-    );
-    expect(result.rows).toHaveLength(6);
+    expect(result.rows.map((row) => row.relname).sort()).toStrictEqual([
+      'audit_events',
+      'encounter_diagnoses',
+      'encounter_documents',
+      'encounters',
+      'idempotency_keys',
+      'patient_references',
+      'platform_role_assignments',
+      'practice_membership_roles',
+      'practice_memberships',
+      'practice_settings',
+      'practices',
+      'storage_objects',
+      'users',
+    ]);
+    expect(result.rows).toHaveLength(13);
+
+    const forced = new Set(result.rows.map((row) => row.relname));
+
+    for (const table of FORCE_RLS_MAINTENANCE_ALLOWLIST) {
+      expect({ table, forced: forced.has(table) }).toStrictEqual({ table, forced: true });
+    }
+    expect(FORCE_RLS_MAINTENANCE_ALLOWLIST).toHaveLength(6);
   });
 });
 
