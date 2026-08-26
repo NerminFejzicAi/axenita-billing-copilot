@@ -5832,6 +5832,73 @@ jednim iskazom. `SET NULL` je nemoguć nad `NOT NULL` ključevima. `ON UPDATE` j
 `id`, `practice_id` i `user_id` immutable (§2.7.8, §19.3). **Historijski medicinski integritet je
 time očuvan: brisanje roditelja se odbija, ne kaskadira.**
 
+## 29.2a `★` RI-naspram-RLS — DOKAZANO, KANONSKI (`P5-I2V`; D-068)
+
+**Ovaj odjeljak je tekući autoritet za empirijski status FK-a #3 pod `FORCE RLS`-om.**
+
+Noseća pretpostavka mehanizma iz D-062, Dio D — **da PostgreSQL provjere referencijalnog
+integriteta zaobilaze row-level security** — **više nije pretpostavka.** Dokazana je nad Faza-5
+schemom, pod stvarnim runtime rolama i stvarnim `FORCE RLS`-om, pod-gateom **`P5-I2V`**:
+implementacijski commit `5b61a95a990b7179d62aa3338f8685cfa1c605fc`, audit
+`P5_I2V_I_A_PASS_READY_FOR_PUBLICATION`, **PR #40**, merge SHA
+`31de95230da6ff1b97a28e6386ee93b5da19aca5`. Trajni vlasnik dokaza je
+`apps/api/test/phase5-responsible-physician-ri.security.ts`.
+
+**Nalaz je KONJUNKCIJA**, dokazana u **jednoj** transakciji, na **istom** `pg.Client`-u, pod
+**stvarnim** `copilot_app`-om, **stvarnim** `FORCE RLS`-om i **istim** autentifikovanim
+user/practice kontekstom:
+
+```text
+A.  same-practice co-member B je PRIHVAĆEN kao encounters.responsible_physician_id
+    kroz encounters_responsible_physician_membership_fk, sa tačnom relacijom
+
+        encounters (practice_id, responsible_physician_id)
+          ->  practice_memberships (practice_id, user_id)
+
+    I ISTOVREMENO
+
+B.  direktan SELECT tačno tog istog B practice_memberships reda, u istoj
+    transakciji i istom kontekstu, vraća NULA REDOVA.
+```
+
+**`SQLSTATE 42501` NIJE ekvivalent polovini B**, i to je zapisano kao **izvršna tvrdnja**, ne kao
+proza.
+
+**Kataloško stanje pod kojim je dokaz izveden — zatečeno, ne ciljno:**
+
+| Svojstvo | Vrijednost |
+|---|---|
+| FK | **`encounters_responsible_physician_membership_fk`** |
+| oblik / akcije | **`MATCH SIMPLE`**, **`NO ACTION` / `NO ACTION`** |
+| `convalidated` / `condeferrable` / `condeferred` | **`true`** / **`false`** / **`false`** |
+| roditeljski ključ | **`practice_memberships_practice_user_key`** — tačno `(practice_id, user_id)` |
+| `practice_memberships` | **`ENABLE` + `FORCE ROW LEVEL SECURITY`** |
+| politike nad `practice_memberships` | **tačno 1** — `practice_memberships_self_select`, `PERMISSIVE`, `SELECT`, `TO copilot_app`, `user_id = app.user_id` |
+| `copilot_app` nad `practice_memberships` | **`SELECT` da**; `INSERT` / `UPDATE` / `DELETE` **ne** |
+| `PUBLIC` / `copilot_system` | **nula** / **nula** |
+
+**Zašto je `B = 0` pripisivo RLS-u, a ne artefaktu (D-068, `RULING D`).** Zero rows je tvrdnja o
+politici tek kada su alternativni uzroci mehanički isključeni. Isključeni su: **`B` fizički
+postoji** — isti lookup pod `app.user_id = B`, na istoj konekciji, u zasebnoj i prije `★`
+rollbackovanoj transakciji, vraća **tačno jedan** red; **unutar `★`** vlastiti `P/A` membership
+lookup vraća **tačno jedan** red, pa `SELECT` izvršava, privilegija je prisutna i kontekst je
+živ; **polovina A je rezolvirala `P/B` kroz živi validirani FK**; **`SELECT` privilegija
+postoji**, pa nula redova **nije** uskraćenje privilegije; **`pg_backend_pid()` i
+`pg_current_xact_id()`** dokazuju **jedan klijent i jednu transakciju**; **`A` nije `B`** je
+asertirano; i **red koji polovina B nije vidjela je tačno onaj roditeljski red na koji je ključ
+polovine A rezolvirao**.
+
+**Nijedno proširenje nije otvoreno.** Tačno tri role bez `rolsuper` i `rolbypassrls`, **nula**
+`SECURITY DEFINER` funkcija nad cijelom bazom, **nijedna** politika nad `practice_memberships`
+koja cilja `copilot_migrator`, **§23.4 allowlista tačno šest**, i **nijedan** novi grant,
+politika, rola, migracija, schema izmjena ni izmjena izvora. **AAD trigger nad `encounters` je
+`BEFORE UPDATE` only**, pa na `★`, koji je `INSERT`, **nije mogao okinuti** — paket `014` dokazu
+**`★`** ne doprinosi ni u jednom dijelu.
+
+**`★` ostaje trajna regresija.** Njegovo buduće rušenje je i dalje **`HARD HOLD`** i ponovo
+otvara `OD-P5-D2-5`; **neuspjeh ne autorizuje** slabljenje RLS-a, proširenje
+`practice_memberships_self_select`, `SECURITY DEFINER`, četvrtu rolu ni drugi klijent.
+
 ## 29.3 Obaveza prema Prisma sloju — normativno
 
 **Svaka** relacija Faze 5 mora u Prisma modelu nositi doslovno:
@@ -5930,6 +5997,28 @@ njegovom vlastitom funkcijom (§19.3, §22.14).
 **Zatvaranje `P5-I2C` ne zatvara `P5-I2`.** **`P5-I2` ostaje `IN_PROGRESS` / `NOT COMPLETE`**:
 **`P5-I2V` / `★`** ostaje **`NOT EXECUTED` i `NOT AUTHORIZED`**, **`P5-I5` ostaje `BLOCKED`**, i
 **Faza 5 ostaje `IN_PROGRESS`**.
+
+**AŽURIRANJE STATUSA (D-068, 2026-08-27) — pasus iznad se ne prepisuje.** Rečenica
+„**`P5-I2V` / `★`** ostaje **`NOT EXECUTED` i `NOT AUTHORIZED`**" je **tačna na dan svog zapisa
+(2026-08-26)** i **više ne opisuje tekuće stanje**. **`P5-I2V` je izvršen, nezavisno auditiran,
+merged i kanonski** — implementacijski commit `5b61a95a990b7179d62aa3338f8685cfa1c605fc`, audit
+`P5_I2V_I_A_PASS_READY_FOR_PUBLICATION`, **PR #40**, merge SHA
+`31de95230da6ff1b97a28e6386ee93b5da19aca5`, trajni vlasnik dokaza
+`apps/api/test/phase5-responsible-physician-ri.security.ts` — i **formalno je zatvoren (D-068)**.
+**`P5-I2V` je bio TEST-ONLY:** nijedna migracija, nijedna schema izmjena, nijedan grant, nijedna
+politika, nijedna rola i nijedna izmjena izvora.
+
+**Katalog ovog odjeljka se time NE mijenja.** `P5-I2V` ne izdaje nijedan `GRANT`, nijedan
+`REVOKE`, nijednu RLS zastavicu i nijednu politiku: **13 / 13**, **25 politika**, tačni table i
+column grantovi, `storage_objects` na nuli, `PUBLIC` i `copilot_system` na nuli, **§23.4
+allowlista tačno 6** i role `NOBYPASSRLS` — **sve nepromijenjeno i regresijski dokazano** u
+`phase5-responsible-physician-ri.security.ts` (§29.2a).
+
+**Sva četiri ratifikovana pod-gatea `P5-I2` su time iscrpljena** (D-064, *Segmentacija
+implementacije*), pa **`P5-I2` = `COMPLETE` / `VERIFIED` / `CANONICAL` / `FORMALLY CLOSED`
+(D-068)**. Checklist Faze 5 prelazi na **49 / 9** (`05` §6). **`P5-I5` prelazi iz `BLOCKED` u
+`ELIGIBLE FOR SEPARATE OWNER AUTHORIZATION`, i ostaje `NOT AUTHORIZED`.** **Faza 5 ostaje
+`IN_PROGRESS`; nije `DONE`.**
 
 ### 29.4a.0 Transakcijski mehanizam — eksplicitan `BEGIN` / `COMMIT` (D-065, `RULING 2`)
 
@@ -6336,3 +6425,12 @@ važi kao tekuće pravilo**; paket `014` **jest** implementiran i kanonski.
 
 **Ovo ne zatvara `P5-I2`.** **`P5-I2V` / `★` ostaje `NOT EXECUTED`**, **`P5-I5` ostaje
 `BLOCKED`**, **`P5-I2` ostaje `IN_PROGRESS` / `NOT COMPLETE`** i **Faza 5 ostaje `IN_PROGRESS`**.
+
+**AŽURIRANJE STATUSA (D-068, 2026-08-27) — pasus iznad se ne prepisuje.** On je **tačan na dan
+svog zapisa (2026-08-26)** i **više ne opisuje tekuće stanje**. **`P5-I2V` / `★` je izvršen,
+nezavisno auditiran, merged i kanonski** (**PR #40**, merge SHA
+`31de95230da6ff1b97a28e6386ee93b5da19aca5`) i **formalno zatvoren (D-068)**, pa je i **`P5-I2`
+`COMPLETE` / `VERIFIED` / `CANONICAL` / `FORMALLY CLOSED`**. **Broj migracijskih direktorija se
+time NE mijenja i ostaje 7** — `P5-I2V` je bio **TEST-ONLY** i **nije uveo nijednu migraciju**.
+**`P5-I5` = `ELIGIBLE FOR SEPARATE OWNER AUTHORIZATION` / `NOT AUTHORIZED`**; **Faza 5 ostaje
+`IN_PROGRESS`**.

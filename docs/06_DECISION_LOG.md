@@ -9068,6 +9068,494 @@ proširenje politike, drugi klijent ni proširenje allowliste.
 
 ---
 
+# D-068 — `P5-I2V` RI-naspram-RLS dokaz, formalno zatvaranje `P5-I2V` i kompletiranje roditeljskog gatea `P5-I2`
+
+- **Status:** ACCEPTED / OWNER-RATIFIED
+- **Datum:** 2026-08-27
+- **Tip:** vlasnički ratifikovano **činjenično pomirenje** governance dokumentacije sa **već
+  kanonskim** dokazom pod-gatea `P5-I2V`, **formalno zatvaranje** tog pod-gatea, **kompletiranje
+  roditeljskog gatea `P5-I2`**, njegova **posljedica na checklist** i **granica podobnosti
+  `P5-I5`**. **Dokumentacija isključivo.**
+- **Amandman na:** **statusne tvrdnje** — ne na sigurnosni dizajn. Sigurnosni ugovor iz **D-064**,
+  njegova korekcija iz **D-065** i statusna pomirenja **D-066** i **D-067** ostaju **doslovno na
+  snazi i nepromijenjeni**. **D-060, D-061, D-062 i D-063 se ne diraju ni u jednoj klauzuli.**
+- **Ova odluka NE uvodi nijedan novi sigurnosni dizajn.** Ne dodaje se nijedan grant, nijedna
+  rola, nijedna politika, nijedan trigger, nijedna funkcija i nijedan izuzetak. Ne kreira se i ne
+  mijenja se nijedna migracija, schema, Prisma model ni izvršna test asercija. **Nijedna baza nije
+  kontaktirana** i **nijedan test se ovom odlukom ne izvršava.**
+- **Ova odluka NE redizajnira RI-naspram-RLS mehanizam**, **ne mijenja FK semantiku** i **ne
+  uvodi nijedan novi tehnički zahtjev Faze 5.**
+- **Ova odluka NE autorizuje `P5-I5`.** Ona ga čini **podobnim za zasebnu vlasničku
+  autorizaciju** tek nakon što sama postane kanonska — vidi `RULING H`.
+
+## Kontekst/problem — trigger
+
+D-067 je formalno zatvorio pod-gate `P5-I2C` i izričito zabilježio da **ne autorizuje `P5-I2V`**.
+Vlasnik je nakon toga, **zasebnim potezom**, autorizovao pod-gate `P5-I2V`, dokaz je izveden,
+**nezavisno auditiran** i **objavljen u kanonski `main`**.
+
+Time je nastao isti oblik **statusnog drifta** koji su D-066 i D-067 uklonili za `P5-I2B` i
+`P5-I2C`: kanonska dokumentacija je na više mjesta i dalje tvrdila `P5-I2V` / **`★`** =
+`NOT EXECUTED` / `NOT AUTHORIZED` i da `apps/api/test/phase5-responsible-physician-ri.security.ts`
+**ne postoji**, dok je **`★`** već bio kanonski i nezavisno auditiran. Te tvrdnje su bile tačne
+**na dan svog zapisa**, a **netačne kao tekući status**.
+
+Uz to, `P5-I2V` je **četvrti i posljednji** od četiri ratifikovana pod-gatea (D-064,
+*Segmentacija implementacije*). Njegovim zatvaranjem **prvi put** postaje ispunjen antecedent
+koji D-064 postavlja za red checklista `Schema → RLS` — **kompletan, verifikovan i kanonski
+`P5-I2`** — pa ovaj zapis mora, pored statusnog pomirenja, izvesti i **kompletiranje roditeljskog
+gatea** i **tačno jednu** posljedicu na checklist.
+
+**Ovaj zapis ne bira nijednu opciju.** On **konstatuje činjenice**, uklanja drift i izvodi
+posljedicu koja je već ratifikovana u D-064.
+
+## Odluka
+
+### `RULING A` — `P5-I2V` je kanonski i formalno zatvoren
+
+**`P5-I2V` = `IMPLEMENTED` / `INDEPENDENTLY AUDITED` / `MERGED` / `CANONICAL` /
+`FORMALLY CLOSED`.**
+
+**Vlasnička autorizacija pod-gatea `P5-I2V` je potrošena** dovršenim kanonskim dokazom.
+Formulacije „nije izvršen", „nije autorizovan", „čeka publikaciju" i „taj fajl ne postoji"
+**više se ne smiju koristiti kao tekući status `P5-I2V`**.
+
+**Kanonski dokaz:**
+
+```text
+IMPLEMENTATION COMMIT:  5b61a95a990b7179d62aa3338f8685cfa1c605fc
+                        test(security): prove P5-I2V RI-vs-RLS
+INDEPENDENT AUDIT:      P5_I2V_I_A_PASS_READY_FOR_PUBLICATION
+PULL REQUEST:           #40   (MERGED)
+MERGE COMMIT:           31de95230da6ff1b97a28e6386ee93b5da19aca5
+CANONICAL OWNER TEST:   apps/api/test/phase5-responsible-physician-ri.security.ts
+P5-I2C EVOLVED TEST:    apps/api/test/phase5-aad-immutability.security.ts
+```
+
+**Implementacija je nezavisno auditirana prije publikacije, a auditirani commit je merged
+nepromijenjen.** `5b61a95a` je **predak** merge commita `31de9523`, a **stablo merge commita je
+bajt-identično stablu nezavisno auditirane implementacije** — merge nije uveo nijednu izmjenu
+preko auditiranog stanja.
+
+**`P5-I2V` je bio TEST-ONLY.** Nije kreirana nijedna migracija, nijedna schema izmjena, nijedan
+`GRANT`, nijedna politika, nijedna rola, nijedna funkcija i nijedna izmjena aplikacijskog izvora.
+
+**Neblokirajuće opservacije nezavisnog audita `R1`–`R8` ostaju `NON-BLOCKING`.** **Nijedna od
+njih se ovom odlukom ne promoviše u bloker zatvaranja**, i **`R1` se u ovom dokumentacijskom
+gateu ne popravlja.**
+
+### `RULING B` — `★` nalaz, doslovno i istovremeno
+
+**`★` je dokazan kao KONJUNKCIJA**, u **jednoj** transakciji, nad **stvarnim** `copilot_app`-om i
+**stvarnim** `FORCE RLS`-om, na **istom** `pg.Client`-u, u **istoj** PostgreSQL transakciji i pod
+**istim** autentifikovanim user/practice kontekstom:
+
+```text
+A.  same-practice co-member B je PRIHVAĆEN kao encounters.responsible_physician_id
+    kroz encounters_responsible_physician_membership_fk, sa tačnom relacijom
+
+        encounters (practice_id, responsible_physician_id)
+          ->  practice_memberships (practice_id, user_id)
+
+    I ISTOVREMENO
+
+B.  direktan SELECT tačno tog istog B practice_memberships reda, u istoj
+    transakciji i istom kontekstu, vraća NULA REDOVA.
+```
+
+**Obje polovine su asertirane zajedno, u jednom strogom poređenju**, tako da se **nijedna ne može
+izvještavati, citirati ni regresirati zasebno**. Polovina B se uzima **tek nakon** što je
+polovina A uspjela, jer polovina B iz već abortirane transakcije ne dokazuje ništa.
+
+**`SQLSTATE 42501` NIJE ekvivalent polovini B.** To je zapisano kao **izvršna tvrdnja**, ne kao
+proza: `proofB` se eksplicitno poredi sa `42501` i taj slučaj je odbijen.
+
+### `RULING C` — sigurnosno stanje pod kojim je `★` dokazan
+
+Sljedeće je **zatečeno kanonsko stanje** koje dokaz kataloški pina, ne ciljni katalog:
+
+**Composite FK — puna kataloška identičnost:**
+
+| Svojstvo | Vrijednost |
+|---|---|
+| ime | **`encounters_responsible_physician_membership_fk`** |
+| oblik | **`MATCH SIMPLE`** |
+| `ON DELETE` / `ON UPDATE` | **`NO ACTION` / `NO ACTION`** |
+| `convalidated` | **`true`** — validiran, ne `NOT VALID` |
+| `condeferrable` | **`false`** — nije odgodiv |
+| `condeferred` | **`false`** — nije inicijalno odgođen |
+| roditeljski ključ | **`practice_memberships_practice_user_key`** |
+| kolone roditeljskog ključa | **`practice_id`, `user_id`** — unique, valid, total |
+
+**`practice_memberships` — RLS, politika i grant:**
+
+| Svojstvo | Vrijednost |
+|---|---|
+| `relrowsecurity` | **`true`** — `ENABLE` |
+| `relforcerowsecurity` | **`true`** — `FORCE` |
+| broj politika | **tačno 1** — `practice_memberships_self_select` |
+| tip / komanda / rola | **`PERMISSIVE`** / **`SELECT`** / **`TO copilot_app`** |
+| semantika politike | **`user_id = app.user_id`** — bajt-identična Faza-4 tijelu |
+| `copilot_app` | **`SELECT` da**; `INSERT`, `UPDATE`, `DELETE` — **ne** |
+| `PUBLIC` | **nula** |
+| `copilot_system` | **nula** |
+
+**Nijedno proširenje sigurnosne površine nije izvedeno ni traženo.**
+
+### `RULING D` — zašto je `B = 0` pripisivo RLS-u
+
+**Zero rows je tvrdnja o politici tek kada su svi alternativni uzroci mehanički isključeni.**
+Kanonske kontrole, sve u vlasništvu **`★`** testa:
+
+- **fizičko postojanje `B`** — u **zasebnoj** transakciji, na **istoj** konekciji, sa **istim**
+  SQL-om i **istim** `(P, B)` parametrima, razlikujući se **ni u čemu osim `app.user_id`**,
+  lookup vraća **tačno jedan** red, i to **tačno kanonski `B` membership** ordinacije `P`;
+- **isti lookup pod `★` kontekstom `A`** vraća **nula redova**;
+- **own-membership kontrola unutar `★`** — isti oblik upita nad vlastitim `P/A` membershipom
+  vraća **tačno jedan** red, čime je dokazano da `SELECT` **izvršava**, da je privilegija
+  **prisutna**, da `app.user_id` **stvarno jeste `A`** i da politika **propušta** redove koje
+  treba da propusti;
+- **polovina A je rezolvirala `P/B` kroz živi, validirani FK**, dakle roditeljski red je za RI
+  provjeru **dosežan**;
+- **`SELECT` privilegija postoji** (`RULING C`), pa **nula redova nije uskraćenje privilegije**;
+- **jedan klijent, jedna transakcija** — `pg_backend_pid()` je isti, `pg_current_xact_id()` je
+  unutar `★` **nepromijenjen** od otvaranja do zatvaranja, i **različit** od kontrolne
+  transakcije, koja je rollbackovana **prije** nego što je `★` počeo;
+- **`A` nije `B`** je asertirano, ne pretpostavljeno — i na nivou korisnika i na nivou
+  membership identiteta;
+- **red koji polovina B nije vidjela je tačno onaj roditeljski red na koji je ključ polovine A
+  rezolvirao** — ista ordinacija, isti korisnik, isti membership identitet.
+
+**Nijedan preostali lažno pozitivan uzrok** — odsustvo reda, pogrešan identifikator, nedostajuća
+privilegija, mrtav kontekst, druga transakcija ili druga konekcija — **nije ostao otvoren.**
+
+**Uz to je dokazano da `★` transakcija nije ostavila ništa za sobom** — svaki red je rollbackovan.
+
+### `RULING E` — nijedan izlaz nije otvoren
+
+Zatečeno kanonsko stanje je ostalo:
+
+| Svojstvo | Vrijednost |
+|---|---|
+| tačan skup rola | **`copilot_app`, `copilot_migrator`, `copilot_system`** |
+| `rolsuper` | **`false`** za sve |
+| `rolbypassrls` | **`false`** za sve |
+| `SECURITY DEFINER` funkcije | **nula**, nad **cijelom** bazom |
+| `§23.4` `FORCE RLS` maintenance allowlista | **tačno 6** — neproširena |
+| politike nad `practice_memberships` koje ciljaju `copilot_migrator` | **nula** |
+| proširenje granta | **nijedno** |
+| proširenje politike | **nijedno** |
+| nova rola | **nijedna** |
+| migracija / schema / izvor | **nijedna izmjena** |
+
+**AAD trigger nad `encounters` je `BEFORE UPDATE` i samo `BEFORE UPDATE`**, pa na **`★`**, koji
+je `INSERT`, **nije mogao okinuti** — paket `014` **ne doprinosi** dokazu **`★`** ni u jednom
+dijelu. Ta tvrdnja je izvršna, ne prozna.
+
+### `RULING F` — roditeljski gate `P5-I2` je kompletan i formalno zatvoren
+
+**Ratifikovana segmentacija `P5-I2` je i ostaje TAČNO ČETIRI pod-gatea** (D-064, *Segmentacija
+implementacije*). **Nijedan peti pod-gate ne postoji** u kanonskoj segmentaciji.
+
+```text
+P5-I2A     CANONICAL                                   (PR #33)
+P5-I2B     CANONICAL / FORMALLY CLOSED                 (PR #36, D-066)
+P5-I2C     CANONICAL / FORMALLY CLOSED                 (PR #38, D-067)
+P5-I2V     CANONICAL / FORMALLY CLOSED                 (PR #40, D-068)
+```
+
+**Sva četiri pod-gatea su zadovoljena**, i **nijedan drugi `P5-I2`-owned zahtjev ne ostaje
+otvoren** u kanonskom autoritetu.
+
+**`P5-I2` = `COMPLETE` / `VERIFIED` / `CANONICAL` / `FORMALLY CLOSED`.**
+
+Ovo je **tačno onaj uslov kompletiranja roditeljskog gatea** koji su D-064, D-066 (`RULING C`) i
+D-067 (`RULING F`) unaprijed formulisali i **odbili prećutno pretpostaviti** dok posljednji
+pod-gate nije bio kanonski.
+
+### `RULING G` — checklist Faze 5 prelazi na **49 / 9**
+
+**Ovom odlukom se mijenja tačno JEDNA kućica.**
+
+Jedini Faza-5 red u vlasništvu kompletiranja `P5-I2` je **`Schema → RLS`**, a njegov
+**ratifikovani kriterij prihvatanja** je — doslovno, D-064, *Prognoza checklista*, potvrđeno
+anotacijama `P5-I2A-C` i `P5-I2B-D`, D-066 `RULING C` i D-067 `RULING F` — **kompletan,
+verifikovan i kanonski `P5-I2`**, a **ne** pojedinačni pod-gate. **`RULING F` taj antecedent
+ispunjava**, pa red prelazi:
+
+```text
+Schema:  RLS      [ ]  ->  [x]
+```
+
+**Zvanična aritmetika, prebrojana iz stvarnog stanja kućica u `05` §6:**
+
+```text
+                   prije      poslije
+ukupno redova      49         49
+označeno            8          9
+neoznačeno         41         40
+notacija           49 / 8     49 / 9
+```
+
+**Prognoza `49 / 9` iz D-064 time prestaje biti prognoza i postaje zatečeno stanje.**
+
+**`Tests → cross-tenant FK` se NE označava** i ostaje **neoznačen**: značenje tog reda uključuje
+i kasnije API/`422` ponašanje koje posjeduje **`P5-I5`** (D-064). **Svi Services, API, route i
+facade redovi ostaju netaknuti.** **Nijedna druga kućica se ne mijenja.**
+
+### `RULING H` — granica podobnosti `P5-I5`
+
+Kanonski autoritet glasi: **`P5-I5` ostaje `BLOCKED` dok `P5-I2V PASS` ne postane kanonski**
+(D-064). Ta tranzicija se ovom odlukom čini preciznom:
+
+- **`P5-I2V PASS` jeste kanonski** (`RULING A`), i **`★` je prošao** (`RULING B`);
+- **`HARD HOLD` uslov nije nastupio**, i `OD-P5-D2-5` se **ne otvara ponovo**;
+- **nakon što D-068 sam postane kanonski**, **`P5-I5` = `ELIGIBLE FOR SEPARATE OWNER
+  AUTHORIZATION`**;
+- **`P5-I5` = `NOT AUTHORIZED`.** Nijedna implementacija `P5-I5` ne počinje automatski, ni ovom
+  odlukom, ni kanoničnošću `P5-I2`, ni ispunjenjem njegovog tvrdog preduslova.
+
+**Podobnost nije autorizacija.** Autorizacija `P5-I5` ostaje **zaseban vlasnički potez**, po
+istom pravilu po kojem je svaki od četiri pod-gatea `P5-I2` tražio svoj.
+
+**Dok ova dokumentacijska grana ne bude merged, kanonski `main` i dalje nosi `P5-I5` =
+`BLOCKED`.**
+
+### `RULING I` — očuvanje historijskog zapisa
+
+**Historijske tvrdnje „`P5-I2V` NOT EXECUTED", „`P5-I2V` NOT AUTHORIZED",
+„`phase5-responsible-physician-ri.security.ts` NE POSTOJI", „`P5-I5` BLOCKED",
+„`P5-I2` IN_PROGRESS / NOT COMPLETE" i „checklist 49 / 8" unutar ranijih, datiranih vlasničkih
+odluka i as-of-time blokova su historijski tačne i ne smiju se prepisivati.** Tijela **D-062**,
+**D-064**, **D-065**, **D-066** i **D-067** se **ne mijenjaju**; njihove zaključne statusne
+formulacije su **as-of-time** i supersedirane su isključivo kao **tekući status**, po precedentu
+D-063, D-065, D-066 i D-067.
+
+**Tekuće normativne sekcije izvan historijskih zapisa odluka moraju odražavati novo kanonsko
+stanje** — `02`, `04`, `05` i `08`.
+
+## Obuhvat
+
+D-068:
+
+- **konstatuje** kanoničnost i **formalno zatvara** `P5-I2V`;
+- **konstatuje** da je ratifikovana segmentacija `P5-I2` tačno **četiri** pod-gatea i da su **sva
+  četiri** zadovoljena;
+- **formalno zatvara roditeljski gate `P5-I2`** kao `COMPLETE` / `VERIFIED` / `CANONICAL`;
+- **označava tačno jednu** kućicu — `Schema → RLS` — i objavljuje **49 / 9**;
+- **pomiruje** tekuće statusne tvrdnje `02`, `04`, `05` i `08`;
+- **precizira** granicu podobnosti `P5-I5`;
+- **NE mijenja** nijednu klauzulu sigurnosnog ugovora D-064 / D-065 / D-066 / D-067;
+- **NE redizajnira** RI-naspram-RLS mehanizam i **ne mijenja** FK semantiku;
+- **NE uvodi** nijedan novi sigurnosni dizajn i **nijedan novi tehnički zahtjev Faze 5**;
+- **NE označava** `Tests → cross-tenant FK` ni ijednu drugu kućicu;
+- **NE autorizuje** `P5-I5` i **ne pokreće** nijedan njegov korak;
+- **NE zatvara** Fazu 5;
+- **NE promoviše** nijednu neblokirajuću opservaciju audita `R1`–`R8` u bloker.
+
+## Razlog
+
+- **Potrošena autorizacija mora biti vidljiva kao potrošena.** Dokumentacija koja i dalje tvrdi
+  da **`★`** nije izvršen i da njegov fajl ne postoji, nad već kanonskim i nezavisno auditiranim
+  dokazom, stvara dvije podjednako opasne greške: ponovno „autorizovanje" već izvršenog posla, i
+  tretiranje kanonski dokazane RI-naspram-RLS granice kao da još nije utvrđena.
+- **Roditeljski gate se zatvara kada se zatvori njegov posljednji pod-gate — ne ranije i ne
+  kasnije.** D-064 je segmentaciju na četiri pod-gatea ratifikovao upravo da bi kompletiranje
+  `P5-I2` bilo **izvedeno**, a ne pretpostavljeno. Sada je izvedeno.
+- **Aritmetika checklista se izvodi, ne pretpostavlja.** Kriterij reda `Schema → RLS` je od
+  D-064 doslovno **kompletan `P5-I2`**. Tri prethodna zatvaranja su ga s pravom odbila označiti
+  jer antecedent nije bio ispunjen; odbiti ga i sada značilo bi tvrditi da ratifikovani kriterij
+  nikada ne može biti ispunjen.
+- **`★` je konjunkcija i mora ostati konjunkcija.** Zapisati polovinu A bez polovine B, ili
+  polovinu B bez konteksta u kojem je uzeta, značilo bi izgubiti tačno onaj dokaz zbog kojeg je
+  obaveza i uvedena — da RI radi **a da RLS nije oslabljen**.
+- **Zero rows nije dokaz sam po sebi.** Bez fizičko-egzistencijalne kontrole, own-membership
+  kontrole i dokaza o istoj konekciji i istoj transakciji, „nula redova" jednako dobro opisuje
+  mrtav kontekst ili nepostojeći red. Zato `RULING D` postoji.
+- **`42501` nije `★`.** To je isti oblik zamjene koji `02` §25.8a trajno zabranjuje za `P5-I2C`,
+  i ovdje je zabranjen izvršnom tvrdnjom, ne prozom.
+- **Podobnost i autorizacija su dvije različite stvari.** Spojiti ih značilo bi da tvrdi
+  preduslov, kada padne, sam po sebi pokreće naredni slice — tačno ono što segmentacija D-064
+  zabranjuje.
+- **Historijski zapis je dokaz, ne šum.** Datirane vlasničke tvrdnje su jedini trag redoslijeda
+  odlučivanja. Prepisati ih značilo bi izgubiti dokaz da `P5-I2V` **nije** bio prećutno
+  autorizovan D-067-om.
+
+## Alternative
+
+- **Ostaviti `Schema → RLS` neoznačenim i zadržati 49 / 8** — **odbijeno.** Ratifikovani kriterij
+  prihvatanja je **kompletan, verifikovan i kanonski `P5-I2`** (D-064), a `RULING F` ga
+  ispunjava. Zadržati red neoznačenim značilo bi kriterij učiniti neispunjivim.
+- **Označiti i `Tests → cross-tenant FK`** — **odbijeno, i trajno.** Značenje tog reda uključuje
+  API/`422` ponašanje u vlasništvu `P5-I5` (D-064). **`P5-I2` ga ne smije označiti.**
+- **Proglasiti `P5-I5` autorizovanim jer je njegov tvrdi preduslov ispunjen** — **odbijeno.**
+  Ispunjen preduslov uklanja **blokadu**, ne zamjenjuje **autorizaciju**.
+- **Tvrditi da polovina A sama dokazuje `★`** — **odbijeno.** Test koji dokaže samo prvi iskaz je
+  po `08` §12.9.1 **nevažeći**.
+- **Tvrditi da `42501` dokazuje polovinu B** — **odbijeno**, i **trajno**.
+- **Promovisati neku od opservacija `R1`–`R8` u bloker zatvaranja** — **odbijeno.** Nezavisni
+  audit ih je klasifikovao kao **neblokirajuće**; njihova naknadna prekvalifikacija u ovom
+  dokumentacijskom gateu bila bi tiha izmjena ishoda audita.
+- **Prepisati D-064 / D-066 / D-067 tako da glase kao da je `★` oduvijek bio izvršen** —
+  **odbijeno.** Vidi `RULING I`.
+
+## Posljedice
+
+- **`P5-I2V` je formalno zatvoren**; njegov status se u tekućim normativnim sekcijama više ne
+  vodi kao budući, neizvršen ni neautorizovan.
+- **`P5-I2` je kompletan, verifikovan, kanonski i formalno zatvoren.** Sva četiri ratifikovana
+  pod-gatea su iscrpljena; **nijedan `P5-I2` posao ne preostaje.**
+- **Checklist Faze 5 je 49 / 9.** Red `Schema → RLS` je označen; `Tests → cross-tenant FK` ostaje
+  neoznačen.
+- **`04` §7.6a *NOVA BLOKIRAJUĆA OBAVEZA* je ispunjena**, a ne uklonjena — obaveza ostaje
+  zapisana, sa `phase5-responsible-physician-ri.security.ts` kao trajnim vlasnikom njenog dokaza
+  i **trajnom regresijom**.
+- **`08` §12.9.1 više ne opisuje budući posao** — opisuje zatečeni, izvršeni i auditirani dokaz.
+- **`P5-I5` postaje `ELIGIBLE FOR SEPARATE OWNER AUTHORIZATION` nakon što D-068 postane
+  kanonski**, i **ostaje `NOT AUTHORIZED`.**
+- **Faza 5 ostaje `IN_PROGRESS`; nije `DONE`.** Preostalih **šest** slice-ova (`P5-I3`–`P5-I8`)
+  ostaje **`NOT_STARTED`**.
+- **Neblokirajuće opservacije `R1`–`R8` ostaju otvorene kao neblokirajuće** i **nisu** uslov
+  zatvaranja `P5-I2V` ni `P5-I2`.
+
+## Security/privacy uticaj
+
+- **Nula nove sposobnosti.** Odluka je isključivo dokumentaciona, a i sam `P5-I2V` je bio
+  **TEST-ONLY**.
+- **Sigurnosna površina se ne mijenja** — grantovi, politike, `FORCE RLS`, role i allowlista
+  ostaju tačno onakvi kakvi su merged u `31de9523`.
+- **Sigurnosna površina je u odnosu na prethodni zapis dokazana, ne proširena:** noseća
+  pretpostavka mehanizma iz D-062, Dio D — **da PostgreSQL provjere referencijalnog integriteta
+  zaobilaze RLS** — prestaje biti pretpostavka i postaje **empirijski dokazana nad Faza-5
+  schemom**, pod stvarnim rolama i stvarnim `FORCE RLS`-om.
+- **RLS nije oslabljen da bi RI prošao.** To je tačno tvrdnja polovine B, i ona je dokazana uz
+  potpuno isključenje lažno pozitivnih uzroka (`RULING D`).
+- **Nijedan `SECURITY DEFINER`, `BYPASSRLS`, četvrta rola, owner politika, proširenje politike
+  `practice_memberships_self_select`, drugi klijent ni proširenje allowliste nisu uvedeni** —
+  ni kao rješenje, ni kao zaobilaznica, ni kao dijagnostika.
+- **`copilot_app` i dalje drži isključivo `SELECT` nad `practice_memberships`**, `PUBLIC` i
+  `copilot_system` **nulu**.
+- **Co-member identitet i dalje ne curi** — polovina B je upravo dokaz da ne curi.
+
+## Migration/rollout
+
+**Nijedna migracija se ovom odlukom ne kreira, ne mijenja, ne preimenuje i ne izvršava; nijedna
+baza nije kontaktirana.** `P5-I2V` **nije uveo nijednu migraciju.** Kanonski primijenjen lanac
+ostaje **sedam** direktorija, nepromijenjen od D-067:
+
+```text
+001          extensions and roles
+002          identity and practices
+013          [Faza-4 slice]
+003          [P5-I1]
+011_phase5   [P5-I2A]   20260823211546_011_jobs_idempotency_outbox_audit_phase5
+013_phase5   [P5-I2B]   20260825013452_013_rls_policies_phase5
+014_phase5   [P5-I2C]   20260825214248_014_immutability_triggers_phase5
+```
+
+**Nijedna Faza-5 migracija ne preostaje.**
+
+## Test dokaz
+
+**Testovi se ovom odlukom ne implementiraju, ne mijenjaju i ne izvršavaju.** Trajni vlasnik
+dokaza **`★`** je **`apps/api/test/phase5-responsible-physician-ri.security.ts`**, uveden
+kanonskom implementacijom `P5-I2V` po D-064, `OD-9`. **Taj fajl postoji i kanonski je** — **13**
+testova. Taj fajl posjeduje:
+
+- **punu katalošku identičnost composite FK-a** u jednom strogom poređenju cijelog reda —
+  `MATCH SIMPLE`, `NO ACTION` / `NO ACTION`, `convalidated`, ne-odgodiv, ne inicijalno odgođen,
+  i tačan roditeljski indeks;
+- **pozicijsko mapiranje kolona FK-a** — `(practice_id, responsible_physician_id)` →
+  `(practice_id, user_id)`;
+- **identičnost roditeljskog ključa** — `practice_memberships_practice_user_key`, unique, valid,
+  total, tačno `(practice_id, user_id)`;
+- **`practice_memberships` `ENABLE` + `FORCE ROW LEVEL SECURITY`**;
+- **tačno jednu politiku** — `practice_memberships_self_select`, `PERMISSIVE`, `SELECT`,
+  `TO copilot_app`, **bajt-identična i neoslabljena**;
+- **tačan grant** — `copilot_app` drži `SELECT` **i ništa drugo**; `PUBLIC` i `copilot_system`
+  **ništa**;
+- **fizičko-egzistencijalnu diferencijalnu kontrolu za `B`** — zasebna transakcija, ista
+  konekcija, isti SQL, isti parametri, **tačno jedan** red;
+- **`★` u jednoj transakciji na istom klijentu** — dokazano kroz `pg_backend_pid()` i
+  `pg_current_xact_id()`, uz dokaz da je kontrolna transakcija bila **druga** i rollbackovana
+  **prije** `★`;
+- **polovinu A** — `INSERT` uspijeva, red je asertiran kolonu po kolonu i
+  `responsible_physician_id` **nije `NULL`**;
+- **polovinu B** — **nula redova**, uzeto **nakon** uspjeha polovine A, u istom kontekstu;
+- **own-membership kontrolu unutar `★`** — **tačno jedan** red;
+- **izvršnu tvrdnju da `42501` nije polovina B**;
+- **dokaz da `★` nije ostavio nijedan red** — sve je rollbackovano;
+- **no-widening regresiju** — tri kanonske role bez `BYPASSRLS`, **nijedna** `SECURITY DEFINER`
+  funkcija u bazi, **nijedna** politika nad `practice_memberships` koja cilja vlasnika,
+  `§23.4` allowlista **tačno šest**, i dokaz da je AAD trigger nad `encounters` **`BEFORE UPDATE`
+  only** i da na `★` **nije mogao okinuti**.
+
+**Steady-state dokazi ostalih pod-gateova su očuvani i neoslabljeni:**
+`phase5-schema-catalogue.security.ts` (paket `003`), `phase5-package011-catalogue.security.ts`
+(paket `011`), `phase5-rls-grants.security.ts` (`P5-I2B`) i
+`phase5-aad-immutability.security.ts` (`P5-I2C`). **Exact-set ekspektacije su i ovdje smjele
+evoluirati isključivo `stari tačan skup → novi tačan skup`**; **`exact` → `contains`/`subset`/
+`partial` ostaje kategorički zabranjeno.**
+
+## Supersedes
+
+**Supersedira isključivo statusne tvrdnje, i to tačno pet:**
+
+1. **`P5-I2V` / `★` = `NOT EXECUTED`** — kao **tekuću** tvrdnju, gdje god stoji izvan datiranog
+   historijskog zapisa odluke ili as-of-time bloka;
+2. **`P5-I2V` / `★` = `NOT AUTHORIZED`** — kao **tekuću** tvrdnju, iz istog razloga;
+3. **„`apps/api/test/phase5-responsible-physician-ri.security.ts` NE POSTOJI" / „dokaz `★` je
+   odsutan"** — kao tekuće tvrdnje;
+4. **`P5-I2` = `IN_PROGRESS` / `NOT COMPLETE`** i **„checklist Faze 5 = 49 / 8"** — kao tekuće
+   tvrdnje;
+5. **`P5-I5` = `BLOCKED`** — kao **tekuću** tvrdnju, i **isključivo** u smjeru
+   `BLOCKED → ELIGIBLE`, **nikada** u smjeru `BLOCKED → AUTHORIZED`.
+
+**Ne supersedira nijednu sigurnosnu klauzulu.** D-064 (`OD-1`–`OD-9`, obje korekcije, `★` hard
+stop kao trajna regresija, segmentacija na četiri pod-gatea), D-065 (`RULING 1`, `RULING 2`),
+D-066 (`RULING A`–`RULING D`) i D-067 (`RULING A`–`RULING G`) ostaju **na snazi bez izmjene**.
+**D-060, D-061, D-062 i D-063 se ne diraju.**
+
+## Zavisnosti
+
+- **D-064** — sigurnosna granica i implementacijski ugovor `P5-I2`; segmentacija na **četiri**
+  pod-gatea; *Prognoza checklista* i ratifikovani kriterij reda `Schema → RLS`; `OD-9` vlasništvo
+  testova; `★` hard stop;
+- **D-065** — korigovana aritmetika kataloga politika i eksplicitni transakcijski mehanizam;
+- **D-066** — statusno pomirenje i formalno zatvaranje `P5-I2B`;
+- **D-067** — statusno pomirenje i formalno zatvaranje `P5-I2C`;
+- **D-062** (`OD-P5-D2-5`, Dio D) — composite FK `responsible_physician_id` i noseća pretpostavka
+  koju **`★`** dokazuje;
+- **D-061** — izostavljanje co-member `displayName`-a umjesto proširenja pristupa;
+- **D-047** — bootstrap-scoped RLS i `practice_memberships_self_select`.
+
+## Granice prema budućim fazama
+
+- **`P5-I2V` je `CANONICAL` i `FORMALLY CLOSED`.**
+- **`P5-I2` je `COMPLETE` / `VERIFIED` / `CANONICAL` / `FORMALLY CLOSED`.**
+- **`P5-I5` je `ELIGIBLE FOR SEPARATE OWNER AUTHORIZATION`** — **nakon** što D-068 postane
+  kanonski — i **`NOT AUTHORIZED`**. **Nijedan njegov korak ne počinje automatski.**
+- **Faza 5 ostaje `IN_PROGRESS`; nije `DONE`.**
+- **`P5-I3`–`P5-I8` ostaju `NOT_STARTED`.**
+- **Neblokirajuće opservacije `R1`–`R8` ostaju neblokirajuće** i ne uslovljavaju nijedan naredni
+  gate.
+- **`★` ostaje trajna regresija** — njegovo buduće rušenje je i dalje `HARD HOLD` i ponovo otvara
+  `OD-P5-D2-5`.
+
+## Naredni obavezni gate
+
+**`P5-I5` — Encounter jezgro.** Njegov tvrdi preduslov **`★`** je **ispunjen**, pa je gate
+**podoban za zasebnu vlasničku autorizaciju** nakon što ova odluka postane kanonska. **Ovom
+odlukom nije autorizovan**; autorizacija je **zaseban vlasnički potez**, uz nepromijenjene
+zavisnosti `P5-I3` i `P5-I4` (`04` §7.5).
+
+**Ne autorizuju se, ni sada ni kasnije, kao dio `P5-I5`:** `SECURITY DEFINER`, `BYPASSRLS`, nova
+rola, owner politika, proširenje `practice_memberships_self_select`, drugi Prisma klijent,
+proširenje `§23.4` allowliste, denormalizacija `displayName`-a ni globalno `23503 → 422`
+mapiranje.
+
+---
+
 # Otvorene odluke
 
 ## D-OPEN-001 — Produkcijski OIDC provider
