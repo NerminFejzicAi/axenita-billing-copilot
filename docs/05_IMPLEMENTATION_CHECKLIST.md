@@ -9,7 +9,7 @@
 
 | Polje | Vrijednost |
 |---|---|
-| Current phase | Faza 1 — `DONE`; Ecosystem Compatibility Audit `DONE`; Faza 2 — `DONE`; **D-OPEN-011 decision gate — `DONE` (D-047 prihvaćen 2026-08-12)**; **D-047 dokumentaciona rekonsilijacija — `DONE`, merged u kanonski `main` (PR #7)**; **D-048–D-051 governance gate — `DONE`, merged u kanonski `main` (PR #10)**; **Faza 3 — `DONE`, merged u kanonski `main` (PR #12, merge commit `5c2786d`) (§4)**; **Faza 4 — `DONE`, zatvorena (§5)**; **P4-5D je `MERGED` u kanonski `main` (PR #20)**; **retrospektivni evidence gate `P4-013` — `COMPLETE`** (`UNRESOLVED_REQUIRED = 0`, `SECURITY_CLOSURE_BLOCKERS = 0`; §5, „Gate zatvaranja Faze 4 — P4-013 — `COMPLETE`"); **prelazak `IN_PROGRESS → DONE` je izvršen zasebnim, vlasnički pregledanim gateom zatvaranja Faze 4 — odluka D-059** (§5, „Zatvaranje Faze 4 — D-059"). `DONE` je ovdje **rezervisani lifecycle status** i postaje kanonski **merge-om ove zatvaračke grane u `origin/main`**, po presedanu Faze 3 (`9af070d`); **Faza 5 — `IN_PROGRESS`** (§6): prelazak je izvršen kanonskim slice-om **`P5-I1`** (PR #30, merge `fcd88fbe`), checklist **49 / 8**; Faza 5 **nije** `DONE` |
+| Current phase | Faza 1 — `DONE`; Ecosystem Compatibility Audit `DONE`; Faza 2 — `DONE`; **D-OPEN-011 decision gate — `DONE` (D-047 prihvaćen 2026-08-12)**; **D-047 dokumentaciona rekonsilijacija — `DONE`, merged u kanonski `main` (PR #7)**; **D-048–D-051 governance gate — `DONE`, merged u kanonski `main` (PR #10)**; **Faza 3 — `DONE`, merged u kanonski `main` (PR #12, merge commit `5c2786d`) (§4)**; **Faza 4 — `DONE`, zatvorena (§5)**; **P4-5D je `MERGED` u kanonski `main` (PR #20)**; **retrospektivni evidence gate `P4-013` — `COMPLETE`** (`UNRESOLVED_REQUIRED = 0`, `SECURITY_CLOSURE_BLOCKERS = 0`; §5, „Gate zatvaranja Faze 4 — P4-013 — `COMPLETE`"); **prelazak `IN_PROGRESS → DONE` je izvršen zasebnim, vlasnički pregledanim gateom zatvaranja Faze 4 — odluka D-059** (§5, „Zatvaranje Faze 4 — D-059"). `DONE` je ovdje **rezervisani lifecycle status** i postaje kanonski **merge-om ove zatvaračke grane u `origin/main`**, po presedanu Faze 3 (`9af070d`); **Faza 5 — `IN_PROGRESS`** (§6): prelazak je izvršen kanonskim slice-om **`P5-I1`** (PR #30, merge `fcd88fbe`); **`P5-I2` je `COMPLETE` / `VERIFIED` / `CANONICAL` / formalno zatvoren nakon sva četiri pod-gatea `P5-I2A`–`P5-I2V` (D-068, PR #40, merge `31de9523`)**, čime checklist prelazi sa **49 / 8** na **49 / 9**; **`P5-I5` = `ELIGIBLE FOR SEPARATE OWNER AUTHORIZATION` / `NOT AUTHORIZED`**; Faza 5 **nije** `DONE` |
 | Current branch | Faza 3 je merged u kanonski `main`; implementacijski branch `backend/03-identity-practices` (tehnička implementacija HEAD, Gate 3E = `9f60d32c66023c4aad5ac34df267658ddfe5d6b1`; zatvarački dokumentacioni checkpoint = `2c7d7778a9ec1dae92fd0a5683d1f4afc7b36950`; završni head prije merge-a = `5c1699a0ea4d98e2f540c6e8cd9ae84997896a42`) je time potrošen. **Kanonska remote grana je `origin/main`. Živi kanonski commit se rezolvira iz te reference i ovaj dokument ga ne ugrađuje** (D-056, klauzule 15–16); tačni SHA-ovi ispod su **nepromjenljivi historijski lifecycle događaji**, ne živi pokazivač. Implementacijski branch Faze 4 `backend/04-practice-settings-patch` nosio je slice P4-5D i **merged je** u kanonski `main` kroz **PR #20** (`3658c6e2d9c08e3ca3f0c306d8dbeaf41a6a01f5`), pa je time potrošen. Historijski: `0866e530b6086e7dba7f0bc0d98b19eee69ee0d5` (PR #19, kanonski `main` neposredno prije merge-a P4-5D), `5c2786d689b50f73f49bfca52d2335ea50ee52c2` (PR #12, kanonski `main` po zatvaranju Faze 3), `251544f0b10abb00ee818f1ff5183c95b0ed0d03` (PR #11, kanonski `main` neposredno prije merge-a Faze 3) i `65e2552e13520ead86092f75ca3cc75d206b9f35` (PR #10) |
 | Last completed phase | **Faza 4 — Tenant/RLS, `DONE`** — zatvorena odlukom **D-059** (§5, „Zatvaranje Faze 4 — D-059"); aplikacija merged kroz PR #20 (`3658c6e`), retrospektivni evidence gate **P4-013** `COMPLETE`, `UNRESOLVED_REQUIRED = 0`. Prethodna: Faza 3 — Identity & Practices, `DONE` (PR #12, `5c2786d`). **Naredna faza — Faza 5 — Encounter/documents — bila je `NOT_STARTED` u trenutku tog zatvaranja i njime nije autorizovana; tekući status Faze 5 je `IN_PROGRESS`** nakon kanonskog `P5-I1` (§6) |
 | Last commit | `c4b89d0` (Phase 2 implementation), merged via `dae9649`; dokumentarno zatvaranje `98910b3`, merged via `d6b5efe`; D-047 rekonsilijacija `76dbc6d` + `dda7538`, merged via `ec7d100` (PR #7); dokumentaciona usklađivanja merged via `2befadc` i `5d38ba8` (PR #8, PR #9); D-048–D-051 rekonsilijacija `b2a99ce`, merged via `65e2552` (PR #10); dokumentaciono zatvaranje governancea merged via `251544f` (PR #11); **Faza 3 — sedam commitova branča `backend/03-identity-practices` (Gate 3A–3E, tehnička implementacija `HEAD` = `9f60d32`; zatvarački dokumentacioni checkpoint `2c7d777`; korekcija reference kanonskog `main`-a `5c1699a`), merged via `5c2786d` (PR #12)** (§4, „Gate checkpointi Faze 3"); historijski kanonski `main` prije P4-5D = `0866e530b6086e7dba7f0bc0d98b19eee69ee0d5` (PR #19); **PR #20 (slice P4-5D) je `MERGED`, merge commit `3658c6e2d9c08e3ca3f0c306d8dbeaf41a6a01f5`**. Živi kanonski commit se rezolvira iz `origin/main` i ovdje se **ne** upisuje (D-056, klauzule 15–16) |
@@ -2591,6 +2591,16 @@ Faza 5 **nije** `DONE` i ne smije se tako označiti. Slice je **kanonski** — o
 **`Slice P5-I1`** niže; označene su isključivo osam schema kućica koje on dokazuje, čime brojanje
 Faze 5 prelazi sa **49 / 0** na **49 / 8**.
 
+**Tekuće brojanje je 49 / 9 (D-068, 2026-08-27) — pasus iznad se ne prepisuje.** On opisuje
+**prelazak izveden slice-om `P5-I1`** i tačan je kao takav. Nakon što je **`P5-I2` postao
+`COMPLETE` / `VERIFIED` / `CANONICAL` / formalno zatvoren** — sva četiri ratifikovana pod-gatea
+`P5-I2A` (PR #33), `P5-I2B` (PR #36), `P5-I2C` (PR #38) i `P5-I2V` / **`★`** (PR #40, merge SHA
+`31de95230da6ff1b97a28e6386ee93b5da19aca5`) su iscrpljena — označen je **tačno jedan** dodatni
+red, **`Schema → RLS`**, pa brojanje Faze 5 prelazi sa **49 / 8** na **49 / 9**. Dokazni blok je
+**`Pod-gate P5-I2V — ★ RI-naspram-RLS dokaz`** niže. **`Tests → cross-tenant FK` ostaje
+neoznačen** (D-064). **Faza 5 i dalje nije `DONE`**, a **`P5-I5` je `ELIGIBLE FOR SEPARATE OWNER
+AUTHORIZATION` i `NOT AUTHORIZED`.**
+
 ## Objavljen dizajnerski autoritet — D-060 (2026-08-22)
 
 **Ovaj zapis ne mijenja status faze i ne označava nijednu kućicu ispod.** Na dan ovog zapisa
@@ -3561,6 +3571,131 @@ da same-practice co-member responsible-physician `INSERT` **uspije** kroz compos
 direktan `SELECT` tog istog `practice_memberships` reda vrati **nula redova**. **`SQLSTATE 42501`
 nije taj drugi dio**, i **paket `014` mu ne doprinosi.**
 
+## Pod-gate `P5-I2V` — **`★`** RI-naspram-RLS dokaz — **IZVRŠEN / NEZAVISNO AUDITIRAN / OBJAVLJEN — KANONSKI / FORMALNO ZATVOREN**
+
+**Ovaj zapis označava TAČNO JEDNU kućicu** — `Schema → RLS` — i **nijednu drugu**. Faza 5 ostaje
+**`IN_PROGRESS`**; broj redova ostaje **49**, a broj označenih prelazi sa **8** na **9**.
+
+**Kanonski dokaz:**
+
+```text
+IMPLEMENTATION COMMIT:  5b61a95a990b7179d62aa3338f8685cfa1c605fc
+                        test(security): prove P5-I2V RI-vs-RLS
+INDEPENDENT AUDIT:      P5_I2V_I_A_PASS_READY_FOR_PUBLICATION
+PULL REQUEST:           #40   (MERGED)
+MERGE COMMIT:           31de95230da6ff1b97a28e6386ee93b5da19aca5
+CANONICAL OWNER TEST:   apps/api/test/phase5-responsible-physician-ri.security.ts   (13 testova)
+P5-I2C EVOLVED TEST:    apps/api/test/phase5-aad-immutability.security.ts
+```
+
+**Implementacija je nezavisno auditirana prije publikacije, a auditirani commit je merged
+nepromijenjen:** `5b61a95a` je **predak** merge commita `31de9523`, i **stablo merge commita je
+bajt-identično stablu nezavisno auditirane implementacije**.
+
+**`P5-I2V` je bio TEST-ONLY** — nijedna migracija, nijedna schema izmjena, nijedan `GRANT`,
+nijedna politika, nijedna rola, nijedna funkcija i nijedna izmjena aplikacijskog izvora. **Broj
+migracijskih direktorija ostaje 7.**
+
+**`★` nalaz — dokazan kao KONJUNKCIJA**, u **jednoj** transakciji, na **istom** `pg.Client`-u,
+pod **stvarnim** `copilot_app`-om, **stvarnim** `FORCE RLS`-om i **istim** autentifikovanim
+user/practice kontekstom:
+
+```text
+A.  same-practice co-member B je PRIHVAĆEN kao encounters.responsible_physician_id
+    kroz encounters_responsible_physician_membership_fk, sa tačnom relacijom
+
+        encounters (practice_id, responsible_physician_id)
+          ->  practice_memberships (practice_id, user_id)
+
+    I ISTOVREMENO
+
+B.  direktan SELECT tačno tog istog B practice_memberships reda, u istoj
+    transakciji i istom kontekstu, vraća NULA REDOVA.
+```
+
+Obje polovine su asertirane **zajedno**, u jednom strogom poređenju. **`SQLSTATE 42501` nije
+polovina B**, i to je **izvršna tvrdnja**, ne proza.
+
+**Isključenje lažno pozitivnog (D-068, `RULING D`):** `B` **fizički postoji** — isti lookup pod
+`app.user_id = B`, na istoj konekciji, u zasebnoj i prije `★` rollbackovanoj transakciji, vraća
+**tačno jedan** red; **unutar `★`** vlastiti `P/A` lookup vraća **tačno jedan** red, pa `SELECT`
+izvršava, privilegija je prisutna i kontekst je živ; polovina A je `P/B` rezolvirala kroz **živi
+validirani FK**; **`SELECT` privilegija postoji**, pa nula redova **nije** uskraćenje
+privilegije; `pg_backend_pid()` i `pg_current_xact_id()` dokazuju **jedan klijent i jednu
+transakciju**; **`A` nije `B`** je asertirano; i red koji polovina B nije vidjela je **tačno**
+onaj roditeljski red na koji je ključ polovine A rezolvirao. **`★` nije ostavio nijedan red** —
+sve je rollbackovano.
+
+**Sigurnosno stanje je regresijski dokazano netaknutim:** tačno tri role
+(`copilot_app`, `copilot_migrator`, `copilot_system`), sve **`NOBYPASSRLS`** i bez `rolsuper`;
+**nula** `SECURITY DEFINER` funkcija nad **cijelom** bazom; `practice_memberships` sa `ENABLE` +
+`FORCE RLS` i **tačno jednom** politikom `practice_memberships_self_select` (`PERMISSIVE`,
+`SELECT`, `TO copilot_app`), **bajt-identičnom i neoslabljenom**; `copilot_app` = `SELECT` i
+ništa drugo; `PUBLIC` i `copilot_system` = **nula**; **nijedna** politika nad
+`practice_memberships` koja cilja `copilot_migrator`; **§23.4 allowlista tačno šest** —
+neproširena. **AAD trigger nad `encounters` je `BEFORE UPDATE` only** i na `★`, koji je `INSERT`,
+**nije mogao okinuti**.
+
+**Neblokirajuće opservacije nezavisnog audita `R1`–`R8` ostaju `NON-BLOCKING`** i **nisu**
+promovisane u bloker zatvaranja.
+
+**Roditeljski gate `P5-I2` je time KOMPLETAN.** Ratifikovana segmentacija je **tačno četiri**
+pod-gatea (D-064), **nijedan peti ne postoji**, i **sva četiri su zadovoljena**:
+
+```text
+P5-I2A     CANONICAL                                   (PR #33)
+P5-I2B     CANONICAL / FORMALLY CLOSED                 (PR #36, D-066)
+P5-I2C     CANONICAL / FORMALLY CLOSED                 (PR #38, D-067)
+P5-I2V     CANONICAL / FORMALLY CLOSED                 (PR #40, D-068)
+```
+
+**`P5-I2` = `COMPLETE` / `VERIFIED` / `CANONICAL` / `FORMALLY CLOSED` (D-068).**
+
+**Aritmetika checklista — mehanički izvedena, ne pretpostavljena (D-068, `RULING G`).**
+
+```text
+                        prije       poslije
+ukupno redova (§6)      49          49
+označeno                 8           9
+neoznačeno              41          40
+notacija                49 / 8      49 / 9
+```
+
+**Označen je tačno jedan red — `Schema → RLS`.** Njegov **ratifikovani kriterij prihvatanja** je
+— doslovno, D-064, *Prognoza checklista*, potvrđeno anotacijama `P5-I2A-C` i `P5-I2B-D`, D-066
+`RULING C` i D-067 `RULING F` — **kompletan, verifikovan i kanonski `P5-I2`**, a **ne**
+pojedinačni pod-gate. Taj antecedent je **prvi put ispunjen**, pa red prelazi `[ ]` → `[x]`.
+**Prognoza `49 / 9` iz D-064 time prestaje biti prognoza i postaje zatečeno stanje.**
+
+**`Tests → cross-tenant FK` ostaje NEOZNAČEN** — značenje tog reda uključuje i kasnije API/`422`
+ponašanje koje posjeduje **`P5-I5`** (D-064). **Svi Services, API, route i facade redovi ostaju
+netaknuti.** **Nijedna druga kućica se ne mijenja.**
+
+**Šta ovaj pod-gate ne tvrdi.** Ne zatvara Fazu 5; **ne autorizuje `P5-I5`**; ne zatvara
+`D-OPEN-004a`; ne mijenja nijednu Faza-3/4 invarijantu; ne uvodi nijedan novi sigurnosni dizajn,
+nijedan novi tehnički zahtjev Faze 5 ni izmjenu FK semantike; i **ne označava nijednu kućicu osim
+`Schema → RLS`**.
+
+**Tekući status (2026-08-27, nakon D-068).**
+
+```text
+P5-I2A     CANONICAL                                   (PR #33)
+P5-I2B     CANONICAL / FORMALLY CLOSED                 (PR #36)
+P5-I2C     CANONICAL / FORMALLY CLOSED                 (PR #38)
+P5-I2V/★   CANONICAL / FORMALLY CLOSED                 (PR #40)
+P5-I2      COMPLETE / VERIFIED / CANONICAL / FORMALLY CLOSED
+P5-I5      ELIGIBLE FOR SEPARATE OWNER AUTHORIZATION / NOT AUTHORIZED
+Faza 5     IN_PROGRESS
+checklist  49 / 9
+```
+
+**Naredni obavezni gate.** **`P5-I5` — Encounter jezgro.** Njegov tvrdi preduslov **`★`** je
+**ispunjen**, pa je gate **podoban za zasebnu vlasničku autorizaciju**. **Nije autorizovan**;
+autorizacija je **zaseban vlasnički potez**, uz nepromijenjene zavisnosti `P5-I3` i `P5-I4`
+(`04` §7.5). **Podobnost nije autorizacija**, i nijedan korak `P5-I5` ne počinje automatski.
+**`★` ostaje trajna regresija** — njegovo buduće rušenje je i dalje **`HARD HOLD`** i ponovo
+otvara `OD-P5-D2-5`.
+
 ## Schema
 
 - [x] patient_references.
@@ -3569,7 +3704,7 @@ nije taj drugi dio**, i **paket `014` mu ne doprinosi.**
 - [x] storage_objects.
 - [x] encounter_documents.
 - [x] composite FK.
-- [ ] RLS.
+- [x] RLS.
 - [x] indexes.
 - [x] checks.
 

@@ -719,6 +719,72 @@ klijent.
 Pretpostavka je **fail-loud**: da je netačna, **svaka** cross-member dodjela podigla bi `23503`, pa
 bi ovaj test to uhvatio odmah.
 
+**STATUS — IZVRŠENO, NEZAVISNO AUDITIRANO I KANONSKI (D-068, 2026-08-27); zahtjev iznad se ne
+uklanja i ne slabi.** Ovaj odjeljak **više ne opisuje budući posao**. Dokaz je izveden
+pod-gateom **`P5-I2V`** — implementacijski commit
+`5b61a95a990b7179d62aa3338f8685cfa1c605fc`, audit `P5_I2V_I_A_PASS_READY_FOR_PUBLICATION`,
+**PR #40**, merge SHA `31de95230da6ff1b97a28e6386ee93b5da19aca5` — i **formalno je zatvoren
+(D-068)**.
+
+**Trajni vlasnik dokaza:** `apps/api/test/phase5-responsible-physician-ri.security.ts`
+(**13** testova). **`★` je bio TEST-ONLY** — nijedna migracija, schema izmjena, grant, politika,
+rola ni izmjena aplikacijskog izvora.
+
+**Oba iskaza su dokazana ISTOVREMENO**, u **jednoj** transakciji, na **istom** `pg.Client`-u, pod
+**stvarnim** `copilot_app`-om, **stvarnim** `FORCE RLS`-om i **istim** autentifikovanim
+user/practice kontekstom:
+
+```text
+A.  same-practice co-member B je PRIHVAĆEN kao encounters.responsible_physician_id
+    kroz encounters_responsible_physician_membership_fk, sa tačnom relacijom
+
+        encounters (practice_id, responsible_physician_id)
+          ->  practice_memberships (practice_id, user_id)
+
+    I ISTOVREMENO
+
+B.  direktan SELECT tačno tog istog B practice_memberships reda, u istoj
+    transakciji i istom kontekstu, vraća NULA REDOVA.
+```
+
+Obje polovine su asertirane **zajedno, u jednom strogom poređenju**, pa se **nijedna ne može
+izvještavati, citirati ni regresirati zasebno**; polovina B je uzeta **tek nakon** uspjeha
+polovine A. **`SQLSTATE 42501` nije polovina B**, i to je zapisano kao **izvršna tvrdnja**, ne
+kao proza.
+
+**Kanonske odgovornosti vlasničkog testa — tačno ono što on posjeduje:**
+
+- **tačan katalog FK-a** — puna kataloška identičnost u jednom strogom poređenju cijelog reda;
+- **pozicijsko mapiranje kolona FK-a** — `(practice_id, responsible_physician_id)` →
+  `(practice_id, user_id)`;
+- **`convalidated` / ne-odgodiv / ne inicijalno odgođen** stanje FK-a, uz `MATCH SIMPLE` i
+  `NO ACTION` / `NO ACTION`;
+- **tačan roditeljski ključ** — `practice_memberships_practice_user_key`, unique, valid, total,
+  tačno `(practice_id, user_id)`;
+- **tačno `practice_memberships` RLS / `FORCE` / politiku / grant** — `ENABLE` + `FORCE`, **tačno
+  jedna** politika `practice_memberships_self_select` (`PERMISSIVE`, `SELECT`, `TO copilot_app`,
+  bajt-identična i neoslabljena), `copilot_app` = `SELECT` i ništa drugo, `PUBLIC` i
+  `copilot_system` = ništa;
+- **fizičko-egzistencijalni diferencijal za `B`** — isti SQL i isti `(P, B)` parametri pod
+  `app.user_id = B` vraćaju **tačno jedan** red;
+- **same-client / same-transaction dokaz** — `pg_backend_pid()` i `pg_current_xact_id()`, uz
+  dokaz da je kontrolna transakcija bila **druga** i rollbackovana **prije** `★`;
+- **polovina A uspijeva** — red asertiran kolonu po kolonu, `responsible_physician_id` nije
+  `NULL`;
+- **polovina B vraća nula redova**;
+- **own-membership kontrola** — unutar `★`, vlastiti `P/A` lookup vraća **tačno jedan** red;
+- **`42501` je eksplicitno isključen** kao polovina B;
+- **no-widening regresija** — tri kanonske role bez `BYPASSRLS`, **nula** `SECURITY DEFINER`
+  funkcija nad cijelom bazom, **nijedna** politika nad `practice_memberships` koja cilja
+  vlasnika, **§23.4** allowlista **tačno šest**, i dokaz da je AAD trigger nad `encounters`
+  **`BEFORE UPDATE` only** i da na `★` **nije mogao okinuti**.
+
+**`HARD HOLD` nije nastupio** i `OD-P5-D2-5` se **ne otvara ponovo**. **`★` ostaje trajna
+regresija** — njegovo buduće rušenje je i dalje `HARD HOLD`, uz nepromijenjene zabrane iznad.
+**Posljedica:** `P5-I2` je **`COMPLETE` / `VERIFIED` / `CANONICAL` / `FORMALLY CLOSED`**, a
+`P5-I5` je **`ELIGIBLE FOR SEPARATE OWNER AUTHORIZATION`** nakon što D-068 postane kanonski —
+i **`NOT AUTHORIZED`**.
+
 ### 12.9.2 Ugovor validacije odgovornog ljekara
 
 3. **Cross-practice dodjela → `422 VALIDATION_ERROR`**, i **neuspjeh nastaje u bazi** (`23503` nad
@@ -800,6 +866,20 @@ kanonska** — pod-gate **`P5-I2C`**, implementacijski commit
 doprinosi nijednim dijelom** — `SQLSTATE 42501` nije zero-rows `SELECT` dokaz koji **`★`**
 zahtijeva.
 
+**Statusna napomena (D-068, 2026-08-27) — nijedna napomena iznad se ne prepisuje.** Rečenica
+„**Preostaje tačno jedan izuzetak**" i tvrdnja „**Taj fajl i dalje NE POSTOJI**" su tačne **na
+dan D-067** i **više ne opisuju tekuće stanje**. **`★` je izvršen i kanonski** — pod-gate
+**`P5-I2V`**, implementacijski commit `5b61a95a990b7179d62aa3338f8685cfa1c605fc`, audit
+`P5_I2V_I_A_PASS_READY_FOR_PUBLICATION`, **PR #40**, merge SHA
+`31de95230da6ff1b97a28e6386ee93b5da19aca5`. **Trajni vlasnik njegovog izvršnog dokaza je
+`apps/api/test/phase5-responsible-physician-ri.security.ts`**, uveden tim pod-gateom po D-064,
+`OD-9` — **13** testova; puni popis odgovornosti je u §12.9.1. **Nijedan izuzetak ne preostaje.**
+
+Tvrdnja da **paket `014` dokazu `★` ne doprinosi nijednim dijelom** **ostaje trajno na snazi** i
+sada je i **izvršno dokazana**: AAD trigger nad `encounters` je **`BEFORE UPDATE` only**, pa na
+`★`, koji je `INSERT`, **nije mogao okinuti**. **`SQLSTATE 42501` i dalje nije polovina B**, i to
+je asertirano, ne tvrđeno prozom.
+
 17. `relrowsecurity` **i** `relforcerowsecurity` su `true` na svih pet tabela — **trajna regresija**.
     > **DOPUNA OBUHVATA — D-066 (tekući autoritet); tvrdnja iznad se ne slabi.** Pet PHI tabela
     > ostaje **doslovno** obavezno. **Puni `FORCE RLS` skup je nakon `P5-I2B` `13 / 13` tenant
@@ -841,6 +921,16 @@ zahtijeva.
     > tekuće živo stanje, pa ih kanoničnost `P5-I2B` ne obesmišljava. **`★` dokaz
     > `phase5-responsible-physician-ri.security.ts` i dalje NE POSTOJI** — pripada `P5-I2V`,
     > koji je **`NOT EXECUTED`**.
+    >
+    > **STATUS — D-068 (2026-08-27); status iznad se ne prepisuje.** Zaključna rečenica
+    > „**`★` dokaz `phase5-responsible-physician-ri.security.ts` i dalje NE POSTOJI**" je tačna
+    > **na dan D-066** i **više ne opisuje tekuće stanje**: taj fajl **postoji i kanonski je**
+    > (`P5-I2V`, **PR #40**), i **jeste** trajni vlasnik dokaza **`★`**. **Ova stavka se time ne
+    > mijenja** — steady-state katalog **25 politika nad 13 tabela** ostaje u vlasništvu
+    > `phase5-rls-grants.security.ts`, a `P5-I2V` **nije uveo nijednu politiku, grant, rolu,
+    > migraciju ni schema izmjenu**; `practice_memberships` i dalje nosi **tačno jednu**
+    > politiku `practice_memberships_self_select`, **bajt-identičnu i neoslabljenu**, uz
+    > `copilot_app` = `SELECT` i ništa drugo.
 19. **`copilot_system` ima nula grantova** nad svih pet tabela; **`PUBLIC` nula**.
 20. **`storage_objects` nema nijedan grant i nijednu politiku**, i drži **nula redova**.
 21. **Tačan skup column-level `UPDATE` kolona** na `encounters` (12 kolona) i na

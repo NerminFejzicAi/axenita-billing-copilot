@@ -1331,6 +1331,23 @@ izvršen i nije autorizovan** i **`P5-I2C` ga ne autorizuje**; **`P5-I5` ostaje 
 **šest** slice-ova (`P5-I3`–`P5-I8`) ostaje **`NOT_STARTED`**. Kompletan dokaz `P5-I2C`-a je u
 `05`, Faza 5, blok `Pod-gate P5-I2C — Faza-5 slice paketa 014`.
 
+**AŽURIRANJE STATUSA (D-068, 2026-08-27) — nijedan pasus ni anotacija iznad se ne prepisuju.**
+Rečenica „**`P5-I2V` / `★` nije izvršen i nije autorizovan**" je **tačna na dan svog zapisa
+(2026-08-26)** i **više ne opisuje tekuće stanje**. **Pod-gate `P5-I2V` je izvršen, nezavisno
+auditiran** (`P5_I2V_I_A_PASS_READY_FOR_PUBLICATION`)**, kanonski i formalno zatvoren** (D-068) —
+implementacijski commit `5b61a95a990b7179d62aa3338f8685cfa1c605fc`, objavljen kroz **PR #40**,
+merge SHA `31de95230da6ff1b97a28e6386ee93b5da19aca5`, trajni vlasnik dokaza
+`apps/api/test/phase5-responsible-physician-ri.security.ts`. **`P5-I2V` je bio TEST-ONLY** —
+nijedna migracija, schema izmjena, grant, politika, rola ni izmjena izvora.
+
+**Time su sva četiri ratifikovana pod-gatea `P5-I2` iscrpljena**, pa je **`P5-I2` = `COMPLETE` /
+`VERIFIED` / `CANONICAL` / `FORMALLY CLOSED`** (D-068) i **checklist Faze 5 je `49 / 9`**
+(`05` §6). **`P5-I5` prelazi iz `BLOCKED` u `ELIGIBLE FOR SEPARATE OWNER AUTHORIZATION` i ostaje
+`NOT AUTHORIZED`** — podobnost nije autorizacija. **Nepromijenjeno ostaje:** **Faza 5 je
+`IN_PROGRESS`, nije `DONE`**, a preostalih **šest** slice-ova (`P5-I3`–`P5-I8`) ostaje
+**`NOT_STARTED`**. Kompletan dokaz `P5-I2V`-a je u `05`, Faza 5, blok
+`Pod-gate P5-I2V — ★ RI-naspram-RLS dokaz`.
+
 ### Segmentacija `P5-I2` na četiri pod-gatea (D-064)
 
 `P5-I2` se **ne izvršava kao jedan potez**. Ratifikovana su četiri pod-gatea:
@@ -1396,6 +1413,37 @@ Faza 5, `Pod-gate P5-I2C — Faza-5 slice paketa 014`.
 **ne autorizuje `P5-I2V`** i **ne odblokira `P5-I5`**. **Faza 5 ostaje `IN_PROGRESS`.**
 **Naredni obavezni gate je `P5-I2V`**, i traži **zaseban vlasnički potez**.
 
+**Tekuće stanje pod-gateova (2026-08-27; D-068).** **`P5-I2A` = `CANONICAL`** (PR #33).
+**`P5-I2B` = `CANONICAL` / `FORMALLY CLOSED`** (PR #36). **`P5-I2C` = `CANONICAL` /
+`FORMALLY CLOSED`** (PR #38). **`P5-I2V` = `IMPLEMENTED` / `INDEPENDENTLY AUDITED` / `MERGED` /
+`CANONICAL` / `FORMALLY CLOSED`** — commit `5b61a95a990b7179d62aa3338f8685cfa1c605fc`, audit
+`P5_I2V_I_A_PASS_READY_FOR_PUBLICATION`, **PR #40**, merge SHA
+`31de95230da6ff1b97a28e6386ee93b5da19aca5`, vlasnik dokaza
+`apps/api/test/phase5-responsible-physician-ri.security.ts` (**13** testova).
+
+**`★` je dokazan kao KONJUNKCIJA** — u **jednoj** transakciji, na **istom** klijentu, pod
+**stvarnim** `copilot_app`-om i **stvarnim** `FORCE RLS`-om: same-practice co-member `B` je
+**prihvaćen** kao `responsible_physician_id` kroz
+`encounters_responsible_physician_membership_fk`, **a istovremeno** direktan `SELECT` tog istog
+`practice_memberships` reda vraća **nula redova**. **`SQLSTATE 42501` nije polovina B**, i to je
+izvršna tvrdnja. Puni nalaz, kontrole isključenja lažno pozitivnog i kataloško stanje su u
+`02` §29.2a. Sigurnosno stanje je **regresijski dokazano netaknutim**: tri role bez `BYPASSRLS`,
+**nula** `SECURITY DEFINER` funkcija, **§23.4** allowlista **tačno 6**, nijedan novi grant,
+politika, rola ni migracija. Dokazni blok je `05`, Faza 5,
+`Pod-gate P5-I2V — ★ RI-naspram-RLS dokaz`.
+
+**`P5-I2` je time ZATVOREN.** Sva **četiri** ratifikovana pod-gatea (D-064) su iscrpljena, i
+**nijedan `P5-I2` posao ne preostaje**: **`P5-I2` = `COMPLETE` / `VERIFIED` / `CANONICAL` /
+`FORMALLY CLOSED`** (D-068). **Checklist Faze 5 je `49 / 9`** — red `Schema → RLS` je označen,
+`Tests → cross-tenant FK` ostaje **neoznačen** jer njegovo značenje uključuje API/`422` ponašanje
+u vlasništvu `P5-I5` (D-064).
+
+**Naredni obavezni gate je `P5-I5` — Encounter jezgro.** Njegov tvrdi preduslov **`★`** je
+**ispunjen**, pa je gate **`ELIGIBLE FOR SEPARATE OWNER AUTHORIZATION`** nakon što D-068 postane
+kanonski — i **`NOT AUTHORIZED`**. **Podobnost nije autorizacija**; nijedan korak `P5-I5` ne
+počinje automatski, a zavisnosti `P5-I3` i `P5-I4` (§7.5) ostaju nepromijenjene. **Faza 5 ostaje
+`IN_PROGRESS`; nije `DONE`.**
+
 **`P5-I2B` Security Boundary Preflight — `HOLD`, pa D-065 (2026-08-25).** Read-only preflight
 `P5-I2B` je završio ishodom **`HOLD`** sa razlogom **`POLICY_CATALOGUE_ARITHMETIC_INCONSISTENT`**:
 objavljeni PHI zbir (`8`) nije se poklapao sa vlastitim imenovanim katalogom (`10` politika,
@@ -1436,6 +1484,27 @@ test-only privremenoj tabeli, uspjeh ne-AAD i same-value `UPDATE`-a, te **regres
 Exact-set ekspektacije su evoluirale isključivo **stari tačan skup → novi tačan skup**;
 **nijedna tvrdnja nije oslabljena**. **`phase5-responsible-physician-ri.security.ts` i dalje NE
 POSTOJI** — **`★`** pripada `P5-I2V`, koji je **`NOT EXECUTED`**.
+
+**STATUS vlasništva testova (D-068, 2026-08-27) — status iznad se ne prepisuje.** Zaključna
+rečenica „**`phase5-responsible-physician-ri.security.ts` i dalje NE POSTOJI**" je **tačna na dan
+D-067** i **više ne opisuje tekuće stanje**. **`apps/api/test/phase5-responsible-physician-ri.security.ts`
+postoji, kanonski je i trajni je vlasnik dokaza `★`** — uveden i kanonski od **PR #40**, **13**
+testova. On posjeduje: **punu katalošku identičnost** composite FK-a u jednom strogom poređenju
+cijelog reda (`MATCH SIMPLE`, `NO ACTION` / `NO ACTION`, `convalidated`, ne-odgodiv, ne inicijalno
+odgođen, tačan roditeljski indeks); **pozicijsko mapiranje kolona**
+`(practice_id, responsible_physician_id)` → `(practice_id, user_id)`; **identičnost roditeljskog
+ključa** `practice_memberships_practice_user_key`; **`ENABLE` + `FORCE RLS`** nad
+`practice_memberships`; **tačno jednu politiku** `practice_memberships_self_select`
+(`PERMISSIVE` / `SELECT` / `TO copilot_app`, bajt-identična i neoslabljena); **tačan grant**
+(`copilot_app` = `SELECT` i ništa drugo; `PUBLIC` i `copilot_system` = ništa);
+**fizičko-egzistencijalnu diferencijalnu kontrolu** za `B`; **same-client / same-transaction
+dokaz**; **polovinu A** (uspjeh) i **polovinu B** (nula redova), asertirane **zajedno**;
+**own-membership kontrolu**; **izvršnu tvrdnju da `42501` nije polovina B**; **dokaz da `★` nije
+ostavio nijedan red**; i **no-widening regresiju**. Exact-set ekspektacije su i ovdje evoluirale
+isključivo **stari tačan skup → novi tačan skup**; **nijedna tvrdnja nije oslabljena**, a
+steady-state dokazi `phase5-schema-catalogue.security.ts`,
+`phase5-package011-catalogue.security.ts`, `phase5-rls-grants.security.ts` i
+`phase5-aad-immutability.security.ts` su **očuvani**.
 
 ## 7.6 Acceptance
 
@@ -1538,6 +1607,27 @@ Oba iskaza moraju vrijediti istovremeno: prvi dokazuje da RI radi, drugi da RLS 
 slabljenje RLS-a** ni bilo koje proširenje Faza-4 sigurnosne granice.
 
 **Implementacija encounter jezgra (`P5-I5`) ne smije početi prije nego što `★` prođe.**
+
+**STATUS — ISPUNJENO I KANONSKI (D-068, 2026-08-27); obaveza iznad se ne uklanja.** Obaveza je
+**ispunjena**, ne povučena: **`★` je izvršen, nezavisno auditiran, merged i kanonski** —
+pod-gate **`P5-I2V`**, commit `5b61a95a990b7179d62aa3338f8685cfa1c605fc`, audit
+`P5_I2V_I_A_PASS_READY_FOR_PUBLICATION`, **PR #40**, merge SHA
+`31de95230da6ff1b97a28e6386ee93b5da19aca5`. **Oba iskaza vrijede istovremeno**, u jednoj
+transakciji na istom klijentu, pod stvarnim `copilot_app`-om i stvarnim `FORCE RLS`-om: `INSERT`
+sa co-member `responsible_physician_id` **uspijeva** kroz
+`encounters_responsible_physician_membership_fk`, **a** direktan `SELECT` tog istog
+`practice_memberships` reda vraća **nula redova**. **`SQLSTATE 42501` nije taj drugi iskaz.**
+Puni nalaz i kontrole isključenja lažno pozitivnog su u `02` §29.2a. **`HARD HOLD` nije
+nastupio**, `OD-P5-D2-5` se **ne otvara ponovo**, i **nijedno slabljenje RLS-a ni proširenje
+Faza-4 granice nije izvedeno.**
+
+**Trajni vlasnik dokaza je `apps/api/test/phase5-responsible-physician-ri.security.ts`**, i
+**`★` ostaje trajna regresija** — njegovo buduće rušenje je i dalje **`HARD HOLD`**.
+
+**Posljedica za `P5-I5`:** rečenica „implementacija encounter jezgra ne smije početi prije nego
+što `★` prođe" **ostaje na snazi** i **njen uslov je zadovoljen**. `P5-I5` je time **`ELIGIBLE
+FOR SEPARATE OWNER AUTHORIZATION`** — nakon što D-068 postane kanonski — i **`NOT AUTHORIZED`**.
+**Podobnost nije autorizacija**; `P5-I5` ne počinje automatski.
 
 ## 7.7 Commit
 
