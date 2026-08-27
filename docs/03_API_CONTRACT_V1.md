@@ -1159,7 +1159,10 @@ Server:
 
 - **Normalizacija.** `externalPatientReference` prolazi profil **`MANUAL` v1** prije bilo kakve
   upotrebe: validan Unicode; odbijanje `NUL` i C0/C1 kontrolnih znakova; uklanjanje vodećeg BOM-a;
-  vanjski trim; **NFC**; odbijanje praznog rezultata; maksimum dužine; UTF-8. **Bez `NFKC`, bez
+  vanjski trim; **NFC**; odbijanje praznog rezultata; **maksimum od `255` UTF-8 bajtova mjeren nad
+  finalnim normalizovanim oblikom, neposredno prije UTF-8 HMAC granice** (D-070; `02` §2.8.5) —
+  **ne** 255 UTF-16 code unita, **ne** 255 code pointa, **ne** 255 grapheme clustera i **ne**
+  pre-NFC brojanje; UTF-8. **Bez `NFKC`, bez
   case-foldinga, bez uklanjanja vodećih nula, bez sažimanja unutrašnjeg whitespacea.** Nevalidan
   ulaz → `422 VALIDATION_ERROR` sa **generičkom porukom koja ne citira vrijednost** (§8).
 - **Deterministički token.** Server računa **keyed HMAC-SHA256** nad domenski separisanom kanonskom
@@ -1702,10 +1705,25 @@ ostaje Class A (`09` §2). Pri `redactionStatus = FAILED` `redactedTextHash` izo
 `view=redacted` **ne vraća** normalizovani tekst (§13.3).
 
 Deterministička redakcija Faze 5 pokriva e-mail, `http`/`https`/`www.` URL-ove, validiran AHV/AVS,
-validiran IBAN, kanonski definisane visokopouzdane identifikatore osiguranja, eksternu referencu
-pacijenta iz tekućeg zahtjeva i **strogo prepoznat** švicarski telefonski broj. **Ne pokriva** imena,
-adrese, dijagnoze, simptome, lijekove, doziranja, mjerenja, medicinski nužne datume ni kliničke
-nalaze (D-060, klauzula 26).
+validiran IBAN, eksternu referencu pacijenta iz tekućeg zahtjeva i **strogo prepoznat** švicarski
+telefonski broj. **Ne pokriva** imena, adrese, dijagnoze, simptome, lijekove, doziranja, mjerenja,
+medicinski nužne datume ni kliničke nalaze (D-060, klauzula 26).
+
+**Obuhvat v1 — precizacija (D-070, 2026-08-28).** `phase5-basic-v1` **ne tvrdi** zasebnu klasu
+identifikatora osiguranja/kartice — ni generički identifikator osiguranja, ni identifikator kartice
+osiguranja, ni **`VeKa`**, ni broj članstva/kartice. `AHV`/`AVS` je **jedina** validirana
+identifikatorska klasa te vrste u v1; uslovna formulacija iz D-060, klauzule 24 („isključivo tamo
+gdje je kanonski definisan uzorak") **nikada nije dobila kanonski uzorak**, pa je uslov neispunjen.
+Buduće dodavanje traži **novu verziju ruleseta** (npr. `phase5-basic-v2`) uz vlasničko odobrenje.
+**„Strogo prepoznat" znači tačnu, potpuno nabrojanu v1 sintaksu** (D-070, `RULING 5`): međunarodno
+`+41`/`0041` uz **tačno 9** cifara, kompaktno ili grupisano jednim konzistentnim separatorom
+(`XX XXX XX XX` ili `XX-XXX-XX-XX`); nacionalno **isključivo** uz neposrednu oznaku `Tel`, `Tel.`,
+`Telefon`, `Mobile`, `Natel` ili `Fax` (case-insensitive, uz whitespace i opciono jednu `:`), pa
+`0` + **tačno 9** cifara ili `0XX XXX XX XX` / `0XX-XXX-XX-XX`; prva cifra područja je `1`–`9`, a
+kandidat **ne smije** biti podniz dužeg decimalnog niza. **Goli nacionalni brojevi bez oznake,
+oblici sa tačkama, `(0)` varijante i miješani separatori se NE rediguju**, i **fallback generički
+telefonski regex se ne primjenjuje**. Implementaciju ruleseta posjeduje **`P5-I6`**, ne `P5-I3`
+(D-070, `RULING 1`).
 
 ## 13.2 Upload putanja — DEFERRED
 

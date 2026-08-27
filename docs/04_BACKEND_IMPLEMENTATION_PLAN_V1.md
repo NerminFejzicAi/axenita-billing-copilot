@@ -1410,6 +1410,76 @@ OWNER_DECISIONS_REQUIRED_FOR_P5_I5 = 0
 dependency-blocked.** Svjež preflight ili uzak pre-execution checkpoint smije se izvesti **nakon
 `P5-I4`**, radi potvrde da nije nastao drift.
 
+**VLASNIŠTVO PRIMITIVA `P5-I3` I UGOVORI PREFLIGHTA (D-070, 2026-08-28) — nijedan pasus ni
+anotacija iznad se ne prepisuju; tabela zavisnosti na vrhu §7.5 ostaje mjerodavna i nije
+waivovana.** **Checklist Faze 5 ostaje `49 / 9`.**
+
+Kanonski read-only preflight `P5-I3` završio je ishodom
+**`P5_I3_PREFLIGHT_HOLD_OWNER_DECISION_REQUIRED`** sa **pet** neriješenih vlasničkih odluka
+(`OD-P5-I3-1` … `OD-P5-I3-5`). **Vlasnik je ratifikovao svih pet (D-070)**, pa je
+
+```text
+OWNER_DECISIONS_REQUIRED_FOR_P5_I3 = 0
+```
+
+**Ishod se time NE pretvara u `P5_I3_PREFLIGHT_PASS_READY_FOR_OWNER_AUTHORIZATION`** — **svjež
+read-only preflight nad kanonskim `main`-om koji sadrži D-070 je i dalje obavezan**, a autorizacija
+je **zaseban vlasnički potez**. **Tačna formulacija je: `P5-I3` je policy-resolved i next.**
+
+**Obuhvat `P5-I3` iz tabele iznad — „kripto/HMAC/normalizacijski primitivi, bez baze" — se ne
+mijenja; D-070 ga popisuje imenom.** `P5-I3` posjeduje:
+
+```text
+ 1  encryption servis/interface i kanonska ENCRYPTION_SERVICE granica
+ 2  LocalStaticKeyProvider
+ 3  lokalna AES-256-GCM enkripcija/dekripcija po D-025
+ 4  kanonski D-025 AAD builder
+ 5  MANUAL v1 normalizacija eksternog identifikatora (maksimum 255 UTF-8 bajtova)
+ 6  HMAC servis eksterne reference i katalog domena
+ 7  startup enforcement za K_hmac != K_enc nad dekodiranim bajtovima
+ 8  normalizacija kliničkog teksta
+ 9  generički SHA-256 helper: UTF-8 ulaz -> SHA-256 -> 64 lowercase hex znaka
+10  generator pseudonima i helper za kanonizaciju pseudonima u velika slova
+```
+
+**`P5-I3` NE posjeduje** implementaciju `phase5-basic-v1`, redakcionu orkestraciju, stanje obrade
+dokumenta, rukovanje statusom redakcije, semantiku fallbacka za `view=redacted` ni perzistenciju
+dokumenta. **Te stavke pripadaju `P5-I6` / `P5-I7`** po granicama iz tabele iznad. **`P5-I3` posjeduje
+ponovo upotrebljiv generički SHA-256 primitiv i samo njega**; **`P5-I6`** ga kasnije konzumira za
+`source_text_hash` i `redacted_text_hash` prema redoslijedu obrade iz D-060. **`P5-I3` ne smije
+kreirati perzistenciju dokumenta** samo da bi vježbao te dvije polje-specifične upotrebe.
+
+**Ekskluzije iz D-069 ostaju netaknute:** `TenantDatabaseService` facade, idempotency servis,
+`request_sha256`, audit writer i Faza-5 audit self-hash **ostaju u vlasništvu `P5-I4`** (§7.5a), i
+**`P5-I3` ih ne smije povlačiti unaprijed**.
+
+**Preporučena segmentacija `P5-I3` — planska posljedica, ne autorizacija.** `P5-I3A` = granica
+enkripcije (interface/`ENCRYPTION_SERVICE`, kanonski AAD, `LocalStaticKeyProvider`, AES-256-GCM,
+lokalna `K_enc` konfiguracija i guardovi). `P5-I3B` = granica identiteta eksterne reference
+(`MANUAL` v1 normalizacija, maksimum 255 UTF-8 bajtova, HMAC eksterne reference, katalog domena,
+`HMAC_LOCAL_KEY`, guard `K_hmac != K_enc` nad dekodiranim bajtovima) — **`P5-I3B` zavisi od
+`P5-I3A`** zbog dijeljene granice ključa/konfiguracije. `P5-I3C` = deterministički primitivi bez
+baze (normalizacija kliničkog teksta, generički SHA-256 helper, generator pseudonima, uppercase
+kanonizacija pseudonima) — **tehnički nezavisan od A/B**, uz sekvencijalno izvršenje radi gate
+discipline. **Ne postoji `P5-I3D`:** redakcioni pod-gate `P5-I3` **ne postoji**, jer
+`phase5-basic-v1` pripada `P5-I6`.
+
+**Tekući status slice-ova (D-070):**
+
+```text
+P5-I3      POLICY-RESOLVED / NEXT / NOT AUTHORIZED / NOT STARTED
+P5-I4      AFTER P5-I3 / NOT_STARTED / NOT AUTHORIZED
+P5-I5      POLICY-RESOLVED / DEPENDENCY-BLOCKED / NOT AUTHORIZED / NOT STARTED
+P5-I6      NOT_STARTED — vlasnik phase5-basic-v1
+Faza 5     IN_PROGRESS
+checklist  49 / 9
+OWNER_DECISIONS_REQUIRED_FOR_P5_I3 = 0
+OWNER_DECISIONS_REQUIRED_FOR_P5_I5 = 0
+```
+
+**D-070 ne autorizuje nijedan slice**, ne mijenja nijednu zavisnost iz tabele §7.5, ne mijenja
+kanonski redoslijed `P5-I3 → P5-I4 → P5-I5` i **ne označava nijednu kućicu**. Vidi D-070 u `06`.
+
 ## 7.5a Faza-5 cross-cutting ugovori — vlasnik `P5-I4` (D-069)
 
 **Ova sekcija je ugovor, ne implementacija.** **D-069 ne implementira nijednu liniju koda**, ne

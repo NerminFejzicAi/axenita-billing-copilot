@@ -580,6 +580,18 @@ sekcija **§12.8** je isto takva obaveza objavljena odlukom **D-061**; sekcija *
 - **druga domena** (`patient_external_ref` vs `encounter_external_ref` vs
   `document_external_ref`) → drugi token;
 - **`K_hmac` i `K_enc` ne smiju biti jednaki** — konfiguracija u kojoj jesu mora pasti;
+- **guard poredi dekodirane bajtove ključeva, ne Base64 stringove** (D-070, `RULING 3`): dvije
+  **različite** validne Base64 reprezentacije koje dekodiraju u **isti** 32-bajtni ključ **moraju**
+  oboriti start; poređenje isključivo sirovih stringova je **neusklađeno** i test to tvrdi;
+- **poređenje ključeva je u konstantnom vremenu** — npr. `timingSafeEqual` ili semantički
+  ekvivalentan primitiv;
+- **`ENCRYPTION_LOCAL_KEY` i `HMAC_LOCAL_KEY` su RFC 4648 standardni Base64 bez whitespacea, sa
+  dekodiranih tačno 32 bajta**: nevalidan Base64 i svaka dekodirana dužina različita od 32 bajta
+  **moraju** pasti kao startup/konfiguraciona greška;
+- **`ENCRYPTION_KEY_VERSION` je obavezan** (D-025, klauzula 10) — njegov izostanak mora oboriti
+  start; **varijabla `HMAC_KEY_VERSION` u Fazi 5 ne postoji** i nijedan test je ne smije zahtijevati;
+- **test ne smije tvrditi da guard dokazuje neizvedenost `K_hmac` iz `K_enc`** — guard dokazuje
+  **nejednakost bajtova**; provenijencija ostaje operativna obaveza (`09` §8.1);
 - token prati format `h1.<64 lowercase hex>` i staje u `varchar(128)`;
 - **malformisan ili nepoznat generacijski prefiks** se odbija **sigurno** — bez izlaganja tokena,
   ulazne vrijednosti ni materijala ključa u poruci greške;
@@ -596,7 +608,12 @@ sekcija **§12.8** je isto takva obaveza objavljena odlukom **D-061**; sekcija *
 - **`NFKC` se ne primjenjuje** — znakovi koje bi `NFKC` presložio ostaju različiti;
 - `NUL`, C0/C1 kontrolni znakovi, prazan ulaz i ulaz prazan nakon normalizacije se **odbijaju**;
 - vodeći `U+FEFF` se uklanja;
-- prekoračena dužina identifikatora se odbija.
+- **prekoračena dužina identifikatora se odbija na tačnoj granici od `255` UTF-8 bajtova mjerenoj
+  nad finalnim normalizovanim oblikom, poslije NFC-a** (D-070, `RULING 2`): `255` bajtova prolazi,
+  `256` bajtova pada; granica **nije** 255 UTF-16 code unita, **nije** 255 code pointa, **nije** 255
+  grapheme clustera i **nije** pre-NFC brojanje — test uzima ulaz čije se **pre-NFC** i **post-NFC**
+  bajtne dužine razlikuju i tvrdi da mjerodavna ostaje **post-NFC**;
+- **poruka odbijanja ne citira ni jedan dio poslane vrijednosti.**
 
 ## 12.3 Pseudonim
 
@@ -631,11 +648,25 @@ sekcija **§12.8** je isto takva obaveza objavljena odlukom **D-061**; sekcija *
 ## 12.5 Deterministička redakcija (`phase5-basic-v1`)
 
 - pozitivan slučaj po **svakoj podržanoj klasi**: e-mail; `http`/`https`/`www.` URL; **validiran**
-  AHV/AVS; **validiran** IBAN; kanonski definisan identifikator osiguranja; eksterna referenca
-  pacijenta iz tekućeg zahtjeva;
-- **telefon — strogi negativni slučajevi:** brojevi doziranja, laboratorijske vrijednosti, tarifni i
-  ICD kodovi, datumi i mjerenja **ne smiju** biti redigovani; dvosmislen numerički niz **ostaje
-  neredigovan**;
+  AHV/AVS; **validiran** IBAN; eksterna referenca pacijenta iz tekućeg zahtjeva;
+- **zaseban pozitivan slučaj za identifikator osiguranja/kartice se NE zahtijeva** i **nije
+  primjenjiv na `phase5-basic-v1`** (D-070, `RULING 4`): `AHV`/`AVS` je jedina validirana
+  identifikatorska klasa te vrste u v1, a generički identifikator osiguranja, identifikator kartice,
+  **`VeKa`** i broj članstva/kartice **nemaju kanonski uzorak** — **nijedan test ne smije tvrditi tu
+  pokrivenost**; buduće dodavanje traži novu verziju ruleseta;
+- **telefon — pozitivni slučajevi po tačnoj v1 sintaksi** (D-070, `RULING 5`): `+41` i `0041` uz
+  **tačno 9** cifara kompaktno; `+41 XX XXX XX XX` i `0041 XX XXX XX XX`; `+41-XX-XXX-XX-XX` i
+  `0041-XX-XXX-XX-XX`; te nacionalni oblici **isključivo uz neposrednu oznaku** `Tel`, `Tel.`,
+  `Telefon`, `Mobile`, `Natel` ili `Fax` — case-insensitive, uz whitespace i opciono jednu `:` — u
+  oblicima `0` + **tačno 9** cifara, `0XX XXX XX XX` i `0XX-XXX-XX-XX`; prva cifra područja je
+  `1`–`9`;
+- **telefon — strogi negativni slučajevi:** **goli nacionalni broj bez prihvaćene oznake**; oblici sa
+  **tačkama** kao separatorima; **`(0)`** varijante u zagradi; **miješani** separatori (razmak i
+  crtica u istom kandidatu); kandidat koji je **podniz dužeg decimalnog niza**; brojevi doziranja,
+  laboratorijske vrijednosti, tarifni i ICD kodovi, datumi i mjerenja **ne smiju** biti redigovani;
+  dvosmislen numerički niz **ostaje neredigovan**;
+- **nema fallback generičkog telefonskog regexa** — kandidat koji ne prođe tačan v1 prepoznavač
+  **ostaje nepromijenjen**, i **nijedan test ne smije tvrditi širu telefonsku pokrivenost**;
 - AHV/IBAN sa **neispravnom kontrolnom cifrom/checksumom ostaju neredigovani** (validacija je uslov,
   ne heuristika);
 - **imena, adrese, dijagnoze, simptomi, lijekovi, doziranja, mjerenja, medicinski nužni datumi i
