@@ -317,8 +317,20 @@ formata poruke. `h1` **nije** verzija normalizacionog profila — profil je verz
 
 Aktivni profil je **`MANUAL` v1** (D-060, klauzula 10), tim redoslijedom: validan Unicode; odbij
 `NUL`; odbij C0/C1 kontrolne znakove; ukloni vodeći `U+FEFF`; skrati vodeći/prateći Unicode
-whitespace; **NFC**; odbij prazan rezultat; primijeni maksimum dužine iz postojećih schema/API
-ograničenja; kodiraj UTF-8.
+whitespace; **NFC**; odbij prazan rezultat; primijeni maksimum od **`255` UTF-8 bajtova**
+(D-070); kodiraj UTF-8.
+
+**Maksimum dužine — `255` UTF-8 bajtova (D-070, `RULING 2`).** Raniji tekst je maksimum delegirao
+„postojećim schema/API ograničenjima", koja **ne postoje**: čisti eksterni identifikator **nema
+kolonu** — perzistira se isključivo token `h1.<hex64>` — pa je referent bio **prazan**. Tekući
+ugovor je eksplicitan: mjeri se **dužina u bajtovima finalne normalizovane UTF-8 reprezentacije**,
+dakle **poslije** validacije Unicodea, odbijanja `NUL`/C0/C1, uklanjanja vodećeg `U+FEFF`, vanjskog
+trima, **NFC**-a i odbijanja praznog rezultata, a **neposredno prije** UTF-8 HMAC granice. Ako je
+`UTF8_BYTE_LENGTH(normalizovana_vrijednost) > 255`, identifikator se **odbija**. Maksimum **nije**
+255 UTF-16 code unita, **nije** 255 code pointa, **nije** 255 grapheme clustera i **nije** pre-NFC
+brojanje. Primitiv **nikada ne eho-vira odbijenu vrijednost** u grešci; API mapiranje na generički
+`422 VALIDATION_ERROR` posjeduje `P5-I4` (`03` §8, §11). Vrijednost je **dio immutable profila**
+(vidi ispod): drugačiji maksimum traži **novu verziju profila**, ne izmjenu `MANUAL` v1.
 
 Zabranjeno je: `NFKC`; case-folding; uklanjanje vodećih nula; sažimanje unutrašnjeg whitespacea;
 mijenjanje interpunkcije; homoglyph folding.
@@ -467,6 +479,17 @@ već dozvoljavaju; `view=redacted` **ne smije** pasti nazad na normalizovani ni 
 
 Verzija je **immutable identifikator na nivou koda/konfiguracije** — `phase5-basic-v1`.
 **Kolona za verziju ruleseta po dokumentu se u Fazi 5 ne uvodi.**
+
+**Vlasništvo i obuhvat v1 (D-070, 2026-08-28).** **Implementaciju `phase5-basic-v1` posjeduje
+`P5-I6`** — zajedno sa redakcionom orkestracijom, stanjem obrade dokumenta, rukovanjem statusom
+redakcije, semantikom fallbacka za `view=redacted` i perzistencijom dokumenta. **`P5-I3` je ne
+posjeduje**; `P5-I3` posjeduje isključivo primitive bez baze, uključujući **generički SHA-256
+tekstualni helper** koji `P5-I6` kasnije konzumira za `source_text_hash` i `redacted_text_hash`
+(§2.10.3). Obuhvat v1 je: `AHV`/`AVS` ostaje jedina validirana identifikatorska klasa te vrste —
+**zasebna klasa identifikatora osiguranja/kartice, uključujući `VeKa`, nije dio v1**; švicarski
+telefon se prepoznaje **isključivo** kroz tačnu, potpuno nabrojanu v1 sintaksu, uz pravilo
+„dvosmisleno → ne rediguj" i **bez** fallback generičkog regexa. Vidi D-070, `RULING 1`, `RULING 4`
+i `RULING 5`; `03` §13.1; `08` §12.5; `09` §8.3.
 
 ### 2.11.4 Sloj sprovođenja — RIJEŠENO (D-062, Dio E)
 

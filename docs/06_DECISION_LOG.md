@@ -5198,6 +5198,18 @@ Prije HMAC-a eksterni identifikator prolazi **minimalan** normalizacioni profil.
    ograničenja;
 9. kodiraj kao UTF-8 na HMAC granici.
 
+**ANOTACIJA TEKUĆEG STATUSA (D-070, 2026-08-28) — tijelo klauzule 10 se ne prepisuje.** Stavka 8
+iznad upućuje na „postojeća schema/API ograničenja" koja **ne postoje**: čisti eksterni
+identifikator se **nikada ne perzistira** — perzistira se isključivo token `h1.<hex64>` u
+`varchar(128)` (§A) — pa nijedna kolona i nijedno API polje ne nose taj maksimum. Referent je time
+bio **prazan**. **D-070, `RULING 2` (`OD-P5-I3-2`) ga zamjenjuje eksplicitnom vrijednošću:**
+maksimum profila `MANUAL` v1 je **`255` UTF-8 bajtova**, mjeren nad **finalnim normalizovanim**
+oblikom — poslije koraka 1–7, a **neposredno prije** koraka 9 (UTF-8 HMAC granica). **Nije** 255
+UTF-16 code unita, **nije** 255 code pointa, **nije** 255 grapheme clustera i **nije** pre-NFC
+brojanje. Vrijednost je **dio immutable profila `MANUAL` v1** (klauzula 12); drugačiji maksimum
+traži **novu, izričito upravljanu verziju profila**. **Redoslijed i sadržaj koraka 1–9 se ne
+mijenjaju.** Vidi `02` §2.8.5, `03` §11, `08` §12.2.
+
 ### B.2 Klauzula 11 — izričito zabranjene operacije
 
 Profil **ne smije**:
@@ -5355,6 +5367,34 @@ prepoznavač sa dovoljno jakim strukturnim dokazom. **Kad je signal dvosmislen �
 **Lažno negativni rezultati su prihvaćeni i dokumentovani za Fazu 5**, jer je lažno pozitivna
 redakcija doziranja, laboratorijske vrijednosti ili tarifnog koda **klinički opasnija** od
 propuštenog broja u tekstu koji ionako ostaje enkriptovan i pod RLS-om.
+
+**ANOTACIJA TEKUĆEG STATUSA (D-070, 2026-08-28) — tijela klauzula 24 i 25 se ne prepisuju.**
+Obje klauzule ostaju na snazi; D-070 im **precizira obuhvat v1** i **ne proširuje** ga.
+
+**Uz klauzulu 24 (D-070, `RULING 4` / `OD-P5-I3-4`).** Stavka „identifikatori osiguranja/kartice
+**isključivo** tamo gdje je kanonski definisan visokopouzdan, validiran uzorak" je **uslovna**, i
+taj uslov **u v1 nikada nije ispunjen**: nijedan kanonski uzorak za generički identifikator
+osiguranja, identifikator kartice osiguranja, **VeKa** identifikator ni broj članstva/kartice
+**nije definisan**. Zato `phase5-basic-v1` **zadržava validiran `AHV`/`AVS` kao svoju jedinu
+identifikatorsku klasu te vrste** i **ne tvrdi** zasebnu podršku za osiguranje/karticu. **Obavezna
+pozitivna test matrica ne smije tražiti zaseban pozitivan slučaj za osiguranje/karticu.** Buduće
+dodavanje traži **novu verziju ruleseta** (npr. `phase5-basic-v2`) uz zaseban kanonski uzorak i
+vlasničko odobrenje. **Zahtjev iskrenosti iz klauzule 26 važi i za ovu klasu.**
+
+**Uz klauzulu 25 (D-070, `RULING 5` / `OD-P5-I3-5`).** „Dovoljno jak strukturni dokaz" dobija
+**tačnu, potpuno nabrojanu v1 sintaksu**. Međunarodno: `+41` ili `0041` uz **tačno 9** decimalnih
+cifara, kompaktno ili grupisano kao `XX XXX XX XX` odnosno `XX-XXX-XX-XX`, uz **jedan konzistentan
+separator**. Nacionalno: **isključivo** uz neposrednu oznaku `Tel`, `Tel.`, `Telefon`, `Mobile`,
+`Natel` ili `Fax` (case-insensitive, uz whitespace i opciono jednu `:`), pa `0` + **tačno 9** cifara
+ili `0XX XXX XX XX` / `0XX-XXX-XX-XX`. Prva cifra područja je `1`–`9`; kandidat **ne smije** biti
+podniz dužeg decimalnog niza. **Ne prepoznaju se:** goli nacionalni brojevi bez oznake, oblici sa
+tačkama, `(0)` varijante, miješani separatori i svi oblici izvan te sintakse. **Kandidat koji ne
+prođe prepoznavač ostaje nepromijenjen; fallback generički telefonski regex se ne primjenjuje** —
+što je doslovna primjena posture „dvosmisleno → ne rediguj" iz ove klauzule.
+
+**Obje precizacije su ulaz za budući `P5-I6`**, koji posjeduje implementaciju `phase5-basic-v1`
+(D-070, `RULING 1`). **Nijedna od njih ne autorizuje implementaciju.** Vidi `03` §13.1, `08` §12.5,
+`09` §8.3 i §10.
 
 ### F.5 Klauzula 26 — šta se **ne** rediguje automatski
 
@@ -10099,6 +10139,606 @@ formulaciju „naredni obavezni gate je `P5-I5`".**
 
 ---
 
+# D-070 — `P5-I3` preflight vlasničke odluke: vlasništvo primitiva, `MANUAL` v1 maksimum, konfiguracija ključeva i ugovor redakcije
+
+- **Status:** ACCEPTED / OWNER-RATIFIED
+- **Datum:** 2026-08-28
+- **Tip:** vlasnički ratifikovan **governance zapis pet preflight odluka** koje su prethodno
+  držale kanonski read-only preflight `P5-I3` u ishodu
+  `P5_I3_PREFLIGHT_HOLD_OWNER_DECISION_REQUIRED`. **Dokumentacija isključivo.**
+- **Amandman na:** **statusne i ugovorne tvrdnje**, plus **jedan prazan referent** iz D-060
+  (klauzula 10, stavka 8) — **ne** na sigurnosni dizajn. Sigurnosni ugovori **D-018**, **D-025**,
+  **D-054**, **D-055**, **D-056**, **D-060**, **D-061**, **D-062**, **D-063**, **D-064**,
+  **D-065**, **D-066**, **D-067**, **D-068** i **D-069** ostaju **doslovno na snazi i
+  nepromijenjeni**.
+- **Ova odluka NE implementira ništa.** Ne implementira `P5-I3` (ni `P5-I3A`, ni `P5-I3B`, ni
+  `P5-I3C`), `P5-I4`, `P5-I5` ni `P5-I6`; ne uvodi encryption servis, key provider, AAD builder,
+  HMAC servis, normalizaciju, SHA-256 helper, generator pseudonima ni redakcioni ruleset; ne
+  mijenja nijednu migraciju, schemu, Prisma model, contract TypeScript, test, `.env.example` ni
+  sigurnosni objekat baze. **Nijedna baza nije kontaktirana** i **nijedan test se ovom odlukom ne
+  izvršava.**
+- **Ova odluka NE označava nijednu kućicu.** Checklist Faze 5 ostaje **`49 / 9`**.
+- **Ova odluka NE autorizuje nijedan slice.** Ni `P5-I3`, ni `P5-I4`, ni `P5-I5`, ni `P5-I6`.
+
+## Kontekst/problem — trigger
+
+Nakon što je D-069 ratifikovao pet `P5-I5` preflight odluka i utvrdio kanonski izvršni redoslijed
+`P5-I3 → P5-I4 → P5-I5`, izveden je kanonski **read-only preflight `P5-I3`**. Njegov ishod je bio
+**`P5_I3_PREFLIGHT_HOLD_OWNER_DECISION_REQUIRED`**, sa **pet** neriješenih vlasničkih pitanja:
+
+```text
+OD-P5-I3-1   kanonski skup primitiva P5-I3 i vlasništvo redakcije
+OD-P5-I3-2   maksimum eksternog identifikatora profila MANUAL v1
+OD-P5-I3-3   lokalna konfiguracija K_enc / K_hmac i startup guard razdvajanja ključeva
+OD-P5-I3-4   obuhvat identifikatora osiguranja/kartice u phase5-basic-v1
+OD-P5-I3-5   tačna sintaksa strogog švicarskog prepoznavača telefona u phase5-basic-v1
+```
+
+**Vlasnik je ratifikovao svih pet.** Ovaj zapis ih konstatuje kao odluke i izvodi njihovo
+dokumentaciono pomirenje. **On ne bira nijednu opciju iznova** i **ne pretvara riješeni preflight
+u implementacijsku autorizaciju.**
+
+## Odluka
+
+### `RULING 1` — `OD-P5-I3-1`: kanonski skup primitiva `P5-I3` i vlasništvo redakcije
+
+**`P5-I3` posjeduje sljedeće ponovo upotrebljive primitive bez baze:**
+
+```text
+ 1  encryption servis/interface i kanonska ENCRYPTION_SERVICE granica
+ 2  LocalStaticKeyProvider
+ 3  lokalna AES-256-GCM enkripcija/dekripcija po D-025
+ 4  kanonski D-025 AAD builder
+ 5  MANUAL v1 normalizacija eksternog identifikatora
+ 6  HMAC servis eksterne reference i katalog domena
+ 7  startup enforcement za K_hmac != K_enc
+ 8  normalizacija kliničkog teksta
+ 9  generički SHA-256 helper: UTF-8 ulaz -> SHA-256 -> 64 lowercase hex znaka
+10  generator pseudonima i helper za kanonizaciju pseudonima u velika slova
+```
+
+**`P5-I3` NE posjeduje:**
+
+- implementaciju redakcionog ruleseta **`phase5-basic-v1`**;
+- orkestraciju redakcije;
+- stanje obrade dokumenta (`processing_status`);
+- rukovanje statusom redakcije (`redaction_status`);
+- semantiku fallbacka za `view=redacted`;
+- perzistenciju dokumenta.
+
+**Te stavke pripadaju `P5-I6` / `P5-I7`**, prema **postojećim** granicama slice-ova dokumenta iz
+`04` §7.5 (D-062). **Nijedna granica iz te tabele se ovom odlukom ne mijenja.**
+
+#### 1.1 Pojašnjenje vlasništva hasha
+
+**`P5-I3` posjeduje ponovo upotrebljiv generički SHA-256 tekstualni primitiv** — i **samo njega**.
+
+**`P5-I6` ga kasnije konzumira** da izračuna i perzistira:
+
+```text
+source_text_hash
+redacted_text_hash
+```
+
+prema **već ratifikovanom redoslijedu obrade iz D-060** (`02` §2.10.3, `03` §13.1).
+
+**`P5-I3` ne smije kreirati perzistenciju dokumenta** samo da bi vježbao te dvije polje-specifične
+upotrebe. Primitiv se dokazuje **bez baze**.
+
+#### 1.2 Tvrde ekskluzije ostaju očuvane
+
+**D-069 ostaje mjerodavan** da **`P5-I4`** posjeduje:
+
+- konkretan `TenantDatabaseService` facade;
+- idempotency servis;
+- `request_sha256`;
+- audit writer;
+- Faza-5 audit self-hash.
+
+**`P5-I3` ih ne smije povlačiti unaprijed.**
+
+#### 1.3 Posljedica za redakciju
+
+**`phase5-basic-v1` postaje implementacijski preduslov `P5-I6`, a NE implementacijski preduslov
+`P5-I3`.**
+
+**`OD-P5-I3-4` i `OD-P5-I3-5` zato više ne blokiraju `P5-I3`.** Njihovi ugovori su **ratifikovani
+sada** i zapisani su kao **ulaz za budući `P5-I6`**.
+
+### `RULING 2` — `OD-P5-I3-2`: maksimum eksternog identifikatora profila `MANUAL` v1
+
+**Maksimum eksternog identifikatora profila `MANUAL` v1 je:**
+
+```text
+255 UTF-8 bajtova
+```
+
+**Mjerenje se izvodi nad kanonskim izlazom `MANUAL` v1 normalizacije** — dakle:
+
+- poslije validacije validnog Unicodea;
+- poslije odbijanja `NUL` i C0/C1 kontrolnih znakova;
+- poslije uklanjanja opcionog vodećeg BOM-a (`U+FEFF`);
+- poslije vanjskog trima Unicode whitespacea;
+- poslije **NFC** normalizacije;
+- poslije odbijanja praznog rezultata nakon normalizacije;
+- **neposredno prije** UTF-8 HMAC granice.
+
+**Maksimum NIJE:**
+
+- 255 JavaScript UTF-16 code unita;
+- 255 Unicode code pointa;
+- 255 grapheme clustera;
+- pre-NFC brojanje.
+
+To je **dužina u bajtovima finalne normalizovane UTF-8 reprezentacije**. Ako je
+
+```text
+UTF8_BYTE_LENGTH(normalizovani_identifikator) > 255
+```
+
+identifikator se **odbija**.
+
+**Sam primitiv nikada ne smije eho-vati vrijednost u grešci.** Budući `P5-I4` mapira to odbijanje
+na svoj kanonski generički, ne-eho ugovor **`422 VALIDATION_ERROR`** (`03` §8; D-060, klauzula 39).
+
+#### 2.1 Zašto je ovo bio prazan referent
+
+D-060, klauzula 10, stavka 8 nalaže „eksplicitan maksimum dužine identifikatora, preuzet iz
+postojećih schema/API ograničenja". **Taj referent ne postoji.** Čisti eksterni identifikator se
+**nikada ne perzistira** — perzistira se isključivo token `h1.<hex64>` u `varchar(128)`
+(`02` §2.8) — pa **nijedna kolona i nijedno API polje ne nose taj maksimum**. Delegirani referent
+je time bio **prazan**, a tri tekuća normativna mjesta (`02` §2.8.5, `03` §11, `08` §12.2)
+oslanjala su se na njega. **`RULING 2` ga zamjenjuje eksplicitnom vrijednošću.**
+
+#### 2.2 Immutability profila
+
+**Vrijednost `255` UTF-8 bajtova postaje dio immutable ugovora profila `MANUAL` v1** (D-060,
+klauzula 12).
+
+**Budući drugačiji maksimum traži novu, izričito upravljanu verziju profila.** **`MANUAL` v1 se ne
+smije tiho promijeniti.**
+
+### `RULING 3` — `OD-P5-I3-3`: lokalna konfiguracija `K_enc` / `K_hmac` i startup guard
+
+#### 3.1 Lokalna / razvojna konfiguracija
+
+**Kanonske Faza-5 varijable lokalnog razvoja su:**
+
+```text
+ENCRYPTION_LOCAL_KEY
+ENCRYPTION_KEY_VERSION
+HMAC_LOCAL_KEY
+```
+
+**U Fazi 5 NE postoji varijabla okruženja `HMAC_KEY_VERSION`.**
+
+**Aktivnu Faza-5 HMAC generaciju predstavlja kanonski perzistirani prefiks tokena:**
+
+```text
+h1.
+```
+
+**Buduća višegeneracijska kompatibilnost iz D-060 ostaje očuvana** (`02` §2.8.6) — marker
+generacije i dalje živi **unutar** tokena, i **nijedna kolona za verziju HMAC ključa se ne uvodi**.
+
+#### 3.2 Enkodiranje ključeva
+
+Obje varijable — **`ENCRYPTION_LOCAL_KEY`** i **`HMAC_LOCAL_KEY`** — koriste
+
+```text
+RFC 4648 standardni Base64
+```
+
+Zahtjevi:
+
+- **bez whitespacea**;
+- strogo validna Base64 reprezentacija;
+- dekodiranje mora uspjeti;
+- dekodirana vrijednost mora biti **tačno `32` bajta**.
+
+**Nevalidan Base64 ili dekodirana dužina različita od 32 bajta je startup/konfiguraciona greška.**
+
+**`ENCRYPTION_KEY_VERSION` ostaje obavezan po D-025** — klauzula 10 već odbija start kad key
+version nedostaje — i mora predstavljati **aktivnu verziju enkripcijskog ključa** koju taj ugovor
+prihvata (D-025, klauzula 14: `encryption_key_version >= 1`).
+
+#### 3.3 Guard razdvajanja ključeva
+
+**Startup guard poredi dekodirane bajtove ključeva, ne tekstualne Base64 reprezentacije.**
+
+**Mora koristiti poređenje u konstantnom vremenu** — npr. Node `timingSafeEqual` ili semantički
+ekvivalentan primitiv konstantnog vremena.
+
+Ako su dekodirane 32-bajtne vrijednosti identične — dakle
+
+```text
+K_hmac == K_enc
+```
+
+— **aplikacija MORA odbiti start.**
+
+**Poređenje isključivo sirovih Base64 stringova NIJE usklađeno** s ovim ugovorom: dvije različite
+Base64 reprezentacije mogu dekodirati u **isti** ključ, pa bi tekstualno poređenje propustilo
+stvarnu jednakost ključnog materijala.
+
+#### 3.4 Zabrana izvedenosti
+
+**Jača politika iz D-060 ostaje na snazi:** **`K_hmac` ne smije biti jednak `K_enc` niti izveden iz
+njega** (`09` §8.1).
+
+**Runtime kod je obavezan mehanički odbiti jednakost bajtova.**
+
+**Provenijencija ključa / neizvedenost ostaje obaveza secret-provisioninga i operativnog
+upravljanja** i **ne smije se lažno predstaviti** kao matematički dokazana startup poređenjem.
+Guard dokazuje **nejednakost**, ne **nezavisnost**.
+
+#### 3.5 `.env.example`
+
+**Buduća implementacija smije dodati imena varijabli u praćeni `.env.example`**, ali svaka
+primjer-vrijednost ključa mora biti **namjerno nevalidan placeholder** — po presedanu D-025,
+klauzule 9 — tako da startup guard padne ako se primjer isporuči.
+
+**Nijedan funkcionalan razvojni ključ ni secret se ne smije commitovati** (`09` §9).
+
+**Ovaj governance gate `.env.example` NE mijenja.**
+
+#### 3.6 Produkcijski KMS
+
+**Ova odluka ne zatvara i ne slabi `D-OPEN-004a`.** Produkcijski životni ciklus key providera/KMS-a
+— izbor providera, model pristupa ključu, rotation cadence, recovery — **ostaje odgođen**
+(`13` §3.1). **Local static key i dalje nikada nije produkcijski spreman.**
+
+### `RULING 4` — `OD-P5-I3-4`: obuhvat identifikatora osiguranja/kartice u `phase5-basic-v1`
+
+**`phase5-basic-v1` i dalje podržava validiran**
+
+```text
+AHV / AVS
+```
+
+**kao svoju izričitu postojeću klasu identifikatora.**
+
+**Ne tvrdi dodatnu podršku** za bilo koji generički ili zaseban:
+
+- identifikator osiguranja;
+- identifikator kartice osiguranja;
+- **VeKa** identifikator;
+- broj članstva/kartice osiguranja;
+
+**osim ako buduća verzija ruleseta dobije zaseban kanonski definisan uzorak i vlasničko
+odobrenje.**
+
+**Zato se svaka TEKUĆA formulacija koja implicira dodatan „kanonski definisan visokopouzdan
+identifikator osiguranja/kartice" pomiruje sa stvarnim obuhvatom v1** (`03` §13.1, `08` §12.5,
+`09` §8.3 i §10).
+
+**Obavezna pozitivna test matrica redakcije NE SMIJE tražiti zaseban pozitivan slučaj za
+osiguranje/karticu u `phase5-basic-v1`.**
+
+Buduće dodavanje traži **novu verziju ruleseta** — npr. `phase5-basic-v2` — ili zaseban, odvojeno
+upravljan identifikator.
+
+#### 4.1 Zahtjev iskrenosti
+
+**Nijedan kanonski dokument, test ni budući implementacijski komentar ne smije tvrditi pokrivenost
+za uzorak identifikatora osiguranja/kartice koji v1 stvarno ne implementira.** Ovo je primjena
+D-060, klauzule 26, i `09` §8.3 na istu klasu.
+
+**Ova odluka je ulaz za budući `P5-I6` i NIJE bloker za `P5-I3`** nakon `RULING 1`.
+
+### `RULING 5` — `OD-P5-I3-5`: strog švicarski prepoznavač telefona u `phase5-basic-v1`
+
+#### 5.1 Opšta posture
+
+**Prepoznavač je namjerno konzervativan.** **Dvosmislen numerički materijal MORA ostati
+neredigovan.** **Lažno negativni rezultati su prihvaćeni.** **Prepoznavač nije generički ekstraktor
+telefonskih brojeva.**
+
+#### 5.2 A — međunarodni oblik
+
+Prepoznaju se **isključivo kompletni kandidati** u jednom od ovih strukturnih oblika:
+
+**Kompaktno:**
+
+```text
++41   praćeno tačno 9 decimalnih cifara
+0041  praćeno tačno 9 decimalnih cifara
+```
+
+**Grupisano:**
+
+```text
++41 XX XXX XX XX
+0041 XX XXX XX XX
+```
+
+ili identično grupisanje sa crticama:
+
+```text
++41-XX-XXX-XX-XX
+0041-XX-XXX-XX-XX
+```
+
+Zahtjevi:
+
+- **prva cifra `XX` područja mora biti `1`–`9`**;
+- grupisani oblici koriste **jedan konzistentan separator**;
+- **razmaci i crtice se ne smiju miješati**;
+- kandidat **ne smije biti puki podniz dužeg decimalnog niza**.
+
+**Nijedna šira međunarodna sintaksa nije implicirana.**
+
+#### 5.3 B — nacionalni oblik
+
+**Švicarski nacionalni kandidat se prepoznaje ISKLJUČIVO kad mu neposredno prethodi — bez obzira na
+veličinu slova — jedna od ovih izričitih oznaka:**
+
+```text
+Tel
+Tel.
+Telefon
+Mobile
+Natel
+Fax
+```
+
+Između oznake i kandidata dozvoljeni su:
+
+- whitespace;
+- i opciono **jedna** `:`.
+
+Poslije te oznake prihvaćeni su oblici:
+
+**Kompaktno:**
+
+```text
+0 praćeno tačno 9 decimalnih cifara
+```
+
+**Grupisano razmacima:**
+
+```text
+0XX XXX XX XX
+```
+
+**Grupisano crticama:**
+
+```text
+0XX-XXX-XX-XX
+```
+
+Zahtjevi:
+
+- **`XX` počinje ciframa `1`–`9`**;
+- **bez miješanih separatora grupisanja**;
+- kandidat **ne smije biti podniz dužeg decimalnog niza**.
+
+#### 5.4 Šta se u `phase5-basic-v1` NE prepoznaje
+
+Sljedeće **ostaje neredigovano** po telefonskom pravilu:
+
+- **goli** nacionalni švicarski brojevi **bez prihvaćene oznake**;
+- dvosmisleni numerički nizovi;
+- oblici sa tačkama kao separatorima;
+- međunarodne varijante sa `(0)` u zagradi;
+- oblici sa **miješanim** separatorima;
+- proizvoljni nizovi cifara nalik doziranju, laboratorijskom, tarifnom, ICD, datumskom ili mjernom
+  materijalu;
+- svi oblici izvan izričite v1 sintakse.
+
+#### 5.5 Sigurnosno pravilo
+
+**Kandidat koji ne prođe tačan v1 prepoznavač MORA ostati nepromijenjen.**
+
+**Ne primjenjuje se fallback generički telefonski regex.**
+
+Ovo čuva posture iz D-060, klauzule 25 —
+
+```text
+dvosmisleno -> ne rediguj
+```
+
+— i klinički sigurnosni zahtjev da ruleset **ne smije široko uklanjati doziranja, laboratorijske,
+tarifne, ICD, datumske ni mjerne vrijednosti** (`09` §8.3).
+
+**Ova odluka je ulaz za budući `P5-I6` i NIJE bloker za `P5-I3`** nakon `RULING 1`.
+
+## Planska posljedica — oblik izvršenja `P5-I3`
+
+**Ova sekcija je planska posljedica, ne izvršena implementacija.**
+
+**`P5-I3` ostaje `POLICY-RESOLVED` / `NEXT` / `NOT AUTHORIZED` / `NOT STARTED`.**
+
+Kada svjež preflight prođe **i** kada vlasnik zasebno autorizuje implementaciju, preporučena
+segmentacija je:
+
+### `P5-I3A` — granica enkripcije
+
+- encryption interface / `ENCRYPTION_SERVICE`;
+- kanonski D-025 AAD;
+- `LocalStaticKeyProvider`;
+- AES-256-GCM implementacija;
+- lokalna konfiguracija `K_enc` i startup guardovi.
+
+### `P5-I3B` — granica identiteta eksterne reference
+
+- `MANUAL` v1 normalizacija eksternog identifikatora;
+- maksimum **255 UTF-8 bajtova**;
+- HMAC eksterne reference;
+- katalog HMAC domena;
+- `HMAC_LOCAL_KEY`;
+- startup guard `K_hmac != K_enc` nad **dekodiranim bajtovima**.
+
+**Zavisnost:** **`P5-I3B` zavisi od `P5-I3A`** zbog dijeljene granice ključa/konfiguracije i
+cross-key guarda.
+
+### `P5-I3C` — deterministički primitivi bez baze
+
+- normalizacija kliničkog teksta;
+- generički UTF-8 SHA-256 lowercase-hex helper;
+- generator pseudonima;
+- helper za kanonizaciju pseudonima u velika slova.
+
+**`P5-I3C` je tehnički nezavisan od A/B**, iako stvarno izvršenje smije ostati sekvencijalno radi
+gate discipline.
+
+### Nema `P5-I3D`
+
+**Ne postoji redakcioni pod-gate `P5-I3`.** **Implementacija `phase5-basic-v1` pripada `P5-I6`.**
+
+**Ova sekcija bilježi isključivo budući oblik pregleda/izvršenja. Ona NE autorizuje nijednu
+implementaciju.**
+
+## Razlog
+
+**`RULING 1`** čuva već objavljene granice slice-ova iz `04` §7.5: `P5-I6` je „ručni unos dokumenta
+i redakcija", pa bi povlačenje redakcije u `P5-I3` značilo ili dvostruko vlasništvo ili tiho
+premještanje obuhvata. Uz to, redakcija bez perzistencije dokumenta nema konzumenta, a
+perzistencija dokumenta je izričito izvan `P5-I3` — čiji je obuhvat „bez baze".
+
+**`RULING 2`** zatvara jedini stvarno **prazan** referent u D-060: delegirani maksimum ne postoji
+nigdje jer čisti identifikator nema kolonu. Bajtno mjerenje **poslije** NFC-a je jedina definicija
+koja je stabilna preko jezika i runtimea i koja odgovara stvarnoj HMAC granici; brojanje u UTF-16
+code unitima bilo bi JavaScript-specifičan artefakt, a brojanje code pointa ili graphemea ne bi
+ograničilo stvarnu veličinu poruke.
+
+**`RULING 3`** postoji zato što bi tekstualno poređenje Base64 stringova bilo **lažna sigurnosna
+tvrdnja**: dvije različite Base64 reprezentacije mogu dekodirati u isti ključ, pa bi guard prošao
+nad stvarno identičnim ključnim materijalom. Poređenje zato mora biti nad dekodiranim bajtovima, i
+mora biti u konstantnom vremenu jer se izvodi nad ključnim materijalom. Izostanak
+`HMAC_KEY_VERSION` je namjeran: D-060 već nosi generaciju **unutar** tokena (`h1.`), pa bi zasebna
+varijabla uvela drugi izvor istine.
+
+**`RULING 4`** i **`RULING 5`** primjenjuju **zahtjev iskrenosti** iz D-060, klauzule 26: ruleset
+ne smije tvrditi pokrivenost koju nema. „Kanonski definisan visokopouzdan identifikator
+osiguranja" nikada nije dobio kanonsku definiciju uzorka, pa je kao tvrdnja bio neispunjiv, a kao
+obavezan pozitivan test neizvršiv. Za telefon je konzervativan, potpuno nabrojan prepoznavač jedini
+oblik koji čini `08` §12.5 izvršivim bez uvođenja klinički opasnih lažno pozitivnih rezultata.
+
+## Alternative
+
+- **Redakcija unutar `P5-I3`** — odbijeno: traži perzistenciju dokumenta i statusnu mašineriju koje
+  su izričito izvan „bez baze" obuhvata i pripadaju `P5-I6`/`P5-I7`.
+- **Maksimum od 255 code pointa ili grapheme clustera** — odbijeno: ne ograničava stvarnu veličinu
+  UTF-8 poruke na HMAC granici i uvodi nestabilno brojanje.
+- **Maksimum od 255 UTF-16 code unita** — odbijeno: JavaScript-specifično, nije jezički neutralan
+  ugovor.
+- **Poređenje Base64 stringova u startup guardu** — odbijeno: lažna sigurnosna tvrdnja, propušta
+  jednakost ključa pri različitoj reprezentaciji.
+- **Zasebna varijabla `HMAC_KEY_VERSION`** — odbijeno: drugi izvor istine pored `h1.` prefiksa iz
+  D-060.
+- **Zadržavanje generičke klase identifikatora osiguranja u v1** — odbijeno: nema kanonski definisan
+  uzorak, pa je tvrdnja neispunjiva i krši zahtjev iskrenosti.
+- **Širi/generički telefonski regex uz fallback** — odbijeno: D-060, klauzula 25 to izričito
+  zabranjuje, a lažno pozitivna redakcija doziranja ili laboratorijske vrijednosti je klinički
+  opasnija od propuštenog broja.
+
+## Posljedice — dokumentaciono pomirenje
+
+Pomirenje je **aditivno** gdje historijska tijela moraju ostati očuvana, i **direktno** isključivo
+tamo gdje je TEKUĆI normativni tekst zavisio od praznog referenta ili je tvrdio nepostojeću
+pokrivenost.
+
+| Dokument | Pomirenje |
+|---|---|
+| `02` §2.8.5 | prazan referent maksimuma zamijenjen eksplicitnim **255 UTF-8 bajtova poslije NFC-a** |
+| `02` §2.11.3 | aditivna anotacija: vlasništvo `phase5-basic-v1` je **`P5-I6`**; v1 obuhvat po `RULING 4`/`RULING 5` |
+| `03` §11 | „maksimum dužine" zamijenjen eksplicitnim ugovorom od 255 UTF-8 bajtova |
+| `03` §13.1 | tvrdnja o pokrivenosti pomirena — bez klase osiguranja/kartice; telefon po tačnom v1 prepoznavaču |
+| `04` §7.5 | aditivna anotacija: inventar primitiva `P5-I3`, ekskluzije, `P5-I6` redakcija, segmentacija A/B/C bez D |
+| `05` §6 | aditivna anotacija; **nijedna kućica se ne mijenja**; checklist ostaje `49 / 9` |
+| `06` | D-060, klauzula 10 i klauzule 24–25 dobijaju **aditivne** anotacije tekućeg statusa; tijela se ne prepisuju |
+| `08` §12.1 | guard `K_hmac != K_enc` precizira se kao poređenje **dekodiranih bajtova** u konstantnom vremenu |
+| `08` §12.2 | test prekoračenja dužine dobija tačnu granicu **255 UTF-8 bajtova poslije NFC-a** |
+| `08` §12.5 | pozitivan slučaj za osiguranje/karticu **uklonjen**; dodati tačni pozitivni/negativni telefonski slučajevi |
+| `09` §8.1 | ugovor lokalne konfiguracije ključeva, Base64/32 bajta, bez `HMAC_KEY_VERSION`, `h1.`, guard nad dekodiranim bajtovima |
+| `09` §8.3, §10 | tvrdnje o obuhvatu redakcije pomirene sa stvarnim v1 obuhvatom |
+| `13` §3.1 | aditivna anotacija imena lokalnih varijabli; **`D-OPEN-004a` ostaje otvoren** |
+| `MANIFEST.md` | preračunati bajtovi i SHA-256 za izmijenjene dokumente |
+
+## Šta D-070 ne mijenja
+
+- **Ne mijenja nijedno vlasništvo iz D-069.** `P5-I4` i dalje posjeduje `TenantDatabaseService`
+  facade, idempotency servis, `request_sha256`, audit writer i Faza-5 audit self-hash.
+- **Ne mijenja kanonski redoslijed izvršenja** `P5-I3 → P5-I4 → P5-I5`.
+- **Ne mijenja tabelu zavisnosti slice-ova** iz `04` §7.5 (D-062).
+- **Ne mijenja nijednu klauzulu D-025** (1–14) ni format enkripcije.
+- **Ne mijenja normalizacione operacije `MANUAL` v1 ni njihov redoslijed** — dodaje **isključivo**
+  numeričku vrijednost praznom koraku 8.
+- **Ne mijenja** `processing_status` ni `redaction_status` rječnike, njihov sloj sprovođenja, ni
+  zabranu fallbacka za `view=redacted`.
+- **Ne mijenja** klauzulu iskrenosti: **redakcija nije anonimizacija, nije de-identifikacija i nije
+  sigurnosna granica**; redigovani izlaz **ostaje Class A**.
+- **Ne uvodi nijednu kolonu, tip, constraint, migraciju ni grant.**
+- **Ne mijenja `.env.example`.**
+- **Ne označava nijednu kućicu.** Checklist Faze 5 ostaje **`49 / 9`**.
+
+## Otvorena pitanja koja D-070 ne zatvara
+
+Sljedeće ostaje **OTVORENO / NEBLOKIRAJUĆE** i **ne zatvara se prećutno**:
+
+- **`D-OPEN-004a`** — produkcijski KMS / životni ciklus produkcijskog key providera, rotation
+  cadence, recovery. `RULING 3` je **isključivo lokalni/razvojni** ugovor.
+- **`D-OPEN-009`** — normalizacioni profil `AXENITA`. Profil se smije definisati **tek nakon**
+  odblokiranja (D-060, klauzula 12). `RULING 2` vrijedi za **`MANUAL` v1**, ne za `AXENITA`.
+- **Budući viši nivo redakcije / NER logike** — i dalje **nije obuhvat Faze 5** (D-060, klauzula
+  26; `09` §8.3, §10).
+- **Buduća operativna rotacija više HMAC generacija** izvan Faza-5 v1 — format je pripremljen
+  (`02` §2.8.6), operativni ugovor nije donesen.
+- **Buduće predecessor ulančavanje audita** — ostaje odgođeno u zasebnu buduću governance odluku
+  (D-069).
+
+## Zavisnosti
+
+- **D-025** (klauzule 1–14) — format AES-256-GCM, kanonski AAD, `LocalStaticKeyProvider`, startup
+  guardovi, obavezan key version.
+- **D-060** (Dio A, klauzule 8–9) — `K_hmac` odvojen od `K_enc`, budući startup guard.
+- **D-060** (Dio B, klauzule 10–12) — profil `MANUAL` v1, zabranjene operacije, immutability.
+- **D-060** (Dio E) — redoslijed obrade, `source_text_hash`, `redacted_text_hash`.
+- **D-060** (Dio F, klauzule 22–28) — obuhvat i posture `phase5-basic-v1`, verzija ruleseta.
+- **D-060** (klauzula 39) — generičke poruke greške bez eho-vanja vrijednosti.
+- **D-062** (`04` §7.5) — deklaracije zavisnosti i obuhvati slice-ova `P5-I1`–`P5-I8`.
+- **D-069** — kanonski redoslijed `P5-I3 → P5-I4 → P5-I5` i cross-cutting vlasništvo `P5-I4`.
+- **D-OPEN-004a** — produkcijski KMS, **ostaje otvoren**.
+
+## Granice prema budućim fazama
+
+- **`P5-I3` je `POLICY-RESOLVED` / `NEXT` / `NOT AUTHORIZED` / `NOT STARTED`.** Traži **svjež
+  read-only preflight** nad kanonskim `main`-om koji sadrži D-070, i **zasebnu vlasničku
+  autorizaciju**. **Ovom odlukom nije autorizovan.**
+- **`P5-I3A` / `P5-I3B` / `P5-I3C` nisu autorizovani.** To je **preporučena segmentacija**, ne
+  odobren plan izvršenja.
+- **`P5-I4` je poslije `P5-I3`**, **`NOT_STARTED`**, **`NOT AUTHORIZED`**, sa nepromijenjenim
+  cross-cutting vlasništvom iz D-069.
+- **`P5-I5` je `POLICY-RESOLVED` / `DEPENDENCY-BLOCKED` / `NOT AUTHORIZED` / `NOT STARTED`**;
+  **`OWNER_DECISIONS_REQUIRED_FOR_P5_I5 = 0`**.
+- **`P5-I6` posjeduje `phase5-basic-v1`** i **nije autorizovan**. `RULING 4` i `RULING 5` su
+  **njegovi ulazi**, ne njegova autorizacija.
+- **Faza 5 ostaje `IN_PROGRESS`; nije `DONE`.** Checklist ostaje **`49 / 9`**.
+- **`★` ostaje trajna regresija** — njegovo buduće rušenje je i dalje `HARD HOLD`.
+- **Ne autorizuju se, ni sada ni kasnije, kao dio `P5-I3`:** perzistencija dokumenta, redakciona
+  orkestracija, statusna mašinerija dokumenta, `TenantDatabaseService` facade, idempotency servis,
+  audit writer, `request_sha256`, audit self-hash, izmjena `.env.example`, nova migracija, novi
+  grant, nova rola, `SECURITY DEFINER` ni `BYPASSRLS`.
+
+## Naredni obavezni gate
+
+**Vlasnički pregled D-070, pa zaseban D-070 publikacioni gate** (push / PR / merge). **Tek nakon
+što D-070 postane kanonski** smije se izvesti **svjež read-only preflight `P5-I3`**.
+
+```text
+OWNER_DECISIONS_REQUIRED_FOR_P5_I3 = 0     (u D-070 branch stanju)
+P5-I3 IMPLEMENTATION AUTHORIZED = NO
+P5-I3 IMPLEMENTATION STARTED    = NO
+```
+
+**Dok D-070 ne bude merged, kanonski `main` i dalje nosi ishod
+`P5_I3_PREFLIGHT_HOLD_OWNER_DECISION_REQUIRED` sa pet neriješenih odluka.** Ishod se **ovom odlukom
+ne pretvara** u `P5_I3_PREFLIGHT_PASS_READY_FOR_OWNER_AUTHORIZATION` — **svjež preflight je i dalje
+obavezan.**
+
+---
+
 # Otvorene odluke
 
 ## D-OPEN-001 — Produkcijski OIDC provider
@@ -10133,6 +10773,7 @@ formulaciju „naredni obavezni gate je `P5-I5`".**
 - **Vezano za:** produkcijski hosting (D-OPEN-002, `13` §4) — provider se bira zajedno sa hosting odlukom.
 - **MVP:** D-025 koristi verzionisani aplikacijski ključ iz secrets managera i local static key adapter za development. Local static key nikada nije produkcijski spreman.
 - **Uslovna revizija:** Ako D-OPEN-007 zahtijeva crypto-shredding, prelazak na per-row DEK je obavezan prije pilota (D-025).
+- **Anotacija tekućeg statusa (D-070, 2026-08-28):** ovo pitanje **ostaje OTVORENO** i **`DEFERRED`**. D-070, `RULING 3` (`OD-P5-I3-3`) utvrđuje **isključivo lokalni/razvojni** ugovor konfiguracije ključeva — kanonske varijable `ENCRYPTION_LOCAL_KEY`, `ENCRYPTION_KEY_VERSION` i `HMAC_LOCAL_KEY`, RFC 4648 standardni Base64 sa dekodiranih **tačno 32 bajta**, izostanak varijable `HMAC_KEY_VERSION` u Fazi 5, aktivnu generaciju označenu prefiksom `h1.` i startup guard `K_hmac != K_enc` nad **dekodiranim bajtovima** uz poređenje u konstantnom vremenu. **Nijedan produkcijski KMS provider, model pristupa ključu, rotation cadence ni recovery procedura ovim nisu odabrani ni prejudicirani.** Provenijencija ključa i **neizvedenost** `K_hmac` iz `K_enc` ostaju obaveza **secret-provisioninga i operativnog upravljanja** — startup guard dokazuje **nejednakost**, ne **nezavisnost**, i to se ne smije lažno predstaviti. **Local static key i dalje nikada nije produkcijski spreman.**
 - **Anotacija tekućeg statusa (D-060, 2026-08-22):** ovo pitanje **ostaje OTVORENO** i **`DEFERRED`**, i **ostaje produkcijsko**. D-060 ga **ne zatvara, ne sužava i ne prejudicira**; nijedan produkcijski KMS dizajn, provider, cadence ni recovery procedura nisu ovim odabrani. Namjenski HMAC ključ `K_hmac` iz D-060 je **zaseban ključni materijal** za deterministički lookup token; njegov produkcijski životni ciklus (provisioning, čuvanje, rotacija, recovery) **pada pod isti otvoreni produkcijski gate** kao i `K_enc` i biće riješen zajedno sa ovim pitanjem. Local static key i dalje **nikada nije produkcijski spreman**.
 
 ## D-OPEN-005 — ESM ili CommonJS

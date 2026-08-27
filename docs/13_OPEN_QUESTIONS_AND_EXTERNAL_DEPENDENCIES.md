@@ -76,6 +76,22 @@ materijal**, odvojen od `K_enc`, koji **ne dira** KEK/DEK hijerarhiju. Produkcij
 `K_hmac` (provisioning, čuvanje, rotacija, recovery) **pada pod isti otvoreni produkcijski gate** i
 rješava se zajedno sa D-OPEN-004a.
 
+**ANOTACIJA TEKUĆEG STATUSA (D-070, 2026-08-28) — ništa iznad se ne prepisuje.** D-070,
+`RULING 3` imenuje **kanonske Faza-5 varijable lokalnog razvoja** — `ENCRYPTION_LOCAL_KEY`,
+`ENCRYPTION_KEY_VERSION` i `HMAC_LOCAL_KEY` — sa **RFC 4648 standardnim Base64** enkodiranjem bez
+whitespacea i **dekodiranih tačno 32 bajta**, uz **izostanak varijable `HMAC_KEY_VERSION` u Fazi 5**
+(aktivnu generaciju označava prefiks tokena `h1.`) i startup guard `K_hmac != K_enc` koji poredi
+**dekodirane bajtove** u **konstantnom vremenu**. To je **lokalni/razvojni** ugovor i **dopuna
+zatvorene liste iznad**, u dijelu „ugovor local development adaptera".
+
+**D-070 NE zatvara nijednu otvorenu stavku `D-OPEN-004a`:** izbor KMS/providera, produkcijski model
+pristupa ključu, rotation cadence, recovery i uslovni per-row DEK **ostaju otvoreni i isključivo
+produkcijski**. Guard dokazuje **nejednakost bajtova**, ne **nezavisnost**; **provenijencija ključa
+i neizvedenost `K_hmac` iz `K_enc` ostaju obaveza secret-provisioninga i operativnog upravljanja** i
+ne smiju se predstaviti kao dokazane startup poređenjem. **`D-OPEN-009` ostaje `BLOCKED EXTERNAL`**
+— maksimum od 255 UTF-8 bajtova iz D-070 vrijedi za profil **`MANUAL` v1**, a profil `AXENITA` se i
+dalje smije definisati **tek nakon** odblokiranja.
+
 **Local static key i dalje nikada nije produkcijski spreman.**
 
 ---

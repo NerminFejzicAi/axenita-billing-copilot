@@ -343,6 +343,35 @@ Normativno: D-060, dijelovi A i B; `02` §2.8.
   odgovor ni test snapshot (§9). Produkcijski životni ciklus `K_hmac` pada pod isti otvoreni
   produkcijski gate kao i `K_enc` (D-OPEN-004a).
 
+**Lokalna/razvojna konfiguracija ključeva i startup guard (D-070, `RULING 3`, 2026-08-28).**
+
+- **Kanonske Faza-5 varijable lokalnog razvoja:** `ENCRYPTION_LOCAL_KEY`, `ENCRYPTION_KEY_VERSION`
+  i `HMAC_LOCAL_KEY`. **Varijabla `HMAC_KEY_VERSION` u Fazi 5 ne postoji** — aktivnu HMAC generaciju
+  predstavlja **kanonski perzistirani prefiks tokena `h1.`**, pa marker generacije živi **unutar**
+  tokena i **kolona za verziju HMAC ključa se ne uvodi** (`02` §2.8.6). Buduća višegeneracijska
+  kompatibilnost iz D-060 ostaje očuvana.
+- **Enkodiranje.** `ENCRYPTION_LOCAL_KEY` i `HMAC_LOCAL_KEY` koriste **RFC 4648 standardni Base64**,
+  **bez whitespacea**, strogo validne reprezentacije; dekodiranje mora uspjeti, a **dekodirana
+  vrijednost mora biti tačno `32` bajta**. **Nevalidan Base64 ili dekodirana dužina različita od 32
+  bajta je startup/konfiguraciona greška.** `ENCRYPTION_KEY_VERSION` ostaje **obavezan** po D-025 i
+  mora predstavljati aktivnu verziju enkripcijskog ključa.
+- **Guard razdvajanja ključeva.** Startup guard poredi **dekodirane bajtove**, **ne** tekstualne
+  Base64 reprezentacije, i koristi **poređenje u konstantnom vremenu** (npr. `timingSafeEqual` ili
+  semantički ekvivalentan primitiv). Ako su dekodirane 32-bajtne vrijednosti identične —
+  `K_hmac == K_enc` — **aplikacija MORA odbiti start**. **Poređenje sirovih Base64 stringova nije
+  usklađeno**: dvije različite reprezentacije mogu dekodirati u isti ključ.
+- **Granica tvrdnje.** Guard mehanički dokazuje **nejednakost bajtova**, ne **nezavisnost**.
+  Zabrana izvedenosti `K_hmac` iz `K_enc` ostaje na snazi, ali **provenijencija ključa ostaje
+  obaveza secret-provisioninga i operativnog upravljanja** i **ne smije se lažno predstaviti** kao
+  matematički dokazana ovim poređenjem.
+- **`.env.example`.** Buduća implementacija smije dodati **imena** varijabli u praćeni
+  `.env.example`, ali svaka primjer-vrijednost ključa mora biti **namjerno nevalidan placeholder**
+  (presedan D-025, klauzula 9), tako da startup guard padne ako se primjer isporuči. **Nijedan
+  funkcionalan razvojni ključ ni secret se ne smije commitovati** (§9).
+- **Produkcija ostaje otvorena.** D-070 **ne zatvara i ne slabi `D-OPEN-004a`**: izbor KMS/providera,
+  produkcijski model pristupa ključu, rotation cadence i recovery **ostaju odgođeni** (`13` §3.1).
+  **Local static key i dalje nikada nije produkcijski spreman.**
+
 ## 8.2 Hash normalizovanog i redigovanog teksta (D-060)
 
 `source_text_hash` je lowercase hex SHA-256 UTF-8 kodiranja **kanonski normalizovanog,
@@ -375,6 +404,29 @@ granica i **ne kontrola pristupa**.
   takav derivat bi vratio linkabilnost.
 - Pri `redaction_status = FAILED` `view=redacted` **ne smije** pasti nazad na normalizovani ni
   originalni tekst; fallback bi bio tiho zaobilaženje `encounter.document.read_original` (D-043).
+
+**Obuhvat v1 i vlasništvo — precizacija (D-070, 2026-08-28).** Nijedna tvrdnja iznad se ne slabi.
+
+- **Identifikatori osiguranja/kartice nisu klasa `phase5-basic-v1`** (`RULING 4`). `AHV`/`AVS` je
+  **jedina** validirana identifikatorska klasa te vrste u v1; generički identifikator osiguranja,
+  identifikator kartice osiguranja, **`VeKa`** i broj članstva/kartice **nemaju kanonski definisan
+  uzorak**, pa uslov iz D-060, klauzule 24 **nije ispunjen**. **Nijedan dokument, test ni komentar
+  ne smije tvrditi tu pokrivenost**; buduće dodavanje traži **novu verziju ruleseta**.
+- **Švicarski telefon ima tačnu, potpuno nabrojanu v1 sintaksu** (`RULING 5`): međunarodno
+  `+41`/`0041` uz **tačno 9** cifara, kompaktno ili grupisano **jednim konzistentnim separatorom**
+  (`XX XXX XX XX` ili `XX-XXX-XX-XX`); nacionalno **isključivo** uz neposrednu oznaku `Tel`, `Tel.`,
+  `Telefon`, `Mobile`, `Natel` ili `Fax` — case-insensitive, uz whitespace i opciono jednu `:` — pa
+  `0` + **tačno 9** cifara ili `0XX XXX XX XX` / `0XX-XXX-XX-XX`. Prva cifra područja je `1`–`9`, a
+  kandidat **ne smije** biti podniz dužeg decimalnog niza. **Goli nacionalni brojevi bez oznake,
+  oblici sa tačkama, `(0)` varijante i miješani separatori ostaju neredigovani**, i **fallback
+  generički telefonski regex se ne primjenjuje** — kandidat koji ne prođe prepoznavač **ostaje
+  nepromijenjen**. Ovo je doslovna primjena posture „dvosmisleno → ne rediguj" i klinička zaštita
+  doziranja, laboratorijskih, tarifnih, ICD, datumskih i mjernih vrijednosti.
+- **Imena, adrese i klinički sadržaj ostaju izvan v1 redakcione površine**, a **redakcija ostaje
+  izričito NE sigurnosna granica** — obje tvrdnje iznad ostaju nepromijenjene.
+- **Implementaciju `phase5-basic-v1` posjeduje `P5-I6`**, ne `P5-I3` (D-070, `RULING 1`). `P5-I3`
+  posjeduje isključivo primitive bez baze, uključujući **generički** SHA-256 tekstualni helper koji
+  `P5-I6` kasnije konzumira za `source_text_hash` i `redacted_text_hash`.
 
 ---
 
@@ -417,9 +469,11 @@ Prije AI poziva:
 **Doseg koraka 2 u Fazi 5 (D-060, klauzule 24–26).** Korak „ukloniti direct identifiers" je **cilj
 kontrole**, a ne opis onoga što deterministički ruleset Faze 5 (`phase5-basic-v1`) stvarno postiže.
 Taj ruleset uklanja **usku, validiranu klasu** identifikatora — e-mail, URL, validiran AHV/AVS,
-validiran IBAN, kanonski definisan identifikator osiguranja, eksternu referenciju pacijenta iz
-tekućeg zahtjeva i **strogo prepoznat** švicarski telefon. **Ne uklanja** imena, adrese, dijagnoze,
-simptome, lijekove, doziranja, mjerenja, medicinski nužne datume ni kliničke nalaze.
+validiran IBAN, eksternu referenciju pacijenta iz tekućeg zahtjeva i **strogo prepoznat** švicarski
+telefon, gdje „strogo prepoznat" znači **tačnu, potpuno nabrojanu v1 sintaksu** iz D-070,
+`RULING 5`. **Zasebna klasa identifikatora osiguranja/kartice — uključujući `VeKa` — nije dio v1**
+(D-070, `RULING 4`; §8.3). **Ne uklanja** imena, adrese, dijagnoze, simptome, lijekove, doziranja,
+mjerenja, medicinski nužne datume ni kliničke nalaze.
 
 Posljedica je normativna: **redigovani AI input Faze 5 i dalje sadrži klinički sadržaj i ostaje
 Class A** (§2, §8.3). Prije nego što se korak 2 smije smatrati ispunjenim u punom značenju, potrebna

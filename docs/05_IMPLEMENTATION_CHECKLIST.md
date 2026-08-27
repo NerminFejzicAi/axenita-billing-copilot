@@ -2634,6 +2634,54 @@ implementiran, verifikovan, kanonski i formalno pomiren.
 Ishod se time **ne pretvara** u `P5_I5_PREFLIGHT_PASS_READY_FOR_OWNER_AUTHORIZATION`: **`P5-I5` je
 policy-resolved i dependency-blocked.** Formulacija „ready for implementation now" je **netačna**.
 
+**VLASNIŠTVO PRIMITIVA `P5-I3` I UGOVORI PREFLIGHTA (D-070, 2026-08-28) — nijedan pasus iznad se
+ne prepisuje, i nijedna kućica se ne mijenja.** **Checklist Faze 5 ostaje `49 / 9`.**
+
+Kanonski read-only preflight `P5-I3` završio je ishodom
+**`P5_I3_PREFLIGHT_HOLD_OWNER_DECISION_REQUIRED`** sa **pet** neriješenih vlasničkih odluka;
+**vlasnik je ratifikovao svih pet (D-070)**, pa je **`OWNER_DECISIONS_REQUIRED_FOR_P5_I3 = 0`**.
+Ishod se time **ne pretvara** u `P5_I3_PREFLIGHT_PASS_READY_FOR_OWNER_AUTHORIZATION`: **svjež
+preflight nad kanonskim `main`-om koji sadrži D-070 je i dalje obavezan**, a autorizacija je
+**zaseban vlasnički potez**. **`P5-I3` je policy-resolved i next.**
+
+**`P5-I3` posjeduje primitive bez baze** — encryption interface / `ENCRYPTION_SERVICE`,
+`LocalStaticKeyProvider`, lokalnu AES-256-GCM implementaciju po D-025, kanonski D-025 AAD builder,
+`MANUAL` v1 normalizaciju eksternog identifikatora (maksimum **255 UTF-8 bajtova**), HMAC servis
+eksterne reference i katalog domena, startup enforcement `K_hmac != K_enc` nad **dekodiranim
+bajtovima**, normalizaciju kliničkog teksta, **generički** SHA-256 helper (UTF-8 → 64 lowercase hex
+znaka), generator pseudonima i helper za kanonizaciju pseudonima u velika slova.
+
+**`P5-I3` NE posjeduje redakciju.** Implementacija **`phase5-basic-v1`**, redakciona orkestracija,
+stanje obrade dokumenta, rukovanje statusom redakcije, semantika fallbacka za `view=redacted` i
+perzistencija dokumenta pripadaju **`P5-I6` / `P5-I7`** (`04` §7.5). **`P5-I6`** kasnije konzumira
+generički SHA-256 primitiv da izračuna `source_text_hash` i `redacted_text_hash`; **`P5-I3` ne smije
+kreirati perzistenciju dokumenta** samo da bi te dvije upotrebe vježbao.
+
+**Ekskluzije iz D-069 ostaju netaknute:** `TenantDatabaseService` facade, idempotency servis,
+`request_sha256`, audit writer i Faza-5 audit self-hash **ostaju u vlasništvu `P5-I4`**. **Devet
+facade redova niže i dalje OSTAJE NEOZNAČENO**, i `P5-I3` ih ne smije povlačiti unaprijed.
+
+**Preporučena segmentacija je planska posljedica, ne autorizacija:** `P5-I3A` granica enkripcije,
+`P5-I3B` granica identiteta eksterne reference (zavisi od `P5-I3A`), `P5-I3C` deterministički
+primitivi bez baze. **Ne postoji `P5-I3D`** — redakcioni pod-gate `P5-I3` ne postoji.
+
+```text
+P5-I3      POLICY-RESOLVED / NEXT / NOT AUTHORIZED / NOT STARTED
+P5-I4      AFTER P5-I3 / NOT_STARTED / NOT AUTHORIZED
+P5-I5      POLICY-RESOLVED / DEPENDENCY-BLOCKED / NOT AUTHORIZED / NOT STARTED
+P5-I6      NOT_STARTED — vlasnik phase5-basic-v1
+Faza 5     IN_PROGRESS
+checklist  49 / 9
+OWNER_DECISIONS_REQUIRED_FOR_P5_I3 = 0
+OWNER_DECISIONS_REQUIRED_FOR_P5_I5 = 0
+```
+
+**D-070 ne autorizuje nijedan slice, ne uvodi nijednu migraciju, schemu, test ni izvorni fajl, ne
+mijenja `.env.example` i ne označava nijednu kućicu.** Sažetak ugovora `phase5-basic-v1` u bloku
+D-060 niže **ostaje nepromijenjen**; D-070 mu precizira obuhvat v1 — `AHV`/`AVS` bez zasebne klase
+osiguranja/kartice i tačan, potpuno nabrojan švicarski telefonski prepoznavač — i **imenuje `P5-I6`
+kao vlasnika implementacije**.
+
 ## Objavljen dizajnerski autoritet — D-060 (2026-08-22)
 
 **Ovaj zapis ne mijenja status faze i ne označava nijednu kućicu ispod.** Na dan ovog zapisa
