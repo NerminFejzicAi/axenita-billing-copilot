@@ -332,6 +332,27 @@ Za svaki command endpoint:
 6. completed response ne sadrži medicinski tekst;
 7. expired key cleanup ne briše poslovni resurs.
 
+**Kanonski request hash — obavezni test vektori (D-069, `RULING 4`).** `idempotency_keys.request_sha256`
+je definisan u `03` §4.1 i `04` §7.5a.1 kao **SHA-256 nad RFC 8785 (JCS) kanonskom
+reprezentacijom validiranog parsiranog tijela zahtjeva**, UTF-8, izlaz **64 mala heksadecimalna
+znaka**. **Format je perzistentan i MORA biti pinovan fiksnim test vektorima**, jer promjena
+algoritma nakon prvog upisa retroaktivno obezvrjeđuje sve ranije redove.
+
+Obavezni vektori:
+
+- **isti parsirani objekat, različit ulazni redoslijed ključeva → ISTI digest**;
+- **razlike u whitespaceu ulaznog JSON-a → ISTI digest**;
+- **`null` naspram odsutnog polja → RAZLIČIT digest**;
+- **različit redoslijed elemenata niza → RAZLIČIT digest**;
+- **promjena metoda, patha, query stringa, headera, `Idempotency-Key`-a, identiteta korisnika ili
+  ordinacije, request ID-a i bilo kojeg server-izvedenog polja → ISTI digest**, jer nijedno od njih
+  nije ulaz hasha;
+- **pinovani literalni digesti** za najmanje jedno kanonsko tijelo po obaveznom endpointu iz §4,
+  zapisani kao konstante u testu, ne izračunati istom implementacijom koja se testira.
+
+**Vlasnik implementacije i ovih testova je slice `P5-I4`** (`04` §7.5a). **`P5-I5` ih ne duplira i
+ne forkuje.**
+
 ---
 
 # 10. Optimistic locking
@@ -447,6 +468,23 @@ Dodatno:
 - `CANCELLED` i `CLOSED` su terminalna — nijedan izlaz;
 - `REJECT` odluka nad analizom **ne mijenja** encounter status;
 - svaka zabranjena tranzicija vraća `409 INVALID_STATE_TRANSITION`.
+
+**Encounter write semantika — `404` naspram `409` (D-069, `RULING 2`).** Lista iznad se **ne
+mijenja**; dodaju se obavezni testovi koji razdvajaju dvije write putanje:
+
+- **`PATCH /encounters/{id}`** — **jedan atomičan optimistički `UPDATE`**, **bez diskriminirajućeg
+  pre-reada**. **Nula pogođenih redova → `409 VERSION_CONFLICT`** i za **zastarjelu verziju**, i za
+  **nepostojeći red**, i za **tenant-nevidljiv red**. **`404 RESOURCE_NOT_FOUND` se na `PATCH`-u
+  ne vraća**, i test to mora asertirati eksplicitno, po presedanu D-055, klauzule 16 i 19–21
+  (`03` §10, §12).
+- **`POST /encounters/{id}/cancel`** — **vidljiv** encounter u nedozvoljenom stanju →
+  **`409 INVALID_STATE_TRANSITION`**; **nepostojeći ili tenant-nevidljiv** encounter →
+  **`404 RESOURCE_NOT_FOUND`**. Test mora dokazati **oba** ishoda, i to iz **stvarnog** cross-tenant
+  konteksta, ne iz simulacije.
+- **Nijedan test ne smije zahtijevati ni dokumentovati opšti cross-tenant existence oracle.**
+  Razlika `404` / `409` mora se dobiti **race-free**, unutar **iste admitovane tenant transakcije**.
+  Negativni test: cross-tenant `cancel` daje **`404 RESOURCE_NOT_FOUND`** sa generičkom porukom
+  koja ne citira nijednu vrijednost i ne razlikuje „ne postoji" od „postoji u drugom tenantu".
 
 ## 11.2 Analysis
 
@@ -800,6 +838,22 @@ i **`NOT AUTHORIZED`**.
    vrijednost → `422`.
 9. **Historijska perzistencija:** nakon što membership postane `active = false`, encounter i dalje
    nosi isti `responsible_physician_id` i i dalje je čitljiv.
+
+**Imenovani negativni constraint (D-069, `RULING 2`) — stavke iznad se ne mijenjaju.** „Drugi
+constraint" iz stavke 5 je u Fazi 5 **imenovan**: **`encounters_patient_reference_fk`**.
+Cross-tenant ili nepostojeći `patientReferenceId` obara **taj** FK i **NE SMIJE se mapirati kroz
+translator odgovornog ljekara** — on ostaje **izvan** uskog izuzetka `23503 → 422` i **propada u
+kanonsku internal-error putanju**. Obavezan negativan test dokazuje da `POST /encounters` sa
+cross-tenant `patientReferenceId` **ne** vraća `422`. **Isključivo
+`encounters_responsible_physician_membership_fk`** dobija `422 VALIDATION_ERROR`; **globalno
+`23503 → 422` ostaje zabranjeno.**
+
+**ANOTACIJA TEKUĆEG STATUSA (D-069, 2026-08-27) — §12.9.1 iznad se ne prepisuje.** Podobnost
+`P5-I5` ostaje kako je zapisana, ali **zadovoljen tvrdi preduslov `★` nije ispunjena zavisnost**:
+`P5-I5` po `04` §7.5 zavisi i od **`P5-I3`** i od **`P5-I4`**, koji su **`NOT_STARTED`**. **Tekući
+izvršni redoslijed je `P5-I3 → P5-I4 → P5-I5`**, a **`P5-I5` je `POLICY-RESOLVED` /
+`DEPENDENCY-BLOCKED` / `NOT AUTHORIZED` / `NOT STARTED`**. **Checklist Faze 5 ostaje `49 / 9`**;
+**Faza 5 ostaje `IN_PROGRESS`.**
 
 ### 12.9.3 Katalog referencijalnog integriteta
 
@@ -1291,6 +1345,32 @@ Pozitivna kontrola: validan aktivan approval dozvoljava nastavak export workflow
 - request ID correlation;
 - timeline order;
 - integrity hash deterministic.
+
+**Faza-5 audit hash — SELF-HASH ONLY (D-069, `RULING 5`).** Stavka „integrity hash deterministic"
+iznad se **ne mijenja**, ali se **precizira**: u Fazi 5 **nema predecessor lanca**.
+
+- **`previous_event_sha256 = NULL`** za **svaki** Faza-5 audit događaj. **Nijedan test ne smije
+  tvrditi da Faza 5 implementira linearni hash lanac**; per-practice, per-resource i globalno
+  ulančavanje su **odgođeni** u kasniju governance odluku.
+- **`event_sha256` = SHA-256 nad RFC 8785 (JCS) kanonskom reprezentacijom konačnog pohranjenog
+  audit payloada, bez samog `event_sha256`**; UTF-8; **64 mala heksadecimalna znaka**; **JSON
+  ključevi su imena kolona baze**; tačan skup polja je u `04` §7.5a.2.
+
+Obavezni testovi:
+
+- **determinizam** — isti pohranjeni događaj, različit ulazni redoslijed ključeva → **isti**
+  digest; pinovan literalni vektor;
+- **`previous_event_sha256` je u payloadu prisutan kao `null`**, ne izostavljen — izostavljanje
+  daje **različit** digest i mora biti odbijeno;
+- **`event_sha256` nije dio payloada** koji se hashira;
+- **`id` i `occurred_at` u pohranjenom redu su bajt-identični onima korištenim pri hashiranju** —
+  „generiši ponovo tokom `INSERT`-a" mora pasti;
+- **`previous_value`, `new_value` i `metadata` se hashiraju u konačnom sanitizovanom obliku**, pa
+  hash nikada ne pina nesanitizovan PHI (`02` §15.4; `09` §12);
+- **rekomputacija nad pohranjenim redom reproducira `event_sha256`**.
+
+**Vlasnik implementacije i ovih testova je slice `P5-I4`** (`04` §7.5a). **`P5-I5` audit writer
+konzumira nepromijenjen.**
 
 ---
 

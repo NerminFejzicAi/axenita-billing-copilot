@@ -1348,6 +1348,143 @@ nijedna migracija, schema izmjena, grant, politika, rola ni izmjena izvora.
 **`NOT_STARTED`**. Kompletan dokaz `P5-I2V`-a je u `05`, Faza 5, blok
 `Pod-gate P5-I2V — ★ RI-naspram-RLS dokaz`.
 
+**AŽURIRANJE STATUSA I REDOSLIJEDA IZVRŠENJA (D-069, 2026-08-27) — nijedan pasus ni anotacija
+iznad se ne prepisuju.** Tabela zavisnosti na vrhu §7.5 **ostaje mjerodavna i nije waivovana**.
+
+**TEKUĆI kanonski redoslijed izvršenja je:**
+
+```text
+P5-I3   ->   P5-I4   ->   P5-I5
+```
+
+**`P5-I5` se NE SMIJE implementirati prije nego što `P5-I3` i `P5-I4` postanu kanonski**, jer
+`P5-I5` po tabeli iznad zavisi od **`P5-I2` uključujući `★`**, **`P5-I3`** i **`P5-I4`**.
+Formulacija „naredni obavezni gate je `P5-I5`" (D-068; §7.6a) je **planska statusna tvrdnja**
+zapisana dok su `P5-I3` i `P5-I4` bili `NOT_STARTED` — što su i ostali — i **za TEKUĆE
+sekvenciranje izvršenja je supersedirana D-069**, aditivno, bez prepisivanja D-068. **Podobnost
+`P5-I5` znači podoban NAKON ispunjenja deklarisanih zavisnosti**, ne ovlašten da ih preskoči.
+
+**Tekući status slice-ova (D-069):**
+
+```text
+P5-I1      CANONICAL                                              (PR #30)
+P5-I2 / ★  COMPLETE / VERIFIED / CANONICAL / FORMALLY CLOSED      (PR #40, D-068)
+P5-I3      NEXT / NOT_STARTED / NOT AUTHORIZED
+P5-I4      AFTER P5-I3 / NOT_STARTED / NOT AUTHORIZED
+P5-I5      POLICY-RESOLVED / DEPENDENCY-BLOCKED / NOT AUTHORIZED / NOT STARTED
+P5-I6–I8   NOT_STARTED
+Faza 5     IN_PROGRESS
+checklist  49 / 9
+```
+
+**`P5-I3` je naredni implementacijski slice**, i **`NOT AUTHORIZED`** — traži **zaseban read-only
+preflight** i **zasebnu vlasničku autorizaciju**. **D-069 ga ne autorizuje.**
+
+**Proširenje obuhvata `P5-I4` (D-069, `RULING 3`) — obuhvat iz tabele se ne mijenja.** `P5-I4`
+**ostaje slice `patient_references`**. Uz to, kao **prvi kanonski konzument**, on **posjeduje i
+implementira** Faza-5 cross-cutting kapacitete:
+
+- **idempotency servis** — uključujući duplicate-key handling, request-in-progress handling i
+  `request_sha256` kanonizaciju (§7.5a);
+- **audit writer** — uključujući audit self-hash i transakcijsku semantiku (§7.5a);
+- **konkretan `TenantDatabaseService` facade** — uslovna obaveza D-056, dio A, čiji je trigger
+  ovime **ispunjen imenovanim vlasnikom**: `P5-I4` je **prvi stvarni Faza-5 tenant business
+  modul** koji traži da se poslovni SQL izvršava nad **već otvorenom, pinovanom tenant
+  transakcijom**. **Devet obaveza iz `05` §6** postaju **kriteriji prihvatanja `P5-I4`**; nijedna
+  nije uklonjena, oslabljena ni označena završenom, i **nijedan red se sada ne označava**.
+
+**Ovo NIJE novi slice.** To su **podržavajuće obaveze `P5-I4`** koje traži njegova prva poslovna
+command površina. **`P5-I5` te servise konzumira nepromijenjene** i **ne smije ih izmisliti ni
+forkovati.** **`P5-I4` ostaje `NOT_STARTED` dok ne bude zasebno autorizovan.**
+
+**`P5-I5` preflight — tekuća dispozicija.** Kanonski read-only preflight `P5-I5` je završio
+ishodom **`P5_I5_PREFLIGHT_HOLD_OWNER_DECISION_REQUIRED`** sa **pet** neriješenih vlasničkih
+odluka (`OD-P5-I5-1` … `OD-P5-I5-5`). **Vlasnik je ratifikovao svih pet (D-069)**, pa je
+
+```text
+OWNER_DECISIONS_REQUIRED_FOR_P5_I5 = 0
+```
+
+**Ishod se time NE pretvara u `P5_I5_PREFLIGHT_PASS_READY_FOR_OWNER_AUTHORIZATION`**, jer je
+`P5-I3` sada naredni izvršni cilj. **Tačna formulacija je: `P5-I5` je policy-resolved i
+dependency-blocked.** Svjež preflight ili uzak pre-execution checkpoint smije se izvesti **nakon
+`P5-I4`**, radi potvrde da nije nastao drift.
+
+## 7.5a Faza-5 cross-cutting ugovori — vlasnik `P5-I4` (D-069)
+
+**Ova sekcija je ugovor, ne implementacija.** **D-069 ne implementira nijednu liniju koda**, ne
+mijenja nijednu kolonu, tip ni constraint (`02` §11, §15) i ne označava nijednu kućicu.
+
+### 7.5a.1 `idempotency_keys.request_sha256` (D-069, `RULING 4`)
+
+```text
+request_sha256 = SHA-256(
+    RFC 8785 (JSON Canonicalization Scheme) reprezentacija
+    VALIDIRANOG PARSIRANOG TIJELA ZAHTJEVA
+)
+```
+
+- **Encoding ulaza:** UTF-8 bajtovi kanonskog JSON-a.
+- **Izlaz:** **64 mala heksadecimalna znaka** (lowercase hex) — odgovara `varchar(64)`.
+- **Uključeno:** **isključivo validirano tijelo klijentskog zahtjeva.**
+- **Isključeno:** HTTP metod; ruta/path; query string; headeri; sam `Idempotency-Key`;
+  autentifikacijski identitet; identitet ordinacije; request id; server-generisani id-evi;
+  server-izvedeni status; server timestampovi; svako drugo server-izvedeno polje.
+- **Razlog isključenja metoda i patha:** kanonski idempotency scope **već sadrži `endpoint`
+  zasebno** (`03` §4; `02` §11 `unique (practice_id, user_id, endpoint, idempotency_key)`), pa se
+  ne duplira.
+
+**Semantika:** `null` i odsustvo polja ostaju **različiti**; redoslijed elemenata niza ostaje
+**značajan**; ulazni redoslijed ključeva objekta je **irelevantan** (RFC 8785 ga kanonizuje);
+whitespace je **irelevantan**; ekvivalentna parsirana tijela daju **isti** digest; različita
+validirana tijela daju **različit** digest, osim pri kriptografskoj koliziji.
+
+**Format je perzistentan i MORA biti pinovan fiksnim test vektorima** (`08` §9).
+
+### 7.5a.2 `audit_events` hash — SELF-HASH ONLY u Fazi 5 (D-069, `RULING 5`)
+
+**Za svaki Faza-5 audit događaj:**
+
+```text
+previous_event_sha256 = NULL
+```
+
+**Faza 5 NE tvrdi linearni hash lanac.** Per-practice, per-resource i globalno predecessor
+ulančavanje su **eksplicitno ODGOĐENI** u kasniju governance odluku, koja mora zasebno riješiti
+obuhvat lanca, redoslijed, zaključavanje, konkurentne pisce, sprečavanje forka, interakciju sa
+retentionom i genesis semantiku. **Faza 5 te semantike ne smije prećutno izmisliti.**
+
+```text
+event_sha256 = SHA-256(
+    RFC 8785 (JSON Canonicalization Scheme) reprezentacija
+    KONAČNOG POHRANJENOG AUDIT PAYLOADA,
+    bez samog event_sha256
+)
+```
+
+- **Encoding ulaza:** UTF-8 bajtovi kanonskog JSON-a; **izlaz:** 64 mala heksadecimalna znaka.
+- **JSON ključevi MORAJU koristiti imena kolona baze.**
+
+**Kanonski hash payload sadrži tačno ova konačna pohranjena polja** (`02` §15):
+
+```text
+id, practice_id, occurred_at, actor_type, actor_user_id, actor_service,
+action, resource_type, resource_id, request_id, session_id_hash,
+ip_address, user_agent_hash, previous_value, new_value, metadata,
+previous_event_sha256
+```
+
+**Obavezno:**
+
+- **`previous_event_sha256` je prisutan kao JSON `null`** — ne izostavlja se;
+- **`event_sha256` je isključen** iz payloada;
+- **`id` i `occurred_at` se generišu tačno jednom prije hashiranja**, i **iste** vrijednosti se
+  upisuju u `audit_events`; **putanja „generiši ponovo tokom `INSERT`-a" nije dozvoljena**;
+- **`previous_value`, `new_value` i `metadata` koriste konačnu sanitizovanu pohranjenu
+  reprezentaciju prije hashiranja** (`02` §15.4; `09` §12; D-062, Dio F.3).
+
+**Vlasnik implementacije oba ugovora je `P5-I4`.** `P5-I5` ih konzumira nepromijenjene.
+
 ### Segmentacija `P5-I2` na četiri pod-gatea (D-064)
 
 `P5-I2` se **ne izvršava kao jedan potez**. Ratifikovana su četiri pod-gatea:
@@ -1443,6 +1580,15 @@ u vlasništvu `P5-I5` (D-064).
 kanonski — i **`NOT AUTHORIZED`**. **Podobnost nije autorizacija**; nijedan korak `P5-I5` ne
 počinje automatski, a zavisnosti `P5-I3` i `P5-I4` (§7.5) ostaju nepromijenjene. **Faza 5 ostaje
 `IN_PROGRESS`; nije `DONE`.**
+
+**ANOTACIJA TEKUĆEG STATUSA (D-069, 2026-08-27) — pasus iznad se ne prepisuje.** Formulacija
+„naredni obavezni gate je `P5-I5`" je **planska statusna tvrdnja** tačna na dan svog zapisa i
+**ostaje zapisana**; ona je **za TEKUĆE sekvenciranje izvršenja supersedirana**. **Tekući naredni
+implementacijski slice je `P5-I3`**, pa je kanonski redoslijed **`P5-I3 → P5-I4 → P5-I5`** — jer
+zavisnosti iz §7.5, koje i sam pasus iznad zove **nepromijenjenim**, nikada nisu waivovane.
+**`P5-I3` je `NOT AUTHORIZED`**; **`P5-I4` je poslije `P5-I3`, `NOT_STARTED`**; **`P5-I5` je
+`POLICY-RESOLVED` / `DEPENDENCY-BLOCKED` / `NOT AUTHORIZED` / `NOT STARTED`**. Vidi §7.5,
+*AŽURIRANJE STATUSA I REDOSLIJEDA IZVRŠENJA (D-069)*.
 
 **`P5-I2B` Security Boundary Preflight — `HOLD`, pa D-065 (2026-08-25).** Read-only preflight
 `P5-I2B` je završio ishodom **`HOLD`** sa razlogom **`POLICY_CATALOGUE_ARITHMETIC_INCONSISTENT`**:
@@ -1628,6 +1774,44 @@ Faza-4 granice nije izvedeno.**
 što `★` prođe" **ostaje na snazi** i **njen uslov je zadovoljen**. `P5-I5` je time **`ELIGIBLE
 FOR SEPARATE OWNER AUTHORIZATION`** — nakon što D-068 postane kanonski — i **`NOT AUTHORIZED`**.
 **Podobnost nije autorizacija**; `P5-I5` ne počinje automatski.
+
+**ANOTACIJA TEKUĆEG STATUSA (D-069, 2026-08-27) — pasus iznad se ne prepisuje.** Uslov „`★` mora
+proći prije encounter jezgra" **jeste zadovoljen**, i podobnost `P5-I5` ostaje kako je zapisana.
+**Zadovoljen tvrdi preduslov nije ispunjena zavisnost:** `P5-I5` po §7.5 zavisi i od **`P5-I3`** i
+od **`P5-I4`**, koji su **`NOT_STARTED`**. **Tekući izvršni redoslijed je `P5-I3 → P5-I4 →
+P5-I5`**, a **`P5-I5` je `POLICY-RESOLVED` / `DEPENDENCY-BLOCKED` / `NOT AUTHORIZED` / `NOT
+STARTED`**.
+
+### 7.6a.1 Encounter write semantika — not-found / conflict (D-069, `RULING 2`)
+
+**`PATCH /api/v1/encounters/{encounterId}`** — **jedan atomičan optimistički `UPDATE`**;
+**diskriminirajući pre-read nije dozvoljen**. Ako iskaz vrati **nula redova**, ishod je
+**`409 VERSION_CONFLICT`**, **bez obzira** je li uzrok **zastarjela verzija**, **nepostojeći red**
+ili **tenant-nevidljiv red**. Write putanja te uzroke **ne razlikuje pre-readom**. Ovo namjerno
+slijedi ratifikovani presedan **D-055, klauzule 16 i 19–21** (`03` §10, *Mehanika optimističkog
+update-a*): jedan ishod za nulu pogođenih redova i **nikakav race-prone read-before-write
+diskriminator**.
+
+**`POST /api/v1/encounters/{encounterId}/cancel`** — API semantika **razlikuje** dva slučaja:
+
+| Slučaj | Status | Code |
+|---|---:|---|
+| encounter **vidljiv**, ali tranzicija/stanje nije dozvoljeno | **`409`** | **`INVALID_STATE_TRANSITION`** |
+| encounter **ne postoji** ili je **tenant-nevidljiv** | **`404`** | **`RESOURCE_NOT_FOUND`** |
+
+**Implementacija tu razliku mora dobiti race-free.** **Opšti read-before-write existence oracle
+NIJE ovlašten.** **Preferirana pozicija:** **jedan ograničen atomičan SQL iskaz / CTE** ili
+ekvivalentan database-side oblik, **unutar iste admitovane tenant transakcije**. **Usko ograničen
+naknadni iskaz** dozvoljen je **isključivo** ako implementacija dokaže da je nužan **i** ako
+očuva istu semantiku — ista transakcija, tenant-filtrirano, bez enumeracije. **Nijedan generički
+cross-tenant existence oracle nije ovlašten** (`T1`, `09` §18.1).
+
+**`POST /api/v1/encounters` — `patientReferenceId`.** Cross-tenant ili nepostojeći
+`patientReferenceId` koji obori **`encounters_patient_reference_fk`** **NE SMIJE se mapirati kroz
+translator odgovornog ljekara**. On ostaje **izvan** uskog izuzetka `23503 → 422` i **propada u
+kanonsku internal-error putanju**. **Isključivo
+`encounters_responsible_physician_membership_fk`** dobija mapiranje **`422 VALIDATION_ERROR`**.
+**Globalno `23503 → 422` mapiranje ostaje zabranjeno.**
 
 ## 7.7 Commit
 
