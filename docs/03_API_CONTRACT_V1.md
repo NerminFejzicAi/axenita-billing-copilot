@@ -310,6 +310,46 @@ concurrency. Nijedan endpoint ne vraća `425` i status se ne pojavljuje u §9.
 `POST /analyses/{id}/cancel` namjerno **nije** na listi obaveznih `Idempotency-Key`
 endpointa: komanda je state-idempotentna (§15.4), pa ponovljeni poziv ne mijenja stanje.
 
+## 4.1 Kanonski request hash — `idempotency_keys.request_sha256` (D-069, `RULING 4`)
+
+**Ovo je jedini kanonski algoritam „canonical request hasha" iz §4.** Kolona je `varchar(64)`
+(`02` §11); D-069 ne mijenja nijednu kolonu, tip ni constraint.
+
+```text
+request_sha256 = SHA-256(
+    RFC 8785 (JSON Canonicalization Scheme) reprezentacija
+    VALIDIRANOG PARSIRANOG TIJELA ZAHTJEVA
+)
+```
+
+- **Encoding ulaza:** UTF-8 bajtovi kanonskog JSON-a.
+- **Izlaz:** **64 mala heksadecimalna znaka** (lowercase hex).
+
+**Uključeno:** **isključivo validirano tijelo klijentskog zahtjeva.**
+
+**Isključeno:** HTTP metod; ruta/path; query string; headeri; sam `Idempotency-Key`;
+autentifikacijski identitet; identitet ordinacije; request id; server-generisani id-evi;
+server-izvedeni status; server timestampovi; svako drugo server-izvedeno polje.
+
+**Zašto metod i path nisu uključeni:** key scope iz §4 **već sadrži `endpoint` zasebno**
+(`practice + user + endpoint`; `02` §11 `unique (practice_id, user_id, endpoint,
+idempotency_key)`), pa bi njihovo uključivanje u hash stvorilo drugi izvor iste istine.
+
+**Semantika:**
+
+- **`null` i odsustvo polja ostaju različiti**;
+- **redoslijed elemenata niza ostaje značajan**;
+- **ulazni redoslijed ključeva objekta je irelevantan** — RFC 8785 ga kanonizuje;
+- **razlike u whitespaceu su irelevantne**;
+- **ekvivalentna parsirana tijela daju isti digest**;
+- **različita validirana tijela daju različit digest**, osim pri kriptografskoj koliziji.
+
+**Format je perzistentan i MORA biti pinovan fiksnim test vektorima** (`08` §9).
+
+**Vlasnik implementacije je slice `P5-I4`** (`04` §7.5a). **`P5-I5` ga konzumira nepromijenjenog i
+ne smije ga izmisliti ni forkovati.** Pravila iz §4 — isti key + isti hash → isti poslovni
+rezultat, isti key + drugi hash → **`409 IDEMPOTENCY_CONFLICT`** — ostaju **nepromijenjena**.
+
 ---
 
 # 5. Optimistic locking
@@ -1233,6 +1273,17 @@ Headers:
 ETag: "1"
 ```
 
+### `patientReferenceId` — mapiranje greške (D-069, `RULING 2`)
+
+**Cross-tenant ili nepostojeći `patientReferenceId`** obara **`encounters_patient_reference_fk`**
+(`23503`). **Ta greška se NE SMIJE mapirati kroz translator odgovornog ljekara.** Ona ostaje
+**izvan** uskog izuzetka `23503 → 422` i **propada u kanonsku internal-error putanju** (§9).
+
+**Isključivo `encounters_responsible_physician_membership_fk`** dobija specijalno mapiranje
+**`422 VALIDATION_ERROR`**, sa generičkom porukom koja ne citira vrijednost (D-062, Dio D).
+
+**Globalno `23503 → 422` mapiranje ostaje ZABRANJENO.** Razlog nije stilski: iz statusnog koda
+klijent ne smije zaključivati o postojanju tuđih `patient_references` redova (`09` §18.1, `T1`).
 ### Izvedene vrijednosti i vokabulari Faze 5 (D-062, Dio H.3, `OD-P5-D2-11`)
 
 `status` u odgovoru je **izvedeno i uvijek `"DRAFT"`** (§29.1a). `patient.pseudonym` je **obično
@@ -1435,6 +1486,26 @@ svaki id, svaki timestamp, svaka actor kolona (created_by, updated_by)
 Response `200` vraća novi `ETag`. Bez `If-Match` → `428 PRECONDITION_REQUIRED`; stale
 `If-Match` → `409 VERSION_CONFLICT`.
 
+**Mehanika write putanje — objavljeno (D-069, `RULING 2`).** `PATCH` se izvršava kao **jedan
+atomičan optimistički `UPDATE`**, po presedanu D-055 (klauzule 16, 19–21; §10, *Mehanika
+optimističkog update-a*):
+
+- predikat nosi **`practice_id = <uspostavljeni tenant>`** i **`version = <očekivana verzija iz
+  `If-Match`-a>`**;
+- **diskriminirajući aplikacijski pre-read nije dozvoljen** — nijedno čitanje prije upisa ne smije
+  odlučivati postoji li red, je li vidljiv ni je li verzija tekuća;
+- **nula pogođenih redova ima tačno jedan ishod:**
+
+| Uzrok nule pogođenih redova | Status | Code |
+|---|---:|---|
+| zastarjela verzija | **`409`** | **`VERSION_CONFLICT`** |
+| red **ne postoji** | **`409`** | **`VERSION_CONFLICT`** |
+| red je **tenant-nevidljiv** | **`409`** | **`VERSION_CONFLICT`** |
+
+**Write putanja ta tri uzroka NE razlikuje**, i **`404 RESOURCE_NOT_FOUND` se na `PATCH`-u ne
+vraća.** Asimetrija prema `cancel` ruti je **namjerna**: `PATCH` čuva jednoiskaznu atomičnu
+optimističku konkurentnost i **ne uvodi race-prone read-before-write diskriminator**.
+
 ## POST `/encounters/{encounterId}/cancel`
 
 Permission: `encounter.cancel`.
@@ -1457,6 +1528,24 @@ Dozvoljena stanja (normativno §29.1):
 - `REVIEW_REQUIRED`.
 
 Iz bilo kojeg drugog stanja → `409 INVALID_STATE_TRANSITION`.
+
+**Razlikovanje `404` i `409` — objavljeno (D-069, `RULING 2`).** Ova ruta **razlikuje** dva
+slučaja, i to razlikovanje je dio ugovora:
+
+| Slučaj | Status | Code |
+|---|---:|---|
+| encounter je **vidljiv** u tekućem tenantu, ali tranzicija/stanje nije dozvoljeno | **`409`** | **`INVALID_STATE_TRANSITION`** |
+| encounter **ne postoji** ili je **tenant-nevidljiv** | **`404`** | **`RESOURCE_NOT_FOUND`** |
+
+**Implementacija tu razliku mora dobiti race-free.** **Opšti read-before-write existence oracle
+NIJE ovlašten.** Preferirana pozicija je **jedan ograničen atomičan SQL iskaz / CTE** — ili
+ekvivalentan database-side oblik iskaza — **unutar iste admitovane tenant transakcije**. Usko
+ograničen naknadni iskaz dozvoljen je **isključivo** ako implementacija dokaže da je nužan **i**
+ako očuva istu semantiku: ista transakcija, tenant-filtrirano, bez enumeracije. **Nijedan
+generički cross-tenant existence oracle nije ovlašten** — on bi bio cross-tenant enumeracijski
+kanal (`09` §18.1, `T1`).
+
+**`409 VERSION_CONFLICT` se na ovoj ruti ne koristi**: `cancel` nema `If-Match` ugovor (§5.3).
 
 **U Fazi 5 dosežna su isključivo prva dva** — `ANALYSIS_IN_PROGRESS` i `REVIEW_REQUIRED` traže
 analizu, koja postoji tek od Faze 7 (§29.1a; D-062, Dio F).

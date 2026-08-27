@@ -131,6 +131,15 @@ ugniježdena ni paralelna transakcija. Na kanonskom `main`-u tu granicu nosi `Te
 **Konkretan `TenantDatabaseService` facade je uslovno odgođen** i postaje obavezan tek kada stvarni
 tenant business modul zatraži tu apstrakciju; sigurnosna svojstva sloja 5 se time **ne slabe**.
 
+**Imenovani vlasnik uslovnog triggera (D-069, 2026-08-27) — pasus iznad se ne mijenja.** Trigger
+ostaje **uslovan**, ali sada ima **imenovanog budućeg vlasnika: slice `P5-I4`**, jer je `P5-I4`
+prvi kanonski Faza-5 tenant business modul koji traži izvršavanje poslovnih iskaza nad već
+otvorenom, pinovanom tenant transakcijom. **Devet obaveza iz `05` §6 postaju kriteriji prihvatanja
+`P5-I4`**; nijedna nije oslabljena i **nijedna nije označena završenom**. **`P5-I4` je
+`NOT_STARTED` i nije autorizovan**, pa **nijedan facade kod nije ovlašten**; do njegovog kanonskog
+prihvatanja tenant database granicu nosi postojeći `TenantRequestPipeline`, uz nepromijenjene
+sigurnosne invarijante.
+
 Object storage key primjer:
 
 ```text
@@ -292,6 +301,24 @@ Primjene:
 - content integrity: SHA-256;
 - approval canonical payload: SHA-256;
 - audit chain: SHA-256.
+
+**Pojašnjenje stavke „audit chain: SHA-256" (D-069, 2026-08-27) — lista iznad se ne mijenja.**
+Ta stavka imenuje **primijenjeni algoritam** (SHA-256 za integritet audit zapisa). Ona **NIJE**
+tvrdnja da Faza 5 već implementira **predecessor lanac**.
+
+**Tekuće stanje Faze 5 je SELF-HASH ONLY:**
+
+```text
+previous_event_sha256 = NULL   za svaki Faza-5 audit događaj
+```
+
+**Faza 5 daje per-event integritet, ne tamper-evident sekvencu.** Per-practice, per-resource i
+globalno predecessor ulančavanje su **eksplicitno odgođeni** u kasniju governance odluku, koja
+mora zasebno riješiti obuhvat lanca, redoslijed, zaključavanje, konkurentne pisce, sprečavanje
+forka, interakciju sa retentionom i genesis semantiku. **Faza 5 te semantike ne smije prećutno
+izmisliti**, i **nijedan dokument, test ni izvještaj ne smije tvrditi da Faza 5 ima linearni audit
+lanac.** Append-only garancija i dalje počiva na `revoke update, delete, truncate` nad
+`audit_events` (`02` §15), ne na ulančavanju. Puna definicija je u `04` §7.5a.2.
 
 ## 8.1 Deterministički lookup token eksternog ID-a (D-060)
 
@@ -529,6 +556,29 @@ prima polje `reason` za koje **ne postoji kolona u `encounters`** i **ne uvodi s
 klinički korisnik može sadržavati PHI. `02` §15.4 već traži da `previous_value`/`new_value` budu
 sanitizovani; isti zahtjev vrijedi za `reason`. Nesanitizovan `reason` u auditu je **defekt klase
 T3**, ne kozmetički propust.
+
+**Faza-5 audit hash — SELF-HASH ONLY (D-069, 2026-08-27) — sekcija iznad se ne mijenja.**
+
+Uz gore navedeni sadržaj audit zapisa, Faza 5 ima **ratifikovan hash ugovor**:
+
+```text
+event_sha256           = SHA-256( RFC 8785 (JCS) kanonski JSON konačnog pohranjenog
+                                  audit payloada, bez samog event_sha256 )
+                         UTF-8; 64 mala heksadecimalna znaka; JSON kljucevi = imena kolona baze
+previous_event_sha256  = NULL
+```
+
+**Faza 5 NE tvrdi linearni hash lanac.** Ona daje **per-event integritet**, ne **tamper-evident
+sekvencu**; append-only garancija i dalje počiva na `revoke update, delete, truncate` nad
+`audit_events` (`02` §15). Per-practice, per-resource i globalno predecessor ulančavanje su
+**eksplicitno odgođeni** u kasniju governance odluku, koja mora zasebno riješiti obuhvat lanca,
+redoslijed, zaključavanje, konkurentne pisce, sprečavanje forka, interakciju sa retentionom i
+genesis semantiku. **Faza 5 te semantike ne smije prećutno izmisliti.**
+
+**Hash se računa nad KONAČNIM SANITIZOVANIM pohranjenim vrijednostima** `previous_value`,
+`new_value` i `metadata`, pa nikada ne pina nesanitizovan PHI. **`id` i `occurred_at` se generišu
+tačno jednom prije hashiranja** i **iste** vrijednosti se upisuju u `audit_events`. Tačan skup
+polja i puna definicija su u `04` §7.5a.2; vlasnik implementacije je slice **`P5-I4`**.
 
 ---
 
