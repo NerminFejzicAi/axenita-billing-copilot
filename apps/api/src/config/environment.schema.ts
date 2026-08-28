@@ -13,6 +13,7 @@ import {
 } from 'class-validator';
 
 import { LogLevel, NodeEnvironment } from './environment.constants.js';
+import { IsStrictBase64Key } from './validators/is-strict-base64-key.validator.js';
 import { IsUrlWithProtocol } from './validators/is-url-with-protocol.validator.js';
 
 /**
@@ -126,6 +127,38 @@ export class EnvironmentVariables {
   @IsString()
   @IsNotEmpty()
   public readonly DEV_AUTH_JWT_AUDIENCE: string = 'axenita-api';
+
+  /**
+   * Application encryption key of local development, `K_enc` (D-025 clause 9, D-070 `RULING 3`).
+   *
+   * DEVELOPMENT AND TEST ONLY, exactly like `DEV_AUTH_JWT_SECRET` above. The production key
+   * provider — KMS, access model, rotation cadence, recovery — is still an open external
+   * dependency (D-OPEN-004a, `13` §3.1), and `LocalStaticKeyProvider` refuses to be constructed
+   * under `NODE_ENV=production`, which turns a production misconfiguration into a startup
+   * failure rather than a runtime one.
+   *
+   * It has NO DEFAULT. A default would be a shipped key, and a shipped key is a key everybody
+   * has. The strict validator accepts only RFC 4648 standard Base64 that decodes to exactly 32
+   * bytes, because D-025 clause 1 fixes the AES-256-GCM key at that length and D-070 `RULING 3`
+   * §3.2 makes any other decoded length a configuration error. The value is never logged and
+   * never echoed in an error (09 §9, §11).
+   */
+  @Expose()
+  @IsStrictBase64Key()
+  public readonly ENCRYPTION_LOCAL_KEY!: string;
+
+  /**
+   * Active generation of the encryption key, persisted per row as `encryption_key_version`.
+   *
+   * Mandatory with NO DEFAULT (D-025 clause 10 — a missing key version refuses startup) and at
+   * least `1` (D-025 clause 14). Defaulting it would let a process silently write rows under a
+   * generation nobody chose, which is precisely what makes a later rotation undecidable.
+   */
+  @Expose()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  public readonly ENCRYPTION_KEY_VERSION!: number;
 }
 
 /**

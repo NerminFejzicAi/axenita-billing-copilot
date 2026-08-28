@@ -47,6 +47,11 @@ export async function createIdentityTestApplication(
       DEV_AUTH_JWT_SECRET: DEVELOPMENT_AUTH_FIXTURE.secret,
       DEV_AUTH_JWT_ISSUER: DEVELOPMENT_AUTH_FIXTURE.issuer,
       DEV_AUTH_JWT_AUDIENCE: DEVELOPMENT_AUTH_FIXTURE.audience,
+      // Local development encryption key of D-025 clause 9. A deterministic, clearly labelled
+      // NON-SECRET fixture, mandatory since the encryption primitives became part of the
+      // application module: without it the application under test refuses to start.
+      ENCRYPTION_LOCAL_KEY: 'YXhlbml0YS1zZWN1cml0eS10ZXN0LWVuYy1rZXkzMmI=',
+      ENCRYPTION_KEY_VERSION: '1',
     },
   });
 }

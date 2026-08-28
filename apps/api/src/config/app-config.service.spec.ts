@@ -12,6 +12,9 @@ function appConfigFor(overrides: Record<string, string> = {}): AppConfigService 
     REDIS_URL: 'redis://cache.internal:6379',
     OBJECT_STORAGE_ENDPOINT: 'http://storage.internal:9000',
     DEV_AUTH_JWT_SECRET: 'test_only_development_auth_secret_value_32+',
+    // Deterministic NON-SECRET fixture: `axenita-local-test-enc-key-32b!!` in standard Base64.
+    ENCRYPTION_LOCAL_KEY: 'YXhlbml0YS1sb2NhbC10ZXN0LWVuYy1rZXktMzJiISE=',
+    ENCRYPTION_KEY_VERSION: '1',
     ...overrides,
   });
 
@@ -110,5 +113,12 @@ describe('AppConfigService', () => {
     expect(appConfig.developmentAuthSecret).toBe('test_only_development_auth_secret_value_32+');
     expect(appConfig.developmentAuthIssuer).toBe('axenita-local');
     expect(appConfig.developmentAuthAudience).toBe('axenita-local-api');
+  });
+
+  it('given the encryption configuration when read then the key and its version are exposed', () => {
+    const appConfig = appConfigFor({ ENCRYPTION_KEY_VERSION: '3' });
+
+    expect(appConfig.encryptionLocalKey).toBe('YXhlbml0YS1sb2NhbC10ZXN0LWVuYy1rZXktMzJiISE=');
+    expect(appConfig.encryptionKeyVersion).toBe(3);
   });
 });

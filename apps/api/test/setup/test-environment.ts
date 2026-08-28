@@ -28,6 +28,11 @@ const BASELINE_ENVIRONMENT: Readonly<Record<string, string>> = {
   DEV_AUTH_JWT_SECRET: DEVELOPMENT_AUTH_FIXTURE.secret,
   DEV_AUTH_JWT_ISSUER: DEVELOPMENT_AUTH_FIXTURE.issuer,
   DEV_AUTH_JWT_AUDIENCE: DEVELOPMENT_AUTH_FIXTURE.audience,
+  // Local development encryption key of D-025 clause 9. A deterministic, clearly labelled
+  // NON-SECRET fixture: it is not the prohibited all-zero key, it is not a production secret,
+  // and it never appears in `.env.example`, whose placeholder stays deliberately invalid.
+  ENCRYPTION_LOCAL_KEY: 'YXhlbml0YS1sb2NhbC10ZXN0LWVuYy1rZXktMzJiISE=',
+  ENCRYPTION_KEY_VERSION: '1',
 };
 
 for (const [key, value] of Object.entries(BASELINE_ENVIRONMENT)) {

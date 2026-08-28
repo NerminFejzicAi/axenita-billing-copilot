@@ -11,6 +11,11 @@ const VALID_ENVIRONMENT: Readonly<Record<string, string>> = {
   // Isolated development authentication (09 §5). Deliberately has no default, so it belongs
   // to the minimal valid environment rather than to the optional overrides below.
   DEV_AUTH_JWT_SECRET: 'test_only_development_auth_secret_value_32+',
+  // Local development encryption key (D-025 clause 9, D-070 `RULING 3`). Like the development
+  // auth secret it has no default, so it belongs to the minimal valid environment. A
+  // deterministic NON-SECRET fixture: `axenita-local-test-enc-key-32b!!` in standard Base64.
+  ENCRYPTION_LOCAL_KEY: 'YXhlbml0YS1sb2NhbC10ZXN0LWVuYy1rZXktMzJiISE=',
+  ENCRYPTION_KEY_VERSION: '1',
 };
 
 describe('validateEnvironment', () => {
@@ -156,6 +161,99 @@ describe('validateEnvironment', () => {
     expect(serialised).not.toContain('test-pw');
     expect(serialised).not.toContain('copilot_migrator');
   });
+
+  it('given a valid encryption key when validated then it is accepted verbatim', () => {
+    const config = validateEnvironment({ ...VALID_ENVIRONMENT });
+
+    expect(config.ENCRYPTION_LOCAL_KEY).toBe('YXhlbml0YS1sb2NhbC10ZXN0LWVuYy1rZXktMzJiISE=');
+    expect(config.ENCRYPTION_KEY_VERSION).toBe(1);
+    expect(Buffer.from(config.ENCRYPTION_LOCAL_KEY, 'base64')).toHaveLength(32);
+  });
+
+  it.each(['ENCRYPTION_LOCAL_KEY', 'ENCRYPTION_KEY_VERSION'])(
+    'given a missing %s when validated then bootstrap fails (D-025 clause 10)',
+    (key) => {
+      const incomplete: Record<string, string> = { ...VALID_ENVIRONMENT };
+      delete incomplete[key];
+
+      expect(() => validateEnvironment(incomplete)).toThrow(EnvironmentValidationError);
+    },
+  );
+
+  it.each([
+    // RFC 4648 standard Base64 only, decoding to exactly 32 bytes (D-070 `RULING 3` §3.2).
+    ['inner whitespace', 'YXhlbml0YS1sb2NhbC10ZXN0LWVu Yy1rZXktMzJiISE='],
+    ['outer whitespace', ' YXhlbml0YS1sb2NhbC10ZXN0LWVuYy1rZXktMzJiISE='],
+    [
+      'a trailing newline',
+      `YXhlbml0YS1sb2NhbC10ZXN0LWVuYy1rZXktMzJiISE=${String.fromCharCode(10)}`,
+    ],
+    // The URL-safe alphabet of RFC 4648 §5 is a different encoding, not a spelling variant.
+    ['the URL-safe alphabet', 'u_1-u_1-u_1-u_1-u_1-u_1-u_1-u_1-u_1-u_1-u_1='],
+    ['missing padding', 'YXhlbml0YS1sb2NhbC10ZXN0LWVuYy1rZXktMzJiISE'],
+    ['extra padding', 'YXhlbml0YS1sb2NhbC10ZXN0LWVuYy1rZXktMzJiISE=='],
+    // Decodes to 32 bytes, but the unused trailing bits of the final quantum are non-zero, so
+    // it re-encodes to a different string: a second spelling of one key is not canonical.
+    ['non-canonical trailing bits', 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB='],
+    ['a 31 byte value', 'BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBw=='],
+    ['a 33 byte value', 'BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcH'],
+    ['a non-Base64 value', 'replace-me-with-a-32-byte-base64-key'],
+  ])('given %s in ENCRYPTION_LOCAL_KEY when validated then bootstrap fails', (_label, value) => {
+    expect(() =>
+      validateEnvironment({ ...VALID_ENVIRONMENT, ENCRYPTION_LOCAL_KEY: value }),
+    ).toThrow(EnvironmentValidationError);
+  });
+
+  it('given the `.env.example` placeholder when validated then bootstrap fails (D-025 clause 9)', () => {
+    // The shipped example must never be an operational encryption configuration.
+    expect(() =>
+      validateEnvironment({
+        ...VALID_ENVIRONMENT,
+        ENCRYPTION_LOCAL_KEY: 'replace-me-with-a-32-byte-base64-key',
+      }),
+    ).toThrow(EnvironmentValidationError);
+  });
+
+  it('given an invalid encryption key when validated then the value is never echoed', () => {
+    const key = 'Zm9yYmlkZGVuLXNlY3JldC1tYXRlcmlhbA';
+
+    let thrown: unknown;
+    try {
+      validateEnvironment({ ...VALID_ENVIRONMENT, ENCRYPTION_LOCAL_KEY: key });
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(EnvironmentValidationError);
+    const message = (thrown as EnvironmentValidationError).message;
+
+    expect(message).toContain('ENCRYPTION_LOCAL_KEY');
+    expect(message).not.toContain(key);
+  });
+
+  it.each([
+    ['2', 2],
+    ['9', 9],
+  ])('given the key version %s when validated then it is accepted', (value, expected) => {
+    expect(
+      validateEnvironment({ ...VALID_ENVIRONMENT, ENCRYPTION_KEY_VERSION: value })
+        .ENCRYPTION_KEY_VERSION,
+    ).toBe(expected);
+  });
+
+  it.each([
+    ['zero', '0'],
+    ['negative', '-1'],
+    ['non-integer', '1.5'],
+    ['non-numeric', 'one'],
+  ])(
+    'given a %s ENCRYPTION_KEY_VERSION when validated then bootstrap fails (D-025 clauses 10, 14)',
+    (_label, value) => {
+      expect(() =>
+        validateEnvironment({ ...VALID_ENVIRONMENT, ENCRYPTION_KEY_VERSION: value }),
+      ).toThrow(EnvironmentValidationError);
+    },
+  );
 
   it('given the runtime schema when inspected then DATABASE_URL is the only database credential', () => {
     // 02 §3.4 credential matrix: only `copilot_app` is a runtime credential for the API.
