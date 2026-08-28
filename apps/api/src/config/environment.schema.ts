@@ -159,6 +159,31 @@ export class EnvironmentVariables {
   @IsInt()
   @Min(1)
   public readonly ENCRYPTION_KEY_VERSION!: number;
+
+  /**
+   * Keyed-digest key of local development, `K_hmac` (D-070).
+   *
+   * DEVELOPMENT AND TEST ONLY, exactly like `ENCRYPTION_LOCAL_KEY` above, and validated by the
+   * SAME strict validator: RFC 4648 standard Base64, no whitespace, canonical padding, decoding
+   * to exactly 32 bytes. A second Base64 implementation would be a second set of accepted
+   * spellings for key material, so there is deliberately only one.
+   *
+   * It has NO DEFAULT, for the same reason the encryption key has none: a default is a shipped
+   * key, and a shipped key is a key everybody has — and for a keyed digest that means anybody
+   * can recompute every external reference token in the database.
+   *
+   * IT MUST NOT BE `ENCRYPTION_LOCAL_KEY`. The schema cannot see that, because both values are
+   * individually valid; `KeySeparationGuard` compares the DECODED BYTES at startup and refuses
+   * to come up when they match (D-070).
+   *
+   * There is deliberately no `HMAC_KEY_VERSION`. Tokens carry the fixed `h1.` generation marker
+   * and nothing reads a configured HMAC key generation, so declaring one would be configuration
+   * for a rotation mechanism that does not exist. The value is never logged and never echoed in
+   * an error (09 §9, §11).
+   */
+  @Expose()
+  @IsStrictBase64Key()
+  public readonly HMAC_LOCAL_KEY!: string;
 }
 
 /**
