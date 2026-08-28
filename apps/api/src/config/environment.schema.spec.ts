@@ -16,6 +16,10 @@ const VALID_ENVIRONMENT: Readonly<Record<string, string>> = {
   // deterministic NON-SECRET fixture: `axenita-local-test-enc-key-32b!!` in standard Base64.
   ENCRYPTION_LOCAL_KEY: 'YXhlbml0YS1sb2NhbC10ZXN0LWVuYy1rZXktMzJiISE=',
   ENCRYPTION_KEY_VERSION: '1',
+  // Keyed-digest key of D-070, `K_hmac`. Like the encryption key it has no default, so it
+  // belongs to the minimal valid environment. A deterministic NON-SECRET fixture:
+  // `axenita-local-test-hmac-key-32b!` in standard Base64.
+  HMAC_LOCAL_KEY: 'YXhlbml0YS1sb2NhbC10ZXN0LWhtYWMta2V5LTMyYiE=',
 };
 
 describe('validateEnvironment', () => {
@@ -254,6 +258,92 @@ describe('validateEnvironment', () => {
       ).toThrow(EnvironmentValidationError);
     },
   );
+
+  it('given a valid HMAC key when validated then it is accepted verbatim (D-070)', () => {
+    const config = validateEnvironment({ ...VALID_ENVIRONMENT });
+
+    expect(config.HMAC_LOCAL_KEY).toBe('YXhlbml0YS1sb2NhbC10ZXN0LWhtYWMta2V5LTMyYiE=');
+    expect(Buffer.from(config.HMAC_LOCAL_KEY, 'base64')).toHaveLength(32);
+  });
+
+  it('given the accepted fixtures then K_hmac and K_enc decode to different bytes', () => {
+    // The schema cannot enforce this — both values are individually valid — so the property is
+    // asserted here and REFUSED AT STARTUP by `KeySeparationGuard`, which compares the decoded
+    // bytes in constant time (D-070).
+    const config = validateEnvironment({ ...VALID_ENVIRONMENT });
+
+    expect(Buffer.from(config.HMAC_LOCAL_KEY, 'base64')).not.toStrictEqual(
+      Buffer.from(config.ENCRYPTION_LOCAL_KEY, 'base64'),
+    );
+  });
+
+  it('given a missing HMAC_LOCAL_KEY when validated then bootstrap fails (D-070)', () => {
+    // No default: a default would be a shipped key, and for a keyed digest a shipped key lets
+    // anybody recompute every external reference token in the database.
+    const incomplete: Record<string, string> = { ...VALID_ENVIRONMENT };
+    delete incomplete['HMAC_LOCAL_KEY'];
+
+    expect(() => validateEnvironment(incomplete)).toThrow(EnvironmentValidationError);
+  });
+
+  it.each([
+    // The same strict RFC 4648 rule as the encryption key, through the same validator — a
+    // second Base64 implementation would be a second set of accepted spellings.
+    ['inner whitespace', 'YXhlbml0YS1sb2NhbC10ZXN0LWht YWMta2V5LTMyYiE='],
+    ['outer whitespace', ' YXhlbml0YS1sb2NhbC10ZXN0LWhtYWMta2V5LTMyYiE='],
+    [
+      'a trailing newline',
+      `YXhlbml0YS1sb2NhbC10ZXN0LWhtYWMta2V5LTMyYiE=${String.fromCharCode(10)}`,
+    ],
+    ['the URL-safe alphabet', 'u_1-u_1-u_1-u_1-u_1-u_1-u_1-u_1-u_1-u_1-u_1='],
+    ['missing padding', 'YXhlbml0YS1sb2NhbC10ZXN0LWhtYWMta2V5LTMyYiE'],
+    ['extra padding', 'YXhlbml0YS1sb2NhbC10ZXN0LWhtYWMta2V5LTMyYiE=='],
+    ['non-canonical trailing bits', 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB='],
+    ['a 31 byte value', 'BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBw=='],
+    ['a 33 byte value', 'BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcH'],
+    ['a non-Base64 value', 'replace-me-with-a-32-byte-base64-hmac-key'],
+  ])('given %s in HMAC_LOCAL_KEY when validated then bootstrap fails', (_label, value) => {
+    expect(() => validateEnvironment({ ...VALID_ENVIRONMENT, HMAC_LOCAL_KEY: value })).toThrow(
+      EnvironmentValidationError,
+    );
+  });
+
+  it('given the `.env.example` HMAC placeholder when validated then bootstrap fails (D-070)', () => {
+    // The shipped example must never be an operational keyed-digest configuration.
+    expect(() =>
+      validateEnvironment({
+        ...VALID_ENVIRONMENT,
+        HMAC_LOCAL_KEY: 'replace-me-with-a-32-byte-base64-hmac-key',
+      }),
+    ).toThrow(EnvironmentValidationError);
+  });
+
+  it('given an invalid HMAC key when validated then the value is never echoed', () => {
+    const key = 'Zm9yYmlkZGVuLXNlY3JldC1obWFjLW1hdGVyaWFs';
+
+    let thrown: unknown;
+    try {
+      validateEnvironment({ ...VALID_ENVIRONMENT, HMAC_LOCAL_KEY: key });
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(EnvironmentValidationError);
+    const message = (thrown as EnvironmentValidationError).message;
+
+    expect(message).toContain('HMAC_LOCAL_KEY');
+    expect(message).not.toContain(key);
+  });
+
+  it('given the runtime schema then no HMAC key version is configurable', () => {
+    // Tokens carry the fixed `h1.` generation marker. There is deliberately no
+    // `HMAC_KEY_VERSION`: rotation orchestration and a persisted key generation are not part of
+    // this slice, and configuring one would be configuration for a mechanism that does not
+    // exist.
+    const config = validateEnvironment({ ...VALID_ENVIRONMENT, HMAC_KEY_VERSION: '1' });
+
+    expect(Object.keys(config)).not.toContain('HMAC_KEY_VERSION');
+  });
 
   it('given the runtime schema when inspected then DATABASE_URL is the only database credential', () => {
     // 02 §3.4 credential matrix: only `copilot_app` is a runtime credential for the API.

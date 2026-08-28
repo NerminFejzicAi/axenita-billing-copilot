@@ -32,6 +32,10 @@ function providerFor(overrides: Record<string, string> = {}): LocalStaticKeyProv
     DEV_AUTH_JWT_SECRET: 'test_only_development_auth_secret_value_32+',
     ENCRYPTION_LOCAL_KEY: FIXTURE_KEY_BASE64,
     ENCRYPTION_KEY_VERSION: '1',
+    // Mandatory since D-070 made `K_hmac` part of the runtime schema. This spec is about the
+    // ENCRYPTION provider, so the value is only here to make the environment complete — it is a
+    // deterministic NON-SECRET fixture and differs from the encryption fixture after decoding.
+    HMAC_LOCAL_KEY: 'YXhlbml0YS1sb2NhbC10ZXN0LWhtYWMta2V5LTMyYiE=',
     ...overrides,
   });
 

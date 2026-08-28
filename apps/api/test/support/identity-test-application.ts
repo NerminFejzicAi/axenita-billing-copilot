@@ -52,6 +52,11 @@ export async function createIdentityTestApplication(
       // application module: without it the application under test refuses to start.
       ENCRYPTION_LOCAL_KEY: 'YXhlbml0YS1zZWN1cml0eS10ZXN0LWVuYy1rZXkzMmI=',
       ENCRYPTION_KEY_VERSION: '1',
+      // Keyed-digest key of D-070, `K_hmac`. A deterministic, clearly labelled NON-SECRET
+      // fixture, distinct from the encryption fixture above after decoding: the startup key
+      // separation guard refuses to come up when the two decode to the same bytes. Mandatory
+      // since the external reference primitives became part of the application module.
+      HMAC_LOCAL_KEY: 'YXhlbml0YS1zZWN1cml0eS10ZXN0LWhtYWMta2V5MzI=',
     },
   });
 }

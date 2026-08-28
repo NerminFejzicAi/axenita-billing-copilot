@@ -33,6 +33,11 @@ const BASELINE_ENVIRONMENT: Readonly<Record<string, string>> = {
   // and it never appears in `.env.example`, whose placeholder stays deliberately invalid.
   ENCRYPTION_LOCAL_KEY: 'YXhlbml0YS1sb2NhbC10ZXN0LWVuYy1rZXktMzJiISE=',
   ENCRYPTION_KEY_VERSION: '1',
+  // Keyed-digest key of D-070, `K_hmac`. A deterministic, clearly labelled NON-SECRET fixture,
+  // distinct from the encryption fixture above after decoding — the startup key separation
+  // guard refuses to come up when the two decode to the same bytes. It never appears in
+  // `.env.example`, whose placeholder stays deliberately invalid.
+  HMAC_LOCAL_KEY: 'YXhlbml0YS1sb2NhbC10ZXN0LWhtYWMta2V5LTMyYiE=',
 };
 
 for (const [key, value] of Object.entries(BASELINE_ENVIRONMENT)) {

@@ -15,6 +15,8 @@ function appConfigFor(overrides: Record<string, string> = {}): AppConfigService 
     // Deterministic NON-SECRET fixture: `axenita-local-test-enc-key-32b!!` in standard Base64.
     ENCRYPTION_LOCAL_KEY: 'YXhlbml0YS1sb2NhbC10ZXN0LWVuYy1rZXktMzJiISE=',
     ENCRYPTION_KEY_VERSION: '1',
+    // Deterministic NON-SECRET fixture: `axenita-local-test-hmac-key-32b!` in standard Base64.
+    HMAC_LOCAL_KEY: 'YXhlbml0YS1sb2NhbC10ZXN0LWhtYWMta2V5LTMyYiE=',
     ...overrides,
   });
 
@@ -120,5 +122,13 @@ describe('AppConfigService', () => {
 
     expect(appConfig.encryptionLocalKey).toBe('YXhlbml0YS1sb2NhbC10ZXN0LWVuYy1rZXktMzJiISE=');
     expect(appConfig.encryptionKeyVersion).toBe(3);
+  });
+
+  it('given the HMAC configuration when read then the key is exposed and differs from K_enc', () => {
+    const appConfig = appConfigFor();
+
+    expect(appConfig.hmacLocalKey).toBe('YXhlbml0YS1sb2NhbC10ZXN0LWhtYWMta2V5LTMyYiE=');
+    expect(appConfig.hmacLocalKey).not.toBe(appConfig.encryptionLocalKey);
+    expect(Buffer.from(appConfig.hmacLocalKey, 'base64')).toHaveLength(32);
   });
 });

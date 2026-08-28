@@ -123,6 +123,17 @@ export class AppConfigService {
     return this.get('ENCRYPTION_KEY_VERSION');
   }
 
+  /**
+   * Keyed-digest key of local development, `K_hmac` (D-070).
+   *
+   * Consumed by `HmacLocalKeyProvider` only, which decodes and validates it again before it
+   * holds it. Like the database credential, the development auth secret and the encryption key
+   * it must never be logged, echoed in an error or placed in a response body (09 §9, §11).
+   */
+  public get hmacLocalKey(): string {
+    return this.get('HMAC_LOCAL_KEY');
+  }
+
   /** Absolute health URL of the S3-compatible object storage. */
   public get objectStorageHealthUrl(): string {
     const endpoint = this.get('OBJECT_STORAGE_ENDPOINT').replace(/\/+$/, '');
