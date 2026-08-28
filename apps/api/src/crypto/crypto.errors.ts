@@ -235,3 +235,28 @@ export function keySeparationMaterialUnusable(): CryptoConfigurationError {
     'The key separation guard requires both keys to be exactly 32 bytes (D-070).',
   );
 }
+
+/**
+ * The rule of the clinical-text normalisation pipeline that one document body violated.
+ *
+ * A CLOSED SET OF COMPILE-TIME LITERALS, exactly like {@link ManualV1RejectionReason} and for
+ * the same reason: every member is written in this file, so no value derived from the rejected
+ * text — not a fragment, not a character, not an index, not a byte count — can reach the
+ * message through it. It names the RULE, never the INPUT (09 §9, §11).
+ */
+export type ClinicalTextRejectionReason =
+  'ILL_FORMED_UNICODE' | 'NUL' | 'CONTROL_CHARACTER' | 'EMPTY' | 'TOO_LONG';
+
+/**
+ * One clinical document body was refused by the normalisation pipeline.
+ *
+ * Clinical text is the most sensitive material the platform handles, so a rejection says less
+ * than an identifier rejection would be allowed to say, not more: no excerpt, no offending
+ * character, no offset and no measured length. P5-I3C has no HTTP surface, so this is not
+ * mapped to an API error code.
+ */
+export function clinicalTextRejected(reason: ClinicalTextRejectionReason): CryptoOperationError {
+  return new CryptoOperationError(
+    `The clinical text is not accepted by the normalisation pipeline (${reason}).`,
+  );
+}
