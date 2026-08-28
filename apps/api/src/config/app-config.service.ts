@@ -107,6 +107,22 @@ export class AppConfigService {
     return this.get('DEV_AUTH_JWT_AUDIENCE');
   }
 
+  /**
+   * Application encryption key of local development, `K_enc` (D-025 clause 9).
+   *
+   * Consumed by `LocalStaticKeyProvider` only, which decodes and validates it again before it
+   * holds it. Like the database credential and the development auth secret it must never be
+   * logged, echoed in an error or placed in a response body (09 §9, §11).
+   */
+  public get encryptionLocalKey(): string {
+    return this.get('ENCRYPTION_LOCAL_KEY');
+  }
+
+  /** Active encryption key generation, `>= 1` (D-025 clauses 10, 14). Non-secret. */
+  public get encryptionKeyVersion(): number {
+    return this.get('ENCRYPTION_KEY_VERSION');
+  }
+
   /** Absolute health URL of the S3-compatible object storage. */
   public get objectStorageHealthUrl(): string {
     const endpoint = this.get('OBJECT_STORAGE_ENDPOINT').replace(/\/+$/, '');
