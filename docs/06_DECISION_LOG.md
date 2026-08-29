@@ -11888,6 +11888,463 @@ governance stanje.**
 
 ---
 
+# D-073 — `P5-I4A` implementacijski ugovor: tenant admission scope, validacija resource ID-a i wire ugovor timestampa
+
+- **Status:** ACCEPTED / OWNER-RATIFIED
+- **Datum:** 2026-08-29
+- **Tip:** vlasnički ratifikovan **governance zapis rafiniranja implementacijskog ugovora
+  `P5-I4A`**. On zamrzava **tri** preflight odluke `OD-P5-I4A-1` … `OD-P5-I4A-3` — zatvoreni model
+  tenant request scopea, ugovor malformisanog resource UUID-a i javni wire format `createdAt`-a.
+  **Dokumentacija isključivo.**
+- **Amandman na:** **implementacijski ugovor `P5-I4A`** unutar ratifikovanog `P5-I4` ugovora
+  (D-072) i **normativni dio `03` §11**. Sigurnosni i ugovorni zapisi **D-006**, **D-018**,
+  **D-022**, **D-025**, **D-028**, **D-029**, **D-047**, **D-054**, **D-055**, **D-056**,
+  **D-060**, **D-061**, **D-062**, **D-063**, **D-064**, **D-065**, **D-066**, **D-067**,
+  **D-068**, **D-069**, **D-070**, **D-071** i **D-072** ostaju **doslovno na snazi i
+  nepromijenjeni**. **Nijedan raniji zapis se ne prepisuje**; sve promjene su **aditivne
+  anotacije** ili ažuriranje **tekućeg/normativnog** stanja.
+- **Ova odluka NE implementira ništa.** Ne uvodi nijednu liniju izvornog koda, nijedan test,
+  nijednu migraciju, schemu, Prisma model, contract TypeScript, API rutu, grant, rolu, politiku,
+  izmjenu `package.json`/lockfilea ni izmjenu `.env.example`. **Nijedna baza nije kontaktirana** i
+  **nijedan test se ovom odlukom ne izvršava.**
+- **Ova odluka NE mijenja nijednu kućicu.** Checklist Faze 5 ostaje **`49 / 14`**, a forecast
+  roditeljskog gatea `P5-I4` ostaje **`49 / 31`** (D-072). **`PHASE5_CHECKBOX_TRANSITIONS = 0`.**
+- **Ova odluka NE autorizuje `P5-I4A`.** `P5-I4A` ostaje **`NOT AUTHORIZED` / `NOT STARTED`**.
+  **Ratifikacija ugovora nije autorizacija implementacije.**
+
+## Kontekst/problem — trigger
+
+D-072 je ratifikovao implementacijski ugovor `P5-I4` i segmentaciju `P5-I4A` → `P5-I4B` →
+`P5-I4C`. Zaseban read-only preflight `P5-I4A` je zatim otkrio **tri** mjesta na kojima ugovor
+`P5-I4A` još nije bio deterministički, a svako od njih je moglo proizvesti tihu sigurnosnu ili
+kompatibilnosnu regresiju:
+
+```text
+OD-P5-I4A-1   tenant request scope za rutu bez practiceId u pathu
+OD-P5-I4A-2   ponasanje pri malformisanom resource UUID-u
+OD-P5-I4A-3   javni wire format patient-reference createdAt polja
+```
+
+**Vlasnik je ratifikovao sve tri.** Ovaj zapis ih konstatuje kao odluke i izvodi njihovo
+dokumentaciono pomirenje. **On ne bira nijednu opciju iznova i ne otvara četvrtu.**
+
+```text
+OD-P5-I4A-1   APPROVED
+OD-P5-I4A-2   APPROVED
+OD-P5-I4A-3   APPROVED
+```
+
+```text
+OWNER_DECISIONS_REQUIRED_FOR_P5_I4A = 0
+```
+
+**Nijedan `OD-P5-I4A-*` nije ostao nerazriješen**, i **`OD-P5-I4A-4` ne postoji**. Ugovor
+`P5-I4A` je time **dovoljno determinističan da kasnija, zasebna vlasnička autorizacija
+implementacije bude moguća** nakon što D-073 postane kanonski. **Sam D-073 tu autorizaciju NE
+daje.**
+
+## `OD-P5-I4A-1` — zatvoreni model tenant request scopea — `APPROVED`
+
+```text
+TENANT_REQUEST_SCOPE_MODEL = CLOSED_DISCRIMINATED_UNION
+TENANT_ADMISSION_PIPELINE_COUNT = 1
+```
+
+Model ima **tačno dvije semantičke varijante**, i **svako tenant call mjesto mora eksplicitno
+navesti svoju varijantu**. **Treća varijanta ne postoji**, a **implicitni default ne postoji**.
+
+### Varijanta `PRACTICE_PATH`
+
+Za tenant rute **čiji path eksplicitno nosi identitet ordinacije**.
+
+Nosi:
+
+```text
+requestedPracticeId: string
+```
+
+**obavezno** — nikada opciono.
+
+Ponašanje:
+
+- pročitaj i validiraj `X-Practice-ID`;
+- **uporedi `practiceId` iz patha sa admitted header practice kontekstom**;
+- **neslaganje zadržava kanonsko `403 ACCESS_DENIED`** (`03` §3.7.1);
+- nastavi kroz **nepromijenjenu** admission sekvencu — postojanje ordinacije, `practices.status`,
+  aktivan membership, uspostava konteksta, provjera permisije.
+
+### Varijanta `HEADER_ONLY`
+
+Za kanonske tenant rute **čiji path ne nosi identitet ordinacije**.
+
+Nosi:
+
+**nijedan path/caller `practiceId` član** — ni obavezan, ni opcioni, ni nullable.
+
+Ponašanje:
+
+- pročitaj i validiraj `X-Practice-ID`;
+- **ne izvodi nikakvo lažno poređenje patha i headera**;
+- nastavi kroz **iste** kanonske admission korake;
+- admitted `practiceId` se izvodi **isključivo** iz validiranog header/kontekst puta.
+
+### Kanonske dodjele
+
+```text
+PATIENT_REFERENCE_GET_TENANT_SCOPE = HEADER_ONLY
+EXISTING_PRACTICE_ROUTES_TENANT_SCOPE = PRACTICE_PATH
+```
+
+Obje varijante ulaze u **jedan te isti** `TenantRequestPipeline`. **Postoji tačno jedan tenant
+admission pipeline** (`TENANT_ADMISSION_PIPELINE_COUNT = 1`).
+
+## `OD-P5-I4A-1` — zabranjeni sigurnosni šavovi
+
+Sljedeće je **izričito zabranjeno**:
+
+```text
+requestedPracticeId?: string
+requestedPracticeId: string | undefined
+```
+
+- **opcioni ili `undefined`-nosivi `requestedPracticeId` član** — opcionalnost pretvara tenant
+  provjeru u tiho preskočenu granu;
+- **prosljeđivanje vrijednosti headera nazad kao lažnog path `practiceId`-a**;
+- **poređenje header-izvedenog `practiceId`-a sa samim sobom** — tautologija koja izgleda kao
+  provjera, a ne provjerava ništa;
+- **drugi tenant admission pipeline**;
+- **zaobilaženje `TenantRequestPipeline`-a**;
+- **zasebna ili slabija admission putanja za patient-reference `GET`**.
+
+**Tačna implementacijska imena tipova ostaju implementacijski detalj.** Normativna je **zatvorena
+dvovarijantna semantika**, ne njeno imenovanje.
+
+## `OD-P5-I4A-1` — ne-regresija postojećih ruta
+
+Postojeće rute čiji path sadrži `{practiceId}` ostaju **`PRACTICE_PATH`**, i njihovo kanonsko
+ponašanje pri neslaganju patha i headera ostaje **`403 ACCESS_DENIED`**, nepromijenjeno.
+
+**Nijedna promjena** ne uvodi se u:
+
+- practice read;
+- practice settings `GET`;
+- practice settings `PATCH`.
+
+**Svi kasniji admission koraci ostaju dijeljeni** između `PRACTICE_PATH` i `HEADER_ONLY` — razlika
+postoji **isključivo** u prvom koraku, u tome da li se path `practiceId` uopšte pojavljuje.
+**D-073 ne ovlašćuje drugu admission implementaciju.**
+
+## `OD-P5-I4A-2` — malformisan resource UUID — `APPROVED`
+
+Za:
+
+```text
+GET /api/v1/patient-references/{id}
+```
+
+malformisan `{id}` **po postojećoj repozitorijskoj UUID-shape semantici** vraća:
+
+```text
+MALFORMED_PATIENT_REFERENCE_ID = 400 VALIDATION_ERROR
+MALFORMED_RESOURCE_UUID_DB_READS = 0
+```
+
+**Obavezno:**
+
+- **statično ProblemDetails tijelo** (§9 u `03`);
+- **nikakvo odražavanje `id`-a** u odgovoru;
+- **nikakav skraćeni `id`**, **nikakav prefiks**, **nikakav sufiks**;
+- **nikakav namjenski field error** uveden isključivo za ovaj slučaj;
+- **nijedno čitanje baze** — ni tenant-scoped, ni bilo kakvo drugo;
+- **nikakav cross-tenant lookup**;
+- **nikakav novi error kod** — `VALIDATION_ERROR` već postoji u stabilnom katalogu (`03` §8).
+
+Format je **saznatljiv prije ikakvog upita nad resursom**, pa se odbijanje dešava **prije**
+resource lookupa. **Nula čitanja `patient_references` reda** je mehanički zahtjev, ne stilski.
+
+### Postojeća UUID semantika
+
+`P5-I4A` **ponovo koristi postojeću UUID-shape semantiku repozitorija**. **Ne uvodi se:**
+
+- ograničenje **verzije** UUID-a;
+- ograničenje **varijante** UUID-a;
+- `ParseUUIDPipe` kao kanonski zahtjev;
+- **nikakva UUID zavisnost ni biblioteka** (`NEW_RUNTIME_DEPENDENCY_REQUIRED = NO`).
+
+Implementacija smije **ponovo iskoristiti, eksportovati ili refaktorisati postojeći helper
+isključivo ako se njegova prihvaćena semantika ne mijenja**. Promjena skupa prihvaćenih ulaza je
+promjena ugovora i traži **zasebnu** odluku.
+
+## Zaštićeni `404` par — nepromijenjen
+
+```text
+CROSS_TENANT_PATIENT_REFERENCE_GET = 404 RESOURCE_NOT_FOUND
+```
+
+| Slučaj | Ishod |
+|---|---|
+| **validan UUID + nepostojeća patient reference** | `404 RESOURCE_NOT_FOUND` |
+| **validan UUID + patient reference druge ordinacije** | `404 RESOURCE_NOT_FOUND` |
+
+Ta **dva slučaja validnog ID-a moraju ostati osmotrivo nerazlučiva** — identično tijelo, kod,
+poruka, zaglavlja i mjerljivo ponašanje (D-072, `OD-P5-I4-13`; `08` §12.10, tačke 5–6).
+
+**Malformisana sintaksa je IZVAN ovog zaštićenog para**, jer je greška formata saznatljiva
+**prije** bilo kakvog upita nad resursom i stoga **ne otkriva ništa o postojanju ijednog reda**.
+**Nikakav existence oracle se ne stvara** (`09` §18.1, `T1`).
+
+## `OD-P5-I4A-3` — javni wire ugovor `createdAt`-a — `APPROVED`
+
+```text
+PATIENT_REFERENCE_CREATED_AT_FORMAT = UTC_ISO8601_MILLISECONDS_Z
+PATIENT_REFERENCE_CREATED_AT_SERIALIZER = DATE_TO_ISO_STRING
+```
+
+Kanonski wire oblik:
+
+```text
+YYYY-MM-DDTHH:mm:ss.sssZ
+```
+
+**Obavezno:**
+
+- **UTC**;
+- **terminalno veliko `Z`**;
+- **tačno tri decimalne cifre**;
+- **milisekunde se čuvaju**;
+- **`.000` se emituje za punu sekundu** — nikada se ne izostavlja;
+- **bez `+00:00`**;
+- **bez locale renderinga**;
+- **bez javnog timestampa sa šest decimalnih cifara**;
+- **bez izmišljenog mikrosekundnog API formata**.
+
+Kanonski primjeri:
+
+```text
+puna sekunda    2026-07-18T10:00:00.000Z
+milisekunde     2026-07-18T10:00:00.123Z
+```
+
+**Serijalizator je `.toISOString()` semantika nad `Date` vrijednošću** — iz nje deterministički
+slijede i UTC, i terminalno `Z`, i tačno tri decimalne cifre.
+
+## Pojašnjenje postojećeg primjera u `03` §11
+
+Postojeći primjer
+
+```text
+2026-07-18T10:00:00Z
+```
+
+u `03` §11 **se NE briše i NE prepisuje**. On je **ilustrativan UTC ISO timestamp**, a **ne
+bytewise zabrana decimalnih sekundi**. **Stvarni javni serijalizacijski ugovor definiše D-073**, i
+izlaz implementacije koristi `.toISOString()` semantiku, pa **uvijek nosi tačno tri decimalne
+cifre**. Isti instant se u kanonskom wire obliku zapisuje kao `2026-07-18T10:00:00.000Z`.
+
+`03` §11 dobija **aditivnu** normativnu klauzulu uz postojeće primjere; **historijski tekst
+ostaje netaknut**.
+
+## Razdvajanje wire timestampa i audit hash timestampa
+
+Postoje **dvije različite kanonske reprezentacijske površine**, i one **nisu konkurentski
+formati**:
+
+| Površina | Konstanta | Decimalne cifre |
+|---|---|---|
+| **javni patient-reference API `createdAt`** | `PATIENT_REFERENCE_CREATED_AT_FORMAT = UTC_ISO8601_MILLISECONDS_Z` | **tri** |
+| **audit self-hash payload `occurred_at`** | `AUDIT_OCCURRED_AT_FORMAT = UTC_RFC3339_6_FRACTIONAL_DIGITS_LAST_3_ZERO` (D-072, `OD-P5-I4-4`) | **šest, posljednje tri `000`** |
+
+- Prva upravlja **javnom API serijalizacijom** `patient_references.created_at` polja.
+- Druga upravlja **perzistentnom kanonizacijom hash payloada** `audit_events.occurred_at`, koja
+  mora ostati stabilna jer je `event_sha256` retroaktivno nepopravljiv.
+
+**D-073 ne mijenja D-072 ni `09`.** **Nijedno ponašanje `P5-I4B` ni `P5-I4C` se D-073 odlukom ne
+mijenja.**
+
+## Baza naspram javne preciznosti
+
+- `patient_references.created_at` ostaje **`timestamptz(6)`** (`02` §11);
+- **D-073 ne mijenja nijedan DB tip**;
+- **javna reprezentacija je milisekundne preciznosti**;
+- **API ne obećava očuvanje sub-milisekundne preciznosti**;
+- **nikakav custom PostgreSQL parser nije potreban**;
+- **nikakva schema ni migracija se ne mijenja**;
+- **nikakva zavisnost se ne uvodi**.
+
+**D-073 upravlja isključivo wire reprezentacijom.**
+
+## Posljedica po response DTO
+
+Javni oblik `P5-I4A` odgovora:
+
+```ts
+interface PatientReferenceResponseDto {
+  readonly id: string;
+  readonly pseudonym: string;
+  readonly birthYear: number | null;
+  readonly sexCode: string | null;
+  readonly sourceSystem: string;
+  readonly createdAt: string;
+}
+```
+
+`createdAt` prati D-073. **Nijedan dodatni član ne postoji.**
+
+**Eksplicitno odsutno:**
+
+```text
+practiceId
+updatedAt
+eksterni identifikator
+hash eksternog identifikatora
+ciphertext
+IV
+authentication tag
+enkripcijski metapodaci
+```
+
+**Ovo autorstvo ugovora NE kreira nijedan izvorni fajl.**
+
+## Posljedica po read upit
+
+**D-073 ne mijenja** kanonsku read semantiku `P5-I4A` koju je preflight već povratio:
+
+- **jedan** tenant-scoped `SELECT`;
+- eksplicitan `practice_id = admittedPracticeId`;
+- `id = resourceId`;
+- **`FORCE RLS` ostaje primarna DB granica** (`09` §4, §4.2);
+- projektuje se **tačno šest javnih polja**;
+- **bez `SELECT *`**;
+- **bez drugog existence upita**;
+- **bez cross-tenant diskriminatora**.
+
+Izbor između sirovog SQL-a i Prisma kompozitnog selektora ostaje **implementacijski izbor**
+podređen ovim kanonskim invarijantama. **Ovo nije četvrta vlasnička odluka.**
+
+## Arhitektura `TenantDatabaseService`-a
+
+```text
+P5_I4A_SESSION_REUSE = SMALL_ADAPTER
+```
+
+Čuva se:
+
+- postojeći **`IdentityBootstrapSession`** — **bez preimenovanja i bez generalizacije** samo zbog
+  `P5-I4A`;
+- `TenantDatabaseService` **ne posjeduje `PrismaService`**;
+- **ne posjeduje `PrismaClient`**;
+- **ne otvara transakciju**;
+- **ne uspostavlja identitet**;
+- **ne uspostavlja `app.practice_id`**;
+- **ostaje tanak** (D-054, dio C.2; D-056, klauzula 5);
+- **feature-specifično patient-reference DB ponašanje ostaje u feature adapteru**.
+
+**Ovo nije nova vlasnička odluka** — to je implementacijska posljedica koju je prihvaćeni preflight
+već povratio iz D-054 i D-056.
+
+## Zamrzavanje scheme, sigurnosne osnove i zavisnosti
+
+```text
+PRISMA_SCHEMA_MUTATION_REQUIRED = NO
+MIGRATION_REQUIRED = NO
+RLS_POLICY_MUTATION_REQUIRED = NO
+GRANT_MUTATION_REQUIRED = NO
+NEW_RUNTIME_DEPENDENCY_REQUIRED = NO
+```
+
+`P5-I4A` **konzumira kanonsku `P5-I2` sigurnosnu osnovu nepromijenjenu**. **`09` se ovom odlukom
+ne mijenja** — ove konstante se ovdje ne ponavljaju u `09`.
+
+## Mehaničko računovodstvo checklista
+
+```text
+prije D-073                            49 / 14
+poslije D-073 (mehanicki, sada)        49 / 14
+PHASE5_CHECKBOX_TRANSITIONS            0
+EXPECTED_POST_P5_I4_CLOSURE_CHECKLIST  49 / 31
+```
+
+**Nijedna trenutna kućica se ne mijenja**, i **nijedan checklist red se ne dodaje**. Dokazni blok
+roditeljske D-056 obaveze **se još ne popunjava**.
+
+## Posljedice
+
+- `03` §11 dobija **aditivna** pojašnjenja: malformisan `{id}` → `400 VALIDATION_ERROR` prije
+  ikakvog čitanja baze; nepromijenjen zaštićeni `404` par; egzaktan `createdAt` wire format i
+  pojašnjenje postojećih primjera pune sekunde. **Broj endpointa, permisije, role, polja `GET`
+  odgovora, autentifikacija, pravila `X-Practice-ID`-a, D-072 `POST` ugovor, `If-Match` i
+  idempotencija se NE mijenjaju.**
+- `04` §7.5a dobija ograničenu D-073 / `P5-I4A` sekciju pojašnjenja; **status `P5-I4A` ostaje
+  `NOT AUTHORIZED` / `NOT STARTED`**.
+- `05` §6 dobija **jednu kratku ne-checkbox** anotaciju; **`PHASE5_CHECKBOX_TRANSITIONS = 0`**.
+- `08` §12.10a dobija aditivne dokazne obaveze za `OD-P5-I4A-1..3`; **nijedan test se ne piše ni
+  izvršava**.
+- `MANIFEST.md` se preračunava; **broj redova ostaje 19**.
+- **`09` i `12` se NE mijenjaju.**
+
+## Security/privacy uticaj
+
+- **`HEADER_ONLY` ne slabi tenant granicu**: ista admission sekvenca, isti `TenantRequestPipeline`,
+  isti `FORCE RLS`. Uklonjeno je **isključivo lažno poređenje** koje bi upoređivalo header sa samim
+  sobom i tako proizvelo **lažni osjećaj provjere**.
+- **Zabrana opcionog `requestedPracticeId`-a je pooštrenje**, ne olakšica: opcionalnost bi
+  dozvolila tihu granu bez tenant provjere.
+- **`400` na malformisan `{id}` ne otkriva postojanje** — odgovor je statičan, `id` se ne
+  odražava, i **nijedan red se ne čita**.
+- **Zaštićeni `404` par ostaje nerazlučiv**, pa se **existence oracle ne stvara** (`09` §18.1).
+- **`createdAt` nije PHI identifikator**, a njegov wire format ne izlaže nijedno dodatno polje;
+  DTO ostaje na **šest** javnih članova, bez `practiceId`-a i bez ijednog kriptografskog artefakta.
+- **Produkcijski KMS se i dalje ne tvrdi**; `D-OPEN-004a` ostaje otvoren.
+
+## Test dokaz
+
+Obavezni dokazi su nabrojani u `08` §12.10a. **D-073 ne izvršava nijedan test** i ne tvrdi nijedan
+rezultat.
+
+## Granice ove odluke
+
+```text
+D-073 ratifikuje P5-I4A rafiniranja = YES
+D-073 autorizuje P5-I4              = NO
+D-073 autorizuje P5-I4A             = NO
+D-073 autorizuje P5-I4B             = NO
+D-073 autorizuje P5-I4C             = NO
+D-073 mijenja kucice                = NO
+D-073 mijenja schemu/RLS/grants     = NO
+D-073 mijenja D-072 ni docs/09      = NO
+D-073 instalira zavisnosti          = NO
+D-073 odblokira P5-I5               = NO
+D-073 autorizuje P5-I6              = NO
+```
+
+**`P5-I4A` = `CONTRACT FULLY DETERMINISTIC` / `NOT AUTHORIZED` / `NOT STARTED`.** Traži **zaseban
+vlasnički autorizacijski potez** nakon što D-073 postane kanonski.
+
+**`P5-I4B` ostaje `NOT AUTHORIZED` / `NOT STARTED`. `P5-I4C` ostaje `NOT AUTHORIZED` /
+`NOT STARTED`. `P5-I5` ostaje `STILL DEPENDENCY-BLOCKED` / `NOT AUTHORIZED` / `NOT STARTED`.
+`P5-I6` ostaje `NOT AUTHORIZED` / `NOT STARTED`** i **posjeduje redakciju**; red
+`Services → redaction` u `05` §6 **ostaje neoznačen**. **Faza 5 ostaje `IN_PROGRESS`; nije
+`DONE`.** **`★` ostaje trajna regresija.**
+
+## Naredni obavezni gate
+
+**Vlasnički pregled D-073 i adjudikacija dokaza**, pa zaseban publikacioni gate (push / PR /
+merge).
+
+```text
+D-073 AUTHORED                      = YES
+D-073 CANONICAL                     = NO      (do merge-a u origin/main)
+P5-I4A IMPLEMENTATION AUTHORIZED    = NO
+P5-I4A IMPLEMENTATION STARTED       = NO
+OWNER_DECISIONS_REQUIRED_FOR_P5_I4A = 0
+CURRENT_CHECKLIST                   = 49 / 14
+```
+
+**Dok ova governance grana ne bude merged, kanonski `origin/main` i dalje nosi pred-D-073
+governance stanje.**
+
+---
+
 # Otvorene odluke
 
 ## D-OPEN-001 — Produkcijski OIDC provider

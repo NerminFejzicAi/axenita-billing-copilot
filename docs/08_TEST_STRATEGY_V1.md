@@ -1248,6 +1248,81 @@ njihovo postojanje **ne označava nijednu kućicu Faze 5** (`05` §6). **`P5-I4`
 6. **Bez existence oracle-a.** Nijedna razlika u statusu, poruci, redoslijedu polja, zaglavljima ni
    mjerljivom ponašanju ne smije razlikovati „ne postoji" od „postoji u drugoj ordinaciji".
 
+## 12.10a `P5-I4A` — tenant scope, malformisan resource ID i wire timestamp (D-073, `OD-P5-I4A-1..3`)
+
+**§12.10 se NE prepisuje.** Ovo su **aditivne**, još neizvršene obaveze objavljene odlukom
+**D-073**. **Nijedan test iz ove sekcije nije implementiran ni izvršen**, i njihovo postojanje
+**ne označava nijednu kućicu Faze 5** (`05` §6 — i dalje **`49 / 14`**). **`P5-I4A` je
+`NOT AUTHORIZED` / `NOT STARTED`.**
+
+### Dokazi `OD-P5-I4A-1` — tenant request scope
+
+1. **Postojeće practice rute eksplicitno vježbaju `PRACTICE_PATH` ponašanje** — practice read,
+   practice settings `GET` i practice settings `PATCH` prolaze varijantu koja **nosi obavezan**
+   path `practiceId` i **stvarno ga poredi** sa admitted header kontekstom.
+2. **`GET /patient-references/{id}` koristi `HEADER_ONLY`** — test dokazuje da ruta **ne prima
+   nikakav path/caller `practiceId`** i da se admitted `practiceId` izvodi **isključivo** iz
+   validiranog header/kontekst puta.
+3. **Opcioni `requestedPracticeId` seam je zabranjen** — trajan dokaz da varijantni ugovor **ne
+   dopušta** `requestedPracticeId?: string` ni `requestedPracticeId: string | undefined`.
+4. **Lažno poređenje headera kao patha je zabranjeno** — dokaz da se vrijednost headera **ne
+   prosljeđuje nazad** kao path `practiceId` i da se **header-izvedeni `practiceId` nikada ne
+   poredi sa samim sobom**.
+5. **Tačno jedan tenant admission pipeline** (`TENANT_ADMISSION_PIPELINE_COUNT = 1`) — dokaz da
+   **ne postoji** drugi, zasebni ni slabiji admission put, i da se `TenantRequestPipeline` **ne
+   zaobilazi**.
+6. **Dijeljeni koraci nakon obrade varijante** — dokaz da su postojanje ordinacije,
+   `practices.status`, aktivan membership, uspostava konteksta i provjera permisije **identični**
+   za `PRACTICE_PATH` i `HEADER_ONLY`.
+7. **Regresija neslaganja patha i headera** — postojeće `PRACTICE_PATH` rute i dalje vraćaju
+   kanonsko **`403 ACCESS_DENIED`**, nepromijenjeno.
+
+### Dokazi `OD-P5-I4A-2` — malformisan resource ID i zaštićeni `404` par
+
+8. **Malformisan `{id}` → `400 VALIDATION_ERROR`**
+   (`MALFORMED_PATIENT_REFERENCE_ID = 400 VALIDATION_ERROR`), po postojećoj repozitorijskoj
+   UUID-shape semantici.
+9. **Statičan `detail`** — Problem Details tijelo je nepromjenljivo i ne zavisi od ulaza.
+10. **`id` se ne odražava** — ni cijel, ni skraćen, ni kao prefiks ili sufiks; **nikakav namjenski
+    field error** samo za ovaj slučaj.
+11. **Nula čitanja baze** (`MALFORMED_RESOURCE_UUID_DB_READS = 0`) — dokaz da **nijedan
+    `patient_references` upit nije izvršen** i da **nikakav cross-tenant lookup** ne postoji.
+12. **Validan, nepostojeći `id` → `404 RESOURCE_NOT_FOUND`.**
+13. **Validan cross-tenant `id` → ISTI `404 RESOURCE_NOT_FOUND`**
+    (`CROSS_TENANT_PATIENT_REFERENCE_GET = 404 RESOURCE_NOT_FOUND`).
+14. **Zaštićeni `404` par je osmotrivo nerazlučiv** — identično tijelo, kod, poruka, redoslijed
+    polja, zaglavlja i mjerljivo ponašanje; **nikakav existence oracle** (`09` §18.1, `T1`).
+
+### Vektori `OD-P5-I4A-3` — javni `createdAt` wire format
+
+15. **Puna sekunda:**
+
+```text
+ulazni instant   2026-07-18T10:00:00Z
+wire             2026-07-18T10:00:00.000Z
+```
+
+16. **Milisekunde:**
+
+```text
+ulaz             2026-07-18T10:00:00.123Z
+wire             2026-07-18T10:00:00.123Z
+```
+
+17. **Negativne tvrdnje** — dokaz da javni `createdAt` **nikada** ne nosi locale serijalizaciju,
+    **nikada** `+00:00` i **nikada** šest decimalnih cifara. Format je
+    `PATIENT_REFERENCE_CREATED_AT_FORMAT = UTC_ISO8601_MILLISECONDS_Z` sa serijalizatorom
+    `PATIENT_REFERENCE_CREATED_AT_SERIALIZER = DATE_TO_ISO_STRING`.
+18. **Razdvajanje od audit hash timestampa** — dokaz da se `AUDIT_OCCURRED_AT_FORMAT =
+    UTC_RFC3339_6_FRACTIONAL_DIGITS_LAST_3_ZERO` (D-072, `OD-P5-I4-4`; §12.11) **ne primjenjuje**
+    na javni `createdAt`, i obrnuto. **Nisu konkurentski formati**; upravljaju različitim
+    površinama.
+
+**Nijedan test iz §12.10a nije implementiran ni izvršen, i D-073 ih ne izvršava.** Kada `P5-I4A`
+bude zasebno autorizovan, ove obaveze su **obavezan izvršiv ugovor** po istom pravilu kao §12.10
+(§26.2) i **ne izostavljaju se tiho**. Checklist Faze 5 je i dalje **`49 / 14`** (`05` §6). Vidi
+D-073 u `06`, `04` §7.5a i `03` §11.
+
 ## 12.11 `P5-I4B` — deterministički formati bez baze (D-072, `OD-P5-I4-3`, `OD-P5-I4-4`, `OD-P5-I4-5`)
 
 **Svi dokazi ove sekcije su DB-free.** Formati su **perzistentni i retroaktivno nepopravljivi**, pa

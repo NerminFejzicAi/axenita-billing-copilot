@@ -1300,6 +1300,116 @@ Ne vraća external plaintext.
 arhiviraj, nikada ne briši.** Nema `PATCH`, nema `version`, nema `archived_at`, nema `status` i
 nema delete rute. `UPDATE` grant se u Fazi 5 **ne dodjeljuje** (`02` §29.5).
 
+**NORMATIVNA POJAŠNJENJA `P5-I4A` (D-073, 2026-08-29) — oblik odgovora iznad se NE mijenja,
+nijedan pasus se ne prepisuje, i nijedan raniji primjer se ne briše.**
+
+### Malformisan `{id}` — odbijanje prije čitanja baze
+
+```text
+MALFORMED_PATIENT_REFERENCE_ID = 400 VALIDATION_ERROR
+MALFORMED_RESOURCE_UUID_DB_READS = 0
+```
+
+Sintaksno malformisan `{id}` — po **postojećoj repozitorijskoj UUID-shape semantici**, bez novih
+ograničenja verzije ili varijante UUID-a i **bez nove zavisnosti** — vraća **`400
+VALIDATION_ERROR`** (§8, §9) **prije ikakvog resource lookupa**.
+
+- **statično Problem Details tijelo**;
+- **`id` se ne odražava** — ni cijel, ni skraćen, ni kao prefiks ili sufiks;
+- **nikakav namjenski field error** uveden samo za ovaj slučaj;
+- **nijedno čitanje `patient_references` reda**, ni tenant-scoped ni bilo kakvo drugo;
+- **nikakav cross-tenant lookup**;
+- **nikakav novi error kod** — `VALIDATION_ERROR` već postoji u stabilnom katalogu (§8).
+
+### Zaštićeni `404` par — nepromijenjen
+
+```text
+CROSS_TENANT_PATIENT_REFERENCE_GET = 404 RESOURCE_NOT_FOUND
+```
+
+| Slučaj | Ishod |
+|---|---|
+| validan UUID + **nepostojeća** patient reference | **`404 RESOURCE_NOT_FOUND`** |
+| validan UUID + patient reference **druge ordinacije** | **`404 RESOURCE_NOT_FOUND`** |
+
+Ta dva slučaja moraju ostati **osmotrivo nerazlučiva** — identično tijelo, kod, poruka, zaglavlja i
+mjerljivo ponašanje. **Malformisana sintaksa je izvan ovog para**, jer je greška formata
+saznatljiva **prije** upita nad resursom i **ne otkriva postojanje nijednog reda**; **nikakav
+existence oracle se ne stvara** (`09` §18.1, `T1`).
+
+### `createdAt` — egzaktan javni wire format
+
+```text
+PATIENT_REFERENCE_CREATED_AT_FORMAT = UTC_ISO8601_MILLISECONDS_Z
+PATIENT_REFERENCE_CREATED_AT_SERIALIZER = DATE_TO_ISO_STRING
+```
+
+Kanonski oblik je
+
+```text
+YYYY-MM-DDTHH:mm:ss.sssZ
+```
+
+sa **`.toISOString()` semantikom**: **UTC**, **terminalno veliko `Z`**, **tačno tri decimalne
+cifre**, **milisekunde očuvane**, i **`.000` emitovano za punu sekundu**. **Bez `+00:00`**, **bez
+locale renderinga**, **bez javnog timestampa sa šest decimalnih cifara** i **bez izmišljenog
+mikrosekundnog API formata**.
+
+```text
+puna sekunda    2026-07-18T10:00:00.000Z
+milisekunde     2026-07-18T10:00:00.123Z
+```
+
+**Pojašnjenje postojećih primjera iznad.** Primjer `"createdAt": "2026-07-18T10:00:00Z"` u `201` i
+`200` tijelima iznad je **ilustrativan UTC ISO timestamp**, a **ne bytewise zabrana decimalnih
+sekundi**. **Stvarni javni serijalizacijski ugovor definiše D-073**; isti instant se u kanonskom
+wire obliku emituje kao **`2026-07-18T10:00:00.000Z`**. Postojeći primjeri **ostaju netaknuti** i
+ne prepisuju se.
+
+**Baza naspram javne preciznosti.** `patient_references.created_at` ostaje **`timestamptz(6)`**
+(`02` §11). **D-073 ne mijenja nijedan DB tip, nijednu schemu i nijednu migraciju**; javna
+reprezentacija je **milisekundne** preciznosti i API **ne obećava** očuvanje sub-milisekundne
+preciznosti. **Nikakav custom PostgreSQL parser nije potreban.**
+
+**Razdvajanje od audit hash timestampa.** `PATIENT_REFERENCE_CREATED_AT_FORMAT` (tri decimalne
+cifre) i `AUDIT_OCCURRED_AT_FORMAT = UTC_RFC3339_6_FRACTIONAL_DIGITS_LAST_3_ZERO` (šest decimalnih
+cifara, posljednje tri `000`; D-072, `OD-P5-I4-4`) **nisu konkurentski formati**. Prvi upravlja
+**javnom API serijalizacijom** `patient_references.created_at`, drugi **perzistentnom
+kanonizacijom hash payloada** `audit_events.occurred_at`. **D-073 ne mijenja D-072 ni `09`.**
+
+### Javni oblik odgovora — tačno šest polja
+
+```ts
+interface PatientReferenceResponseDto {
+  readonly id: string;
+  readonly pseudonym: string;
+  readonly birthYear: number | null;
+  readonly sexCode: string | null;
+  readonly sourceSystem: string;
+  readonly createdAt: string;
+}
+```
+
+**Nijedan dodatni član ne postoji.** Eksplicitno odsutni su `practiceId`, `updatedAt`, eksterni
+identifikator, hash eksternog identifikatora, ciphertext, IV, authentication tag i svaki
+enkripcijski metapodatak.
+
+### Tenant admission scope ove rute
+
+```text
+PATIENT_REFERENCE_GET_TENANT_SCOPE = HEADER_ONLY
+TENANT_ADMISSION_PIPELINE_COUNT = 1
+```
+
+Path ove rute **ne nosi identitet ordinacije**, pa se `X-Practice-ID` čita i validira, a **nikakvo
+lažno poređenje patha i headera se ne izvodi**. Ruta prolazi kroz **isti jedan**
+`TenantRequestPipeline` i **iste** kanonske admission korake (§3.7.1). **Pravila `X-Practice-ID`-a
+se ne mijenjaju.** Postojeće rute sa `{practiceId}` u pathu ostaju **`PRACTICE_PATH`** i zadržavaju
+kanonsko **`403 ACCESS_DENIED`** pri neslaganju patha i headera.
+
+**Ovo su ugovorna pojašnjenja, ne implementacija.** `P5-I4A` je `NOT AUTHORIZED` / `NOT STARTED`.
+Vidi D-073 u `06`.
+
 ---
 
 # 12. Encounter API
