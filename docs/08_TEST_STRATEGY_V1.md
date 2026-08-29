@@ -1323,6 +1323,20 @@ bude zasebno autorizovan, ove obaveze su **obavezan izvršiv ugovor** po istom p
 (§26.2) i **ne izostavljaju se tiho**. Checklist Faze 5 je i dalje **`49 / 14`** (`05` §6). Vidi
 D-073 u `06`, `04` §7.5a i `03` §11.
 
+**STATUSNA ANOTACIJA (D-074, 2026-08-30) — §12.10 i §12.10a se NE prepisuju i NE proširuju.**
+D-074 evidentira vlasničku autorizaciju implementacije `P5-I4A`
+(`P5-I4A IMPLEMENTATION AUTHORIZATION DECISION = APPROVED`) i **ne dodaje nijednu novu dokaznu
+obavezu niti ijednu uklanja**. Obavezni dokazi `P5-I4A` ostaju **tačno** §12.10 i §12.10a, uz
+**obje obavezne dokazne klase facadea** iz §12.10 (statički import/source-boundary i bihevioralni
+recording-session dokaz). **Nijedan test iz §12.10 ni §12.10a nije implementiran ni izvršen, i
+D-074 ih ne izvršava** i ne tvrdi nijedan rezultat. Autorizacija postaje operativno efektivna
+**tek nakon što D-074 bude vlasnički prihvaćen, kanonski i publikaciono verifikovan**, a
+implementacija smije početi **tek nakon zasebnog gatea izvršenja**; formulacija „kada `P5-I4A`
+bude zasebno autorizovan" iznad opisuje **pred-D-074 stanje** i **ne prepisuje se**. Checklist
+Faze 5 je i dalje **`49 / 14`** uz **`PHASE5_CHECKBOX_TRANSITIONS = 0`**. **`P5-I4B`, `P5-I4C`,
+`P5-I5` i `P5-I6` ostaju `NOT AUTHORIZED`**, pa §12.11 i §12.12 ostaju **neautorizovane**. Vidi
+D-074 u `06`, `04` §7.5a, `05` §6 i `03` §11.
+
 ## 12.11 `P5-I4B` — deterministički formati bez baze (D-072, `OD-P5-I4-3`, `OD-P5-I4-4`, `OD-P5-I4-5`)
 
 **Svi dokazi ove sekcije su DB-free.** Formati su **perzistentni i retroaktivno nepopravljivi**, pa

@@ -4045,6 +4045,33 @@ EXPECTED_POST_P5_I4_CLOSURE_CHECKLIST  = 49 / 31
 nepromijenjen i **označava se isključivo pri zatvaranju roditeljskog gatea `P5-I4`**. Vidi D-073 u
 `06`, `04` §7.5a, `03` §11 i `08` §12.10a.
 
+## P5-I4A IMPLEMENTATION AUTHORIZATION ANNOTATION — D-074 (2026-08-30)
+
+**Ovo je ne-checkbox anotacija.** Ona **ne dodaje nijedan checklist red** i **ne mijenja nijednu
+kućicu**; markeri checkboxa se u njoj **namjerno ne koriste**.
+
+- **D-074 evidentira vlasničku autorizaciju implementacije `P5-I4A`** unutar ugovora D-072 +
+  D-073: **`P5-I4A IMPLEMENTATION AUTHORIZATION DECISION = APPROVED`**.
+- **Autorizacija NIJE odmah operativno efektivna.** Ona postaje efektivna **tek nakon što D-074
+  bude vlasnički prihvaćen, kanonski na `origin/main` i publikaciono verifikovan**; do tada je
+  **`P5-I4A IMPLEMENTATION EXECUTION = PROHIBITED`**. Anotacija D-073 iznad opisuje **pred-D-074
+  stanje** i **ne prepisuje se**.
+- **Ni kanonizacija D-074 ne pokreće implementaciju** — izvršenje traži **zaseban gate izvršenja
+  implementacije**. **`P5-I4A IMPLEMENTATION STARTED = NO`.**
+- **Nijedna kućica se ne označava tokom implementacije `P5-I4A`.** Označavanje ostaje **odgođeno
+  pravilima zatvaranja roditeljskog gatea `P5-I4`**.
+- **Dokazni blok roditeljske D-056 obaveze se još NE popunjava.**
+
+```text
+CURRENT_CHECKLIST                      = 49 / 14
+PHASE5_CHECKBOX_TRANSITIONS            = 0
+EXPECTED_POST_P5_I4_CLOSURE_CHECKLIST  = 49 / 31
+```
+
+**`P5-I4B`, `P5-I4C`, `P5-I5` i `P5-I6` ostaju `NOT AUTHORIZED` / `NOT STARTED`**; `P5-I5` ostaje
+i **`STILL DEPENDENCY-BLOCKED`**, a red `Services → redaction` **ostaje neoznačen**. Vidi D-074 u
+`06`, `04` §7.5a, `03` §11 i `08` §12.10a.
+
 ## Schema
 
 - [x] patient_references.
