@@ -1410,6 +1410,16 @@ kanonsko **`403 ACCESS_DENIED`** pri neslaganju patha i headera.
 **Ovo su ugovorna pojašnjenja, ne implementacija.** `P5-I4A` je `NOT AUTHORIZED` / `NOT STARTED`.
 Vidi D-073 u `06`.
 
+**STATUSNA ANOTACIJA (D-074, 2026-08-30) — ugovorna pojašnjenja iznad se NE mijenjaju.** D-074
+evidentira vlasničku autorizaciju implementacije `P5-I4A`
+(`P5-I4A IMPLEMENTATION AUTHORIZATION DECISION = APPROVED`). **Nijedan endpoint, permisija, rola,
+polje, error kod, statusni kod, pravilo `X-Practice-ID`-a ni ugovor odgovora se ovom anotacijom NE
+mijenja.** Autorizacija postaje operativno efektivna **tek nakon što D-074 bude vlasnički
+prihvaćen, kanonski i publikaciono verifikovan**, a implementacija smije početi **tek nakon
+zasebnog gatea izvršenja**; rečenica iznad opisuje **pred-D-074 stanje** i **ne prepisuje se**.
+**`P5-I4A IMPLEMENTATION STARTED = NO`**; `P5-I4B`, `P5-I4C`, `P5-I5` i `P5-I6` ostaju
+**`NOT AUTHORIZED`**. Vidi D-074 u `06`.
+
 ---
 
 # 12. Encounter API

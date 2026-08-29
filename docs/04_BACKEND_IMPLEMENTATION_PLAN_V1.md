@@ -1960,6 +1960,64 @@ DEPENDENCY-BLOCKED` / `NOT AUTHORIZED` / `NOT STARTED`; `P5-I6` ostaje `NOT AUTH
 `NOT STARTED`. Checklist Faze 5 ostaje **`49 / 14`**, a
 **`EXPECTED_POST_P5_I4_CLOSURE_CHECKLIST = 49 / 31`**. Vidi D-073 u `06`, `03` §11 i `08` §12.10a.
 
+### Autorizacija implementacije `P5-I4A` (D-074, 2026-08-30)
+
+**Ova sekcija je aditivna.** Nijedna ugovorna klauzula D-072 ni D-073 iznad se **ne prepisuje**;
+klauzule ostaju **doslovno na snazi**. D-074 evidentira **jedan vlasnički potez** — autorizaciju
+implementacije **isključivo `P5-I4A`**, tačno unutar ugovora **D-072 + D-073**.
+
+```text
+P5-I4A IMPLEMENTATION AUTHORIZATION DECISION  = APPROVED   (D-074)
+P5-I4A IMPLEMENTATION AUTHORIZATION EFFECTIVE = uslovno    (vidi nize)
+P5-I4A IMPLEMENTATION STARTED                 = NO
+```
+
+**Odluka je donesena, ali autorizacija NIJE odmah operativno efektivna.** Ona postaje efektivna
+**tek nakon što D-074 bude vlasnički prihvaćen, kanonski na `origin/main` i publikaciono
+verifikovan**. Prije toga:
+
+```text
+P5-I4A IMPLEMENTATION EXECUTION = PROHIBITED
+```
+
+**Ni kanonizacija D-074 sama po sebi ne pokreće implementaciju** — izvršenje traži **zaseban gate
+izvršenja implementacije**. Klauzule iznad koje glase `P5-I4A IMPLEMENTATION AUTHORIZED = NO`
+opisuju **pred-D-074 stanje** i **ne prepisuju se**; mjerodavan je ovaj statusni model.
+
+**Autorizovani obuhvat** je tačno onaj nabrojan u D-074 (`06`): tanak `TenantDatabaseService`
+facade i obje dokazne klase (`OD-P5-I4-12`), ponovni dokaz D-054, klauzula 6–10, zatvorena
+dvovarijantna tenant scope unija sa jednim `TenantRequestPipeline`-om, `400 VALIDATION_ERROR` na
+malformisan resource UUID bez ijednog čitanja baze, nerazlučiv zaštićeni `404` par, **jedan**
+tenant-scoped `SELECT` bez `SELECT *` i bez drugog existence upita, šestočlani javni DTO,
+`.sssZ` javni `createdAt`, `P5_I4A_SESSION_REUSE = SMALL_ADAPTER` i **strogo nužan** wiring.
+
+**Zamrznuti mutacijski predikati ostaju nepromijenjeni:**
+
+```text
+PRISMA_SCHEMA_MUTATION_REQUIRED = NO
+MIGRATION_REQUIRED = NO
+RLS_POLICY_MUTATION_REQUIRED = NO
+GRANT_MUTATION_REQUIRED = NO
+NEW_RUNTIME_DEPENDENCY_REQUIRED = NO
+```
+
+**Autorizacijski firewall:**
+
+```text
+P5-I4B IMPLEMENTATION AUTHORIZED = NO
+P5-I4C IMPLEMENTATION AUTHORIZED = NO
+P5-I5  IMPLEMENTATION AUTHORIZED = NO
+P5-I6  IMPLEMENTATION AUTHORIZED = NO
+```
+
+`P5-I5` ostaje `STILL DEPENDENCY-BLOCKED`; **D-074 ga ne odblokira**. Checklist Faze 5 ostaje
+**`49 / 14`** uz **`PHASE5_CHECKBOX_TRANSITIONS = 0`**, a
+**`EXPECTED_POST_P5_I4_CLOSURE_CHECKLIST = 49 / 31`**; **nijedna kućica se ne označava tokom
+implementacije `P5-I4A`**. Ne-blokirajuće napomene `M-1` (table-level `SELECT` grant nad
+`patient_references` — bez kolonskog `42501` backstopa) i `M-2` (šav feature adaptera i pinovane
+sesije) su **napomene implementacijske discipline**, **ne** autorizacija izmjene granta ni
+arhitektonskog vlasništva. Vidi D-074 u `06`, `03` §11, `05` §6 i `08` §12.10a.
+
 ### Segmentacija `P5-I2` na četiri pod-gatea (D-064)
 
 `P5-I2` se **ne izvršava kao jedan potez**. Ratifikovana su četiri pod-gatea:
