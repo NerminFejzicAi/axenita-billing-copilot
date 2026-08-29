@@ -4023,6 +4023,28 @@ zapis je neispravan i mora se ispraviti prije mergea.
   `P5-I4`, i **ne dobijaju vlastite redove** ni sada ni kasnije.
 - **`★` ostaje trajna regresija.**
 
+## P5-I4A CONTRACT REFINEMENT ANNOTATION — D-073 (2026-08-29)
+
+**Ovo je ne-checkbox anotacija.** Ona **ne dodaje nijedan checklist red** i **ne mijenja nijednu
+kućicu**; markeri checkboxa se u njoj **namjerno ne koriste**.
+
+- **D-073 rafinira implementacijski ugovor `P5-I4A`** unutar ratifikovanog `P5-I4` ugovora
+  (D-072) — zatvoreni model tenant request scopea, ugovor malformisanog resource UUID-a i javni
+  wire format `createdAt`-a.
+- **`OD-P5-I4A-1`, `OD-P5-I4A-2` i `OD-P5-I4A-3` su `APPROVED`**;
+  **`OWNER_DECISIONS_REQUIRED_FOR_P5_I4A = 0`**; **`OD-P5-I4A-4` ne postoji**.
+- **Dokazni blok roditeljske D-056 obaveze se još NE popunjava.**
+
+```text
+CURRENT_CHECKLIST                      = 49 / 14
+PHASE5_CHECKBOX_TRANSITIONS            = 0
+EXPECTED_POST_P5_I4_CLOSURE_CHECKLIST  = 49 / 31
+```
+
+**`P5-I4A` ostaje `NOT AUTHORIZED` / `NOT STARTED`.** Forecast od sedamnaest redova iz D-072 ostaje
+nepromijenjen i **označava se isključivo pri zatvaranju roditeljskog gatea `P5-I4`**. Vidi D-073 u
+`06`, `04` §7.5a, `03` §11 i `08` §12.10a.
+
 ## Schema
 
 - [x] patient_references.
