@@ -1224,6 +1224,121 @@ oslabljena** u `contains`/`subset`/`partial`, i **nijedna primijenjena migracija
 
 ---
 
+## 12.10 `P5-I4A` — facade granica i `GET /patient-references/{id}` (D-072, `OD-P5-I4-12`, `OD-P5-I4-13`)
+
+**Sekcije §12.0–§12.9 se NE prepisuju.** Ovo su **dokumentovane, još neizvršene** obaveze
+objavljene odlukom **D-072**. **Nijedan test iz §12.10–§12.12 nije implementiran ni izvršen**, i
+njihovo postojanje **ne označava nijednu kućicu Faze 5** (`05` §6). **`P5-I4` je `NOT AUTHORIZED` /
+`NOT STARTED`.**
+
+**Obavezni dokazi `P5-I4A` — obje klase su obavezne; lint pravilo samo po sebi NIJE dovoljno:**
+
+1. **Statički import/source-boundary test.** Trajan test koji dokazuje da `P5-I4` poslovni i
+   aplikacijski kod **ne može direktno koristiti** `PrismaService`, `PrismaClient` ni sirove
+   database client primitive **izvan ovlaštenog facade/adapter sloja**.
+2. **Bihevioralni recording-session / fake-session test.** Trajan test koji dokazuje: korištenje
+   **postojeće admitted pinovane sesije**; **nijednu drugu, ugniježdenu ni paralelnu transakciju**;
+   **tenant kontekst uspostavljen prije** poslovnog iskaza; **tačan redoslijed** izvršenih iskaza;
+   i **nikakav caller-supplied identitet**.
+3. **Ponovni dokaz D-054, klauzula 6–10** trajnim testovima, po D-056, klauzuli 5.
+4. **`GET /patient-references/{id}` — tenant-scoped read.** Isti tenant, postojeći resurs → `200`
+   sa kanonskim tijelom iz `03` §11.
+5. **Nepostojeći `id` i cross-tenant `id` → NERAZLUČIV `404`.** Tijelo, kod, poruka i osmotrivo
+   ponašanje moraju biti **identični**.
+6. **Bez existence oracle-a.** Nijedna razlika u statusu, poruci, redoslijedu polja, zaglavljima ni
+   mjerljivom ponašanju ne smije razlikovati „ne postoji" od „postoji u drugoj ordinaciji".
+
+## 12.11 `P5-I4B` — deterministički formati bez baze (D-072, `OD-P5-I4-3`, `OD-P5-I4-4`, `OD-P5-I4-5`)
+
+**Svi dokazi ove sekcije su DB-free.** Formati su **perzistentni i retroaktivno nepopravljivi**, pa
+**moraju** biti pinovani **doslovnim** vektorima. **Implementacija ne smije generisati vlastite
+očekivane vrijednosti.**
+
+**RFC 8785 (JCS):**
+
+1. **Službeni/javni JCS vektori** sa **doslovnim očekivanim kanonskim izlazima**, uključujući
+   kanonizaciju brojeva, escapiranje stringova i sortiranje ključeva po UTF-16 code unitima.
+2. **Lokalna implementacija** — **nijedan JCS paket**; **reducirani vlastiti podskup se ne smije
+   predstavljati kao JCS**.
+
+**`request_sha256` (`VALIDATED_ORIGINAL_PARSED_BODY`):**
+
+3. **Pinovani fiksni vektori** — doslovni digesti za najmanje jedno kanonsko tijelo po obaveznom
+   endpointu iz §4 (nepromijenjena obaveza iz §9).
+4. **`null` naspram odsutnog polja → RAZLIČIT digest.**
+5. **Različit ulazni redoslijed ključeva → ISTI digest.**
+6. **Različit redoslijed elemenata niza → RAZLIČIT digest.**
+7. **Whitespace ulaznog JSON-a → ISTI digest.**
+8. **Isključena server/request-context polja** — metod, path, query, headeri, `Idempotency-Key`,
+   identitet korisnika i ordinacije, request id, server timestampovi i server-generisani id-evi →
+   **ISTI digest**, jer nijedno nije ulaz.
+9. **Hashira se sačuvano ORIGINALNO parsirano tijelo**, ne DTO, ne instanca klase i ne
+   server-defaultovana reprezentacija: dodavanje server defaulta **ne smije** promijeniti digest
+   ekvivalentnog zahtjeva, a **nepoznato polje se odbija prije hashiranja**.
+
+**`AUDIT_EVENT_HASH_PAYLOAD_V1`:**
+
+10. **Vektori audit payloada** sa doslovnim očekivanim `event_sha256` vrijednostima.
+11. **Tačno sedamnaest ključeva**, imena kolona baze; **`event_sha256` je isključen**.
+12. **`previous_event_sha256` je prisutan kao `null`** i **nikada izostavljen**.
+13. **`occurred_at` u obliku `.SSS000Z`** — šest decimalnih cifara, **posljednje tri `000`**, UTC;
+    isti instant koji se perzistira.
+14. **UUID vrijednosti su male kanonske hyphenated stringove**; nullable UUID kolone su `null`.
+15. **`previous_value`, `new_value` i `metadata` su JSON vrijednosti, ne JSON stringovi.**
+16. **`session_id_hash`, `ip_address` i `user_agent_hash` su `null`** — **nikakva `inet`
+    serijalizacija se ne testira ni ne izmišlja.**
+
+## 12.12 `P5-I4C` — idempotencija, konkurencija, audit i `POST /patient-references` (D-072)
+
+1. **Nedostajući `Idempotency-Key` → `400 IDEMPOTENCY_KEY_REQUIRED`**, statična poruka;
+   **`428` se ne pojavljuje.**
+2. **Replay:** isti ključ + isti hash → **rekonstruisano kanonsko `201` tijelo** iz cashiranog
+   `resourceId`; **jedan** poslovni red.
+3. **Konflikt:** isti ključ + drugi hash → **`409 IDEMPOTENCY_CONFLICT`**.
+4. **Nezavršen claim → `409 REQUEST_ALREADY_IN_PROGRESS`**; **bez stale-claim takeovera.**
+5. **Konkurencija:** paralelni zahtjevi sa istim ključem → **tačno jedna** poslovna posljedica;
+   gubitnik dobija `409 REQUEST_ALREADY_IN_PROGRESS`.
+6. **Ponašanje advisory locka:** **neblokirajuće** pribavljanje; **transaction-scoped**
+   oslobađanje na commitu i na rollbacku; **pinovani vektori** enkodiranih bajtova scopea i
+   očekivanog **signed int64** ključa; **lock ključ se ne perzistira ni ne logira**.
+7. **Pet pokušaja pri koliziji pseudonima:** deterministički mockan CSPRNG seam koji vraća pet
+   uzastopnih kolizija → **`500 INTERNAL_ERROR`**, statično ne-PHI tijelo; **svaki pokušaj koristi
+   svjež kandidat**; **nijedan kandidat, broj pokušaja ni broj kolizija nije osmotriv**.
+8. **Šesti scenarij:** kolizija na prva četiri pokušaja i uspjeh na petom → **`201`**.
+9. **Duplirana eksterna referenca → `409 PATIENT_REFERENCE_ALREADY_EXISTS`**; **nijedno polje
+   postojećeg reda nije u odgovoru**; **nema `200` fallbacka**; **nema pre-reada**.
+10. **`sourceSystem` — samo `MANUAL`:** `AXENITA`, `CSV`, `FHIR` i `OTHER` → **`422
+    VALIDATION_ERROR`**.
+11. **Generičko, ne-reflektujuće `422`:** poruka **ne citira** poslanu vrijednost, ni za
+    `sourceSystem`, ni za `externalPatientReference`, ni za bilo koje drugo polje.
+12. **Servisni lookup po pseudonimu:** kanonska uppercase kanonizacija, aditivan v1 validator
+    sintakse, **tenant-scoped obična jednakost**, **bez `LOWER()`/`citext`/posebne kolacije**;
+    pseudonim druge ordinacije se **ne nalazi**. **Nema HTTP rute.**
+13. **Servisni lookup po eksternoj referenci:** `MANUAL` v1 normalizacija → domen
+    `patient_external_ref` → admitted `practice_id` → HMAC → tenant-scoped jednakost; ista
+    vrijednost u drugoj ordinaciji se **ne nalazi**. **Nema HTTP rute.**
+14. **Atomarnost transakcije:** injektovan neuspjeh audit `INSERT`-a → **nijedan** `patient_references`
+    red i **nijedan** completed idempotency zapis; injektovan neuspjeh poslovnog `INSERT`-a →
+    **nijedan** audit red.
+15. **Audit obuhvat:** uspješan `POST` piše **tačno jedan** red
+    `PATIENT_REFERENCE_CREATED` / `PATIENT_REFERENCE` / `USER`; **`GET` ne piše nijedan**;
+    **neuspješan `POST` ne piše nijedan.**
+16. **Rekomputacija iz pohranjenog reda:** iz **stvarnog** `audit_events` reda rekonstruisati svih
+    sedamnaest vrijednosti i **reprodukovati tačan `event_sha256`**. Hashiranje in-memory objekta
+    prije `INSERT`-a **ne zadovoljava**.
+17. **Audit minimizacija:** `previous_value = null`, `new_value = null`,
+    `metadata = {"sourceSystem":"MANUAL"}`; **nema pseudonima, `birthYear`-a, `sexCode`-a, HMAC-a,
+    sirove eksterne reference ni sirovog tijela zahtjeva.**
+18. **Nema plaintext eksternog ID-a nigdje:** ni u perzistenciji, ni u logu, ni u Problem Details
+    tijelu, ni u auditu — uključujući putanje grešaka `422`, `409` i `500`.
+
+**Nijedan test iz §12.10–§12.12 nije implementiran ni izvršen, i D-072 ih ne izvršava.** Kada
+`P5-I4` bude zasebno autorizovan, ove obaveze su **obavezan izvršiv ugovor** po istom pravilu kao
+§21.6 i §21.7 (§26.2) i **ne izostavljaju se tiho**. Checklist Faze 5 je i dalje **`49 / 14`**
+(`05` §6). Vidi D-072 u `06` i `04` §7.5a.3.
+
+---
+
 # 13. Analysis/outbox/queue
 
 ## HTTP

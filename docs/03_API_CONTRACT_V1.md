@@ -352,6 +352,65 @@ rezultat, isti key + drugi hash → **`409 IDEMPOTENCY_CONFLICT`** — ostaju **
 
 ---
 
+## 4.2 `POST /patient-references` — idempotency pojašnjenja `P5-I4` (D-072, `OD-P5-I4-3`, `OD-P5-I4-7`, `OD-P5-I4-8`)
+
+**§4 i §4.1 iznad se NE prepisuju.** Ova sekcija ih **specijalizuje za jedan endpoint** i ne
+proširuje broj endpointa.
+
+**Nedostajući `Idempotency-Key`:**
+
+```text
+HTTP                 400
+ProblemDetails code  IDEMPOTENCY_KEY_REQUIRED
+poruka               staticna, bez odraza ulaza
+```
+
+**`428` se za ovo NE koristi.** `428 PRECONDITION_REQUIRED` ostaje rezervisan **isključivo** za
+nedostajući `If-Match` nad šest optimistic-locking resursa (§5.1, §8.1; D-028), i **ta semantika se
+ne dira**.
+
+**TTL i minimalni cash:**
+
+```text
+IDEMPOTENCY_TTL_HOURS = 48
+expires_at            = claim_time + 48 sati       (claim_time se generise tacno jednom)
+response_status       = 201
+response_body         = {"resourceId":"<patient-reference-uuid>"}
+completed_at          = postavljen
+locked_at             = null
+```
+
+`48` sati je unutar kanonskog raspona „retention 24–72 sata prema endpointu" iz §4 i **ne mijenja
+ga**. **`expires_at` se nikada kasnije ne mijenja.**
+
+- **Minimalni cash sadrži ISKLJUČIVO `resourceId`.** `pseudonym`, `birthYear`, `sexCode`,
+  `sourceSystem` i `createdAt` se **ne cashiraju**; nikakav PHI ni puna reprezentacija resursa ne
+  ulazi u `idempotency_keys.response_body`.
+- **Replay istog ključa sa istim hashem rekonstruiše kanonsko `201` tijelo** iz §11: pročita
+  `resourceId`, izvrši **tenant-scoped immutable read** `patient_references` reda i sastavi
+  odgovor. Cash je **pokazivač**, ne kopija.
+- **Completed cash koji pokazuje na nerazrješiv resurs → `500 INTERNAL_ERROR`.** Ne izmišlja se
+  odgovor i ne vraća se `404`.
+- **Isti ključ, drugi hash → `409 IDEMPOTENCY_CONFLICT`**; **nezavršen claim →
+  `409 REQUEST_ALREADY_IN_PROGRESS`** — oba nepromijenjena u odnosu na §4.
+
+**`request_sha256` za ovaj endpoint koristi `VALIDATED_ORIGINAL_PARSED_BODY`** (`OD-P5-I4-3`):
+
+```text
+request_sha256 = SHA-256( UTF8( RFC8785_JCS( validirano ORIGINALNO parsirano tijelo ) ) )
+parse -> sacuvaj originalnu parsiranu vrijednost -> validiraj -> JCS -> SHA-256
+```
+
+Ulaz **nije** sirovi HTTP bajt-stream, **nije** pre-parse JSON tekst, **nije** transformisani DTO,
+**nije** instanca klase i **nije** server-proširena/defaultovana reprezentacija. Sva isključenja iz
+§4.1 ostaju doslovno na snazi; **nepoznata polja se odbijaju prije hashiranja**, a **server defaulti
+se ne uvode** u hashiranu vrijednost.
+
+**Ovo je ugovor, ne implementacija.** Vlasnik je `P5-I4C`, koji je `NOT AUTHORIZED` /
+`NOT STARTED`. Vidi D-072 u `06`.
+
+---
+
 # 5. Optimistic locking
 
 Normativne odluke: **D-029** i **D-028**. Ova sekcija je jedini autoritativni spisak
@@ -517,6 +576,7 @@ PRECONDITION_REQUIRED
 IDEMPOTENCY_KEY_REQUIRED
 IDEMPOTENCY_CONFLICT
 REQUEST_ALREADY_IN_PROGRESS
+PATIENT_REFERENCE_ALREADY_EXISTS
 INVALID_STATE_TRANSITION
 REVISION_CONFLICT
 ENCOUNTER_NOT_ANALYSABLE
@@ -549,6 +609,8 @@ Normativno mapiranje koda na status:
 | `PRECONDITION_REQUIRED` | **428** | svih šest `If-Match` PATCH endpointa (§5.1) | D-028 |
 | `VERSION_CONFLICT` | 409 | svih šest `If-Match` PATCH endpointa (§5.1) | D-009 |
 | `REQUEST_ALREADY_IN_PROGRESS` | 409 | svi endpointi sa `Idempotency-Key` (§4) | D-028 |
+| `IDEMPOTENCY_KEY_REQUIRED` | **400** | svi endpointi sa `Idempotency-Key` (§4) | D-072 |
+| `PATIENT_REFERENCE_ALREADY_EXISTS` | 409 | `POST /patient-references` (§11) | D-072 |
 | `INVALID_STATE_TRANSITION` | 409 | revisions, cancel, close, decisions | D-027, D-031 |
 | `REVISION_CONFLICT` | 409 | `POST /analyses/{id}/revisions` | D-034 |
 | `APPROVAL_REQUIRED` | 409 | `POST /analyses/{id}/exports`, `POST /exports/{id}/retry` | D-037 |
@@ -1188,6 +1250,29 @@ Response `201`:
   "createdAt": "2026-07-18T10:00:00Z"
 }
 ```
+
+**NORMATIVNA POJAŠNJENJA `P5-I4` (D-072, 2026-08-29) — oblik zahtjeva i odgovora iznad se NE
+mijenja, i nijedan pasus se ne prepisuje.**
+
+- **`sourceSystem` je obavezan.** Odsutan `sourceSystem` je `422 VALIDATION_ERROR`.
+- **`P5-I4` prihvata isključivo `MANUAL`** (`SOURCE_SYSTEM_ACCEPTED = MANUAL_ONLY`,
+  `OD-P5-I4-9`). Sintaksno validne, ali u `P5-I4` neprihvaćene vrijednosti — `AXENITA`, `CSV`,
+  `FHIR`, `OTHER` — vraćaju **`422 VALIDATION_ERROR`** sa **generičkom, statičnom porukom koja ne
+  citira vrijednost** (§8). **Schema enum se ne mijenja**, i **nikakva provider normalizacija se ne
+  izmišlja**; profil `AXENITA` ne postoji, a `D-OPEN-009` ostaje `BLOCKED EXTERNAL` (`13` §7).
+- **Duplirana eksterna referenca → `409 PATIENT_REFERENCE_ALREADY_EXISTS`** (§8, §8.1;
+  `OD-P5-I4-10`). Okidač je **isključivo** povreda jedinstvenosti
+  `patient_references_source_external_ref_key` — `unique (practice_id, source_system,
+  external_patient_ref_hash)`. **Nema uspješnog `200` fallbacka**, **nema otkrivanja postojećeg
+  reda** (ni `id`, ni `pseudonym`, ni `createdAt`), i **nema reupotrebe `IDEMPOTENCY_CONFLICT`**.
+- **Nema pre-read oracle-a.** Postojanje se utvrđuje **isključivo** iz greške baze; nijedan
+  `SELECT` „da li ovo već postoji" ne prethodi `INSERT`-u — ni za eksternu referencu, ni za
+  pseudonim. Kolizija pseudonima se rješava **ciljanim `ON CONFLICT` retryjem** sa najviše
+  **`PSEUDONYM_INSERT_MAX_ATTEMPTS = 5`** kandidata, a iscrpljenje pokušaja je
+  **`500 INTERNAL_ERROR`** sa statičnim tijelom (`OD-P5-I4-1`, `OD-P5-I4-2`).
+
+**Ovo su ugovorna pojašnjenja, ne implementacija.** `P5-I4` je `NEXT` / `DEPENDENCY-SATISFIED` /
+`NOT AUTHORIZED` / `NOT STARTED`. Vidi D-072 u `06`.
 
 ## GET `/patient-references/{id}`
 

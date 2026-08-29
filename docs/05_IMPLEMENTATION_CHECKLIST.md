@@ -3936,6 +3936,93 @@ autorizacija**. Traži **zaseban read-only preflight** i **zaseban vlasnički au
 **Faza 5 ostaje `IN_PROGRESS`; nije `DONE`.** **`★` ostaje trajna regresija**, i sve zabrane iz
 pasusa iznad ostaju nepromijenjene.
 
+## P5-I4 IMPLEMENTATION CONTRACT FORECAST — D-072 (2026-08-29)
+
+**Ovo je NE-CHECKBOX forecast sekcija.** Ona namjerno **ne koristi checkbox sintaksu** i **ne ulazi
+u aritmetiku kućica Faze 5** — ukupan broj redova §6 ostaje **49**, a broj označenih ostaje **14**.
+**Nijedan pasus, blok ni anotacija iznad se ne prepisuje.**
+
+```text
+P5-I4 IMPLEMENTATION AUTHORIZED = NO
+P5-I4 IMPLEMENTATION STARTED    = NO
+CURRENT_CHECKLIST               = 49 / 14
+```
+
+**D-072 ratifikuje implementacijski ugovor `P5-I4` i NE autorizuje `P5-I4`.** `P5-I4` ostaje
+**`NEXT` / `DEPENDENCY-SATISFIED` / `NOT AUTHORIZED` / `NOT STARTED`**. **Ratifikacija ugovora nije
+autorizacija implementacije.** Puni zapis je D-072 u `06`; izvršni ugovor je u `04` §7.5a.3.
+
+### Sedamnaest redova u forecastu
+
+Tačno **sedamnaest** **postojećih** redova §6 zatvara se **tek pri zatvaranju roditeljskog gatea
+`P5-I4`**. **Nijedan pod-gate `P5-I4A/B/C` ne označava nijedan od njih**, i **nijedan novi red se ne
+kreira**.
+
+**Devet redova D-056 facade obaveze** — doslovan postojeći tekst iz sekcije „Konkretan
+`TenantDatabaseService` facade — prenesena obaveza (D-056)" iznad, naveden ovdje **bez** checkbox
+markera:
+
+1. Facade **omotava postojeću** pinovanu sesijsku/transakcijsku granicu (`TenantRequestPipeline`)
+   — ne stvara novu.
+2. Facade **ne posjeduje vlastiti `PrismaClient`** — runtime i dalje ima tačno jedan
+   `PrismaService` i tačno jedan `copilot_app` klijent (D-054, klauzula 7).
+3. Facade **ne otvara drugu, ugniježdenu ni paralelnu** aplikacijsku transakciju
+   (D-054, klauzula 8).
+4. Facade **ne postavlja `app.practice_id` prije** kanonskih provjera `practices.status` i
+   aktivnog membershipa (`03` §3.7.1, koraci 3–4; D-047, klauzula 10; D-054, klauzula 9).
+5. Facade **ne prima caller-supplied identitet** i **nikada** ga ne tretira kao granicu
+   povjerenja — identitet dolazi isključivo iz `app.user_id` autentifikovanog admission/session
+   stanja (D-054, klauzula 10).
+6. Facade **koristi postojeću** pinovanu transakciju/sesiju autentifikovanog zahtjeva
+   (D-054, klauzula 6).
+7. `set_request_context` ostaje **unutar te iste** transakcije; tenant business komanda se
+   izvršava **tek nakon** uspostavljenog konteksta; bez konteksta vrijedi **default-deny**.
+8. Facade ostaje **tanak** — **ne** postaje paralelan database stack (D-054, dio C.2).
+9. **D-054, klauzule 6–10 su ponovo dokazane** trajnim testovima prije prihvatanja
+   (D-056, klauzula 5).
+
+**Preostalih osam redova**, doslovnim tekstom iz sekcija `API`, `Services` i `Tests` niže:
+
+| # | Sekcija §6 | Doslovan tekst reda | Vlasnik dokaza |
+|---:|---|---|---|
+| 10 | `API` | `POST patient reference.` | `P5-I4C` |
+| 11 | `API` | `GET patient reference.` | `P5-I4A` |
+| 12 | `Services` | `idempotency service.` | `P5-I4C` |
+| 13 | `Services` | `audit.` | `P5-I4C` |
+| 14 | `Tests` | `unknown field rejected.` | `P5-I4C` |
+| 15 | `Tests` | `duplicate idempotency.` | `P5-I4C` |
+| 16 | `Tests` | `idempotency conflict.` | `P5-I4C` |
+| 17 | `Tests` | `cross-tenant GET.` | `P5-I4A` |
+
+### Mehaničko računovodstvo
+
+```text
+prije D-072                            49 / 14
+forecast                               17 redova [ ] -> [x]
+pri zatvaranju roditelja P5-I4         49 / 31
+EXPECTED_POST_P5_I4_CLOSURE_CHECKLIST  49 / 31
+poslije D-072 (mehanicki, sada)        49 / 14
+PHASE5_CHECKBOX_TRANSITIONS            0
+```
+
+**Nijedna trenutna kućica se ne mijenja.** Ako mehanički broj nakon ovog zapisa nije **`49 / 14`**,
+zapis je neispravan i mora se ispraviti prije mergea.
+
+### Šta forecast ne tvrdi
+
+- **Ne zatvara Fazu 5** i ne mijenja njen status `IN_PROGRESS`.
+- **Ne autorizuje `P5-I4`, `P5-I4A`, `P5-I4B` ni `P5-I4C`.**
+- **Ne odblokira `P5-I5`** — ostaje `STILL DEPENDENCY-BLOCKED` / `NOT AUTHORIZED` / `NOT STARTED`.
+- **Ne autorizuje `P5-I6`** — ostaje `NOT AUTHORIZED` / `NOT STARTED` i **posjeduje redakciju**;
+  red `Services → redaction` **ostaje neoznačen**.
+- **Ne mijenja schemu, migracije, RLS politike ni grantove** —
+  `PRISMA_SCHEMA_MUTATION_REQUIRED = NO`, `MIGRATION_REQUIRED = NO`,
+  `RLS_POLICY_MUTATION_REQUIRED = NO`, `GRANT_MUTATION_REQUIRED = NO`.
+- **Ne uvodi nijednu zavisnost** — `NEW_RUNTIME_DEPENDENCY_REQUIRED = NO`.
+- **Ne slabi `CO-P5-I3-I4-1` ni `CO-P5-I3-I4-2`** — oni ostaju ne-checkbox kriteriji prihvatanja
+  `P5-I4`, i **ne dobijaju vlastite redove** ni sada ni kasnije.
+- **`★` ostaje trajna regresija.**
+
 ## Schema
 
 - [x] patient_references.
