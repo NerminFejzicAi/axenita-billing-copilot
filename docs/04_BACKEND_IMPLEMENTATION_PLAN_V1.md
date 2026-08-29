@@ -1480,6 +1480,85 @@ OWNER_DECISIONS_REQUIRED_FOR_P5_I5 = 0
 **D-070 ne autorizuje nijedan slice**, ne mijenja nijednu zavisnost iz tabele §7.5, ne mijenja
 kanonski redoslijed `P5-I3 → P5-I4 → P5-I5` i **ne označava nijednu kućicu**. Vidi D-070 u `06`.
 
+**FORMALNO ZATVARANJE `P5-I3` (D-071, 2026-08-29) — nijedan pasus ni anotacija iznad se ne
+prepisuju; tabela zavisnosti na vrhu §7.5 ostaje mjerodavna i nije waivovana.** Formulacije
+„`P5-I3` je `NEXT` / `NOT_STARTED` / `NOT AUTHORIZED`" (D-069) i „`P5-I3` je policy-resolved i
+next" (D-070) su **tačne na dan svog zapisa** i **više ne opisuju tekuće stanje**.
+
+`P5-I3` je nakon zasebne vlasničke autorizacije izveden u tri ratifikovana pod-gatea, i **sva tri
+su kanonska**:
+
+```text
+P5-I3A   implementacijski commit   65a1cd962c52f72762468d8573c9e55b31984586
+         kanonski merge            ea0769f1bc34baf8670aa8d4b4b5dfc3433e94db
+
+P5-I3B   implementacijski commit   29aae651ab487cac2c77fd7b272ce6ffa976843c
+         kanonski merge            13bee31fcdd5e4717eface4677e41f0d949ff080
+
+P5-I3C   implementacijski commit   0e171b53d136987213d96c8af1aa4d0a6dcba165
+         kanonski merge            6cffd9bf319068b78fa395b29ec76d9327593062
+```
+
+**`P5-I3A/B/C = IMPLEMENTED / VERIFIED / OWNER-REVIEWED / MERGED / CANONICAL`**, i **sva tri
+zajedno zadovoljavaju kanonski skup od deset primitiva iz D-070, `RULING 1`** — nabrojan doslovno u
+bloku iznad. **Segmentacija iz D-070 je `COMPLETE`**, **`NO P5-I3D`**, i **redakcija ostaje
+`P5-I6`**. **`P5-I3` = `COMPLETE` / `VERIFIED` / `CANONICAL` / `FORMALLY CLOSED` (D-071)**, uz
+checklist Faze 5 **`49 / 14`** (`05` §6). Puni dokazni blok je u `05`, Faza 5,
+`Slice P5-I3 — FORMALNO ZATVARANJE`.
+
+**Semantička granica zatvaranja (D-071, `RULING 1`).** Označen `P5-I3` Services red znači
+**isključivo** `IMPLEMENTED / VERIFIED / OWNER-REVIEWED / CANONICAL` za **primitivnu sposobnost**;
+**ne** tvrdi da su nizvodne obaveze perzistencije, API-ja, baze i poslovne konzumacije završene.
+
+**Prenesene obaveze u vlasništvo `P5-I4` (D-071, `RULING 2`) — ne-checkbox, i nijedna nije
+oslabljena ni označena završenom:**
+
+- **`CO-P5-I3-I4-1`** — izvor `Services → pseudonym generator`. `P5-I3` je zadovoljio generator
+  pseudonima, CSPRNG kroz mockabilan seam i uppercase kanonizator. **`P5-I4` duguje**:
+  jedinstvenost pseudonima u tenant bazi (`unique (practice_id, pseudonym)`), **ograničen
+  regenerate-and-retry** uz pad nakon iscrpljenih pokušaja, **nikakav deterministički fallback**,
+  uppercase kanonizaciju i validaciju na lookup putu uz običnu jednakost, i **tenant-scoped
+  lookup**. Dispozicija: **`CARRIED_FORWARD / REQUIRED_IN_P5-I4`**.
+- **`CO-P5-I3-I4-2`** — izvor `Services → external ID HMAC`. `P5-I3` je zadovoljio `MANUAL` v1
+  normalizaciju, kanonsku HMAC poruku, HMAC-SHA256, token `h1.<hex64>` i primitive
+  ključa/konfiguracije/razdvajanja. **`P5-I4` duguje**: perzistenciju **`external_ref_hmac`**,
+  tenant-scoped lookup, kanonsku integraciju ordinacije, `source_system`-a i domene, poslovnu
+  validaciju i mapiranje grešaka, te primjenjivo rukovanje jedinstvenošću i konfliktom.
+  Dispozicija: **`CARRIED_FORWARD / REQUIRED_IN_P5-I4`**.
+
+**Vlasništvo `P5-I4` iz D-069 ostaje netaknuto i nepromijenjeno**, i **`CO-P5-I3-I4-1` /
+`CO-P5-I3-I4-2` mu se DODAJU, ne zamjenjuju ga**: konkretan **`TenantDatabaseService` facade**
+(D-056), **idempotency servis**, **`request_sha256`**, **audit writer** i **Faza-5 audit
+self-hash** (§7.5a). **Devet facade redova iz `05` §6 ostaje NEOZNAČENO.**
+
+**Tekući status slice-ova (D-071):**
+
+```text
+P5-I1      CANONICAL                                              (PR #30)
+P5-I2 / *  COMPLETE / VERIFIED / CANONICAL / FORMALLY CLOSED      (PR #40, D-068)
+P5-I3      COMPLETE / VERIFIED / CANONICAL / FORMALLY CLOSED      (D-071)
+P5-I4      NEXT / DEPENDENCY-SATISFIED / NOT AUTHORIZED / NOT STARTED
+           + D-056 facade + idempotency servis + audit writer
+           + request_sha256 + Faza-5 audit self-hash              (D-069)
+           + CO-P5-I3-I4-1 + CO-P5-I3-I4-2                        (D-071)
+P5-I5      STILL DEPENDENCY-BLOCKED / NOT AUTHORIZED / NOT STARTED
+P5-I6      NOT AUTHORIZED / NOT STARTED — vlasnik phase5-basic-v1 i redakcije
+P5-I7–I8   NOT_STARTED
+Faza 5     IN_PROGRESS
+checklist  49 / 14
+```
+
+**`P5-I4` je `DEPENDENCY-SATISFIED`, ali NIJE AUTORIZOVAN.** Obje njegove zavisnosti iz tabele
+§7.5 — `P5-I2` i `P5-I3` — su sada ispunjene, ali **podobnost nije autorizacija**: `P5-I4` traži
+**zaseban read-only preflight** i **zaseban vlasnički autorizacijski potez**. **D-071 ga ne
+autorizuje**, ne kreira nijednu granu, ne dodiruje nijedan izvorni fajl i ne započinje nijednu
+rutu ni schemu. **`P5-I4` ostaje `NOT STARTED`.**
+
+**`P5-I5` ostaje `STILL DEPENDENCY-BLOCKED`** — po tabeli §7.5 zavisi i od **`P5-I4`**, koji nije
+kanonski. **`P5-I6` ostaje `NOT AUTHORIZED` / `NOT STARTED`** i **posjeduje redakciju**; red
+`Services → redaction` u `05` §6 **ostaje neoznačen**. **Faza 5 ostaje `IN_PROGRESS`; nije
+`DONE`.** **`★` ostaje trajna regresija.** Vidi D-071 u `06`.
+
 ## 7.5a Faza-5 cross-cutting ugovori — vlasnik `P5-I4` (D-069)
 
 **Ova sekcija je ugovor, ne implementacija.** **D-069 ne implementira nijednu liniju koda**, ne

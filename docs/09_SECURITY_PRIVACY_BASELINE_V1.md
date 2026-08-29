@@ -428,6 +428,64 @@ granica i **ne kontrola pristupa**.
   posjeduje isključivo primitive bez baze, uključujući **generički** SHA-256 tekstualni helper koji
   `P5-I6` kasnije konzumira za `source_text_hash` i `redacted_text_hash`.
 
+## 8.4 Kanonski status sigurnosnih primitiva Faze 5 — `P5-I3` (D-071, 2026-08-29)
+
+**Nijedna tvrdnja iz §7, §8, §8.1, §8.2 ni §8.3 se ne slabi i ne prepisuje.** Ova sekcija
+konstatuje **koji su sigurnosni primitivi Faze 5 sada kanonski**, i — jednako obavezujuće —
+**koje granice tvrdnje ostaju netaknute**.
+
+**Kanonski primitivi.** Pod-gateovi `P5-I3A` (merge `ea0769f1bc34baf8670aa8d4b4b5dfc3433e94db`),
+`P5-I3B` (merge `13bee31fcdd5e4717eface4677e41f0d949ff080`) i `P5-I3C` (merge
+`6cffd9bf319068b78fa395b29ec76d9327593062`) su **implementirani, verifikovani, vlasnički
+pregledani i merged**. Kanonski su:
+
+- **lokalna AES-256-GCM implementacija** enkripcije/dekripcije po **D-025**, iza kanonske
+  `ENCRYPTION_SERVICE` granice;
+- **kanonski D-025 AAD builder** — jedini izvor AAD-a za Fazu 5;
+- **strogo lokalno rukovanje enkripcijskim ključem** — `LocalStaticKeyProvider`,
+  `ENCRYPTION_LOCAL_KEY` i `ENCRYPTION_KEY_VERSION`, RFC 4648 standardni Base64 bez whitespacea,
+  **tačno 32 dekodirana bajta**, uz startup/konfiguracionu grešku na svakom odstupanju;
+- **`MANUAL` v1 normalizacija eksternog identifikatora** — NFC, očuvane vodeće nule i veličina
+  slova, bez `NFKC`, maksimum **255 UTF-8 bajtova** nad post-NFC oblikom (D-070, `RULING 2`);
+- **HMAC eksterne reference** — kanonska poruka, katalog domena, HMAC-SHA256, token `h1.<hex64>`,
+  `HMAC_LOCAL_KEY` po istom Base64/32-bajtnom ugovoru;
+- **guard `K_hmac != K_enc` nad dekodiranim bajtovima**, u **konstantnom vremenu**; identične
+  dekodirane vrijednosti **obaraju start aplikacije**;
+- **normalizacija kliničkog teksta** — `CRLF`/`CR` u `LF`, NFC bez `NFKC`, očuvani tabovi,
+  unutrašnji whitespace i klinički sadržaj, odbijeni `NUL` i C0/C1 kontrolni znakovi, **tekst se
+  nikada ne skraćuje**;
+- **generički SHA-256 helper** — UTF-8 ulaz u 64 mala heksadecimalna znaka;
+- **generator pseudonima** sa **CSPRNG** izvorom entropije kroz mockabilan seam i **uppercase
+  kanonizator** pseudonima.
+
+**Granice tvrdnje — izričito očuvane.**
+
+- **Produkcijski KMS se NE tvrdi.** `P5-I3` je isporučio **lokalni/razvojni** adapter ključa.
+  **`D-OPEN-004a` ostaje otvoren** — izbor KMS/providera, produkcijski model pristupa ključu,
+  rotation cadence, recovery i uslovni per-row DEK. **Local static key i dalje nikada nije
+  produkcijski spreman.**
+- **Guard razdvajanja ključeva dokazuje nejednakost bajtova, ne nezavisnost.** Zabrana izvedenosti
+  `K_hmac` iz `K_enc` ostaje na snazi, a **provenijencija ključa ostaje obaveza
+  secret-provisioninga i operativnog upravljanja** — nikada se ne smije predstaviti kao
+  matematički dokazana ovim poređenjem.
+- **Redakcija NIJE implementirana u `P5-I3`.** **`phase5-basic-v1` ostaje u vlasništvu `P5-I6`** i
+  **nije implementiran** (D-070, `RULING 1`). **Redakcija ostaje izričito NE sigurnosna granica**
+  (§8.3), i nijedna tvrdnja iz §8.3 se ne mijenja.
+- **Nikakva implementacija baze ni API-ja se ne tvrdi.** `P5-I3` je bio **slice primitiva bez
+  baze**: nijedna migracija, schema, grant, rola, politika, trigger, ruta ni izmjena runtime
+  zavisnosti paketa. Perzistencija `external_ref_hmac`, jedinstvenost i lookup pseudonima, i sva
+  poslovna validacija su **prenesene obaveze `P5-I4`** — `CO-P5-I3-I4-2` i `CO-P5-I3-I4-1`
+  (D-071, `RULING 2`; `05` §6).
+- **`source_text_hash` i `redacted_text_hash` NISU izračunati ni perzistirani.** `P5-I3` posjeduje
+  **generički** SHA-256 primitiv i samo njega; **`P5-I6`** ga kasnije konzumira (§8.2).
+- **Profil `AXENITA` ne postoji i ne izmišlja se.** **`D-OPEN-009` ostaje `BLOCKED EXTERNAL`**
+  (`13` §7); njegovo odsustvo **ne blokira** zatvaranje `P5-I3`, jer `P5-I3` taj profil nikada nije
+  posjedovao.
+
+**Kompletnost primitiva nije kompletnost nizvodnog posla.** Kanonski status ove sekcije se **ne
+smije** čitati kao završenost perzistencije, API površine, redakcije, produkcijskog upravljanja
+ključevima ni poslovne konzumacije. Vidi D-071 u `06`.
+
 ---
 
 # 9. Secrets

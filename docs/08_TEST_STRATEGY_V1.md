@@ -572,6 +572,82 @@ sekcija **§12.8** je isto takva obaveza objavljena odlukom **D-061**; sekcija *
 - Ugovori koje testovi štite su **immutable čim postoji prvi perzistirani red**: normalizacija,
   hashing i deterministički token nisu naknadno preračunljivi.
 
+**DOKAZNA EVIDENCIJA FORMALNOG ZATVARANJA `P5-I3` (D-071, 2026-08-29) — §12.0 iznad se ne
+prepisuje.** Rečenica „**Nijedan test iz ovih sekcija nije implementiran ni izvršen**" je **tačna
+na dan svog zapisa (D-060/D-061/D-062)** i **više ne opisuje tekuće stanje** za **primitivni**
+dio obaveza koje posjeduje `P5-I3`. Ona **i dalje tačno opisuje** sve obaveze u vlasništvu
+`P5-I4`, `P5-I5`, `P5-I6` i `P5-I7`.
+
+**Kanonski pod-gateovi.**
+
+```text
+P5-I3A   implementacijski commit   65a1cd962c52f72762468d8573c9e55b31984586
+         kanonski merge            ea0769f1bc34baf8670aa8d4b4b5dfc3433e94db
+
+P5-I3B   implementacijski commit   29aae651ab487cac2c77fd7b272ce6ffa976843c
+         kanonski merge            13bee31fcdd5e4717eface4677e41f0d949ff080
+
+P5-I3C   implementacijski commit   0e171b53d136987213d96c8af1aa4d0a6dcba165
+         kanonski merge            6cffd9bf319068b78fa395b29ec76d9327593062
+```
+
+**`P5-I3A/B/C = IMPLEMENTED / VERIFIED / OWNER-REVIEWED / MERGED / CANONICAL`.**
+
+**Agregatna evidencija na kanonskom `main`-u.**
+
+```text
+unit (tekuci kanonski agregat)   35 fajlova / 882 testa    PASS
+e2e / bootstrap                   5 fajlova /  41 test     PASS
+typecheck                                                  PASS
+lint                                                       PASS
+formatiranje u vlasnistvu P5-I3                            PASS
+repo-wide format                  PASS_WITH_PRE_EXISTING_BASELINE_EXCEPTION
+```
+
+**Kanonski lanac unit dokaza i delte po pod-gateu.**
+
+```text
+526  ->  615  ->  753  ->  882
+      +89      +138     +129
+      P5-I3A   P5-I3B   P5-I3C
+```
+
+**Ovaj lanac je kanonski i mjerodavan.** Svaki raniji preflight broj koji mu protivrječi je
+**historijski netačan zapis, ne alternativni izvor**, i **ne smije se koristiti** u budućim gate
+izvještajima; historijski zapisi se pritom **ne falsifikuju**, nego se koriguju ovom anotacijom.
+
+**Repo-wide format izuzetak nije u vlasništvu `P5-I3`.** Jedini fajl je
+`apps/api/test/phase4-membership-role-assignment-constraints.security.ts`, kanonski blob
+`05002fde83376e894af9e245fa65395242debb92`. On je **predefinisan**, **nepromijenjen kroz sva tri
+pod-gatea `P5-I3`** i **namjerno nepopravljen** — popravka bi bila nepovezana mutacija izvora.
+
+**Šta je od §12 obaveza izvršeno, a šta nije.**
+
+- **§12.2** — `MANUAL` v1 normalizacija eksternog identifikatora: **izvršena na nivou primitiva**
+  (`P5-I3B`), uključujući granicu od 255 UTF-8 bajtova nad post-NFC oblikom.
+- **§12.1** — HMAC eksternog ID-a: **izvršen primitivni dio** (`P5-I3B`) — kanonska HMAC poruka,
+  HMAC-SHA256, oblik tokena `h1.<hex64>`, katalog domena i guard `K_hmac != K_enc` nad dekodiranim
+  bajtovima. **Perzistencija `external_ref_hmac` i tenant-scoped lookup NISU izvršeni** i preneseni
+  su kao **`CO-P5-I3-I4-2`** u `P5-I4`.
+- **§12.3** — pseudonim: **izvršen primitivni dio** (`P5-I3C`) — format, CSPRNG kroz mockabilan
+  seam, uppercase kanonizacija i neizvedenost iz eksternog ID-a. **Jedinstvenost u bazi, ograničen
+  retry, zabrana determinističkog fallbacka i lookup put NISU izvršeni** i preneseni su kao
+  **`CO-P5-I3-I4-1`** u `P5-I4`.
+- **§12.4** — normalizacija kliničkog teksta: **izvršena na nivou primitiva** (`P5-I3C`).
+  Mapiranje prekoračenja u **`422 VALIDATION_ERROR`** je API ponašanje i **nije izvršeno**.
+- **§12.5** — deterministička redakcija `phase5-basic-v1`: **NIJE implementirana ni izvršena**;
+  vlasnik je **`P5-I6`**.
+- **§12.6** — hashevi: **generički SHA-256 primitiv je izvršen** (`P5-I3C`). Reproducibilnost
+  `source_text_hash` i `redacted_text_hash` traži perzistenciju i dekripciju dokumenta i **nije
+  izvršena**; vlasnik je **`P5-I6`**.
+- **§12.7** — API semantika Faze 5: **NIJE izvršena**; pripada kasnijim slice-ovima.
+- **§12.8 i §12.9** — nepromijenjeni; njihov status opisuju vlastite anotacije.
+
+**Ova evidencija ne označava nijednu kućicu iz ovog dokumenta i ne zatvara Fazu 5.** Checklist
+Faze 5 je **`49 / 14`** (`05` §6), **Faza 5 ostaje `IN_PROGRESS`**, **`P5-I4` je
+`NEXT` / `DEPENDENCY-SATISFIED` / `NOT AUTHORIZED` / `NOT STARTED`**, **`P5-I5` je `STILL
+DEPENDENCY-BLOCKED`**, a **`P5-I6` je `NOT AUTHORIZED` / `NOT STARTED`**. Vidi D-071 u `06`.
+
 ## 12.1 HMAC eksternog ID-a
 
 - isti ulaz, isti domen, ista ordinacija i isti `source_system` → **isti** token (determinizam);

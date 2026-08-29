@@ -174,6 +174,32 @@ perzistirani red**. Zaseban profil **`AXENITA`** smije biti definisan **tek nako
 bude odblokirano i stvarni format identifikatora bude poznat. **Axenita normalizacija se ne
 izmišlja unaprijed**, i profil `MANUAL` v1 se ne mijenja da bi je „unaprijed pokrio".
 
+**POSLJEDICA FORMALNOG ZATVARANJA `P5-I3` (D-071, 2026-08-29) — ništa iznad se ne prepisuje i
+status ovog pitanja se ne mijenja.**
+
+- **Red `Services → text normalization` iz `05` §6 smije se zatvoriti**, jer su **svi normalizacioni
+  profili koje `P5-I3` posjeduje i koji su trenutno implementabilni** kanonski: **`MANUAL` v1**
+  normalizacija eksternog identifikatora (`P5-I3B`) i **normalizacija kliničkog teksta**
+  (`P5-I3C`).
+- **To NE tvrdi podršku za AXENITA normalizaciju.** Profil `AXENITA` **ne postoji**, nije
+  implementiran i **nijedna njegova semantika se ne izmišlja unaprijed** — ni u kodu, ni u testu,
+  ni u dokumentu.
+- **Profil `AXENITA` ostaje blokiran na autoritativnoj eksternoj semantici** — stvarnom formatu
+  identifikatora iz partnerske dokumentacije. Njegovo definisanje traži **novu verziju profila**, a
+  **`MANUAL` v1 se ne mijenja** da bi ga „unaprijed pokrio".
+- **Pitanje ostaje živo pod `D-OPEN-009`** i **nije riješeno ovom ni bilo kojom drugom Faza-5
+  odlukom.**
+
+Rezultujuća klasifikacija:
+
+```text
+D-OPEN-009 = OPEN / BLOCKED_EXTERNAL / DOES_NOT_BLOCK_P5-I3_CLOSURE
+```
+
+**Odsustvo profila `AXENITA` ne blokira zatvaranje `P5-I3`**, jer `P5-I3` taj profil **nikada nije
+posjedovao** (D-070, `RULING 1`). Obrnuto vrijedi jednako: **zatvaranje `P5-I3` ne skraćuje i ne
+oslabljuje nijednu obavezu iz ovog pitanja.** Vidi D-071, `RULING 3`, u `06`.
+
 ---
 
 # 8. Retention
