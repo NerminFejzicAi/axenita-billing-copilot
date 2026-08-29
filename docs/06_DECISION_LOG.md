@@ -10739,6 +10739,392 @@ obavezan.**
 
 ---
 
+# D-071 — Formalno zatvaranje `P5-I3`: semantika checklista, prenesene obaveze i dispozicija AXENITA
+
+- **Status:** ACCEPTED / OWNER-RATIFIED
+- **Datum:** 2026-08-29
+- **Tip:** vlasnički ratifikovan **governance zapis formalnog zatvaranja `P5-I3`**. On konstatuje
+  kanonsko stanje izvršenja tri pod-gatea `P5-I3A`, `P5-I3B` i `P5-I3C`, ratifikuje **semantiku**
+  pet Services redova checklista koji se njime zatvaraju, upisuje **dvije prenesene obaveze** u
+  vlasništvo `P5-I4` i utvrđuje **dispoziciju AXENITA normalizacije**. **Dokumentacija isključivo.**
+- **Amandman na:** **statusne tvrdnje i aritmetiku checklista**. Sigurnosni ugovori **D-018**,
+  **D-025**, **D-054**, **D-055**, **D-056**, **D-060**, **D-061**, **D-062**, **D-063**, **D-064**,
+  **D-065**, **D-066**, **D-067**, **D-068**, **D-069** i **D-070** ostaju **doslovno na snazi i
+  nepromijenjeni**. Nijedan raniji zapis se ne prepisuje; sve promjene su **aditivne anotacije** ili
+  ažuriranje **tekućeg/normativnog** stanja.
+- **Ova odluka NE implementira ništa.** Ne uvodi nijednu liniju izvornog koda, nijedan test,
+  nijednu migraciju, schemu, Prisma model, contract TypeScript, API rutu, grant, rolu, politiku ni
+  izmjenu `.env.example`. **Nijedna baza nije kontaktirana** i **nijedan test se ovom odlukom ne
+  izvršava.**
+- **Ova odluka označava tačno PET kućica** — pet Services redova iz `05` §6 nabrojanih u
+  `RULING 1`. **Nijedna druga kućica se ne mijenja**, i **nijedan novi red se ne kreira.**
+  Checklist Faze 5 prelazi sa **`49 / 9`** na **`49 / 14`**.
+- **Ova odluka NE autorizuje `P5-I4`.** `P5-I4` postaje `NEXT` i `DEPENDENCY-SATISFIED`, ali ostaje
+  **`NOT AUTHORIZED`** i **`NOT STARTED`**. **Podobnost nije autorizacija.**
+
+## Kontekst/problem — trigger
+
+D-070 je ratifikovao pet preflight odluka `P5-I3` i objavio **preporučenu segmentaciju**
+`P5-I3A` / `P5-I3B` / `P5-I3C`, uz izričitu konstataciju da **`P5-I3D` ne postoji**. Nakon zasebne
+vlasničke autorizacije, sva tri pod-gatea su implementirana, verifikovana, vlasnički pregledana i
+merged u kanonski `main`. **Implementacijski sadržaj `P5-I3` je time kompletan**, ali **formalno
+zatvaranje nije bilo izvedeno**: checklist Faze 5 je i dalje stajao na `49 / 9`, nijedan Services
+red nije bio označen, i nije postojao zapis koji utvrđuje **šta označena kućica primitiva znači**,
+a šta **ne** znači.
+
+Zatvaranje je otvorilo **tri** vlasnička pitanja:
+
+```text
+OD-P5-I3-CLOSE-1   koji tacno redovi checklista se smiju zatvoriti i sa kojom semantikom
+OD-P5-I3-CLOSE-2   kako se pri zatvaranju primitiva cuvaju nizvodne obaveze P5-I4
+OD-P5-I3-CLOSE-3   dispozicija AXENITA normalizacije naspram zatvaranja P5-I3
+```
+
+**Vlasnik je ratifikovao sva tri.** Ovaj zapis ih konstatuje kao odluke i izvodi njihovo
+dokumentaciono pomirenje. **On ne bira nijednu opciju iznova.**
+
+## Kanonsko stanje izvršenja `P5-I3`
+
+```text
+P5-I3A   implementacijski commit   65a1cd962c52f72762468d8573c9e55b31984586
+         kanonski merge            ea0769f1bc34baf8670aa8d4b4b5dfc3433e94db
+
+P5-I3B   implementacijski commit   29aae651ab487cac2c77fd7b272ce6ffa976843c
+         kanonski merge            13bee31fcdd5e4717eface4677e41f0d949ff080
+
+P5-I3C   implementacijski commit   0e171b53d136987213d96c8af1aa4d0a6dcba165
+         kanonski merge            6cffd9bf319068b78fa395b29ec76d9327593062
+```
+
+**`P5-I3A/B/C = IMPLEMENTED / VERIFIED / OWNER-REVIEWED / MERGED / CANONICAL`.**
+
+**Segmentacija iz D-070 je `COMPLETE`.** Sva tri objavljena pod-gatea su iscrpljena, i
+**`NO P5-I3D`** — redakcioni pod-gate `P5-I3` **ne postoji i nikada nije postojao**. **Redakcija
+ostaje `P5-I6`**: implementacija `phase5-basic-v1`, redakciona orkestracija, stanje obrade
+dokumenta, rukovanje statusom redakcije, semantika fallbacka za `view=redacted` i perzistencija
+dokumenta **nisu i neće biti dio `P5-I3`** (D-070, `RULING 1`).
+
+**Svih deset primitiva iz D-070 je kanonsko:**
+
+```text
+ 1  encryption servis/interface i kanonska ENCRYPTION_SERVICE granica      P5-I3A
+ 2  LocalStaticKeyProvider                                                 P5-I3A
+ 3  lokalna AES-256-GCM enkripcija/dekripcija po D-025                     P5-I3A
+ 4  kanonski D-025 AAD builder                                             P5-I3A
+ 5  MANUAL v1 normalizacija eksternog identifikatora (max 255 UTF-8 B)     P5-I3B
+ 6  HMAC servis eksterne reference i katalog domena                        P5-I3B
+ 7  startup enforcement K_hmac != K_enc nad dekodiranim bajtovima          P5-I3B
+ 8  normalizacija klinickog teksta                                         P5-I3C
+ 9  genericki SHA-256 helper: UTF-8 -> 64 mala heksadecimalna znaka        P5-I3C
+10  generator pseudonima i uppercase kanonizator pseudonima                P5-I3C
+```
+
+## Odluka
+
+### `RULING 1` — `OD-P5-I3-CLOSE-1`: obuhvat i semantika redova checklista
+
+**`OD-P5-I3-CLOSE-1 = APPROVED`.**
+
+**Tačno pet postojećih Services redova** iz `05` §6 je ovlašteno da se zatvori:
+
+```text
+Services -> pseudonym generator
+Services -> external ID HMAC
+Services -> encryption interface
+Services -> local encryption implementation
+Services -> text normalization
+```
+
+**Ne postoji šesti red.** **Generički SHA-256 nema zasebnu Faza-5 Services kućicu** — on je
+kanonski primitiv bez vlastitog reda, i **ne smije se izmisliti novi red da bi ga se označilo**.
+**Nijedan novi checkbox red se ovom odlukom ne kreira ni u jednom dokumentu.**
+
+**Ratifikovano semantičko pravilo.** Označen `P5-I3` Services red znači **isključivo** da je
+odgovarajuća **`P5-I3` primitivna sposobnost**:
+
+```text
+IMPLEMENTED / VERIFIED / OWNER-REVIEWED / CANONICAL
+```
+
+**On NE znači** da su sve kasnije obaveze **perzistencije, API-ja, baze i poslovne konzumacije**
+te sposobnosti završene. Te obaveze pripadaju kasnijim slice-ovima i **ostaju žive** — vidi
+`RULING 2`.
+
+**Redovi koji se izričito NE označavaju:** `Services → redaction` (vlasnik `P5-I6`),
+`Services → state machine`, `Services → idempotency service`, `Services → optimistic locking`,
+`Services → audit`, `Services → outbox base`, **svi API redovi**, **svi Tests redovi** i **devet
+D-056 facade redova**. **Svi ostaju neoznačeni.**
+
+### `RULING 2` — `OD-P5-I3-CLOSE-2`: očuvanje prenesenih obaveza
+
+**`OD-P5-I3-CLOSE-2 = APPROVED`.**
+
+**Označavanje reda primitiva mora sačuvati nizvodne obaveze.** Zatvaranje se izvodi uz
+**eksplicitan registar prenesenih obaveza**, tako da se nijedna obaveza ne retirira tiho. Registar
+je **ne-checkbox** zapis: on **ne smije** koristiti checkbox sintaksu i **ne smije** uticati na
+aritmetiku kućica Faze 5.
+
+Prenose se **dvije** obaveze:
+
+#### `CO-P5-I3-I4-1`
+
+```text
+ID                CO-P5-I3-I4-1
+Izvorni red       Services -> pseudonym generator
+Ciljni vlasnik    P5-I4
+Dispozicija       CARRIED_FORWARD / REQUIRED_IN_P5-I4
+```
+
+**Zadovoljeno u `P5-I3` (kanonski):**
+
+- generator pseudonima — format `P-` plus tačno 10 velikih Crockford Base32 znakova;
+- **CSPRNG** kao izvor entropije, kroz mockabilan seam, **bez determinističke grane** u
+  produkcijskom putu;
+- **uppercase kanonizator** pseudonima.
+
+**Preneseno u `P5-I4` — i dalje obavezno:**
+
+- **jedinstvenost pseudonima u tenant bazi** — `unique (practice_id, pseudonym)`;
+- **ograničen regenerate-and-retry** pri povredi jedinstvenosti, sa **padom** nakon iscrpljenih
+  pokušaja;
+- **nikakav deterministički fallback** — zabrana je apsolutna;
+- **uppercase kanonizacija i validacija na lookup putu** — `patientPseudonym` u malim slovima,
+  kanonizacija u velika, pa **obična jednakost**; **nijedan `LOWER()`, `citext` ni posebna
+  kolacija**;
+- **tenant-scoped lookup** pseudonima.
+
+#### `CO-P5-I3-I4-2`
+
+```text
+ID                CO-P5-I3-I4-2
+Izvorni red       Services -> external ID HMAC
+Ciljni vlasnik    P5-I4
+Dispozicija       CARRIED_FORWARD / REQUIRED_IN_P5-I4
+```
+
+**Zadovoljeno u `P5-I3` (kanonski):**
+
+- **`MANUAL` v1** normalizacija eksternog identifikatora, uključujući maksimum **255 UTF-8 bajtova**
+  mjeren nad post-NFC oblikom (D-070, `RULING 2`);
+- **kanonska HMAC poruka** i katalog domena;
+- **HMAC-SHA256**;
+- kanonski oblik tokena **`h1.<hex64>`**;
+- primitivi **ključa, konfiguracije i razdvajanja** — `HMAC_LOCAL_KEY`, strogi Base64 i tačno 32
+  dekodirana bajta, startup guard `K_hmac != K_enc` nad **dekodiranim** bajtovima u konstantnom
+  vremenu.
+
+**Preneseno u `P5-I4` — i dalje obavezno:**
+
+- **perzistencija `external_ref_hmac`**;
+- **tenant-scoped lookup** po tokenu;
+- **kanonska integracija ordinacije, `source_system`-a i domene** u stvarnu HMAC poruku po zahtjevu;
+- **poslovna validacija i mapiranje grešaka**;
+- **primjenjivo rukovanje jedinstvenošću i konfliktom**.
+
+**Nijedna od ove dvije obaveze ne dobija novi checkbox red**, ni sada ni kasnije, i **nijedna nije
+oslabljena, uklonjena ni označena završenom.**
+
+### `RULING 3` — `OD-P5-I3-CLOSE-3`: dispozicija AXENITA normalizacije
+
+**`OD-P5-I3-CLOSE-3 = APPROVED`.**
+
+**AXENITA normalizacija je `BLOCKED EXTERNAL` / `EXPLICITLY DEFERRED`.** Cilj očuvanja je
+**`D-OPEN-009`**, i on **ostaje neriješen i otvoren**.
+
+Kanonski utvrđeno:
+
+- **`MANUAL` v1 postoji** i kanonski je (`P5-I3B`);
+- **normalizacija kliničkog teksta postoji** i kanonska je (`P5-I3C`);
+- **AXENITA normalizacija NE postoji**;
+- **nijedna AXENITA semantika se ne izmišlja** — ni u kodu, ni u testu, ni u dokumentu;
+- **odsustvo profila `AXENITA` NE blokira zatvaranje `P5-I3`**, jer su **svi profili koje `P5-I3`
+  posjeduje i koji su trenutno implementabilni** kanonski;
+- **`D-OPEN-009` ostaje neriješen i otvoren.**
+
+Rezultujuća klasifikacija je:
+
+```text
+D-OPEN-009 = OPEN / BLOCKED_EXTERNAL / DOES_NOT_BLOCK_P5-I3_CLOSURE
+```
+
+**Red `Services → text normalization` se zatvara na osnovu `MANUAL` v1 i kliničke normalizacije, i
+NE tvrdi podršku za AXENITA normalizaciju.** Zaseban profil `AXENITA` smije biti definisan **tek
+nakon** odblokiranja `D-OPEN-009` i saznanja stvarnog formata identifikatora, i tražiće **novu
+verziju profila**, ne izmjenu `MANUAL` v1.
+
+## Aritmetika checklista — mehanički izvedena, ne pretpostavljena
+
+```text
+                        prije       poslije
+ukupno redova (§6)      49          49
+oznaceno                 9          14
+neoznaceno              40          35
+notacija                49 / 9      49 / 14
+```
+
+**Formalno zatvaranje `P5-I3` izvodi tačno pet tranzicija neoznačeno u označeno**, i **ukupan broj
+redova ostaje 49**. Kanonska skraćenica je:
+
+```text
+CHECKLIST = 49 / 14
+```
+
+**Nijedan novi checkbox red se ne kreira**, a registar prenesenih obaveza iz `RULING 2` je
+**ne-checkbox** i **ne ulazi u ovu aritmetiku**.
+
+## Agregatna dokazna evidencija `P5-I3`
+
+```text
+unit (tekuci kanonski)   35 fajlova / 882 testa    PASS
+e2e / bootstrap           5 fajlova /  41 test     PASS
+typecheck                                          PASS
+lint                                               PASS
+formatiranje u vlasnistvu P5-I3                    PASS
+repo-wide format          PASS_WITH_PRE_EXISTING_BASELINE_EXCEPTION
+```
+
+**Izuzetak repo-wide formata je predefinisan i nije u vlasništvu `P5-I3`.** Jedini fajl je:
+
+```text
+apps/api/test/phase4-membership-role-assignment-constraints.security.ts
+kanonski blob   05002fde83376e894af9e245fa65395242debb92
+```
+
+**On je nepromijenjen kroz cijeli `P5-I3`**, nije dodirnut nijednim od tri pod-gatea, i **ne smije
+se popravljati u zatvaračkom governance zahvatu.**
+
+**Historijska korekcija — kanonski lanac dokaza.** Ranije zabilježen preflight broj **`609`** kao
+pre-`P5-I3A` unit count je **bio netačan**. Kanonski lanac je:
+
+```text
+526  ->  615  ->  753  ->  882
+      +89      +138     +129
+      P5-I3A   P5-I3B   P5-I3C
+```
+
+**Netačna vrijednost `609` se ne resuscitira** ni u jednom dokumentu, izvještaju ni gate zapisu.
+
+**U `P5-I3` nije izvedena nijedna mutacija baze, API-ja ni runtime zavisnosti paketa.** Slice je
+bio **primitivi bez baze**, tačno kako je D-070 propisao.
+
+## Formalno kompletiranje
+
+Kada ovo governance zatvaranje bude **autorisano, verifikovano, vlasnički pregledano, objavljeno i
+merged u kanonski `main`**, `P5-I3` postaje:
+
+```text
+P5-I3   COMPLETE / VERIFIED / CANONICAL / FORMALLY CLOSED
+P5-I4   NEXT / DEPENDENCY-SATISFIED / NOT AUTHORIZED / NOT STARTED
+P5-I5   STILL DEPENDENCY-BLOCKED / NOT AUTHORIZED / NOT STARTED
+P5-I6   NOT AUTHORIZED / NOT STARTED
+```
+
+**Ratifikacija D-071 NE autorizuje implementaciju `P5-I4`.** Autorizacija je **zaseban vlasnički
+potez**, i traži zaseban read-only preflight po istom presedanu kao `P5-I2B`, `P5-I5` i `P5-I3`.
+
+## Razlog
+
+- **Implementacijski sadržaj je bio kompletan, a formalni zapis nije.** Neusklađenost između
+  kanonskog koda i governance zapisa je sama po sebi rizik: bez zapisa, sljedeći gate ne može
+  mehanički utvrditi šta je zatvoreno.
+- **Kućica primitiva bez semantičkog pravila je zamka.** Bez `RULING 1`, označen red
+  `Services → pseudonym generator` bi se kasnije mogao pročitati kao tvrdnja da su pseudonimi
+  gotovi, uključujući jedinstvenost u bazi i lookup put — što **nije** tačno.
+- **Registar prenesenih obaveza je jeftiniji od tihe regresije.** `CO-P5-I3-I4-1` i
+  `CO-P5-I3-I4-2` čine rezidualne obaveze **mehanički pronalazivim** u trenutku kada `P5-I4` bude
+  autorizovan.
+- **AXENITA se ne smije prešutjeti ni u jednom smjeru.** Ni tvrdnjom da je red zatvoren jer je
+  normalizacija gotova — bilo bi netačno; ni blokiranjem zatvaranja zbog nedostatka AXENITA profila
+  — bilo bi blokiranje na obavezi koju `P5-I3` nikada nije posjedovao.
+
+## Alternative
+
+- **Ne zatvarati `P5-I3` formalno i preći odmah na `P5-I4`** — **odbijeno.** Faza bi nosila
+  kanonski kod bez kanonskog zapisa, a `49 / 9` bi postala trajno netačna.
+- **Označiti i `Services → redaction`** — **odbijeno.** Redakcija je `P5-I6` (D-070, `RULING 1`);
+  označavanje bi bilo lažna tvrdnja.
+- **Uvesti novi checkbox red za generički SHA-256 i za prenesene obaveze** — **odbijeno.** Ukupan
+  broj redova Faze 5 je **49** i **ne mijenja se**; registar prenesenih obaveza je ne-checkbox
+  zapis.
+- **Zatvoriti `D-OPEN-009` kao nije-primjenjivo-u-v1** — **odbijeno.** Pitanje je blokirano na
+  **stvarnoj eksternoj zavisnosti** i ostaje otvoreno.
+- **Prepisati historijske `49 / 9` i `NOT STARTED` zapise** — **odbijeno.** Historijski zapisi su
+  tačni na dan svog zapisa; pomirenje je **aditivno**.
+
+## Posljedice — dokumentaciono pomirenje
+
+| Dokument | Zahvat |
+|---|---|
+| `06` | ovaj zapis D-071; **D-070 se ne prenumeriše i ne mijenja** |
+| `05` §0, §6 | tekući status Faze 5; **pet** kućica prelazi u označeno; dokazna sekcija formalnog zatvaranja `P5-I3`; **ne-checkbox** registar prenesenih obaveza; checklist `49 / 9` u `49 / 14` |
+| `04` §7.5 | tekući status `P5-I3` / `P5-I4` / `P5-I5` / `P5-I6`; reference `CO-P5-I3-I4-1` i `CO-P5-I3-I4-2`; **D-069 vlasništvo `P5-I4` očuvano** |
+| `08` §12 | dokazna evidencija zatvaranja: `35 / 882`, delte `+89` / `+138` / `+129`, `5 / 41`, typecheck, lint, klasifikacija format izuzetka |
+| `09` §8 | kanonski status sigurnosnih primitiva Faze 5, uz očuvane granice tvrdnje |
+| `13` §7 | aditivna anotacija posljedice zatvaranja; **`D-OPEN-009` ostaje `BLOCKED EXTERNAL`** |
+| `MANIFEST.md` | ponovno izračunati bajtovi i SHA-256 za izmijenjene dokumente; **19 redova ostaje 19** |
+
+**Nijedan drugi dokument se ne mijenja.** `02`, `03`, `10`, `README.md` i `AGENTS.md` ostaju
+netaknuti, kao i sav izvorni kod, testovi, migracije, Prisma, SQL, paketi i `.env.example`.
+
+## Šta D-071 ne mijenja
+
+- **Ne mijenja nijedan sigurnosni dizajn.** D-018, D-025 i D-054 do D-070 ostaju doslovno na snazi.
+- **Ne tvrdi produkcijski KMS.** `D-OPEN-004a` ostaje otvoren; **local static key i dalje nikada
+  nije produkcijski spreman**.
+- **Ne tvrdi da je redakcija implementirana.** `phase5-basic-v1` je `P5-I6` i **nije implementiran**.
+- **Ne tvrdi da je DB/API ponašanje `patient_references` završeno.** To je `P5-I4`.
+- **Ne zatvara Fazu 5.** Faza 5 ostaje **`IN_PROGRESS`**; **nije `DONE`**.
+- **Ne mijenja `★`.** `★` ostaje **trajna regresija**, a njegovo buduće rušenje je i dalje
+  `HARD HOLD`.
+- **Ne prepisuje nijedan historijski zapis.** `HISTORICAL_RECORDS_REWRITTEN = 0`.
+
+## Otvorena pitanja koja D-071 ne zatvara
+
+- **`D-OPEN-004a`** — KMS provider, produkcijski model pristupa ključu, rotation cadence, recovery.
+- **`D-OPEN-009`** — Axenita API scope; **`BLOCKED EXTERNAL`**, i profil `AXENITA` s njim.
+- **`D-OPEN-007`** — retention politika, koja i dalje uslovljava per-row DEK i crypto-shredding.
+
+## Zavisnosti
+
+- **`P5-I4` zavisi od `P5-I2` i `P5-I3`** (`04` §7.5). Obje zavisnosti su sada **ispunjene**, pa je
+  `P5-I4` **`DEPENDENCY-SATISFIED`** — i **`NOT AUTHORIZED`**.
+- **`P5-I5` zavisi od `P5-I2` uključujući `★`, `P5-I3` i `P5-I4`.** `P5-I4` **nije** kanonski, pa
+  `P5-I5` ostaje **`DEPENDENCY-BLOCKED`**.
+- **`P5-I6` zavisi od `P5-I3` i `P5-I5`** i ostaje **`NOT AUTHORIZED` / `NOT STARTED`**.
+
+## Granice prema budućim fazama
+
+- **`P5-I4` je `NEXT` / `DEPENDENCY-SATISFIED` / `NOT AUTHORIZED` / `NOT STARTED`.** Traži
+  **zaseban read-only preflight** i **zasebnu vlasničku autorizaciju**. **Ovom odlukom nije
+  autorizovan**, nijedna grana nije kreirana, nijedan izvorni fajl nije dodirnut i nijedna ruta ni
+  schema nije započeta.
+- **`P5-I4` zadržava nepromijenjeno cross-cutting vlasništvo iz D-069:** konkretan
+  `TenantDatabaseService` facade (D-056), **idempotency servis**, **`request_sha256`**, **audit
+  writer** i **Faza-5 audit self-hash** (`04` §7.5a). **Devet facade redova ostaje NEOZNAČENO.**
+- **`P5-I4` dodatno preuzima `CO-P5-I3-I4-1` i `CO-P5-I3-I4-2`** kao kriterije prihvatanja.
+- **`P5-I5` je `STILL DEPENDENCY-BLOCKED` / `NOT AUTHORIZED` / `NOT STARTED`.**
+- **`P5-I6` je `NOT AUTHORIZED` / `NOT STARTED`**, i **posjeduje redakciju**. Red
+  `Services → redaction` **ostaje neoznačen**.
+- **Faza 5 ostaje `IN_PROGRESS`; nije `DONE`.** Checklist je **`49 / 14`**.
+
+## Naredni obavezni gate
+
+**Vlasnički pregled D-071 i adjudikacija dokaza formalnog zatvaranja `P5-I3`**, pa zaseban
+publikacioni gate (push / PR / merge).
+
+```text
+P5-I3 FORMAL CLOSURE AUTHORED   = YES
+P5-I3 FORMAL CLOSURE CANONICAL  = NO      (do merge-a u origin/main)
+P5-I4 IMPLEMENTATION AUTHORIZED = NO
+P5-I4 IMPLEMENTATION STARTED    = NO
+```
+
+**Dok ova zatvaračka grana ne bude merged, kanonski `origin/main` i dalje nosi pred-zatvaračko
+governance stanje** — `P5-I3` bez formalnog zapisa i checklist `49 / 9`. **Tek merge-om** postaje
+kanonsko stanje `P5-I3 = COMPLETE / VERIFIED / CANONICAL / FORMALLY CLOSED` i **`49 / 14`**.
+
+---
+
 # Otvorene odluke
 
 ## D-OPEN-001 — Produkcijski OIDC provider
