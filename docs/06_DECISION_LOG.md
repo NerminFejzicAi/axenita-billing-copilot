@@ -11125,6 +11125,769 @@ kanonsko stanje `P5-I3 = COMPLETE / VERIFIED / CANONICAL / FORMALLY CLOSED` i **
 
 ---
 
+# D-072 — `P5-I4` implementacijski ugovor: transakciona idempotencija, perzistentni hash formati i semantika patient reference
+
+- **Status:** ACCEPTED / OWNER-RATIFIED
+- **Datum:** 2026-08-29
+- **Tip:** vlasnički ratifikovan **governance zapis implementacijskog ugovora `P5-I4`**. On
+  zamrzava **četrnaest** preflight odluka `OD-P5-I4-1` … `OD-P5-I4-14`, ratifikovanu segmentaciju
+  `P5-I4A` → `P5-I4B` → `P5-I4C`, perzistentne hash formate, model idempotencijske transakcije,
+  audit model i vlasništvo lookup sposobnosti. **Dokumentacija isključivo.**
+- **Amandman na:** **implementacijski ugovor `P5-I4`** i **normativni dio `03` §4, §8 i §11**.
+  Sigurnosni ugovori **D-006**, **D-018**, **D-022**, **D-025**, **D-028**, **D-029**, **D-047**,
+  **D-054**, **D-055**, **D-056**, **D-060**, **D-061**, **D-062**, **D-063**, **D-064**,
+  **D-065**, **D-066**, **D-067**, **D-068**, **D-069**, **D-070** i **D-071** ostaju **doslovno
+  na snazi i nepromijenjeni**. Nijedan raniji zapis se ne prepisuje; sve promjene su **aditivne
+  anotacije** ili ažuriranje **tekućeg/normativnog** stanja.
+- **Ova odluka NE implementira ništa.** Ne uvodi nijednu liniju izvornog koda, nijedan test,
+  nijednu migraciju, schemu, Prisma model, contract TypeScript, API rutu, grant, rolu, politiku,
+  izmjenu `package.json`/lockfilea ni izmjenu `.env.example`. **Nijedna baza nije kontaktirana** i
+  **nijedan test se ovom odlukom ne izvršava.**
+- **Ova odluka NE mijenja nijednu kućicu.** Checklist Faze 5 ostaje **`49 / 14`**. Ona objavljuje
+  **forecast** od **sedamnaest** redova koji se smiju označiti **tek pri zatvaranju roditeljskog
+  gatea `P5-I4`**, čime bi checklist prešao na **`49 / 31`**. **Forecast nije označavanje.**
+- **Ova odluka NE autorizuje `P5-I4`.** `P5-I4` ostaje **`NEXT` / `DEPENDENCY-SATISFIED` /
+  `NOT AUTHORIZED` / `NOT STARTED`**. **Ratifikacija ugovora nije autorizacija implementacije.**
+
+## Kontekst/problem — trigger
+
+D-071 je formalno zatvorio `P5-I3` i utvrdio `P5-I4` kao `NEXT` i `DEPENDENCY-SATISFIED`, uz
+prenesene obaveze `CO-P5-I3-I4-1` i `CO-P5-I3-I4-2` i nepromijenjeno cross-cutting vlasništvo iz
+D-069 — konkretan `TenantDatabaseService` facade (D-056), idempotency servis, `request_sha256`,
+audit writer i Faza-5 audit self-hash.
+
+`P5-I4` je pritom **prvi slice koji istovremeno dodiruje tri perzistentne, retroaktivno
+nepopravljive površine**: `idempotency_keys.request_sha256`, `audit_events.event_sha256` i
+`patient_references.external_patient_ref_hash`. Svaka od njih postaje **immutable čim postoji prvi
+perzistirani red** — promjena algoritma nakon prvog upisa retroaktivno obezvrjeđuje sve ranije
+redove. Uz to, `P5-I4` prvi put traži **konkretan tenant database facade** i uvodi **prvog
+konkurentnog pisca** nad `idempotency_keys`.
+
+Preflight je otvorio **četrnaest** vlasničkih pitanja:
+
+```text
+OD-P5-I4-1    ogranicen retry pri koliziji pseudonima
+OD-P5-I4-2    strategija ON CONFLICT i model idempotencijske transakcije
+OD-P5-I4-3    tacan ulaz u request_sha256
+OD-P5-I4-4    tacan perzistentni audit hash payload
+OD-P5-I4-5    porijeklo RFC 8785 implementacije
+OD-P5-I4-6    audit rjecnik P5-I4
+OD-P5-I4-7    HTTP status za nedostajuci Idempotency-Key
+OD-P5-I4-8    idempotency TTL i sadrzaj minimalnog casha
+OD-P5-I4-9    prihvaceni sourceSystem u P5-I4
+OD-P5-I4-10   duplirana eksterna referenca
+OD-P5-I4-11   obuhvat audita u P5-I4
+OD-P5-I4-12   dokazivanje facade granice
+OD-P5-I4-13   segmentacija P5-I4
+OD-P5-I4-14   smjestaj lookup sposobnosti
+```
+
+**Vlasnik je ratifikovao svih četrnaest.** Ovaj zapis ih konstatuje kao odluke i izvodi njihovo
+dokumentaciono pomirenje. **On ne bira nijednu opciju iznova.**
+
+```text
+OD-P5-I4-1    APPROVED
+OD-P5-I4-2    APPROVED
+OD-P5-I4-3    APPROVED
+OD-P5-I4-4    APPROVED
+OD-P5-I4-5    APPROVED
+OD-P5-I4-6    APPROVED
+OD-P5-I4-7    APPROVED
+OD-P5-I4-8    APPROVED
+OD-P5-I4-9    APPROVED
+OD-P5-I4-10   APPROVED
+OD-P5-I4-11   APPROVED
+OD-P5-I4-12   APPROVED
+OD-P5-I4-13   APPROVED
+OD-P5-I4-14   APPROVED
+```
+
+## `OD-P5-I4-1` — ograničen retry pri koliziji pseudonima — `APPROVED`
+
+```text
+PSEUDONYM_INSERT_MAX_ATTEMPTS = 5
+```
+
+**Značenje je doslovno pet ukupnih `INSERT` kandidata**, ne pet dodatnih pokušaja nakon prvog.
+
+- Svaki kandidat traži **svjež kanonski CSPRNG poziv** kroz mockabilan seam iz `P5-I3C`.
+- **Nijedan kandidat se ne ponovo koristi** unutar istog zahtjeva.
+- **Deterministički fallback ne postoji** — ni brojač, ni sufiks, ni izvođenje iz eksternog
+  identifikatora, `practice_id`-a ili vremena. `P5-I3` je izričito zabranio determinističku granu
+  u produkciji i ta zabrana se **ne slabi**.
+- **Iscrpljenih pet kolizija pseudonima → `500 INTERNAL_ERROR`** sa **statičnim, ne-PHI** Problem
+  Details tijelom.
+- **Broj kolizija, broj pokušaja i bilo koji kandidat pseudonima se nikada ne izlažu** — ni u
+  odgovoru, ni u Problem Details tijelu, ni u logu, ni u auditu.
+
+Ovo zatvara rezidualni dio `CO-P5-I3-I4-1` koji glasi „**ograničen regenerate-and-retry** uz pad
+nakon iscrpljenih pokušaja; **nikakav deterministički fallback**" (D-071, `RULING 2`).
+
+## `OD-P5-I4-2`, dio A — strategija konflikta pseudonima — `APPROVED`
+
+```text
+PSEUDONYM_CONFLICT_STRATEGY = TARGETED_ON_CONFLICT_DO_NOTHING_RETURNING
+PSEUDONYM_CONFLICT_STRATEGY_LONG_FORM =
+    TARGETED_INDEX_INFERENCE_ON_CONFLICT_DO_NOTHING_RETURNING
+```
+
+**Oba imena označavaju JEDNU te istu strategiju.** Kratka forma je kanonska konstanta; duga forma
+eksplicitno imenuje mehanizam — **index inference kroz column-list** — i koristi se u gate
+izvještajima. **Ne postoje dvije strategije.**
+
+### Utvrđena PostgreSQL činjenica — pojašnjenje iz vlasničke verifikacije
+
+Provjerom kanonskog migration paketa `003` utvrđeno je da je
+
+```text
+patient_references_pseudonym_key
+```
+
+**imenovani UNIQUE INDEX**, kreiran kao
+
+```sql
+CREATE UNIQUE INDEX "patient_references_pseudonym_key"
+    ON "patient_references"("practice_id", "pseudonym");
+```
+
+a **ne** table-level `UNIQUE CONSTRAINT`. PostgreSQL `ON CONFLICT ON CONSTRAINT <ime>` prihvata
+**isključivo ime constrainta**; nad imenom samostalnog indeksa **nije važeće** i pada u izvršavanju.
+**Zato se forma `ON CONFLICT ON CONSTRAINT patient_references_pseudonym_key` izričito NE
+propisuje.**
+
+### Kanonska izvršiva forma
+
+```sql
+INSERT INTO patient_references (...)
+VALUES (...)
+ON CONFLICT ("practice_id", "pseudonym") DO NOTHING
+RETURNING id, pseudonym, birth_year, sex_code, source_system, created_at;
+```
+
+**Column-list inference `("practice_id", "pseudonym")` ciljano pogađa tačno onaj objekat
+jedinstvenosti koji `OD-P5-I4-2` semantički zahtijeva** — indeks
+`patient_references_pseudonym_key` — i **nijedan drugi**.
+
+### Obavezna semantika
+
+- **Vraćen red → uspjeh.** Kandidat je prihvaćen; retry petlja se prekida.
+- **Nula redova → kolizija pseudonima** → **svjež** kandidat, sljedeći pokušaj.
+- **Maksimalno pet pokušaja** (`OD-P5-I4-1`).
+- **Bez pre-reada** — nikakav `SELECT` „da li pseudonim postoji" prije `INSERT`-a. Pre-read je
+  istovremeno race i oracle.
+- **Bez `SAVEPOINT`**, **bez ugniježdene transakcije**, **bez druge transakcije**.
+- **Bez neciljanog `ON CONFLICT DO NOTHING`.** Neciljana forma bi progutala **i** konflikt eksterne
+  reference **i** tenant konflikt, i pretvorila `OD-P5-I4-10` u tiho ništa.
+
+### Nezavisna osmotrivost druge jedinstvenosti
+
+```text
+patient_references_source_external_ref_key
+    unique (practice_id, source_system, external_patient_ref_hash)
+```
+
+**mora ostati nezavisno osmotriva.** Ciljano `ON CONFLICT` nad `("practice_id", "pseudonym")` je
+**ne dodiruje**, pa njena povreda i dalje podiže `23505` sa **tim** imenom indeksa — jedini
+dozvoljeni okidač iz `OD-P5-I4-10`.
+
+## `OD-P5-I4-2`, dio B — model idempotencijske transakcije — `APPROVED`
+
+```text
+IDEMPOTENCY_TRANSACTION_MODEL = ONE_ADMITTED_TRANSACTION
+IDEMPOTENCY_CONCURRENCY_GUARD = TRANSACTION_SCOPED_ADVISORY_LOCK
+```
+
+**Kanonski redoslijed komandi — normativan i potpun:**
+
+```text
+1.  koristi postojecu admitted pinovanu tenant transakciju (D-054, klauzula 6)
+2.  pribavi validiran request_sha256 (OD-P5-I4-3)
+3.  pokusaj NEBLOKIRAJUCI transaction-scoped advisory lock nad idempotency scopeom
+4.  lock nedostupan            -> 409 REQUEST_ALREADY_IN_PROGRESS
+5.  lock pribavljen            -> inspekcija kanonskog idempotency scopea
+6.  completed + isti hash      -> replay (OD-P5-I4-8)
+7.  completed + drugi hash     -> 409 IDEMPOTENCY_CONFLICT
+8.  postojeci nezavrsen claim  -> 409 REQUEST_ALREADY_IN_PROGRESS
+9.  odsutan                    -> kreiraj claim
+10. izvrsi poslovnu mutaciju
+11. upisi success audit dogadjaj
+12. finalizuj idempotency zapis
+13. jedan commit
+```
+
+**Obavezno:**
+
+- **Poslovni ili audit neuspjeh → rollback cijele transakcije.** Ne postoji putanja u kojoj
+  poslovni red izostane, a idempotency zapis ostane `completed`.
+- **Nema completed casha bez uspješne poslovne mutacije.**
+- **Nema lažnog success audit zapisa.**
+- **Nema druge, ugniježdene ni paralelne aplikacijske transakcije** (D-054, klauzula 8).
+- **Nema preuzimanja ustajalog claima (`stale-claim takeover`) u `P5-I4`.** Nezavršen claim je
+  `409 REQUEST_ALREADY_IN_PROGRESS`, tačka. Politika isteka i preuzimanja je zaseban budući
+  governance predmet i **ne izmišlja se ovdje**.
+
+Kanonski idempotency scope ostaje nepromijenjen (`02` §11; `03` §4):
+
+```text
+unique (practice_id, user_id, endpoint, idempotency_key)
+```
+
+### Ugovor advisory locka
+
+Identitet advisory locka je **deterministički izveden** iz **tačno** četiri komponente scopea:
+
+```text
+practice_id, user_id, endpoint, idempotency_key
+```
+
+izvođenjem:
+
+```text
+1. nedvosmislena length-prefixed UTF-8 reprezentacija scopea
+2. SHA-256 nad tom reprezentacijom
+3. prvih 8 bajtova digesta
+4. network / big-endian redoslijed
+5. interpretacija kao signed two-s-complement int64
+```
+
+**Obavezno:**
+
+- **Tačni enkodirani bajtovi i očekivani int64 izlaz MORAJU biti pinovani fiksnim implementacijskim
+  test vektorima prije prihvatanja `P5-I4C`.**
+- **Bez ad-hoc konkatenacije sa delimiterom.** Konkatenacija razdvojena znakom je ranjiva na
+  koliziju granica polja i **nije dozvoljena**; zato je propisan **length-prefixed** oblik.
+- **Bez direktne konverzije korisnički kontrolisanog stringa** u PostgreSQL lock integer.
+- **Lock ključ se ne perzistira** — ni u koloni, ni u auditu, ni u logu.
+- Lock je **transaction-scoped**; oslobađa se commitom ili rollbackom, bez eksplicitnog unlocka.
+
+**Advisory lock je mehanizam kontrole konkurencije, NE sigurnosna ni autorizacijska granica.**
+Stvarnu tenant granicu i dalje nose **RLS** i **admitted tenant sesija** (`09` §4, §4.2).
+
+## `OD-P5-I4-3` — kanonski ulaz u `request_sha256` — `APPROVED`
+
+```text
+REQUEST_SHA256_INPUT = VALIDATED_ORIGINAL_PARSED_BODY
+```
+
+```text
+request_sha256 = SHA-256( UTF8( RFC8785_JCS( validated_original_parsed_body ) ) )
+```
+
+**Kanonski pipeline:**
+
+```text
+parse -> sacuvaj ORIGINALNU parsiranu JSON vrijednost -> validiraj
+      -> JCS nad SACUVANOM parsiranom vrijednoscu -> SHA-256
+```
+
+**Ulaz NIJE:**
+
+- sirovi HTTP bajtovi;
+- pre-parse JSON tekst;
+- transformisani DTO;
+- instanca klase;
+- server-proširena ili server-defaultovana reprezentacija.
+
+**Kanonska isključenja iz D-069, `RULING 4` ostaju doslovno na snazi** i ne slabe se: HTTP metod;
+ruta/path; query string; headeri; sam `Idempotency-Key`; autentifikacijski identitet; identitet
+ordinacije; request id; server-generisani id-evi; server-izvedeni status; server timestampovi;
+svako drugo server-izvedeno polje.
+
+**Eksplicitna semantika:**
+
+- **odsutno polje != eksplicitni `null`**;
+- **redoslijed elemenata niza je značajan**;
+- **ulazni redoslijed ključeva objekta je irelevantan** — JCS ga kanonizuje;
+- **whitespace je irelevantan nakon parsiranja**;
+- **nepoznata polja se odbijaju** prije hashiranja, pa nikada ne ulaze u digest;
+- **server defaulti se NE uvode** u hashiranu vrijednost.
+
+Izlaz ostaje **64 mala heksadecimalna znaka**, što odgovara `varchar(64)` (`02` §11).
+
+## `OD-P5-I4-4` — `AUDIT_EVENT_HASH_PAYLOAD_V1` — `APPROVED`
+
+```text
+AUDIT_HASH_FORMAT = AUDIT_EVENT_HASH_PAYLOAD_V1
+event_sha256      = SHA-256( UTF8( RFC8785_JCS( AUDIT_EVENT_HASH_PAYLOAD_V1 ) ) )
+```
+
+Payload sadrži **tačno sedamnaest ključeva**, i to **imena kolona baze** iz D-069, `RULING 5`:
+
+```text
+id, practice_id, occurred_at, actor_type, actor_user_id, actor_service,
+action, resource_type, resource_id, request_id, session_id_hash,
+ip_address, user_agent_hash, previous_value, new_value, metadata,
+previous_event_sha256
+```
+
+**Isključen je isključivo `event_sha256`.**
+
+### Pravila vrijednosti
+
+**UUID.** Serijalizuje se kao **mala kanonska hyphenated** string reprezentacija. Nullable UUID
+kolone (`actor_user_id`, `resource_id`) koje su `NULL` serijalizuju se kao JSON `null`.
+
+**`occurred_at`.**
+
+```text
+AUDIT_OCCURRED_AT_FORMAT = UTC_RFC3339_6_FRACTIONAL_DIGITS_LAST_3_ZERO
+```
+
+Primjer oblika:
+
+```text
+2026-08-29T12:34:56.123000Z
+```
+
+- Aplikacija **generiše timestamp tačno jednom** prije hashiranja.
+- **Preciznost u Fazi 5 je milisekunda.**
+- Kanonski string **uvijek nosi šest decimalnih cifara**, a **posljednje tri su `000`**.
+- **Isti instant se perzistira** u `audit_events.occurred_at` (`timestamptz(6)`).
+- **Nikakav DB-generisani zamjenski timestamp** (`now()`, `CURRENT_TIMESTAMP`, default) se ne
+  koristi za ovu kolonu — put „generiši ponovo tokom `INSERT`-a" je i dalje zabranjen (D-069,
+  `RULING 5`).
+
+**JSONB kolone.** `previous_value`, `new_value` i `metadata` se ugrađuju kao **JSON vrijednosti**,
+**ne kao JSON stringovi** koji sadrže serijalizovani JSON. Moraju biti validne I-JSON / JCS-
+kompatibilne vrijednosti. Hashira se **konačna sanitizovana pohranjena** reprezentacija (`02`
+§15.4; `09` §12).
+
+**Opcionalna audit telemetrija u Fazi 5.**
+
+```text
+session_id_hash  = null
+ip_address       = null
+user_agent_hash  = null
+```
+
+**Nikakva `inet` serijalizacija se ne izmišlja.** Faza 5 ta tri polja ne popunjava, pa pitanje
+kanonskog tekstualnog oblika `inet` vrijednosti **ne nastaje** i **ne prejudicira se**.
+
+**`previous_event_sha256`.** Uvijek **prisutan** kao JSON `null`. **Nikada se ne izostavlja.**
+Faza 5 i dalje **NE tvrdi linearni hash lanac** (D-069, `RULING 5`).
+
+### Obavezna reprodukcija iz pohranjenog reda
+
+**Obavezno:** iz **pohranjenog** audit reda mora se rekonstruisati **svih sedamnaest** vrijednosti
+i **reprodukovati tačan `event_sha256`**. Test koji hashira in-memory objekat prije `INSERT`-a
+**ne zadovoljava** ovaj zahtjev.
+
+## `OD-P5-I4-5` — porijeklo RFC 8785 implementacije — `APPROVED`
+
+```text
+RFC8785_IMPLEMENTATION        = LOCAL / PINNED_OFFICIAL_VECTORS
+NEW_RUNTIME_DEPENDENCY_REQUIRED = NO
+```
+
+- **Lokalna implementacija u repozitoriju.** **Nijedan JCS paket nije ovlašten** ovom odlukom.
+- Implementacija mora reprodukovati **stvarno ponašanje RFC 8785**, uključujući kanonizaciju
+  brojeva, escapiranje stringova i sortiranje ključeva po UTF-16 code unitima.
+- **Zabranjen je reducirani vlastiti podskup predstavljen kao JCS.** „Dovoljno za naša tijela"
+  nije JCS i **ne smije se tako imenovati**.
+- Mora biti pinovana **fiksnim službenim/javnim vektorima** — **doslovni očekivani kanonski
+  izlazi** i **doslovne očekivane digest vrijednosti** tamo gdje su primjenjive.
+- **Implementacija ne smije generisati vlastite očekivane vrijednosti.** Vektor koji je izračunat
+  istom implementacijom koja se testira nije dokaz.
+
+## `OD-P5-I4-6` — audit rječnik `P5-I4` — `APPROVED`
+
+Tačni literali koje `P5-I4` upisuje:
+
+```text
+AUDIT_ACTOR_TYPE     = USER
+AUDIT_RESOURCE_TYPE  = PATIENT_REFERENCE
+AUDIT_ACTION         = PATIENT_REFERENCE_CREATED
+```
+
+- **`P5-I4` ne uvodi nijednu read akciju.**
+- **`DOCUMENT_VIEWED` se ne reciklira** ni za jedan `patient_references` događaj.
+
+## `OD-P5-I4-7` — nedostajući `Idempotency-Key` — `APPROVED`
+
+```text
+HTTP                       400
+ProblemDetails code        IDEMPOTENCY_KEY_REQUIRED
+poruka                     staticna, bez odraza ulaza
+```
+
+- **`428` se NE koristi.** `428 Precondition Required` u ovom repozitoriju pripada isključivo
+  `PRECONDITION_REQUIRED` semantici nedostajućeg `If-Match` nad šest optimistic-locking resursa
+  (`03` §5.1, §8.1; D-028). **Ta semantika se ne dira.**
+- `IDEMPOTENCY_KEY_REQUIRED` već postoji u stabilnom error code katalogu (`03` §8); D-072 mu
+  **dodaje eksplicitno mapiranje na status**, ne novi kod.
+
+## `OD-P5-I4-8` — idempotency TTL i minimalni cash — `APPROVED`
+
+```text
+IDEMPOTENCY_TTL_HOURS = 48
+expires_at            = claim_time + 48 sati
+```
+
+- **`claim_time` se generiše tačno jednom** pri kreiranju claima.
+- `48` sati je unutar kanonskog raspona `retention 24–72 sata prema endpointu` (`03` §4) i
+  **ne mijenja ga**.
+
+**Sadržaj zapisa pri kompletiranju:**
+
+```text
+response_status = 201
+response_body   = {"resourceId":"<patient-reference-uuid>"}
+completed_at    = postavljen
+locked_at       = null
+```
+
+- **Nikakav PHI ni puna reprezentacija resursa se ne cashira.** `pseudonym`, `birthYear`,
+  `sexCode`, `sourceSystem` i `createdAt` **ne ulaze** u `response_body`.
+- **Replay istog ključa sa istim hashem** izvodi se ovako: pročitaj `resourceId` iz casha →
+  **tenant-scoped immutable read** `patient_references` reda → **rekonstruiši kanonsko `201`
+  tijelo** iz `03` §11. Cash je **pokazivač**, ne kopija.
+- **Completed cash koji pokazuje na nerazrješiv resurs → `500 INTERNAL_ERROR`.** Ne izmišlja se
+  odgovor, ne vraća se `404`, i ne briše se zapis.
+- **Nema cleanupa u `P5-I4`.** Brisanje isteklih ključeva je zaseban budući predmet.
+- **Nema preuzimanja ustajalog claima.**
+- **`expires_at` se nikada kasnije ne mijenja** — ni pri kompletiranju, ni pri replayu.
+
+## `OD-P5-I4-9` — prihvaćeni `sourceSystem` — `APPROVED`
+
+```text
+SOURCE_SYSTEM_ACCEPTED = MANUAL_ONLY
+```
+
+- **`sourceSystem` je obavezan** u tijelu `POST /patient-references`.
+- **Prihvaćeno u `P5-I4`:** `MANUAL`.
+- **Odbijeno u `P5-I4`:** `AXENITA`, `CSV`, `FHIR`, `OTHER` → **`422 VALIDATION_ERROR`** sa
+  **generičkom, statičnom porukom** koja ne citira vrijednost (`03` §8).
+- **Schema enum se NE mijenja.** Vrijednosti ostaju u bazi i tipu; `P5-I4` ih odbija na
+  **aplikacijskom sloju**, jer ne posjeduje njihove normalizacijske profile.
+- **Nikakva provider normalizacija se ne izmišlja.** Profil `AXENITA` ne postoji.
+- **`D-OPEN-009` ostaje `BLOCKED EXTERNAL`** (`13` §7). `OD-P5-I4-9` **ne mijenja** njegov status
+  i ne traži izmjenu `13`.
+
+## `OD-P5-I4-10` — duplirana eksterna referenca — `APPROVED`
+
+Novi kanonski ProblemDetails kod:
+
+```text
+PATIENT_REFERENCE_ALREADY_EXISTS      HTTP 409
+```
+
+**Okidač je isključivo** povreda jedinstvenosti eksterne reference:
+
+```text
+patient_references_source_external_ref_key
+    unique (practice_id, source_system, external_patient_ref_hash)
+```
+
+**Obavezno:**
+
+- **nikakav „uspješan" `200` fallback** — duplikat nije uspjeh;
+- **nikakvo otkrivanje postojećeg reda** — bez `id`-a, bez pseudonima, bez `createdAt`-a, bez
+  ikakvog polja postojećeg resursa u odgovoru;
+- **nikakva reupotreba `IDEMPOTENCY_CONFLICT`** — to je drugačiji uzrok i drugačiji ugovor;
+- **nikakav pre-read** — postojanje se utvrđuje **isključivo** iz greške baze;
+- **nikakav globalni prevod `23505`** u ovaj kod.
+
+**Kanonsko mapiranje `23505`:**
+
+```text
+patient_references_pseudonym_key            -> ciljani retry mehanizam (OD-P5-I4-1, OD-P5-I4-2)
+patient_references_source_external_ref_key  -> 409 PATIENT_REFERENCE_ALREADY_EXISTS
+bilo koji drugi 23505                       -> 500 INTERNAL_ERROR, osim ako je zasebno kanonski
+```
+
+## `OD-P5-I4-11` — obuhvat i minimizacija audita — `APPROVED`
+
+```text
+P5_I4_AUDIT_SCOPE = SUCCESSFUL_CREATE_ONLY
+```
+
+- **Uspješan `POST /patient-references`** → **trajan** audit događaj `PATIENT_REFERENCE_CREATED`.
+- **`GET /patient-references/{id}`** → **nijedan trajan `P5-I4` audit red.** Sensitive-read audit
+  iz `09` §12 ostaje kanonska obaveza kasnijih slice-ova nad dokumentima; `P5-I4` ga **ne uvodi i
+  ne prejudicira**.
+- **Neuspješan `POST`** → **nijedan trajan failure audit red.**
+- **Poslovni `INSERT` i audit `INSERT` su u ISTOJ transakciji**; neuspjeh bilo kojeg → **rollback
+  oba**.
+
+**Minimalni sadržaj audit zapisa:**
+
+```text
+previous_value = null
+new_value      = null
+metadata       = {"sourceSystem":"MANUAL"}
+```
+
+**U audit payload se NE upisuje:**
+
+- sirova eksterna referenca;
+- HMAC eksterne reference (`external_patient_ref_hash`);
+- pseudonim;
+- `birthYear`;
+- `sexCode`;
+- sirovo tijelo zahtjeva.
+
+`resource_id` nosi UUID kreiranog `patient_references` reda i to je **jedini** identifikator
+resursa u zapisu.
+
+## `OD-P5-I4-12` — dokazivanje facade granice — `APPROVED`
+
+**Obavezne su OBJE klase dokaza. Lint pravilo samo po sebi NIJE dovoljno.**
+
+### Statički dokaz
+
+**Trajan import/source-boundary test** koji dokazuje da `P5-I4` poslovni/aplikacijski kod **ne
+može direktno koristiti**:
+
+- `PrismaService`;
+- `PrismaClient`;
+- sirove database client primitive
+
+**izvan ovlaštenog facade/adapter sloja**.
+
+### Bihevioralni dokaz
+
+**Trajan recording-session / fake-session test** koji dokazuje:
+
+- korištenje **postojeće admitted pinovane sesije**;
+- **nijednu drugu transakciju**;
+- **tenant kontekst uspostavljen prije** poslovnog iskaza;
+- **tačan redoslijed izvršenih iskaza**;
+- **nikakav caller-supplied identitet**.
+
+Oba dokaza su **kriteriji prihvatanja** i ponovo dokazuju **D-054, klauzule 6–10** i **D-056,
+klauzulu 5**, bez slabljenja ijednog od devet facade redova iz `05` §6.
+
+## `OD-P5-I4-13` — segmentacija `P5-I4` — `APPROVED`
+
+```text
+P5-I4A -> P5-I4B -> P5-I4C
+NO P5-I4D
+```
+
+Redoslijed je **strogo sekvencijalan**; nijedan pod-gate se ne izvršava prije kanoničnosti
+prethodnog.
+
+### `P5-I4A` — `TenantDatabaseService` facade + `GET` patient reference
+
+Obuhvat:
+
+- **konkretan facade**;
+- **ponovni dokaz D-054, klauzula 6–10**;
+- **trajni facade testovi** (obje klase iz `OD-P5-I4-12`);
+- **`GET /patient-references/{id}`**;
+- **tenant-scoped read**;
+- **not-found i cross-tenant su nerazlučivi `404`**;
+- potrebno contract/DTO/module ožičenje.
+
+Izvan obuhvata `P5-I4A`: `POST`; JCS; `request_sha256`; idempotencija; audit writer i audit hash.
+
+### `P5-I4B` — DB-free deterministički formati
+
+Obuhvat:
+
+- **lokalni RFC 8785 (JCS)**;
+- **`request_sha256`**;
+- **`AUDIT_EVENT_HASH_PAYLOAD_V1`**;
+- **`event_sha256` helper**;
+- **pinovani doslovni test vektori**.
+
+Izvan obuhvata `P5-I4B`: svi database writeri i `POST` ruta.
+
+### `P5-I4C` — idempotencija, audit writer i `POST`
+
+Obuhvat:
+
+- **idempotency servis**;
+- **advisory-lock kontrola konkurencije**;
+- **audit writer**;
+- **`POST /patient-references`**;
+- **konzumacija `MANUAL` v1 normalizacije**;
+- **perzistencija HMAC-a** (`external_patient_ref_hash`);
+- **ciljani retry pseudonima**;
+- **`PATIENT_REFERENCE_ALREADY_EXISTS`**;
+- **servisni lookup po pseudonimu**;
+- **servisni lookup po eksternoj referenci**;
+- **`CO-P5-I3-I4-1`**;
+- **`CO-P5-I3-I4-2`**;
+- integracioni, sigurnosni, API i concurrency dokazi.
+
+### Pravilo označavanja
+
+**Nijedan pod-gate `P5-I4A/B/C` ne označava nijednu kućicu roditeljskog checklista.** Sedamnaest
+redova iz forecasta niže označava **isključivo zatvaranje roditeljskog gatea `P5-I4`**, zasebnim
+governance potezom.
+
+## `OD-P5-I4-14` — smještaj lookup sposobnosti — `APPROVED`
+
+**`P5-I4C` implementira obje lookup sposobnosti isključivo na SERVISNOM nivou. Nova HTTP ruta se
+NE uvodi.**
+
+### Lookup po pseudonimu
+
+- koristi **kanonski `P5-I3` ASCII uppercase helper** — **bez mutacije `P5-I3` kanonizatora**;
+- uvodi **zaseban, aditivan v1 validator** sintakse;
+- sintaksa: `P-` + **tačno 10** znakova iz azbuke
+
+```text
+0123456789ABCDEFGHJKMNPQRSTVWXYZ
+```
+
+- **tenant-scoped**, **obična jednakost**;
+- **bez `LOWER()`**, **bez `citext`**, **bez posebne kolacije** (`02` §2.9.4).
+
+### Lookup po eksternoj referenci
+
+- **`MANUAL` v1 normalizacija** ulaza;
+- domen **`patient_external_ref`**;
+- **admitted `practice_id`** — nikada caller-supplied;
+- `sourceSystem` = **`MANUAL`**;
+- **HMAC-SHA256** po kanonskoj poruci (D-060; D-070);
+- **tenant-scoped lookup po jednakosti** nad `external_patient_ref_hash`.
+
+**Obavezno:**
+
+- **nikakva plaintext perzistencija** eksterne reference u lookup putu;
+- **nikakav javni lookup endpoint** u Fazi 5;
+- **`P5-I5` kasnije konzumira sposobnost lookupa po pseudonimu NEPROMIJENJENU** i ne smije je
+  forkovati ni izmisliti iznova.
+
+## Zamrzavanje scheme i sigurnosne osnove
+
+```text
+PRISMA_SCHEMA_MUTATION_REQUIRED = NO
+MIGRATION_REQUIRED              = NO
+RLS_POLICY_MUTATION_REQUIRED    = NO
+GRANT_MUTATION_REQUIRED         = NO
+```
+
+`P5-I4` **konzumira kanonsku `P5-I2` sigurnosnu osnovu nepromijenjenu** — 25 politika nad 13
+tabela sa `ENABLE` + `FORCE ROW LEVEL SECURITY`, immutability trigeri paketa `014` i kanonski
+grantovi. **Svaki kasnije otkriven zahtjev za izmjenom bilo koje od tih površina uzrokuje `HOLD` i
+novu governance odluku** — ne tihu izmjenu unutar implementacijskog gatea.
+
+## Zamrzavanje zavisnosti
+
+```text
+NEW_RUNTIME_DEPENDENCY_REQUIRED = NO
+```
+
+**Podrazumijevano stanje je `NO NEW DEPENDENCY`.** **D-072 ne ovlašćuje nijednu instalaciju
+paketa**, ni runtime ni dev. RFC 8785 se implementira lokalno (`OD-P5-I4-5`).
+
+## Forecast checklista — sedamnaest redova
+
+**Ovo je FORECAST, ne označavanje.** **Nijedna kućica se ovom odlukom ne mijenja.**
+
+Tačno **sedamnaest** postojećih redova `05` §6 zatvara se **tek pri zatvaranju roditeljskog gatea
+`P5-I4`**:
+
+**Devet redova D-056 facade obaveze** (`05` §6, „Konkretan `TenantDatabaseService` facade —
+prenesena obaveza (D-056)") — doslovan postojeći tekst, nepromijenjen.
+
+**Dva `API` reda:**
+
+```text
+POST patient reference.
+GET patient reference.
+```
+
+**Dva `Services` reda:**
+
+```text
+idempotency service.
+audit.
+```
+
+**Četiri `Tests` reda:**
+
+```text
+unknown field rejected.
+duplicate idempotency.
+idempotency conflict.
+cross-tenant GET.
+```
+
+```text
+prije D-072                          49 / 14
+forecast                             17 x [ ] -> [x]
+pri zatvaranju roditelja P5-I4       49 / 31
+poslije D-072 (mehanicki, sada)      49 / 14
+```
+
+**Nijedna trenutna kućica se ne mijenja.** Ako se mehanički broj nakon ovog zapisa razlikuje od
+`49 / 14`, zapis je neispravan i mora se ispraviti prije mergea.
+
+## Posljedice
+
+- `03` dobija `PATIENT_REFERENCE_ALREADY_EXISTS` u stabilnom error code katalogu i mapiranje na
+  `409`, plus eksplicitno mapiranje `IDEMPOTENCY_KEY_REQUIRED` → `400`; **`428` semantika
+  `If-Match` se ne dira**.
+- `04` dobija ugovor D-072 i segmentaciju `P5-I4A/B/C` u §7.5a; **status `P5-I4` ostaje
+  `NEXT` / `DEPENDENCY-SATISFIED` / `NOT AUTHORIZED` / `NOT STARTED`**.
+- `05` dobija aditivnu forecast sekciju bez ijedne promjene kućice.
+- `08` dobija obavezne dokaze `P5-I4A/B/C`; **nijedan test se ovom odlukom ne piše ni izvršava**.
+- `09` dobija sekciju minimizacije `P5-I4` audita i granice tvrdnje advisory locka.
+- `MANIFEST.md` se preračunava; **broj redova ostaje 19**.
+
+## Security/privacy uticaj
+
+- **Audit minimizacija je pooštrena, ne oslabljena**: `previous_value` i `new_value` su `null`, a
+  `metadata` nosi isključivo `{"sourceSystem":"MANUAL"}`.
+- **Nijedan Class A ni Class C identifikator ne ulazi u audit payload** — ni sirova eksterna
+  referenca, ni HMAC, ni pseudonim, ni `birthYear`, ni `sexCode`.
+- **`AUDIT_EVENT_HASH_PAYLOAD_V1` hashira konačne sanitizovane pohranjene vrijednosti**, pa nikada
+  ne pina nesanitizovan PHI.
+- **Advisory lock nije sigurnosna granica** i ne smije se tako predstavljati; tenant granicu nose
+  RLS i admitted sesija.
+- **Produkcijski KMS se i dalje ne tvrdi**; `D-OPEN-004a` ostaje otvoren.
+- **AXENITA implementacija ne postoji**; `D-OPEN-009` ostaje `BLOCKED EXTERNAL`.
+
+## Test dokaz
+
+Obavezni dokazi po pod-gateu su nabrojani u `08` §12.10 (`P5-I4A`), §12.11 (`P5-I4B`) i §12.12
+(`P5-I4C`). **D-072 ne izvršava nijedan test** i ne tvrdi nijedan rezultat.
+
+## Granice ove odluke
+
+```text
+D-072 ratifikuje ugovor          = YES
+D-072 autorizuje P5-I4           = NO
+D-072 autorizuje P5-I4A          = NO
+D-072 mijenja kucice             = NO
+D-072 mijenja schemu/RLS/grants  = NO
+D-072 instalira zavisnosti       = NO
+D-072 odblokira P5-I5            = NO
+D-072 autorizuje P5-I6           = NO
+```
+
+**`P5-I4` = `CONTRACT RATIFIED` / `NEXT` / `DEPENDENCY-SATISFIED` / `NOT AUTHORIZED` /
+`NOT STARTED`.** Traži **zaseban read-only preflight** i **zaseban vlasnički autorizacijski potez**
+za `P5-I4A`.
+
+**`P5-I5` ostaje `STILL DEPENDENCY-BLOCKED` / `NOT AUTHORIZED` / `NOT STARTED`** — po `04` §7.5
+zavisi i od `P5-I4`, koji nije kanonski. **`P5-I6` ostaje `NOT AUTHORIZED` / `NOT STARTED`** i
+**posjeduje redakciju**; red `Services → redaction` u `05` §6 **ostaje neoznačen**. **Nikakva
+encounter, document ni redakcijska implementacija nije ovlaštena.** **Faza 5 ostaje
+`IN_PROGRESS`; nije `DONE`.** **`★` ostaje trajna regresija.**
+
+## Naredni obavezni gate
+
+**Vlasnički pregled D-072 i adjudikacija dokaza**, pa zaseban publikacioni gate (push / PR /
+merge).
+
+```text
+D-072 AUTHORED                  = YES
+D-072 CANONICAL                 = NO      (do merge-a u origin/main)
+P5-I4 IMPLEMENTATION AUTHORIZED = NO
+P5-I4 IMPLEMENTATION STARTED    = NO
+CURRENT_CHECKLIST               = 49 / 14
+```
+
+**Dok ova governance grana ne bude merged, kanonski `origin/main` i dalje nosi pred-D-072
+governance stanje.**
+
+---
+
 # Otvorene odluke
 
 ## D-OPEN-001 — Produkcijski OIDC provider

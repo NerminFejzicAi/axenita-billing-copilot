@@ -169,6 +169,40 @@ redove od audita i učinilo stanje nepovratnim (`02` §29.4).
 
 ---
 
+## 4.2 Advisory lock nije tenant ni autorizacijska granica (D-072, 2026-08-29)
+
+**§4 i §4.1 iznad se NE prepisuju.** `P5-I4` uvodi **prvog konkurentnog pisca** nad
+`idempotency_keys` i sa njim **transaction-scoped advisory lock**:
+
+```text
+IDEMPOTENCY_TRANSACTION_MODEL = ONE_ADMITTED_TRANSACTION
+IDEMPOTENCY_CONCURRENCY_GUARD = TRANSACTION_SCOPED_ADVISORY_LOCK
+```
+
+**Advisory lock je isključivo mehanizam kontrole konkurencije.** On **nije** sigurnosna granica,
+**nije** autorizacijski mehanizam i **nije** identitet. **Stvarnu tenant granicu i dalje nose
+`ROW LEVEL SECURITY` politike i admitted tenant sesija** (§4, §4.1; D-006; D-054). Neuspjeh
+pribavljanja locka daje **`409 REQUEST_ALREADY_IN_PROGRESS`**, nikada pristup podacima druge
+ordinacije, i **odsustvo locka ne smije nikada biti jedina prepreka cross-tenant čitanju ili
+pisanju**.
+
+**Izvođenje identiteta locka:** `practice_id`, `user_id`, `endpoint` i `idempotency_key` →
+**length-prefixed UTF-8** reprezentacija scopea → **SHA-256** → **prvih 8 bajtova** →
+**big-endian** → **signed int64**.
+
+- **Bez ad-hoc konkatenacije sa delimiterom** — konkatenacija razdvojena znakom je ranjiva na
+  koliziju granica polja i **nije dozvoljena**.
+- **Bez direktne konverzije korisnički kontrolisanog stringa** u PostgreSQL lock integer.
+- **Lock ključ se ne perzistira** — ni u koloni, ni u auditu, ni u logu (§11).
+- **`practice_id` i `user_id` dolaze iz admitted stanja**, nikada iz tijela zahtjeva ili headera.
+- Kolizija izvedenog int64 ključa je **problem propusnosti, ne izolacije**: najgori ishod je
+  nepotreban `409`, nikada ukrštanje ordinacija.
+
+**Tačni enkodirani bajtovi i očekivani int64 MORAJU biti pinovani fiksnim test vektorima prije
+prihvatanja `P5-I4C`** (`08` §12.12). Vidi D-072 u `06` i `04` §7.5a.3.
+
+---
+
 # 5. Authentication
 
 Produkcija:
@@ -691,6 +725,111 @@ genesis semantiku. **Faza 5 te semantike ne smije prećutno izmisliti.**
 `new_value` i `metadata`, pa nikada ne pina nesanitizovan PHI. **`id` i `occurred_at` se generišu
 tačno jednom prije hashiranja** i **iste** vrijednosti se upisuju u `audit_events`. Tačan skup
 polja i puna definicija su u `04` §7.5a.2; vlasnik implementacije je slice **`P5-I4`**.
+
+---
+
+## 12.1 `P5-I4` audit minimizacija i perzistentni hash format (D-072, 2026-08-29)
+
+**Sekcija §12 iznad se NE prepisuje.** D-072 je **pooštrava** za `P5-I4` i **ne slabi** nijednu
+njenu tvrdnju.
+
+### Obuhvat audita u `P5-I4`
+
+```text
+P5_I4_AUDIT_SCOPE   = SUCCESSFUL_CREATE_ONLY
+AUDIT_ACTOR_TYPE    = USER
+AUDIT_RESOURCE_TYPE = PATIENT_REFERENCE
+AUDIT_ACTION        = PATIENT_REFERENCE_CREATED
+```
+
+- **Samo uspješan `POST /patient-references`** piše trajan audit red.
+- **`GET /patient-references/{id}` ne piše nijedan trajan `P5-I4` audit red.** Sensitive-read audit
+  iz §12 ostaje kanonska obaveza kasnijih slice-ova nad dokumentima; `P5-I4` ga **ne uvodi i ne
+  prejudicira**, i **`DOCUMENT_VIEWED` se ne reciklira**.
+- **Neuspješan `POST` ne piše failure red.**
+- **Poslovni `INSERT` i audit `INSERT` su u istoj transakciji**; neuspjeh bilo kojeg → **rollback
+  oba**. Ne postoji lažan success audit.
+
+### Minimizacija payloada
+
+```text
+previous_value = null
+new_value      = null
+metadata       = {"sourceSystem":"MANUAL"}
+```
+
+**U `P5-I4` audit payload se NIKADA ne upisuje:**
+
+- sirovo tijelo zahtjeva;
+- sirova eksterna referenca (Class A / Class C identifikator, §2, §11);
+- HMAC eksterne reference (`external_patient_ref_hash`);
+- pseudonim;
+- `birthYear`;
+- `sexCode`.
+
+`resource_id` nosi UUID kreiranog `patient_references` reda i **jedini je** identifikator resursa u
+zapisu. Ovo je **stroža** primjena §3 (data minimization) i §12, ne izuzetak od njih.
+
+### Opcionalna audit telemetrija u Fazi 5
+
+```text
+session_id_hash = null
+ip_address      = null
+user_agent_hash = null
+```
+
+Faza 5 ta tri polja **ne popunjava**. **Nikakva `inet` serijalizacija se ne izmišlja**, i pitanje
+kanonskog tekstualnog oblika te vrijednosti **ne nastaje** i **ne prejudicira se**.
+
+### `AUDIT_EVENT_HASH_PAYLOAD_V1` — perzistentna sigurnosna semantika
+
+```text
+AUDIT_HASH_FORMAT        = AUDIT_EVENT_HASH_PAYLOAD_V1
+AUDIT_OCCURRED_AT_FORMAT = UTC_RFC3339_6_FRACTIONAL_DIGITS_LAST_3_ZERO
+event_sha256             = SHA-256( UTF8( RFC8785_JCS( AUDIT_EVENT_HASH_PAYLOAD_V1 ) ) )
+```
+
+- Payload nosi **tačno sedamnaest** ključeva — imena kolona `audit_events` — i **isključuje
+  isključivo `event_sha256`**.
+- **`previous_event_sha256` je uvijek prisutan kao `null`.** Faza 5 i dalje **NE tvrdi linearni
+  hash lanac**; daje **per-event integritet**, ne tamper-evident sekvencu. Append-only garancija i
+  dalje počiva na `revoke update, delete, truncate` nad `audit_events`.
+- **Hashira se konačna sanitizovana pohranjena reprezentacija**, pa hash **nikada ne pina
+  nesanitizovan PHI**.
+- **`occurred_at` se generiše tačno jednom**, u obliku sa šest decimalnih cifara od kojih su
+  **posljednje tri `000`**, i **isti instant se perzistira**; **nikakav DB-generisani zamjenski
+  timestamp**.
+- **Format je perzistentan i retroaktivno nepopravljiv** — promjena nakon prvog upisa obezvrjeđuje
+  sve ranije redove. **Obavezna je reprodukcija `event_sha256` iz stvarnog pohranjenog reda**
+  (`08` §12.11, §12.12).
+- **RFC 8785 se implementira lokalno**, uz pinovane službene vektore; **nijedan JCS paket nije
+  ovlašten**, i **reducirani vlastiti podskup se ne smije predstavljati kao JCS**.
+
+### Hashiranje zahtjeva
+
+```text
+REQUEST_SHA256_INPUT = VALIDATED_ORIGINAL_PARSED_BODY
+request_sha256       = SHA-256( UTF8( RFC8785_JCS( validirano ORIGINALNO parsirano tijelo ) ) )
+```
+
+Hashira se **sačuvana originalna parsirana JSON vrijednost nakon validacije** — **ne** sirovi HTTP
+bajt-stream, **ne** pre-parse tekst, **ne** transformisani DTO i **ne** server-proširena
+reprezentacija. **Nepoznata polja se odbijaju prije hashiranja**, pa nikada ne ulaze u digest;
+**server defaulti se ne uvode**. Sva isključenja iz `03` §4.1 — identitet korisnika i ordinacije,
+headeri, `Idempotency-Key`, request id, server timestampovi — ostaju **doslovno na snazi**, pa
+digest **ne nosi identitet ni PHI-kontekst**.
+
+### Granice tvrdnje — izričito očuvane
+
+- **Produkcijski KMS se NE tvrdi.** `D-OPEN-004a` ostaje otvoren; local static key **nikada nije
+  produkcijski spreman**.
+- **AXENITA implementacija ne postoji.** `P5-I4` prihvata **isključivo `MANUAL`**
+  (`SOURCE_SYSTEM_ACCEPTED = MANUAL_ONLY`), a `D-OPEN-009` ostaje **`BLOCKED EXTERNAL`** (`13` §7).
+- **Nikakva izmjena scheme, migracije, RLS politike ni granta se ne tvrdi ni ne traži** —
+  `P5-I4` konzumira kanonsku `P5-I2` sigurnosnu osnovu nepromijenjenu.
+
+**`P5-I4` je `NOT AUTHORIZED` / `NOT STARTED`; ovo je ugovor, ne implementacija.** Vidi D-072 u
+`06` i `04` §7.5a.3.
 
 ---
 
