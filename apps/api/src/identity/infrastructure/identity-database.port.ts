@@ -22,6 +22,8 @@
  * everywhere so a future grant widening cannot silently widen a response.
  */
 
+import { type TenantStatement } from '../../database/tenant-statement.js';
+
 /**
  * The `users` row of the bootstrap read.
  *
@@ -475,6 +477,41 @@ export interface IdentityBootstrapSession {
    * appear in `platformRoles[]`.
    */
   findCurrentPlatformRoles(userId: string): Promise<readonly PlatformRoleRow[]>;
+
+  /**
+   * THE SMALL_ADAPTER SEAM — runs ONE FEATURE-OWNED statement on this pinned session
+   * (`P5_I4A_SESSION_REUSE = SMALL_ADAPTER`; D-073; D-054 clauses 6–8; D-056 clause 5).
+   *
+   * IT IS DELIBERATELY THE ONLY METHOD HERE THAT NAMES NO TABLE. Every other method above is a
+   * statement this port OWNS, because it is part of the identity/tenant admission chain. A
+   * feature read is not: `03` §11 gives the patient-reference statement to the patient-reference
+   * feature, and D-073 states that "feature-specifično patient-reference DB ponašanje ostaje u
+   * feature adapteru". Adding `findPatientReference(...)` here would move it out of the feature
+   * and into the identity port, one method per feature, until this interface described the whole
+   * application.
+   *
+   * SO THE FEATURE BRINGS THE STATEMENT AND THE SESSION BRINGS THE CONNECTION. The statement is
+   * built once, in the feature adapter, fully parameterised; this method executes it on the very
+   * connection the authenticated transaction pinned, inside that same transaction. It opens no
+   * transaction, nests none, starts none in parallel, establishes no identity and sets no
+   * `app.practice_id`. There is nothing it can do that the caller of `runBootstrapTransaction`
+   * could not already do — which is exactly what makes it a SMALL adapter rather than a second
+   * database stack.
+   *
+   * IT IS NOT A BACK DOOR INTO RAW SQL FOR BUSINESS CODE. Reaching it requires building a
+   * {@link TenantStatement}, which requires `Prisma.sql`, which application services and
+   * controllers may not import at all — a permanent static import/source-boundary test proves
+   * that, and a behavioural recording-session test proves the ordering (D-072, `OD-P5-I4-12`;
+   * `08` §12.10, points 1 and 2). The accepted route from an application service to this method
+   * is: the admitted request, the `TenantDatabaseService` facade, then the feature adapter.
+   *
+   * CALL ORDER IS LOAD-BEARING. A tenant feature statement runs under the `02` §17.1-shaped
+   * tenant policy of its own table, so it must be reached only AFTER `set_request_context`. With
+   * no `app.practice_id` established the policy predicate is `practice_id = NULL` and the
+   * statement returns zero rows — fail closed — which is not a substitute for calling it in the
+   * right place.
+   */
+  runTenantStatement<TRow>(statement: TenantStatement): Promise<readonly TRow[]>;
 }
 
 /**

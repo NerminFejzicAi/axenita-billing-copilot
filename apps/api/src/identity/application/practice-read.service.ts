@@ -118,7 +118,12 @@ export class PracticeReadService {
         // `app.user_id` this session already established, so this route cannot name an identity
         // even by mistake (D-054 clause 12).
         const admitted = await this.tenantRequests.admit(session, {
-          requestedPracticeId: request.requestedPracticeId,
+          // `PRACTICE_PATH`, stated explicitly (D-073, `OD-P5-I4A-1`:
+          // `EXISTING_PRACTICE_ROUTES_TENANT_SCOPE = PRACTICE_PATH`). The path of this route
+          // carries the practice identity, so the mandatory path segment travels inside the
+          // variant that has one and is genuinely compared with the admitted header context.
+          // Behaviour is UNCHANGED: a path/header mismatch remains `403 ACCESS_DENIED`.
+          scope: { mode: 'PRACTICE_PATH', requestedPracticeId: request.requestedPracticeId },
           practiceContextHeader: request.practiceContextHeader,
           requiredPermission: REQUIRED_PERMISSION,
         });
