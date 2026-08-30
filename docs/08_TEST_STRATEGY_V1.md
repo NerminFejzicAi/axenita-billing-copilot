@@ -1337,6 +1337,46 @@ Faze 5 je i dalje **`49 / 14`** uz **`PHASE5_CHECKBOX_TRANSITIONS = 0`**. **`P5-
 `P5-I5` i `P5-I6` ostaju `NOT AUTHORIZED`**, pa §12.11 i §12.12 ostaju **neautorizovane**. Vidi
 D-074 u `06`, `04` §7.5a, `05` §6 i `03` §11.
 
+**DOKAZNO PRECIZIRANJE (D-075, 2026-08-30) — §12.10 i §12.10a se NE prepisuju i NE slabe.**
+D-075 **ne dodaje nijednu novu dokaznu obavezu** i **nijednu ne uklanja**; on **precizira kako se
+mjere već postojeće tačke 8–11 iznad**, i to isključivo u dijelu koji je nezavisni vlasnički
+review `P5-I4A` prijavio kao ambiguitetan: odnos zabrane odražavanja malformisanog `{id}`-a i
+**cross-cutting** RFC 9457 člana **`instance`**, koji **dijeljeni globalni Problem Details filter**
+popunjava **uniformno za svaku rutu** iz **request targeta** (`03` §8, §3.5, D-008).
+
+```text
+MALFORMED_ID_NO_REFLECTION_EXTENDS_TO_SHARED_INSTANCE = NO
+```
+
+Za **malformisane identifikatore**, dokaz mora biti precizan ovako:
+
+- **status**, **`code`**, **`title`**, **`detail`** i **svi endpoint-autorski semantički članovi**
+  su **invarijantni preko različitih malformisanih ulaza** (tačka 9 se mjeri nad tim članovima);
+- **nema `errors[]`** i **nema namjenskog field errora** za ovaj slučaj (tačka 10);
+- **nema echo-a malformisanog identifikatora** ni u jednom **endpoint-autorskom** semantičkom
+  članu — ni cijelog, ni skraćenog, ni kao prefiks/sufiks, ni transformisanog ili enkodiranog, i
+  **nema nijednog novouvedenog člana odgovora** koji bi ga nosio (tačka 10);
+- **`instance` smije i dalje biti jednak dijeljenom request targetu** — on je cross-cutting
+  metapodatak dijeljenog filtera, **nije endpoint-autorski član**, i **izuzima se** iz sweepa
+  odražavanja, tačno kao u postojećim kanonskim sigurnosnim testovima Faze 3 i Faze 4;
+- **`requestId` smije varirati** kao korelacijski metapodatak (`03` §3.5);
+- **`MALFORMED_RESOURCE_UUID_DB_READS = 0`** ostaje obavezan dokaz (tačka 11) — **nijedan
+  `patient_references` upit** i **nikakav cross-tenant lookup**;
+- **nikakva razlika u odgovoru zavisna od postojanja resursa**, tenant vlasništva ni stanja baze.
+
+**Nijedan postojeći dokaz se ne slabi.** Dokazi **zaštićenog `404` para** (tačke 12–14),
+**nula-čitanja resursa** (tačka 11), **tenant admissiona** (tačke 1–7), **RLS-a** (§12.9.4) i
+**svaki drugi `P5-I4A` sigurnosni dokaz** ostaju **doslovno na snazi**. Kada se za **nepostojeću**
+i za **cross-tenant** patient reference koristi **isti request target**, `instance` je **nužno
+identičan**, pa se ekvivalencija `404` para **ne popušta**.
+
+**Nijedan test iz §12.10 ni §12.10a nije implementiran ni izvršen, i D-075 ih ne izvršava** i ne
+tvrdi nijedan rezultat. Checklist Faze 5 je i dalje **`49 / 14`** uz
+**`PHASE5_CHECKBOX_TRANSITIONS = 0`**. **Nikakva izmjena koda nije autorizovana odlukom D-075**;
+implementacijski kandidat `P5-I4A` ostaje **nekanonski** i traži **zasebnu re-adjudikaciju**.
+**`P5-I4B`, `P5-I4C`, `P5-I5` i `P5-I6` ostaju `NOT AUTHORIZED`.** Vidi D-075 u `06`, `03` §11 i
+`04` §7.5a.
+
 ## 12.11 `P5-I4B` — deterministički formati bez baze (D-072, `OD-P5-I4-3`, `OD-P5-I4-4`, `OD-P5-I4-5`)
 
 **Svi dokazi ove sekcije su DB-free.** Formati su **perzistentni i retroaktivno nepopravljivi**, pa

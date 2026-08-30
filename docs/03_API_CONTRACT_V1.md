@@ -1420,6 +1420,72 @@ zasebnog gatea izvršenja**; rečenica iznad opisuje **pred-D-074 stanje** i **n
 **`P5-I4A IMPLEMENTATION STARTED = NO`**; `P5-I4B`, `P5-I4C`, `P5-I5` i `P5-I6` ostaju
 **`NOT AUTHORIZED`**. Vidi D-074 u `06`.
 
+### Semantika `instance`-a u odgovoru na malformisan `{id}` (D-075, 2026-08-30)
+
+**Ovo je aditivno normativno pojašnjenje.** Podsekcija „Malformisan `{id}` — odbijanje prije
+čitanja baze" iznad se **NE prepisuje**, **nijedan njen zahtjev se ne uklanja**, i **nijedan
+raniji primjer Problem Details tijela se ne mijenja**. §8 se **ne mijenja**.
+
+D-075 rješava **tačno jednu** interpretativnu prazninu: da li zabrana odražavanja malformisanog
+`{id}`-a obuhvata i **cross-cutting** RFC 9457 član **`instance`**, koji **dijeljeni globalni
+Problem Details filter** popunjava **uniformno za svaku rutu** iz **request targeta** (§8, §3.5,
+D-008).
+
+```text
+MALFORMED_ID_NO_REFLECTION_EXTENDS_TO_SHARED_INSTANCE = NO
+```
+
+**Aplikacijski kontrolisane semantičke površine** odgovora `400 VALIDATION_ERROR` na malformisan
+`{id}` **moraju ostati statične i nezavisne od ulaza**:
+
+- `type` semantika;
+- `title`;
+- HTTP status;
+- stabilni error `code`;
+- `detail`;
+- `errors[]` / sadržaj field errora;
+- svaki endpoint-specifičan extension član;
+- **svaki novouvedeni član odgovora**.
+
+Malformisani identifikator se **ne smije** kopirati, interpolirati, skraćivati, prefiksirati,
+sufiksirati, transformisati, enkodirati ni na koji drugi način ponavljati u ijedan **takav
+endpoint-autorski** član, i **nikakav namjenski echo identifikatora se ne uvodi**.
+
+**Postojeći cross-cutting request/envelope metapodaci nisu obuhvaćeni tom zabranom:**
+
+| Član | Vlasnik | Ponašanje |
+|---|---|---|
+| **`instance`** | dijeljeni globalni Problem Details filter | **request target**, uniformno za svaku rutu — **nepromijenjeno** |
+| **`requestId`** | zajednička Problem Details / korelacijska infrastruktura (§3.5) | **korelacijski metapodatak**, smije varirati po zahtjevu |
+
+Formulacija „**statično Problem Details tijelo**" iznad se stoga za `P5-I4A` čita kao **statičan
+aplikacijski semantički sadržaj greške**, a **ne** kao zahtjev da cijeli RFC 9457 dokument bude
+**bajt-identičan preko različitih request targeta i različitih `requestId`-eva**.
+
+```text
+STATICAN SEMANTICKI SADRZAJ GRESKE          = OBAVEZNO
+BAJT-IDENTICAN CIJELI DOKUMENT PREKO
+RAZLICITIH REQUEST TARGETA / REQUEST ID-eva = NIJE OBAVEZNO
+```
+
+**Sigurnosna granica ostaje nepromijenjena.** `MALFORMED_RESOURCE_UUID_DB_READS = 0` ostaje na
+snazi; **nijedan `patient_references` lookup se za malformisanu sintaksu ne izvodi**; semantički
+`400` **ne varira** po postojanju resursa, tenant vlasništvu ni stanju baze; **nikakav existence
+oracle se ne stvara** (`09` §18.1, `T1`). Reprodukcija **request targeta koji je pozivalac sam
+poslao** nije otkrivanje postojanja i **ne nosi nijednu server-izvedenu informaciju o resursu**.
+
+**Zaštićeni `404` par se ne mijenja.** Kada se za **nepostojeću** i za **cross-tenant** patient
+reference koristi **isti request target**, `instance` je **nužno identičan**, jer je request
+target identičan; ekvivalencija para se ovim **ne popušta**.
+
+**D-075 ne traži i ne autorizuje** uklanjanje `instance`-a, redakciju `instance`-a,
+endpoint-specifično prepisivanje `instance`-a, supstituciju route templatea, izmjenu globalnog
+Problem Details filtera, izmjenu postojećeg practice-route ponašanja, novi oblik greške ni novi
+error kod. **Ovo je pojašnjenje ugovora, ne implementacija**; **nikakva izmjena koda nije
+autorizovana odlukom D-075**, `P5-I4A` implementacijski kandidat ostaje **nekanonski**, a
+`P5-I4B`, `P5-I4C`, `P5-I5` i `P5-I6` ostaju **`NOT AUTHORIZED`**. Vidi D-075 u `06`, `04` §7.5a i
+`08` §12.10a.
+
 ---
 
 # 12. Encounter API

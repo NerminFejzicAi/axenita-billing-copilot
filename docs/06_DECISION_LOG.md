@@ -12786,6 +12786,388 @@ verifikovan.**
 
 ---
 
+# D-075 — `P5-I4A` semantika `instance`-a u Problem Details odgovoru na malformisan `{id}`
+
+- **Status:** ACCEPTED / OWNER-RATIFIED — **LOCAL / NOT CANONICAL**
+- **Datum:** 2026-08-30
+- **Tip:** vlasnički ratifikovan **governance zapis interpretativnog pomirenja**. On rješava
+  **tačno jednu** ambiguitetnu tačku između kanonskog cross-cutting ugovora Problem Details-a
+  (**D-008**, `03` §8, `03` §3.5) i kanonskog `P5-I4A` pravila o malformisanom identifikatoru
+  (**D-073**, `03` §11, `08` §12.10a, **D-074**, klauzule 12–15). **Dokumentacija isključivo.**
+- **Amandman na:** **ništa.** D-075 je **čisto aditivan interpretativni zapis**. **D-008**,
+  **D-055**, **D-069**, **D-070**, **D-071**, **D-072**, **D-073** i **D-074** ostaju **doslovno
+  na snazi i nepromijenjeni**; **nijedan raniji zapis se ne prepisuje**, **nijedan raniji primjer
+  Problem Details tijela se ne mijenja** i **D-072, D-073 i D-074 ostaju bajt-identični**.
+- **Ova odluka NE implementira ništa.** Ne uvodi nijednu liniju izvornog koda, nijedan test,
+  nijednu migraciju, schemu, Prisma model, contract TypeScript, API rutu, grant, rolu, politiku,
+  izmjenu `package.json`/lockfilea ni izmjenu `.env.example`. **Nijedna baza nije kontaktirana** i
+  **nijedan test se ovom odlukom ne izvršava.**
+- **Ova odluka NE mijenja nijednu kućicu.** Checklist Faze 5 ostaje **`49 / 14`**;
+  **`PHASE5_CHECKBOX_TRANSITIONS = 0`**.
+- **Ova odluka NE mijenja `ProblemDetailsFilter`** ni ijedno postojeće practice/settings error
+  ponašanje. **Nijedna izmjena koda nije autorizovana odlukom D-075.**
+
+## Kontekst/problem — trigger
+
+Nad lokalno commitovanim, **nepublikovanim** implementacijskim kandidatom `P5-I4A`
+(`1d84e2210f81ac5efbc131cb7f3f27971e8a417f`) izveden je **nezavisan vlasnički review**. Njegov
+ishod je:
+
+```text
+P5_I4A_OWNER_REVIEW_HOLD_RECONCILIATION_REQUIRED
+```
+
+Review je kandidata našao **konformnim na svakoj pregledanoj `P5-I4A` osi**, uz **tačno jednu**
+blokirajuću governance ambiguitetnu tačku:
+
+> Da li kanonsko pravilo „nema odražavanja" malformisanog `{id}`-a (D-073 / `03` §11 / `08`
+> §12.10a / D-074, klauzule 14–15) obuhvata i **cross-cutting** RFC 9457 član **`instance`**,
+> koji **dijeljeni `ProblemDetailsFilter`** popunjava iz **request targeta**?
+
+### Kanonska osnova ambiguiteta
+
+Ambiguitet je **stvaran**, a ne konstruisan. Obje strane postoje u kanonskom tekstu:
+
+| Kanonska površina | Tekst koji stvara ambiguitet |
+|---|---|
+| **D-008**, `03` §8 | standardno Problem Details tijelo **sadrži `instance`** (primjer: `"instance": "/api/v1/encounters"`) i `requestId` |
+| `03` §3.5 | **`requestId` je obavezan korelacijski član** na svakom problem dokumentu |
+| **D-073**, `03` §11 | „**statično Problem Details tijelo**"; „**`id` se ne odražava** — ni cijel, ni skraćen, ni kao prefiks ili sufiks" |
+| **D-073**, `08` §12.10a, tačka 9 | „**Problem Details tijelo je nepromjenljivo i ne zavisi od ulaza**" |
+| **D-073**, `08` §12.10a, tačka 10 | „**`id` se ne odražava**" |
+| **D-074**, klauzule 14–15 | „**Statično ProblemDetails tijelo**"; „**Nikakvo odražavanje malformisanog identifikatora u tijelu odgovora**" |
+
+Tehnička činjenica koja te dvije površine sudara je **postojeća, pred-`P5-I4A`** i
+**cross-cutting**: jedini globalni filter
+
+```text
+apps/api/src/common/problem-details/problem-details.filter.ts
+```
+
+popunjava `instance` **uniformno za svaku rutu API-ja** vrijednošću `request.originalUrl`. Za
+zahtjev
+
+```text
+GET /api/v1/patient-references/<malformisan-id>
+```
+
+`instance` stoga **nužno** sadrži malformisani segment patha — ne zato što ga endpoint upisuje,
+nego zato što je to **request target koji je pozivalac sam poslao**.
+
+### Postojeći kanonski presedan istog razlikovanja
+
+Repozitorij **već** pravi upravo to razlikovanje, i to u kanonskim, zelenim sigurnosnim testovima
+Faze 3 i Faze 4, koji **prethode** `P5-I4A`-u:
+
+| Kanonski dokaz | Ponašanje |
+|---|---|
+| `apps/api/test/phase4-practice-settings-patch.security.ts` | `instance` je **namjerno isključen** iz disclosure sweepa; sweep se izvodi nad **endpoint-autorskim** članovima `title` / `detail` / `code` |
+| `apps/api/test/phase4-practice-settings-read.security.ts` | `instance` je opisan kao **jedini član koji legitimno odražava practice id, jer ga je KLIJENT poslao u URL-u**; tvrdi se **zasebno**, a `detail` mora ostati generički |
+| `apps/api/test/phase3-practice-read.security.ts` | `instance` i `requestId` se **izuzimaju** pri poređenju dva problem dokumenta; ostatak tijela mora biti identičan |
+| `apps/api/test/phase4-practice-settings-read.security.ts` | postojeći test **„STATIC document — two failures differ only in their correlation members"** |
+
+Drugim riječima: kanonska praksa repozitorija **već** čita „statično tijelo" kao **statičan
+aplikacijski semantički sadržaj**, uz **dozvoljenu varijaciju cross-cutting request/korelacijskih
+članova**. `P5-I4A` tekst tu praksu nije eksplicitno preslikao, i to je **jedina** praznina koju
+D-075 zatvara.
+
+## Vlasnička odluka
+
+```text
+MALFORMED_ID_NO_REFLECTION_EXTENDS_TO_SHARED_INSTANCE = NO
+```
+
+**Zabrana odražavanja malformisanog patient-reference identifikatora NE obuhvata postojeći
+cross-cutting RFC 9457 član `instance`** kada ga **dijeljeni `ProblemDetailsFilter` popunjava
+uniformno iz request targeta.**
+
+Vlasnik dalje utvrđuje da je ovo **usko interpretativno pomirenje**, a **ne** široko popuštanje
+kontrola odražavanja ulaza.
+
+## Normativna interpretacija
+
+Za malformisan `{id}` nad `GET /api/v1/patient-references/{id}` i ishod
+**`400 VALIDATION_ERROR`**:
+
+### Površine koje MORAJU ostati nezavisne od malformisanog identifikatora
+
+Sljedeći **aplikacijski kontrolisani semantički** članovi Problem Details dokumenta ostaju
+**statični i nezavisni od ulaza**:
+
+1. `type` semantika;
+2. `title`;
+3. HTTP status;
+4. stabilni error `code`;
+5. `detail`;
+6. `errors[]` / sadržaj field errora;
+7. svaki endpoint-specifičan extension član;
+8. svaki novouvedeni član odgovora.
+
+Malformisani identifikator se **ne smije** kopirati, interpolirati, skraćivati, prefiksirati,
+sufiksirati, transformisati, enkodirati **ni na koji drugi način ponavljati** u ijedan takav
+endpoint-autorski semantički član. **Endpoint ne smije uvesti nikakav namjenski echo
+identifikatora.**
+
+### Površine koje NISU obuhvaćene tom zabranom
+
+Sljedeći **postojeći cross-cutting** request/envelope metapodaci **nisu** predmet zabrane:
+
+- **`instance`**, kada ga popunjava **jedini dijeljeni `ProblemDetailsFilter`** iz **request
+  targeta**;
+- **request/korelacijski metapodaci** poput **`requestId`**, već uređeni zajedničkom Problem
+  Details infrastrukturom (`03` §3.5, D-008).
+
+Za `instance` se **postojeće cross-cutting ponašanje čuva nepromijenjeno**.
+
+### Šta ova odluka NE traži i NE autorizuje
+
+```text
+uklanjanje `instance`-a                                = NE
+redakcija `instance`-a                                 = NE
+endpoint-specificno prepisivanje `instance`-a          = NE
+supstitucija route templatea                           = NE
+izmjena globalnog ProblemDetailsFilter-a               = NE
+izmjena postojeceg practice-route Problem Details-a    = NE
+novi oblik greske                                      = NE
+novi error kod                                         = NE
+```
+
+## Petnaest evidentiranih klauzula
+
+1. **Ova odluka je uska.** Ona rješava **isključivo** odnos malformisanog `{id}`-a i dijeljenog
+   `instance` člana na ruti `GET /api/v1/patient-references/{id}`.
+2. **Ne stvara opštu dozvolu odražavanja ulaza.** Nijedna druga ruta, nijedan drugi član i
+   nijedan drugi ulaz nisu ovim otvoreni.
+3. **Aplikacijski kontrolisana semantička polja greške ostaju statična i nezavisna od ulaza.**
+4. **`instance` ostaje cross-cutting request-target metapodatak**, u vlasništvu dijeljene Problem
+   Details infrastrukture, a **ne** endpointa.
+5. **`requestId` ostaje korelacijski metapodatak** (`03` §3.5) i smije varirati po zahtjevu.
+6. **Nikakav namjenski field error za malformisan `{id}` nije dozvoljen** — `errors[]` ostaje
+   odsutan za ovaj slučaj.
+7. **Malformisani `id` se ne smije pojaviti** u `detail`-u, `title`-u, `code`-u, `errors[]`-u ni
+   u ijednom extension članu.
+8. **`MALFORMED_RESOURCE_UUID_DB_READS = 0` ostaje nepromijenjeno.**
+9. **Zaštićeni `404` par ostaje nepromijenjen** i **nerazlučiv**.
+10. **Nikakva mutacija `ProblemDetailsFilter`-a nije potrebna ni autorizovana.**
+11. **Nijedno postojeće practice/settings error ponašanje se ne mijenja.**
+12. **D-075 ne izvodi nikakvu mutaciju implementacije `P5-I4A`.**
+13. **Postojeći implementacijski commit `1d84e221…` ostaje `NON-CANONICAL`** i traži **kasniju
+    vlasničku re-adjudikaciju**.
+14. **`P5-I4B`, `P5-I4C`, `P5-I5` i `P5-I6` ostaju `NOT AUTHORIZED`.**
+15. **Pet zamrznutih mutacijskih predikata D-073/D-074 ostaje nepromijenjeno** (vidi ispod).
+
+## Pomirenje terminologije „statičnog tijela"
+
+Kanonske formulacije
+
+```text
+"staticno ProblemDetails tijelo"
+"Problem Details tijelo je nepromjenljivo i ne zavisi od ulaza"
+```
+
+se za `P5-I4A` čitaju kao da se odnose na **APLIKACIJSKI KONTROLISAN SEMANTIČKI SADRŽAJ GREŠKE**,
+a **ne** na cross-cutting request/korelacijske metapodatke čija je svrha **identifikacija
+zahtjeva/pojave greške**.
+
+```text
+STATICAN SEMANTICKI SADRZAJ GRESKE                    = OBAVEZNO
+BAJT-IDENTICAN CIJELI RFC 9457 DOKUMENT PREKO
+RAZLICITIH REQUEST TARGETA / REQUEST ID-eva           = NIJE OBAVEZNO
+```
+
+**Ovo pojašnjenje važi isključivo za razrješenje ambiguiteta D-073/D-074 koji je identifikovao
+nezavisni vlasnički review `P5-I4A`.** **Ne generalizuje se** ni na jednu drugu API semantiku.
+
+## Granica sigurnosnog obrazloženja
+
+Sigurnosno značenje pravila o malformisanom `{id}`-u ostaje **nepromijenjeno**:
+
+1. Aplikacija **ne smije otkriti** da li malformisana vrijednost odgovara, liči na, ili bi mogla
+   identifikovati ijedan pohranjeni resurs.
+2. Aplikacija **ne smije izvesti existence lookup** nad `patient_references` za malformisanu
+   sintaksu.
+3. **`MALFORMED_RESOURCE_UUID_DB_READS = 0`** ostaje na snazi.
+4. Semantički `400` odgovor **ne smije varirati** po postojanju resursa, tenant vlasništvu ni
+   stanju baze.
+5. **Caller-known request-target metapodatak u `instance`-u nije otkrivanje postojanja** samo
+   zato što reprodukuje request target koji je **taj isti pozivalac poslao**.
+6. Ova odluka **ne dopušta** odražavanje ulaza u `detail`, `title`, `code`, `errors[]`, extension
+   članove ni u ijednu novu endpoint-kontrolisanu semantičku površinu.
+7. **Nikakav novi cross-tenant diskriminator ni existence oracle nije dozvoljen** (`09` §18.1,
+   `T1`).
+
+## Zaštićeni `404` par — nepromijenjen
+
+D-075 **ne mijenja** zaštićeni `404` ugovor. Za **validan** UUID:
+
+| Slučaj | Ishod |
+|---|---|
+| validan UUID + **nepostojeća** patient reference | **`404 RESOURCE_NOT_FOUND`** |
+| validan UUID + patient reference **druge ordinacije** | **`404 RESOURCE_NOT_FOUND`** |
+
+Ta dva slučaja ostaju **osmotrivo nerazlučiva** pod kanonskim `P5-I4A` pravilima. Kada se za oba
+uslova koristi **isti request target**, `instance` je **nužno identičan**, jer je **request target
+identičan**. **Nijedan zahtjev ekvivalencije `404` para se ovom odlukom ne popušta.**
+
+## Posljedica po implementaciju `P5-I4A`
+
+Tekući implementacijski kandidat je:
+
+```text
+1d84e2210f81ac5efbc131cb7f3f27971e8a417f
+```
+
+Njegov status je:
+
+```text
+LOKALNO COMMITOVAN
+NIJE PUSHOVAN
+NIJE KANONSKI
+```
+
+Nezavisni vlasnički review našao ga je konformnim na svakoj pregledanoj `P5-I4A` osi **osim** u
+neriješenoj governance interpretaciji `instance`-a.
+
+```text
+NIJEDNA IZMJENA KODA NIJE AUTORIZOVANA ODLUKOM D-075.
+```
+
+D-075 je **isključivo governance zapis pomirenja**. **Nakon** što D-075 postane kanonski,
+postojeća implementacija `P5-I4A` mora proći **zasebnu re-adjudikaciju / nastavak vlasničkog
+reviewa** koji utvrđuje da li je commit `1d84e221…` konforman **KAKAV JESTE**. **Prihvatanje se
+ne smije tvrditi prije tog reviewa.**
+
+## Autorizacijski firewall
+
+```text
+P5-I4A PUBLIKACIJA                = NOT AUTHORIZED
+P5-I4A PRIHVATANJE                = NOT AUTHORIZED
+P5-I4A AMANDMAN IMPLEMENTACIJE    = NOT AUTHORIZED
+ProblemDetailsFilter IZMJENA      = NOT AUTHORIZED
+P5-I4B IMPLEMENTATION AUTHORIZED  = NO
+P5-I4C IMPLEMENTATION AUTHORIZED  = NO
+P5-I5  IMPLEMENTATION AUTHORIZED  = NO
+P5-I6  IMPLEMENTATION AUTHORIZED  = NO
+```
+
+D-075 **ne autorizuje** ni `POST /patient-references`, ni `request_sha256`, ni JCS kanonizaciju,
+ni idempotency servis, ni audit writer, ni audit hashiranje, ni schema izmjene, ni migracije, ni
+RLS izmjene, ni grant izmjene, ni rola izmjene, ni runtime zavisnosti, ni ijedan prelazak kućice
+Faze 5.
+
+## Zamrznuti mutacijski predikati — nepromijenjeni
+
+```text
+PRISMA_SCHEMA_MUTATION_REQUIRED = NO
+MIGRATION_REQUIRED = NO
+RLS_POLICY_MUTATION_REQUIRED = NO
+GRANT_MUTATION_REQUIRED = NO
+NEW_RUNTIME_DEPENDENCY_REQUIRED = NO
+```
+
+## Mehaničko računovodstvo checklista
+
+```text
+prije D-075                            49 / 14
+poslije D-075 (mehanicki, sada)        49 / 14
+PHASE5_CHECKBOX_TRANSITIONS            0
+EXPECTED_POST_P5_I4_CLOSURE_CHECKLIST  49 / 31
+```
+
+**Nijedna kućica se ne mijenja**, i **nijedan checklist red se ne dodaje**. Dokazni blok
+roditeljske D-056 obaveze **se još ne popunjava**.
+
+## Posljedice
+
+- `03` §11 dobija **jedno aditivno normativno pojašnjenje** malformisanog `{id}` slučaja;
+  **nijedan endpoint, permisija, rola, polje, error kod, statusni kod ni ugovor odgovora se NE
+  mijenja**, i **nijedan raniji pasus se ne prepisuje**.
+- `04` §7.5a dobija **aditivno pojašnjenje** uz postojeći opis „Malformisan resource UUID", jer
+  taj tekst **doslovno ponavlja** ambiguitetnu formulaciju „statično Problem Details tijelo, bez
+  odražavanja `id`-a" i bez pojašnjenja bi reprodukovao istu prazninu.
+- `08` §12.10a dobija **aditivno precizirane dokazne zahtjeve** za tačke 8–11; **nijedna
+  postojeća dokazna obaveza se ne uklanja i nijedna se ne slabi**.
+- `05` §6 se **NE mijenja**. Taj dokument **ne ponavlja** ambiguitetnu formulaciju, **nijedna
+  kućica se ne mijenja**, i D-075 **ne mijenja nijedan statusni model** koji `05` vodi. Izostanak
+  anotacije u `05` je **namjeran**, po pravilu **najužeg aditivnog pomirenja**.
+- `03` §8 se **NE mijenja**. Opšti Problem Details ugovor **već** nosi `instance` i `requestId` i
+  **nije izvor ambiguiteta**; prepisivanje te sekcije bi bilo **šire od pomirenja**.
+- `MANIFEST.md` se preračunava; **broj redova ostaje 19**.
+- **`02`, `09`, `12` i `15` se NE mijenjaju.**
+
+## Security/privacy uticaj
+
+- **Nijedna sigurnosna granica se ne mijenja.** `FORCE RLS`, tenant admission sekvenca, zaštićeni
+  `404` par i šestočlani javni DTO ostaju **nepromijenjeni**.
+- **Nikakav existence oracle se ne stvara** (`09` §18.1, `T1`). `instance` reprodukuje **isključivo
+  request target koji je pozivalac sam poslao** i **ne nosi nijednu server-izvedenu informaciju o
+  resursu** — ni postojanje, ni vlasništvo, ni stanje baze.
+- **Odluka pooštrava, a ne olakšava, na semantičkoj strani**: eksplicitno nabraja **osam**
+  aplikacijski kontrolisanih površina koje moraju ostati nezavisne od ulaza, uključujući **svaki
+  novouvedeni član odgovora**, čime zatvara i buduće pokušaje uvođenja echo polja.
+- **Nula čitanja baze prije odbijanja malformisane sintakse ostaje obavezno.**
+
+## Test dokaz
+
+**D-075 ne izvršava nijedan test i ne tvrdi nijedan rezultat.** Obavezni dokazi `P5-I4A` ostaju
+**tačno** `08` §12.10 i §12.10a; D-075 im **ne dodaje nijednu novu obavezu** i **nijednu ne
+uklanja** — on **precizira** kako se već postojeće tačke 8–11 mjere. **Nijedan test iz §12.10 ni
+§12.10a nije implementiran ni izvršen ovom odlukom.**
+
+## Granice ove odluke
+
+```text
+D-075 rjesava malformed-id / `instance` interpretaciju = YES
+D-075 prosiruje zabranu odrazavanja na `instance`      = NO
+D-075 dopusta odrazavanje u detail/title/code/errors   = NO
+D-075 dopusta novi echo clan                           = NO
+D-075 mijenja ProblemDetailsFilter                     = NO
+D-075 mijenja practice/settings error ponasanje        = NO
+D-075 mijenja zasticeni 404 par                        = NO
+D-075 mijenja MALFORMED_RESOURCE_UUID_DB_READS         = NO
+D-075 mijenja D-008 / D-072 / D-073 / D-074            = NO
+D-075 mijenja kucice                                   = NO
+D-075 mijenja schemu/migracije/RLS/grants              = NO
+D-075 izvrsava implementaciju                          = NO
+D-075 mijenja implementacijski commit 1d84e221...      = NO
+D-075 prihvata implementaciju P5-I4A                   = NO
+D-075 dopusta publikaciju P5-I4A                       = NO
+D-075 tvrdi da je D-075 kanonski                       = NO
+D-075 autorizuje P5-I4B                                = NO
+D-075 autorizuje P5-I4C                                = NO
+D-075 odblokira P5-I5                                  = NO
+D-075 autorizuje P5-I6                                 = NO
+```
+
+**Faza 5 ostaje `IN_PROGRESS`; nije `DONE`.** **`★` ostaje trajna regresija.**
+
+## Naredni obavezni gate
+
+**Vlasnički pregled D-075 i adjudikacija dokaza**, pa **zaseban publikacioni gate** (push / PR /
+merge) i **post-publikaciona verifikacija**. **Tek nakon toga** smije se otvoriti **zasebna
+re-adjudikacija implementacijskog kandidata `P5-I4A`** koja utvrđuje da li commit
+`1d84e2210f81ac5efbc131cb7f3f27971e8a417f` **kakav jeste** zadovoljava kanonski ugovor.
+
+```text
+D-075 AUTHORED                                = YES
+D-075 CANONICAL                               = NO      (do merge-a u origin/main)
+D-075 OWNER RULING MADE                       = YES
+P5-I4A IMPLEMENTATION CANDIDATE               = LOCAL / NOT CANONICAL
+P5-I4A IMPLEMENTATION PUBLICATION             = BLOCKED
+P5-I4A IMPLEMENTATION ACCEPTED                = NO
+P5-I4B IMPLEMENTATION AUTHORIZED              = NO
+P5-I4C IMPLEMENTATION AUTHORIZED              = NO
+P5-I5  IMPLEMENTATION AUTHORIZED              = NO
+P5-I6  IMPLEMENTATION AUTHORIZED              = NO
+OWNER_DECISIONS_REQUIRED_FOR_P5_I4A           = 0
+CURRENT_CHECKLIST                             = 49 / 14
+```
+
+**Dok ova governance grana ne bude merged, kanonski `origin/main` i dalje nosi pred-D-075
+governance stanje.** **Implementacijski commit `1d84e221…` mora ostati nepushovan.**
+
+---
+
 # Otvorene odluke
 
 ## D-OPEN-001 — Produkcijski OIDC provider
