@@ -260,3 +260,58 @@ export function clinicalTextRejected(reason: ClinicalTextRejectionReason): Crypt
     `The clinical text is not accepted by the normalisation pipeline (${reason}).`,
   );
 }
+
+/**
+ * The RFC 8785 rule that one value violated on its way into the canonicaliser.
+ *
+ * A CLOSED SET OF COMPILE-TIME LITERALS, exactly like {@link ClinicalTextRejectionReason} and
+ * for the same reason: the value being canonicalised is a request body or an audit payload, so
+ * it may carry PHI. Naming the RULE keeps every fragment of that value — the offending
+ * character, its offset, the property name that held it — out of the message (09 §9, §11).
+ *
+ * `ILL_FORMED_UNICODE` is the conformance case RFC 8785 §3.2.2.2 makes mandatory: a lone
+ * surrogate terminates the operation instead of being escaped.
+ */
+export type JsonCanonicalisationRejectionReason =
+  'ILL_FORMED_UNICODE' | 'NON_FINITE_NUMBER' | 'UNSUPPORTED_VALUE';
+
+/**
+ * One value was refused by the RFC 8785 canonicaliser.
+ *
+ * The refusal is deliberate and total: a canonicaliser that repaired its input would hash a
+ * document the caller never supplied, and the digest it produced could never be reproduced by a
+ * conforming implementation on the other side of the contract. P5-I4B has no HTTP surface, so
+ * this is not mapped to an API error code.
+ */
+export function jsonCanonicalisationRejected(
+  reason: JsonCanonicalisationRejectionReason,
+): CryptoOperationError {
+  return new CryptoOperationError(
+    `The value is not accepted by the RFC 8785 canonicaliser (${reason}).`,
+  );
+}
+
+/**
+ * The `AUDIT_EVENT_HASH_PAYLOAD_V1` rule that one audit event violated.
+ *
+ * A CLOSED SET OF COMPILE-TIME LITERALS for the same reason as every other rejection reason in
+ * this file: an audit event carries actor, resource and metadata material, and none of it may
+ * reach the message.
+ */
+export type AuditEventHashRejectionReason = 'NON_CANONICAL_UUID' | 'INVALID_OCCURRED_AT';
+
+/**
+ * One audit event was refused by the `AUDIT_EVENT_HASH_PAYLOAD_V1` formatter.
+ *
+ * `event_sha256` is written once and never recomputed, so a payload built from a malformed
+ * value would be wrong permanently. Both rules are therefore fail-closed rather than
+ * best-effort: an uppercase or unhyphenated UUID is refused rather than lowercased, and an
+ * unrepresentable instant is refused rather than clamped.
+ */
+export function auditEventHashRejected(
+  reason: AuditEventHashRejectionReason,
+): CryptoOperationError {
+  return new CryptoOperationError(
+    `The audit event is not accepted by the AUDIT_EVENT_HASH_PAYLOAD_V1 formatter (${reason}).`,
+  );
+}
