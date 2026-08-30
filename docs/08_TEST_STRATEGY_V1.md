@@ -1377,6 +1377,70 @@ implementacijski kandidat `P5-I4A` ostaje **nekanonski** i traži **zasebnu re-a
 **`P5-I4B`, `P5-I4C`, `P5-I5` i `P5-I6` ostaju `NOT AUTHORIZED`.** Vidi D-075 u `06`, `03` §11 i
 `04` §7.5a.
 
+**KANONSKI DOKAZNI STATUS (D-076, 2026-08-30) — §12.10 i §12.10a se NE prepisuju, NE proširuju i
+NE slabe.** D-076 je **post-merge pomirenje i formalno zatvaranje pod-gatea `P5-I4A`**. On **ne
+dodaje nijednu novu dokaznu obavezu** i **nijednu ne uklanja**; obavezni dokazi `P5-I4A` ostaju
+**tačno** §12.10 i §12.10a, uz **obje obavezne dokazne klase facadea** (statički
+import/source-boundary dokaz **i** bihevioralni recording-session dokaz).
+
+**Dokazi §12.10 i §12.10a su implementirani, izvršeni i kanonski.** Formulacije iznad — „nijedan
+test iz §12.10 ni §12.10a nije implementiran ni izvršen", „kada `P5-I4A` bude zasebno autorizovan"
+i „implementacijski kandidat `P5-I4A` ostaje nekanonski" — opisuju **pred-D-076 stanje**,
+**historijski su tačne** i **ne prepisuju se**; **mjerodavan je ovaj statusni model.**
+
+```text
+IMPLEMENTATION COMMIT   1d84e2210f81ac5efbc131cb7f3f27971e8a417f
+IMPLEMENTATION TREE     20ddb7b2eb81cfe33f932b47de2c6a25d9e0dae3
+PULL REQUEST            #52   (MERGED)
+MERGE COMMIT            1247eea20a07d547a6912ed931c72c5b310a8702
+PARENT 1                9d4854230145ccee0eab4470952a4599f66541a9
+PARENT 2                1d84e2210f81ac5efbc131cb7f3f27971e8a417f
+CANONICAL TREE          4d6bd5f6c540c2e4ba01d91f803978b61c2f27dd
+REVIEWED BLOBS          29 / 29 BYTE-IDENTICAL
+IMPLEMENTATION DRIFT    ZERO
+D-075 PRESERVED         YES
+```
+
+**Kanonski verifikacijski stack `P5-I4A`, šest nivoa:**
+
+```text
+pnpm typecheck        PASS
+pnpm lint             PASS
+pnpm test             PASS    40 fajlova /  967 testova
+pnpm test:e2e         PASS     5 fajlova /   41 test
+pnpm test:integration PASS     4 fajla   /   46 testova
+pnpm test:security    PASS    22 fajla   /  813 testova
+
+AGREGAT               71 fajlova / 1867 testova / 0 padova / 0 preskoka
+```
+
+**Provenijencija dokaza — precizno razdvojena.** Poruka implementacijskog commita `1d84e221…`
+atestira **pet imenovanih verifikacijskih traka** dostupnih tamo — `typecheck`, `test`, `test:e2e`,
+`test:integration`, `test:security` — i **ne sadrži `lint` ni ijedan broj fajlova/testova**; ovaj
+zapis to **ne tvrdi drugačije**. **Kompletan šestonivovski stack sa brojevima iznad reprodukovan je
+nezavisnim vlasničkim reviewom, re-adjudikacijom i post-publikacionom verifikacijom** nad kanonskim
+`origin/main` `1247eea2…` i **vlasnički je ratifikovan D-076**. **Brojevi fajlova su nezavisno
+mehanički izvedeni iz kanonskog stabla `4d6bd5f6`** primjenom `include` obrazaca vitest
+konfiguracija — `src/**/*.spec.ts` = 40, `test/**/*.e2e-spec.ts` = 5, `test/**/*.integration.ts` =
+4, `test/**/*.security.ts` = 22.
+
+**Trajni sigurnosni dokazni vlasnik `P5-I4A`** je
+`apps/api/test/phase5-patient-reference-read.security.ts`, uveden implementacijskim commitom i
+očuvan **bajt-identično** u kanonskom stablu. **Nijedan postojeći dokaz nije oslabljen**: zaštićeni
+`404` par, `MALFORMED_RESOURCE_UUID_DB_READS = 0`, tenant admission, RLS (§12.9.4) i pomirenje
+D-075 ostaju **doslovno na snazi**.
+
+**Dispozicija nalaza:** `M-1` = `RESOLVED`; `M-2` = `RESOLVED`; `L-1` i `L-2` =
+`NON-BLOCKING / ACCEPTED AS-IS`; `I-1` … `I-4` = `INFORMATIONAL / NON-BLOCKING`; `F-07` =
+`CONFORMANT_AND_NON_CIRCULAR`. **Nijedna izmjena testa, koda, granta ni ugovora nije autorizovana**;
+**nijedan nalaz nije promovisan u bloker**.
+
+**Nijedan test se odlukom D-076 ne implementira, ne mijenja i ne izvršava.** Checklist Faze 5 je i
+dalje **`49 / 14`** uz **`PHASE5_CHECKBOX_TRANSITIONS = 0`**. **`P5-I4B` je podoban za zaseban
+autorizacijski preflight tek u post-D-076-kanonskom stanju, i ostaje `NOT AUTHORIZED` /
+`NOT STARTED`**; **`P5-I4C`, `P5-I5` i `P5-I6` ostaju `NOT AUTHORIZED`**, pa **§12.11 i §12.12
+ostaju neautorizovane i njihovi dokazi odsutni**. Vidi D-076 u `06`, `04` §7.5a, `05` §6 i `03` §11.
+
 ## 12.11 `P5-I4B` — deterministički formati bez baze (D-072, `OD-P5-I4-3`, `OD-P5-I4-4`, `OD-P5-I4-5`)
 
 **Svi dokazi ove sekcije su DB-free.** Formati su **perzistentni i retroaktivno nepopravljivi**, pa

@@ -4072,6 +4072,71 @@ EXPECTED_POST_P5_I4_CLOSURE_CHECKLIST  = 49 / 31
 i **`STILL DEPENDENCY-BLOCKED`**, a red `Services → redaction` **ostaje neoznačen**. Vidi D-074 u
 `06`, `04` §7.5a, `03` §11 i `08` §12.10a.
 
+## P5-I4A FORMAL CLOSURE ANNOTATION — D-076 (2026-08-30)
+
+**Ovo je ne-checkbox anotacija.** Ona **ne dodaje nijedan checklist red** i **ne mijenja nijednu
+kućicu**; markeri checkboxa se u njoj **namjerno ne koriste**. **Nijedan pasus, blok ni anotacija
+iznad se ne prepisuje.**
+
+- **D-076 je post-merge pomirenje i formalno zatvaranje pod-gatea `P5-I4A`.** `P5-I4A` je
+  **`IMPLEMENTED` / `OWNER-REVIEWED` / `OWNER-ACCEPTED` / `MERGED` / `CANONICAL` /
+  `PUBLICATION-VERIFIED` / `VERIFICATION PASS` / `FORMALLY CLOSED`**, uz
+  **`P5-I4A UNRESOLVED OWNER DECISIONS = 0`**.
+- **Kanonski dokaz:** implementacijski commit `1d84e2210f81ac5efbc131cb7f3f27971e8a417f`,
+  implementacijsko stablo `20ddb7b2eb81cfe33f932b47de2c6a25d9e0dae3`, **PR #52 (MERGED)**, merge
+  commit `1247eea20a07d547a6912ed931c72c5b310a8702` sa roditeljima
+  `9d4854230145ccee0eab4470952a4599f66541a9` i `1d84e221…`, kanonsko stablo
+  `4d6bd5f6c540c2e4ba01d91f803978b61c2f27dd`, **29 / 29 blobova bajt-identično**, **nula
+  implementacijskog drifta**, **D-075 očuvan**.
+- **Verifikacija:** `typecheck` `PASS`, `lint` `PASS`, `test` `PASS` (40 / 967), `test:e2e` `PASS`
+  (5 / 41), `test:integration` `PASS` (4 / 46), `test:security` `PASS` (22 / 813); agregat
+  **71 fajl / 1867 testova / 0 padova / 0 preskoka**. Razdvojena provenijencija je u D-076 (`06`).
+- **Anotacije D-073 i D-074 iznad opisuju pred-D-076 stanje** — „`P5-I4A` ostaje `NOT AUTHORIZED` /
+  `NOT STARTED`", „`P5-I4A IMPLEMENTATION EXECUTION = PROHIBITED`" i
+  „`P5-I4A IMPLEMENTATION STARTED = NO`" **historijski su tačne** i **ne prepisuju se**;
+  **mjerodavan je ovaj statusni model.**
+- **Formalno zatvaranje nije odmah efektivno** — postaje efektivno tek nakon što D-076 sam bude
+  autorstvom dovršen, nezavisno vlasnički pregledan, vlasnički prihvaćen, objavljen/merged,
+  kanonski na `origin/main` i post-publikaciono verifikovan.
+- **Nijedna kućica se ovim zatvaranjem ne označava.** Kanonsko pravilo ostaje: **pod-gate
+  `P5-I4A` / `P5-I4B` / `P5-I4C` ne prevodi nijedan red roditeljskog checklista `P5-I4`.** Iako
+  `P5-I4A` posjeduje dokaz za `API → GET patient reference`, `Tests → cross-tenant GET` i dio devet
+  D-056 facade obaveza, ti redovi ostaju neoznačeni do **zasebnog zatvaranja roditeljskog gatea
+  `P5-I4`, nakon `P5-I4C`**.
+- **Dispozicija nalaza:** `M-1` = `RESOLVED`; `M-2` = `RESOLVED`; `L-1` i `L-2` =
+  `NON-BLOCKING / ACCEPTED AS-IS`; `I-1` … `I-4` = `INFORMATIONAL / NON-BLOCKING`; `F-07` =
+  `CONFORMANT_AND_NON_CIRCULAR`. **Nijedna implementacijska korekcija nije autorizovana.**
+- **`CO-P5-I3-I4-1` i `CO-P5-I3-I4-2` ostaju neispunjeni** ne-checkbox kriteriji prihvatanja
+  roditeljskog `P5-I4`; **ne dobijaju vlastite redove** ni sada ni kasnije.
+
+```text
+                        prije       poslije
+ukupno redova (§6)      49          49
+oznaceno                14          14
+neoznaceno              35          35
+
+CURRENT_CHECKLIST                      = 49 / 14
+PHASE5_CHECKBOX_TRANSITIONS            = 0
+P5-I4 FORECAST ROWS UNCHECKED          = 17
+EXPECTED_POST_P5_I4_CLOSURE_CHECKLIST  = 49 / 31
+```
+
+```text
+P5-I4B  NEXT / DEPENDENCY-SATISFIED / CONTRACT DETERMINISTIC /
+        AUTHORIZATION-PREFLIGHT ELIGIBLE (tek post-D-076-kanonski) /
+        NOT AUTHORIZED / NOT STARTED
+P5-I4C  NOT AUTHORIZED / NOT STARTED
+P5-I4   INCOMPLETE / OPEN
+P5-I5   STILL DEPENDENCY-BLOCKED / NOT AUTHORIZED / NOT STARTED
+P5-I6   NOT AUTHORIZED / NOT STARTED
+```
+
+**Podobnost nije autorizacija.** `P5-I4B` traži **zaseban implementacijski autorizacijski
+preflight** i **zaseban vlasnički autorizacijski potez**; **D-076 ne izvodi nijedan od njih**, i
+`P5-I4B` autorizacijski preflight **ne smije početi** prije nego što D-076 bude vlasnički
+prihvaćen, kanonski i post-publikaciono verifikovan. Red `Services → redaction` **ostaje
+neoznačen** i ostaje u vlasništvu `P5-I6`. Vidi D-076 u `06`, `04` §7.5a, `03` §11 i `08` §12.10a.
+
 ## Schema
 
 - [x] patient_references.

@@ -2046,6 +2046,106 @@ implementacije `P5-I4A`**. Ne-blokirajuće napomene `M-1` (table-level `SELECT` 
 sesije) su **napomene implementacijske discipline**, **ne** autorizacija izmjene granta ni
 arhitektonskog vlasništva. Vidi D-074 u `06`, `03` §11, `05` §6 i `08` §12.10a.
 
+### Formalno zatvaranje pod-gatea `P5-I4A` (D-076, 2026-08-30)
+
+**Ova sekcija je aditivna.** Nijedna ugovorna klauzula §7.5a.1–§7.5a.3, tabela segmentacije,
+sekcija D-073, sekcija D-074 ni pomirenje D-075 iznad se **ne prepisuje**; sve ostaju **doslovno na
+snazi**. D-076 je **činjenično post-merge pomirenje** i **formalno zatvaranje** pod-gatea `P5-I4A`.
+
+```text
+P5-I4A IMPLEMENTATION             = IMPLEMENTED
+P5-I4A OWNER REVIEW               = COMPLETE
+P5-I4A OWNER ACCEPTANCE           = YES
+P5-I4A MERGED                     = YES
+P5-I4A CANONICAL                  = YES
+P5-I4A PUBLICATION VERIFIED       = YES
+P5-I4A VERIFICATION               = PASS
+P5-I4A UNRESOLVED OWNER DECISIONS = 0
+P5-I4A FORMAL CLOSURE             = YES   (uslovno efektivno, vidi nize)
+```
+
+**Kanonski dokazni blok:**
+
+```text
+IMPLEMENTATION COMMIT   1d84e2210f81ac5efbc131cb7f3f27971e8a417f
+IMPLEMENTATION TREE     20ddb7b2eb81cfe33f932b47de2c6a25d9e0dae3
+PULL REQUEST            #52   (MERGED)
+MERGE COMMIT            1247eea20a07d547a6912ed931c72c5b310a8702
+PARENT 1                9d4854230145ccee0eab4470952a4599f66541a9
+PARENT 2                1d84e2210f81ac5efbc131cb7f3f27971e8a417f
+CANONICAL TREE          4d6bd5f6c540c2e4ba01d91f803978b61c2f27dd
+REVIEWED BLOBS          29 / 29 BYTE-IDENTICAL
+IMPLEMENTATION DRIFT    ZERO
+D-075 PRESERVED         YES
+```
+
+**Verifikacijski stack** — `typecheck` `PASS`, `lint` `PASS`, `test` `PASS` (40 / 967),
+`test:e2e` `PASS` (5 / 41), `test:integration` `PASS` (4 / 46), `test:security` `PASS` (22 / 813);
+agregat **71 fajl / 1867 testova / 0 padova / 0 preskoka**. **Provenijencija je razdvojena** u
+D-076 (`06`): poruka implementacijskog commita atestira pet imenovanih traka bez brojeva, a
+kompletan šestonivovski stack sa brojevima je reprodukovan nezavisnim vlasničkim reviewom i
+post-publikacionom verifikacijom.
+
+**Odluka o zatvaranju je donesena, ali zatvaranje NIJE odmah efektivno.** Ono postaje efektivno tek
+nakon što D-076 sam bude autorstvom dovršen, nezavisno vlasnički pregledan, vlasnički prihvaćen,
+objavljen/merged, kanonski na `origin/main` i post-publikaciono verifikovan.
+
+```text
+P5-I4A FORMAL CLOSURE OWNER DECISION = APPROVED
+P5-I4A FORMAL CLOSURE EFFECTIVE      = NO
+```
+
+**Formulacije iznad** koje glase `P5-I4A IMPLEMENTATION AUTHORIZED = NO`,
+`P5-I4A IMPLEMENTATION STARTED = NO`, `P5-I4A IMPLEMENTATION EXECUTION = PROHIBITED` i
+„implementacijski kandidat `P5-I4A` ostaje **nekanonski**" opisuju **pred-D-076 stanje**,
+**historijski su tačne** i **ne prepisuju se**; **mjerodavan je ovaj statusni model.**
+
+**Dispozicija nalaza.** `M-1` = **`RESOLVED`**; `M-2` = **`RESOLVED`**; `L-1` i `L-2` =
+**`NON-BLOCKING / ACCEPTED AS-IS`**; `I-1` … `I-4` = **`INFORMATIONAL / NON-BLOCKING`**; `F-07` =
+**`CONFORMANT_AND_NON_CIRCULAR`**. **Nijedan nalaz ne autorizuje izmjenu koda, granta, scheme,
+testa ni ugovora**, i **nijedan nije promovisan u bloker**. Puna tabela je u D-076 (`06`).
+
+**Zamrznuti mutacijski predikati ostaju nepromijenjeni:**
+
+```text
+PRISMA_SCHEMA_MUTATION_REQUIRED = NO
+MIGRATION_REQUIRED = NO
+RLS_POLICY_MUTATION_REQUIRED = NO
+GRANT_MUTATION_REQUIRED = NO
+NEW_RUNTIME_DEPENDENCY_REQUIRED = NO
+```
+
+**Status narednog pod-gatea:**
+
+```text
+P5_I4B_DEPENDENCIES_SATISFIED                          = YES
+P5_I4B_CONTRACT_DETERMINISTIC                          = YES
+P5_I4B_OWNER_DECISIONS_REQUIRED                        = 0
+P5_I4B_IMPLEMENTATION_AUTHORIZATION_PREFLIGHT_ELIGIBLE = YES  (tek post-D-076-kanonski)
+P5_I4B_IMPLEMENTATION_AUTHORIZED                       = NO
+P5_I4B_IMPLEMENTATION_STARTED                          = NO
+```
+
+**Podobnost nije autorizacija.** Obuhvat `P5-I4B` iz tabele segmentacije iznad se **ne proširuje i
+ne reinterpretira**; obavezni su zaseban implementacijski autorizacijski preflight i zaseban
+vlasnički autorizacijski potez.
+
+**Autorizacijski firewall:**
+
+```text
+P5-I4B IMPLEMENTATION AUTHORIZED = NO
+P5-I4C IMPLEMENTATION AUTHORIZED = NO
+P5-I5  IMPLEMENTATION AUTHORIZED = NO
+P5-I6  IMPLEMENTATION AUTHORIZED = NO
+```
+
+**Roditeljski `P5-I4` ostaje `INCOMPLETE` / `OPEN`**; `P5-I5` ostaje `STILL DEPENDENCY-BLOCKED` —
+**D-076 ga ne odblokira**, jer `P5-I5` zavisi od **kompletnog** `P5-I4`. Checklist Faze 5 ostaje
+**`49 / 14`** uz **`PHASE5_CHECKBOX_TRANSITIONS = 0`**; sedamnaest forecast redova ostaje
+**neoznačeno**, a **`EXPECTED_POST_P5_I4_CLOSURE_CHECKLIST = 49 / 31`**. `CO-P5-I3-I4-1` i
+`CO-P5-I3-I4-2` ostaju **neispunjeni** ne-checkbox kriteriji prihvatanja roditeljskog `P5-I4`. Vidi
+D-076 u `06`, `03` §11, `05` §6 i `08` §12.10a.
+
 ### Segmentacija `P5-I2` na četiri pod-gatea (D-064)
 
 `P5-I2` se **ne izvršava kao jedan potez**. Ratifikovana su četiri pod-gatea:
