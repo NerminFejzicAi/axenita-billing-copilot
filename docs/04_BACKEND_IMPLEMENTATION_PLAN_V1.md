@@ -1892,6 +1892,34 @@ Zaštićeni par validnih ID-eva ostaje nepromijenjen: **nepostojeći** i **cross
 daju `404 RESOURCE_NOT_FOUND` i moraju biti **osmotrivo nerazlučivi**. Malformisana sintaksa je
 **izvan** tog para jer je saznatljiva prije upita; **existence oracle se ne stvara**.
 
+**Opseg zabrane odražavanja (D-075, 2026-08-30) — pasus iznad se NE prepisuje.** Formulacija
+**„statično Problem Details tijelo, bez odražavanja `id`-a"** odnosi se na **aplikacijski
+kontrolisan semantički sadržaj greške**: `type` semantiku, `title`, status, `code`, `detail`,
+`errors[]`, svaki endpoint-specifičan extension član i **svaki novouvedeni član odgovora**. Ti
+članovi moraju ostati **statični i nezavisni od ulaza**, i malformisani identifikator se u njih
+**ne smije** kopirati, interpolirati, skraćivati, prefiksirati, sufiksirati, transformisati ni
+enkodirati; **nikakav namjenski echo se ne uvodi**.
+
+```text
+MALFORMED_ID_NO_REFLECTION_EXTENDS_TO_SHARED_INSTANCE = NO
+```
+
+**Zabrana NE obuhvata** postojeće **cross-cutting** request/envelope metapodatke: **`instance`**,
+koji **dijeljeni globalni Problem Details filter** popunjava **uniformno za svaku rutu** iz
+**request targeta**, i **`requestId`** kao korelacijski metapodatak (`03` §8, §3.5, D-008). Za
+`instance` se **postojeće ponašanje čuva nepromijenjeno**; **izmjena globalnog filtera nije
+potrebna ni autorizovana**, kao ni redakcija, uklanjanje, endpoint-specifično prepisivanje ni
+supstitucija route templatea.
+
+**Sigurnosna granica se ne mijenja:** `MALFORMED_RESOURCE_UUID_DB_READS = 0`, **nijedan
+`patient_references` lookup**, **nikakav cross-tenant lookup**, **nikakva varijacija po postojanju
+resursa / tenant vlasništvu / stanju baze** i **nikakav existence oracle** (`09` §18.1, `T1`).
+Zaštićeni `404` par ostaje **nepromijenjen**: pri **istom request targetu** `instance` je **nužno
+identičan**, pa se ekvivalencija para **ne popušta**. **Nikakva izmjena koda nije autorizovana
+odlukom D-075**; implementacijski kandidat `P5-I4A` ostaje **nekanonski** i traži **zasebnu
+re-adjudikaciju**, a `P5-I4B`, `P5-I4C`, `P5-I5` i `P5-I6` ostaju **`NOT AUTHORIZED`**. Vidi D-075
+u `06`, `03` §11 i `08` §12.10a.
+
 #### Wire format `createdAt`-a (`OD-P5-I4A-3`)
 
 ```text
