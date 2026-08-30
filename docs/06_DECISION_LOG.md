@@ -13669,6 +13669,720 @@ kanonski i post-publikaciono verifikovan.**
 
 ---
 
+# D-077 — Vlasnička autorizacija implementacije `P5-I4B`: odluka, uslovna efektivnost, obuhvat i RFC 8785 konformansna korekcija
+
+- **Status:** ACCEPTED / OWNER-RATIFIED — **LOCAL / NOT CANONICAL**
+- **Datum:** 2026-08-30
+- **Tip:** vlasnički ratifikovan **governance zapis autorizacije implementacije `P5-I4B`**. On
+  konstatuje **jedan vlasnički potez** — odobrenje autorizacije implementacije `P5-I4B` unutar
+  već kanonskog ugovora **D-069 + D-072** — **zamrzava uslove pod kojima ta autorizacija postaje
+  operativno efektivna**, i **precizira RFC 8785 konformansnu obavezu** koja iz tog ugovora već
+  slijedi. **Dokumentacija isključivo.**
+- **Amandman na:** **status autorizacije `P5-I4B`** utvrđen u D-072 (segmentacija
+  `P5-I4A` → `P5-I4B` → `P5-I4C`, `OD-P5-I4-13`) i D-076 (`RULING E`, `RULING F`). Ugovorni,
+  sigurnosni i API zapisi **D-006**, **D-018**, **D-022**, **D-025**, **D-028**, **D-029**,
+  **D-047**, **D-054**, **D-055**, **D-056**, **D-060**, **D-061**, **D-062**, **D-063**,
+  **D-064**, **D-065**, **D-066**, **D-067**, **D-068**, **D-069**, **D-070**, **D-071**,
+  **D-072**, **D-073**, **D-074**, **D-075** i **D-076** ostaju **doslovno na snazi i
+  nepromijenjeni**. **Nijedan raniji zapis se ne prepisuje**; sve promjene su **aditivne**.
+  **D-072, D-073, D-074, D-075 i D-076 ostaju bajt-identični.**
+- **Ova odluka NE implementira ništa.** Ne uvodi nijednu liniju izvornog koda, nijedan test,
+  nijedan fixture, nijednu migraciju, schemu, Prisma model, contract TypeScript, API rutu, grant,
+  rolu, politiku, izmjenu `package.json`/lockfilea ni izmjenu `.env.example`. **Nijedna baza nije
+  kontaktirana**, **nijedan paket nije instaliran** i **nijedan test se ovom odlukom ne izvršava.**
+- **Ova odluka NE mijenja nijednu kućicu.** Checklist Faze 5 ostaje **`49 / 14`** (`49` ukupno /
+  `14` označeno / `35` neoznačeno), a forecast roditeljskog gatea `P5-I4` ostaje **`49 / 31`**
+  (D-072). **`PHASE5_CHECKBOX_TRANSITIONS = 0`.**
+- **Ova odluka NE pokreće `P5-I4B`.** **`P5-I4B IMPLEMENTATION STARTED = NO`.** Autorizacija nije
+  izvršenje, a **autorstvo autorizacije nije ni autorizacija ni izvršenje**.
+
+## Kontekst/problem — trigger
+
+D-072 je ratifikovao implementacijski ugovor `P5-I4` i segmentaciju
+`P5-I4A` → `P5-I4B` → `P5-I4C`. D-074 je evidentirao vlasničku autorizaciju **isključivo**
+`P5-I4A`. D-075 je zatvorio posljednji interpretativni ambiguitet `P5-I4A`. D-076 je izveo
+post-merge pomirenje i **formalno zatvaranje** `P5-I4A`, i u `RULING E` konstatovao da je `P5-I4B`
+**`NEXT` / `DEPENDENCY-SATISFIED` / `CONTRACT DETERMINISTIC` /
+`IMPLEMENTATION AUTHORIZATION PREFLIGHT ELIGIBLE` / `NOT AUTHORIZED` / `NOT STARTED`**, uz izričitu
+napomenu da **podobnost nije autorizacija**.
+
+Nad kanonskim `origin/main`-om koji nosi D-076 izveden je **zaseban nezavisan read-only preflight
+autorizacije implementacije `P5-I4B`**. Njegov ishod je vlasnički adjudiciran kao:
+
+```text
+P5_I4B_AUTHORIZATION_PREFLIGHT_READY_WITH_NON_SUBSTANTIVE_NOTES
+```
+
+D-077 je **taj zaseban vlasnički potez**. On **ne bira nijednu ugovornu opciju iznova**, **ne
+otvara `OD-P5-I4B-*`** i **ne mijenja nijednu klauzulu D-069, D-072 ni D-076.**
+
+```text
+OWNER_DECISIONS_REQUIRED_FOR_P5_I4B = 0
+D-076 AUTORIZUJE P5-I4B             = NO
+D-077 AUTORIZUJE P5-I4B             = YES (uslovno efektivno, vidi RULING A)
+```
+
+## Kanonska dokazna osnova
+
+Autorizacija se izvodi **isključivo** iz sljedećih kanonskih zapisa; nijedan od njih se ovom
+odlukom ne mijenja:
+
+| Zapis | Doprinos autorizacijskoj osnovi |
+|---|---|
+| **D-069**, `RULING 4` | kanonski `request_sha256` — algoritam, ulaz, isključenja, izlaz |
+| **D-069**, `RULING 5` | `audit_events` SELF-HASH ONLY u Fazi 5; imena kolona; zabrana DB-generisanog timestampa |
+| **D-072**, `OD-P5-I4-3` | `REQUEST_SHA256_INPUT = VALIDATED_ORIGINAL_PARSED_BODY` |
+| **D-072**, `OD-P5-I4-4` | `AUDIT_EVENT_HASH_PAYLOAD_V1`; sedamnaest ključeva; `.SSS000Z` |
+| **D-072**, `OD-P5-I4-5` | `RFC8785_IMPLEMENTATION = LOCAL / PINNED_OFFICIAL_VECTORS` |
+| **D-072**, `OD-P5-I4-13` | segmentacija `P5-I4A/B/C` i strogo sekvencijalan redoslijed |
+| **D-073** | javni `.sssZ` wire format `createdAt`-a — **odvojena** površina |
+| **D-074** | strukturni presedan autorizacijskog zapisa i uslovne efektivnosti |
+| **D-076**, `RULING E`, `RULING F` | `P5-I4B` = `DEPENDENCY-SATISFIED` / `CONTRACT DETERMINISTIC` / `NOT AUTHORIZED` |
+
+Prateća normativna površina: `03` §4, §4.1 i §4.2; `04` §7.5a.1, §7.5a.2 i §7.5a.3; `05` §6;
+`08` §9 i §12.11; `09` §12.
+
+**Vanjska normativna osnova:** **RFC 8785 (JSON Canonicalization Scheme)**, RFC Editor izdanje,
+§3.1, §3.2.2.2, §3.2.3, §3.2.4 i Appendix B.
+
+---
+
+## `RULING A` — vlasnička odluka i uslovna efektivnost
+
+```text
+P5-I4B IMPLEMENTATION AUTHORIZATION = APPROVED WITH NON-SUBSTANTIVE NOTES
+```
+
+Vlasnik autorizuje implementaciju **isključivo `P5-I4B`**, i to **tačno unutar već kanonskog
+ugovora D-069 + D-072 i vlasnički ratifikovanog omotača iz `RULING B` … `RULING F`**. **Nijedan
+drugi gate, pod-gate ni obuhvat nije autorizovan.**
+
+**Vlasnička odluka je donesena. Autorizacija time još nije operativno efektivna.**
+
+D-077 razdvaja **dva različita stanja** koja se **ne smiju stapati**:
+
+| Stanje | Značenje | Vrijednost u trenutku autorstva |
+|---|---|---|
+| **vlasnička odluka donesena** | vlasnik je adjudicirao preflight i odobrio autorizaciju | **YES** |
+| **autorizacija operativno efektivna** | implementacija smije biti pokrenuta zasebnim gateom | **NO** |
+
+```text
+P5_I4B_IMPLEMENTATION_AUTHORIZATION_EFFECTIVE = NO
+```
+
+Autorizacija postaje efektivna **tek kada su ispunjena svih šest uslova, redom**:
+
+1. **D-077 je autoriran** — ovaj zapis;
+2. **nezavisno vlasnički pregledan i dokazno adjudiciran**;
+3. **vlasnički prihvaćen**;
+4. **objavljen / merged**;
+5. **kanonski na `origin/main`**;
+6. **post-publikaciona verifikacija prolazi**.
+
+**Dok svih šest uslova nije ispunjeno:**
+
+```text
+P5-I4B IMPLEMENTATION EXECUTION = PROHIBITED
+```
+
+**Lokalni, nepublikovani commit autorstva D-077 NE čini autorizaciju efektivnom.** Postojanje ovog
+teksta na governance grani **nije** dozvola za pisanje koda. **Autorstvo nije prihvatanje;
+prihvatanje nije publikacija; publikacija nije izvršenje.**
+
+Tek nakon što svih šest uslova bude ispunjeno:
+
+```text
+P5_I4B_IMPLEMENTATION_AUTHORIZATION_EFFECTIVE = YES
+P5_I4B_IMPLEMENTATION_EXECUTION_ELIGIBLE      = YES
+```
+
+I **i tada** implementacija smije početi **isključivo kroz zaseban `P5-I4B` gate izvršenja
+implementacije**. **Autorstvo, prihvatanje ni publikacija D-077 ne smiju sami izvršiti
+implementaciju.** Kanonizacija D-077 je **nužan, ali ne i dovoljan** uslov.
+
+**Statusni model — tri stanja koja se ne stapaju:**
+
+```text
+sada:      D-077 = OWNER-RATIFIED / LOCAL / NOT CANONICAL
+           P5-I4B IMPLEMENTATION EXECUTION = BLOCKED
+
+poslije publikacije i verifikacije:
+           D-077 = OWNER-RATIFIED / CANONICAL / PUBLICATION VERIFIED
+           P5-I4B IMPLEMENTATION = AUTHORIZED / NOT STARTED
+
+tek poslije zasebnog gatea izvrsenja:
+           P5-I4B IMPLEMENTATION = AUTHORIZED / STARTED
+```
+
+---
+
+## `RULING B` — autorizovan izvršivi obuhvat i oblik izvršenja
+
+```text
+P5_I4B_EXECUTION_SHAPE = SINGLE_ATOMIC_IMPLEMENTATION_GATE
+```
+
+`P5-I4B` je **jedna kohezivna DB-free deterministička format/hash osnova**. Autorizovan izvršivi
+obuhvat je **tačno `A`–`D`**:
+
+| Oznaka | Obuhvat |
+|---|---|
+| **`A`** | **lokalni puni RFC 8785 / JCS kanonizator** |
+| **`B`** | **`request_sha256`** |
+| **`C`** | **`AUDIT_EVENT_HASH_PAYLOAD_V1` formatter** |
+| **`D`** | **`event_sha256` helper** |
+
+Uz `A`–`D` autorizovano je **isključivo**:
+
+- **`P5-I4B`-only unit testovi**;
+- **doslovni nezavisni golden/vektor fixture fajlovi**;
+- **minimalno export/index wiring strogo nužno za `A`–`D`**.
+
+**Nikakav drugi izvršivi obuhvat nije autorizovan.**
+
+### Smještaj implementacije
+
+Kanonska dokumentacija **ne fiksira tačne putanje**. Implementacija smije koristiti **običnu
+implementatorsku diskreciju unutar kanonske arhitekture**.
+
+**Preferirani uski otisak:** `apps/api/src/crypto/` za lokalni JCS kanonizator, request-hash
+helper, audit hash payload formatter i event-hash helper; testovi kolocirani kao
+`src/**/*.spec.ts`. **Ova preferencija NIJE novi tvrdi arhitektonski ugovor.** Uporedivo uzak
+smještaj konzistentan sa kanonskom strukturom repozitorija je dozvoljen ako implementacijski dokaz
+pokaže da **ne prejudicira i ne apsorbuje `P5-I4C`**.
+
+**Nijedna nova vlasnička odluka nije potrebna** za obična imena fajlova, TypeScript simbole ni
+potpise čistih funkcija.
+
+---
+
+## `RULING C` — RFC 8785 konformansa, provenijencija vektora i anti-tautologija
+
+### Puni RFC 8785, ne projektni podskup
+
+```text
+RFC8785_IMPLEMENTATION = LOCAL
+```
+
+Konformansni cilj je **PUN RFC 8785-KOMPATIBILAN JSON KANONIZATOR**. **Reducirani projektni
+podskup se NE SMIJE predstavljati ni imenovati kao JCS** (D-072, `OD-P5-I4-5`).
+
+Implementacija mora reprodukovati **stvarno kanonsko ponašanje** koje traže RFC 8785 i postojeći
+kanonski `P5-I4` ugovor, uključujući:
+
+- **rekurzivnu kanonizaciju objekata**;
+- **sortiranje svojstava objekta poređenjem sirovih UTF-16 code unita**;
+- **rekurzivno sortiranje objekata sadržanih unutar nizova**;
+- **očuvanje redoslijeda elemenata niza**;
+- **kanonsku serijalizaciju JSON brojeva**;
+- **kanonsko escapiranje stringova**;
+- **JSON literale `true` / `false` / `null`**;
+- **nikakav emitovani beznačajan whitespace**;
+- **UTF-8 kao konačnu granicu hashiranja**;
+- **nikakvu Unicode normalizaciju koju izmišlja aplikacija**.
+
+```text
+NIJEDAN JCS PAKET NIJE AUTORIZOVAN
+NEW_RUNTIME_DEPENDENCY_REQUIRED = NO
+```
+
+### RFC 8785 konformansna korekcija — usamljeni surogati
+
+Preflight `P5-I4B` sadržavao je **neobavezujuću implementacijsku napomenu** koja je sugerisala da
+bi ES2019 `JSON.stringify` escapiranje moglo učiniti **sirovi usamljeni surogat prihvatljivim** na
+izlaznoj granici JCS-a.
+
+**Ta tvrdnja se NE usvaja.** Ispravlja se ovdje kao **RFC-konformansno pojašnjenje**, **ne** kao
+nova vlasnička ugovorna odluka.
+
+Budući da kanonski projektni ugovor **već zahtijeva puno RFC 8785 ponašanje**:
+
+```text
+nevalidni Unicode podaci koji sadrze usamljeni surogat MORAJU
+uzrokovati da JCS operacija PADNE / TERMINIRA sa prikladnom
+deterministickom greskom
+```
+
+**Usamljeni surogat se NE SMIJE tiho prihvatiti** samo zato što ga JavaScript serijalizator može
+predstaviti kao `\uXXXX` escape.
+
+**Ovo ne stvara novu `OD-P5-I4B` odluku.** Slijedi **direktno** iz već ratifikovanog zahtjeva pune
+RFC 8785 konformanse, i potvrđeno je nad primarnim normativnim izvorom:
+
+| RFC 8785 | Normativna tvrdnja |
+|---|---|
+| §3.1 | podaci za serijalizaciju **MORAJU** biti prilagođeni I-JSON (`RFC 7493`) formatiranju |
+| §3.2.2.2 | pojava nevalidnih Unicode podataka poput „lone surrogates" (npr. `U+DEAD`) **MORA** uzrokovati da konformantna JCS implementacija **terminira sa prikladnom greškom** |
+| §3.2.3 | imena svojstava za sortiranje formatiraju se kao **nizovi UTF-16 code unita** |
+| §3.2.3 | JSON nizovi **MORAJU** se skenirati na prisustvo objekata (čija se svojstva tada **MORAJU** sortirati), ali se **redoslijed elemenata niza NE SMIJE mijenjati** |
+| §3.2.4 | rezultat prethodnog koraka **MORA** biti kodiran u **UTF-8**, namijenjen kao ulaz kriptografskim metodama |
+
+**Testovi moraju uključiti odgovarajući negativni konformansni slučaj.**
+
+### Pristup službenim/javnim RFC 8785 vektorima
+
+Vlasnik **izričito autorizuje budući `P5-I4B` gate izvršenja** da koristi **READ-ONLY vanjski
+pristup** isključivo radi pribavljanja i verifikacije **normativnog/javnog RFC 8785 konformansnog
+materijala**.
+
+Autorizovane klase provenijencije:
+
+- **RFC Editor izdanje RFC 8785**;
+- **objavljeni primjeri kanonizacije i sortiranja svojstava iz RFC 8785**;
+- **RFC 8785 Appendix B uzorci serijalizacije brojeva**;
+- **javni testni materijal direktno referisan od RFC 8785 i njegovih razvojnih referenci**.
+
+**Ova dozvola je ISKLJUČIVO PRIBAVLJANJE DOKAZA.** Ona **NE autorizuje**:
+
+- instalaciju paketa;
+- import vanjske JCS runtime implementacije;
+- kopiranje vanjske biblioteke u produkcijski izvor;
+- dodavanje zavisnosti;
+- korištenje vanjske implementacije kao runtime kanonizatora.
+
+Očekivane vrijednosti prepisane u testove moraju biti **doslovne**, **pregledive**,
+**izvorno atribuirane** i **nezavisne od implementacije koja se testira**.
+
+**Ako budući gate izvršenja ne može pribaviti dovoljno nezavisan službeni/javni RFC 8785 dokaz —
+MORA STATI (`HOLD`).** **Ne smije samostalno generisati orakl pomoću implementacije koja se
+testira.**
+
+### Anti-tautologijsko pravilo golden vektora
+
+**Obavezan princip:**
+
+```text
+IMPLEMENTACIJA KOJA SE TESTIRA NE SMIJE GENERISATI VLASTITE
+OCEKIVANE VRIJEDNOSTI
+```
+
+```text
+ista JCS implementacija kao orakl ocekivane vrijednosti           = PROHIBITED
+ista requestSha256 implementacija kao orakl ocekivane vrijednosti = PROHIBITED
+ista eventSha256 implementacija kao orakl ocekivane vrijednosti   = PROHIBITED
+```
+
+**Dozvoljen dokaz:**
+
+- **doslovni javni/normativni vektori**;
+- **nezavisno izračunati doslovni fixtures**;
+- **nezavisno pribavljeni objavljeni digesti**;
+- **metamorfne tvrdnje tamo gdje ih kanonski `08` §12.11 zahtijeva**.
+
+**Svaka netrivijalna doslovna golden vrijednost mora nositi dovoljno provenijencije u testu ili
+fixtureu da omogući kasniju reviziju.**
+
+---
+
+## `RULING D` — `request_sha256`
+
+**Kanonska formula (nepromijenjena; D-069 `RULING 4`, D-072 `OD-P5-I4-3`, `03` §4.1):**
+
+```text
+request_sha256 = SHA-256( UTF8( JCS( VALIDATED_ORIGINAL_PARSED_BODY ) ) )
+REQUEST_SHA256_INPUT = VALIDATED_ORIGINAL_PARSED_BODY
+```
+
+**Izvorni objekat je SAČUVANA ORIGINALNA PARSIRANA JSON VRIJEDNOST** — nakon parsiranja i nakon
+što validacija nepoznatih polja uspije, ali **prije**:
+
+- DTO transformacije;
+- transformacije u instancu klase;
+- server defaulta;
+- server-generisanih identifikatora;
+- server-generisanih timestampova;
+- obogaćivanja kontekstom zahtjeva.
+
+**Ulaz NIJE:** sirovi HTTP bajtovi; sirovi pre-parse JSON tekst; transformisani DTO;
+server-prošireni objekat.
+
+**Nepoznata polja:** **ODBIJ PRIJE HASHIRANJA**; **nikada ne ulaze u digest**.
+
+**Digest isključuje:** HTTP metod; path; query; headere; `Idempotency-Key`; identitet korisnika;
+identitet ordinacije; request id; server-generisane ID-eve; server-izvedeni status; server
+timestampove; **svako drugo server/request-context polje**.
+
+**Kanonske invarijante:**
+
+```text
+ulazni redoslijed kljuceva objekta           = NEZNACAJAN
+redoslijed elemenata niza                    = ZNACAJAN
+whitespace ulaza                             = NEZNACAJAN NAKON PARSIRANJA
+eksplicitni null naspram izostavljenog polja = RAZLICITO
+Unicode normalizacija                        = NIKAKVA
+algoritam                                    = SHA-256
+ulaz hasha                                   = UTF-8 bajtovi JCS izlaza
+izlaz                                        = 64 mala heksadecimalna znaka
+```
+
+### Breadth vektora request hasha — vlasnički omotač
+
+Preflight je identifikovao **ne-blokirajuće pitanje obuhvata** u `08` §12.11, tačka 3: doslovne
+`request_sha256` vrijednosti tražene su za **najmanje jedno kanonsko tijelo po obaveznom
+endpointu/površini iz `03` §4**.
+
+**Vlasnik autorizuje konzervativno/maksimalno tumačenje:** **obuhvat vektora se NE smije tiho
+suziti na trenutno isporučene rute.**
+
+Gate izvršenja **mora pinovati po jedan doslovni `request_sha256` vektor za svaku imenovanu
+obaveznu `03` §4 request površinu** za koju tekuća kanonska dokumentacija definiše **dovoljno
+determinističko kanonsko tijelo**, **uključujući kanonsko tijelo aktivacije gdje je primjenjivo**.
+
+**Status odgođene/neimplementirane HTTP rute sam po sebi NE isključuje vektor**, jer request-hash
+primitiva konzumira **isključivo tijelo**, a **identitet endpointa je izričito isključen iz
+digesta** (`03` §4.1).
+
+**Ako navedena `03` §4 površina NEMA dovoljno definisano kanonsko tijelo** da bi se konstruisao
+neizmišljen fixture: **tu činjenicu treba izričito evidentirati i taj pojedinačni vektor staviti u
+`HOLD`**, umjesto izmišljanja request semantike. **Ne smiju se izmišljati buduća tijela endpointa
+samo da bi se zadovoljio broj.**
+
+---
+
+## `RULING E` — `AUDIT_EVENT_HASH_PAYLOAD_V1` i `event_sha256`
+
+```text
+AUDIT_HASH_FORMAT = AUDIT_EVENT_HASH_PAYLOAD_V1
+event_sha256      = SHA-256( UTF8( JCS( AUDIT_EVENT_HASH_PAYLOAD_V1 ) ) )
+```
+
+### Sedamnaest ključeva
+
+**Broj ključeva payloada: `17`.** Payload sadrži **tačno imena kolona tabele `audit_events`**,
+izuzev `event_sha256`, koji je **isključen iz vlastitog ulaza**:
+
+```text
+id, practice_id, occurred_at, actor_type, actor_user_id, actor_service,
+action, resource_type, resource_id, request_id, session_id_hash,
+ip_address, user_agent_hash, previous_value, new_value, metadata,
+previous_event_sha256
+```
+
+**Nema osamnaestog ključa. Nema nedostajućeg ključa. Nema preimenovane
+aplikacijske/camelCase reprezentacije.** Nullable vrijednosti ostaju **eksplicitno predstavljene**
+tamo gdje kanonski format to traži.
+
+### Pravila serijalizacije
+
+```text
+UUID vrijednosti          = mali kanonski hyphenated UUID stringovi
+nullable UUID polja       = JSON null kada su null
+previous_value            = JSON vrijednost, NE JSON string
+new_value                 = JSON vrijednost, NE JSON string
+metadata                  = JSON vrijednost, NE JSON string
+session_id_hash           = null   (Faza 5)
+ip_address                = null   (Faza 5)
+user_agent_hash           = null   (Faza 5)
+previous_event_sha256     = null   PRISUTAN, NIKADA IZOSTAVLJEN
+event_sha256              = NE POJAVLJUJE SE U PAYLOADU
+```
+
+**Nikakav `inet` tekstualni format se u `P5-I4B` ne izmišlja.** **`P5-I4B` NE SMIJE izmisliti
+audit hash lanac** — Faza 5 ostaje `SELF-HASH ONLY` (D-069, `RULING 5`).
+
+### `occurred_at`
+
+```text
+AUDIT_OCCURRED_AT_FORMAT = UTC_RFC3339_6_FRACTIONAL_DIGITS_LAST_3_ZERO
+kanonski oblik           = YYYY-MM-DDTHH:mm:ss.SSS000Z
+```
+
+- **UTC**;
+- **tačno šest decimalnih cifara**;
+- **posljednje tri decimalne cifre doslovno `000`**;
+- **veliko terminalno `Z`**;
+- **isti aplikacijski instant koji će budući writer perzistirati**;
+- **instant se generiše tačno jednom na granici budućeg writera**.
+
+**`Date.toISOString()` sam nije dovoljan**, jer emituje samo tri decimalne cifre.
+
+**Autorizovano determinističko pravilo reprezentacije:** poći od UTC milisekundne ISO
+reprezentacije i **deterministički produžiti njen terminalni milisekundni razlomak** na
+`.SSS000Z`. **Bez locale formatiranja. Bez `+00:00`. Bez DB-generisanog `now()` /
+`CURRENT_TIMESTAMP` kao zamjene za hash instant.**
+
+### D-073 format firewall
+
+**Javni patient-reference `createdAt` ugovor ostaje UTC ISO 8601 sa tačno tri decimalne cifre —
+`.sssZ`.** Ta površina pripada `P5-I4A` i **NE SMIJE se mijenjati** (D-073).
+
+**Audit `occurred_at` hashiranje koristi `.SSS000Z`.**
+
+```text
+.sssZ     = javna patient-reference wire povrsina   (P5-I4A, D-073)
+.SSS000Z  = audit occurred_at hash povrsina         (P5-I4B, OD-P5-I4-4)
+```
+
+**To su dvije odvojene kanonske reprezentacijske površine.** **Nijedan formatter se ne smije tiho
+ponovo upotrijebiti za onu drugu.**
+
+### Ponovna upotreba SHA-256 helpera
+
+`event_sha256` **mora ponovo upotrijebiti već kanonski `P5-I3` helper**:
+
+```text
+apps/api/src/crypto/sha256-utf8.ts
+sha256HexUtf8(value: string): string
+```
+
+Helper se **MORA ponovo upotrijebiti NEPROMIJENJEN**. **NE SMIJE** biti: modifikovan;
+generalizovan; preimenovan; obdaren JCS ponašanjem; obdaren `JSON.stringify` ponašanjem; obdaren
+audit-specifičnim ponašanjem. **JCS i format-specifični omotači pripadaju IZVAN
+`sha256-utf8.ts`.** Kompozicija ostaje **eksplicitna i vidljiva na pozivnom mjestu**.
+
+---
+
+## `RULING F` — mutacijski i downstream firewall
+
+### Autorizovan mutacijski omotač
+
+**SMIJE kreirati / mijenjati:**
+
+- nove lokalne determinističke `P5-I4B` format/hash izvorne fajlove;
+- **`P5-I4B`-only** unit testove;
+- doslovne vektorske fixture fajlove;
+- **minimalno** export/index wiring nužno za `P5-I4B` jedinice.
+
+**MORA:** ostati **DB-free**, **route-free**, **dependency-free**, **persistence-free**,
+**`P5-I4B`-only**; zadovoljiti **svih šesnaest** kanonskih dokaznih obaveza (`08` §12.11); očuvati
+**sve postojeće `P5-I3` / `P5-I4A` ponašanje**; koristiti **nezavisnu golden-value provenijenciju**;
+pribaviti službeni/javni RFC 8785 dokaz **isključivo kroz izričito autorizovan read-only put
+pribavljanja dokaza**.
+
+### Strogi `MUST-NOT-MODIFY` omotač
+
+Implementacija `P5-I4B` **NE SMIJE mijenjati**: Prisma schemu; migracije; SQL migracije; RLS
+politike; grantove; role; environment konfiguraciju; `package.json`; `apps/api/package.json`;
+`packages/contracts/package.json`; `pnpm-lock.yaml`; runtime zavisnosti;
+`apps/api/src/crypto/sha256-utf8.ts` i njegov postojeći regresijski ugovor/spec (osim ako kasniji
+vlasnički gate izričito ne odobri drugačije); `P5-I4A` patient-reference ponašanje; semantiku
+patient-reference kontrolera/servisa/adaptera/DTO-a; `ProblemDetailsFilter`; HTTP rute; HTTP
+kontrolere; javne DTO-e; HTTP error katalog; `IdempotencyService` perzistenciju; `AuditService` /
+audit writer perzistenciju; advisory lockove; životni ciklus idempotency reda; replay/conflict
+perzistenciju; pseudonim perzistenciju/retry/lookup; lookup po eksternoj referenci; encounter kod;
+document kod; analysis kod; redakciju; bilo koji `P5-I4C` kod; bilo koji `P5-I5` kod; **`docs/`
+tokom implementacije**; **`MANIFEST.md` tokom implementacije**; **stanje kućica Faze 5**.
+
+### Zamrznuti mutacijski predikati
+
+```text
+PRISMA_SCHEMA_MUTATION_REQUIRED     = NO
+MIGRATION_REQUIRED                  = NO
+RLS_POLICY_MUTATION_REQUIRED        = NO
+GRANT_MUTATION_REQUIRED             = NO
+NEW_RUNTIME_DEPENDENCY_REQUIRED     = NO
+PUBLIC_API_ROUTE_MUTATION_REQUIRED  = NO
+DATABASE_WRITER_REQUIRED            = NO
+CHECKLIST_TRANSITION_DURING_P5_I4B  = 0
+```
+
+**Ostali ranije zamrznuti predikati ostaju nepromijenjeni i D-077 ih ne otvara ponovo.**
+
+### Downstream firewall
+
+```text
+P5-I4C IMPLEMENTATION AUTHORIZED = NO   / NOT STARTED
+P5-I4  PARENT                    = INCOMPLETE / OPEN
+P5-I5  IMPLEMENTATION AUTHORIZED = NO   / STILL DEPENDENCY-BLOCKED / NOT STARTED
+P5-I6  IMPLEMENTATION AUTHORIZED = NO   / NOT STARTED
+```
+
+- **`P5-I4C`** — idempotency servis, advisory-lock konkurencija, audit writer i
+  `POST /patient-references` — ostaje **`NOT AUTHORIZED` / `NOT STARTED`**. **D-077 ga ne
+  autorizuje i `P5-I4B` ga ne smije prejudicirati ni apsorbovati.**
+- **Roditeljski `P5-I4` ostaje `INCOMPLETE` / `OPEN`** — nakon `P5-I4B` i dalje preostaje
+  `P5-I4C`.
+- **`P5-I5` ostaje `STILL DEPENDENCY-BLOCKED`** — zavisi od **kompletnog** `P5-I4`, ne od
+  `P5-I4B`. **D-077 ga ne odblokira.**
+- **`P5-I6` ostaje `NOT AUTHORIZED`** i posjeduje redakciju; red `Services → redaction` ostaje
+  **neoznačen**.
+- **Faza 5 ostaje `IN_PROGRESS`; nije `DONE`.** **`★` ostaje trajna regresija.**
+
+### Granica workflowa izvršenja
+
+Nakon što D-077 postane efektivan, implementacija i dalje traži **ZASEBAN gate izvršenja**.
+Očekivani workflow izvršenja: **svježa implementacijska grana sa tada-tekućeg kanonskog `main`-a**;
+**isključivo `P5-I4B` implementacija**; **svi obavezni testovi/dokazi**; **tačno jedan lokalni
+implementacijski commit** osim ako materijalan `HOLD` ne spriječi dovršetak; **bez pusha**;
+**nezavisan vlasnički pregled prije publikacije**.
+
+**Ovo je autorizacija obuhvata, ne izvršenja.**
+
+---
+
+## `RULING G` — mehaničko računovodstvo checklista
+
+**Nijedna kućica se ovom autorizacijom ne označava.**
+
+**Kanonsko pravilo je zadržano i ponovo potvrđeno:** **pod-gate `P5-I4A` / `P5-I4B` / `P5-I4C` ne
+prevodi nijedan red roditeljskog checklista `P5-I4`** (D-072, *Forecast checklista*; `05` §6;
+D-076, `RULING D`).
+
+```text
+                        prije D-077   poslije D-077
+ukupno redova (05 §6)   49            49
+oznaceno                14            14
+neoznaceno              35            35
+notacija                49 / 14       49 / 14
+
+PHASE5_CHECKBOX_TRANSITIONS            = 0
+P5-I4B DIRECTLY CHECKS                 = NONE
+P5-I4 FORECAST ROWS UNCHECKED          = 17
+EXPECTED_POST_P5_I4_CLOSURE_CHECKLIST  = 49 / 31
+```
+
+**Nijedan novi checklist red se ne kreira**, i **svih sedamnaest forecast redova roditeljskog
+gatea `P5-I4` ostaje `[ ]`.**
+
+---
+
+## Dispozicija preflight napomena
+
+Vlasnik prihvata preporuku preflighta **uz ne-substantivne napomene**. **Nijedna nije nova
+vlasnička odluka**, i **`OD-P5-I4B-*` i dalje ne postoji**.
+
+| Napomena | Dispozicija |
+|---|---|
+| **`N-1`** | **`RESOLVED AS AUTHORIZATION-TIME OPERATIONAL PRECONDITION`** — read-only pribavljanje normativnog/javnog RFC vektorskog materijala je **izričito autorizovano** (`RULING C`); **samogenerisani vektori ostaju zabranjeni**; **odsustvo nezavisnog dokaza uzrokuje `HOLD`**. |
+| **`N-2`** | **`NON-BLOCKING`** — vlasnički omotač koristi **konzervativno-maksimalno čitanje obuhvata vektora** (`RULING D`, *Breadth vektora request hasha*). |
+| **`N-3`** | **`IMPLEMENTER DISCRETION WITHIN CANONICAL ARCHITECTURAL BOUNDARY`** — smještaj je preferencija, ne novi tvrdi ugovor (`RULING B`). |
+| **`N-4`** | **`PARTIALLY SUPERSEDED BY RFC CONFORMANCE CORRECTION`** — **briga oko UTF-16 sortiranja ostaje validna**; **ranija sugestija o prihvatanju usamljenog surogata se NE usvaja** i zamijenjena je **konformantnim ponašanjem greške/odbijanja** (`RULING C`). |
+| **`N-5`** | **`NON-BLOCKING`** — kanonski izlaz je fiksiran; implementator smije koristiti **determinističku `.SSS000Z` transformaciju** (`RULING E`). |
+| **`I-1` … `I-4`** | **`INFORMATIONAL / NON-BLOCKING`** — nijedna ne mijenja obuhvat, ugovor ni dokaznu obavezu. |
+
+**Nijedan detalj se ne izmišlja izvan preflight dokaza.**
+
+---
+
+## Kanonski `P5-I4B` test ugovor
+
+**Svih šesnaest kanonskih obaveza `08` §12.11 ostaje obavezno**, u grupama: **`1`–`2`** JCS
+konformansa/provenijencija; **`3`–`9`** `request_sha256`; **`10`–`16`**
+`AUDIT_EVENT_HASH_PAYLOAD_V1` / `event_sha256`. **D-077 im ne dodaje nijednu novu obavezu i nijednu
+ne uklanja**; on **precizira konformansni prag** unutar obaveze `1`–`2` (`RULING C`).
+
+**Minimalno, implementacijski dokaz mora dokazati:**
+
+- **JCS:** javni/službeni vektori; kanonizacija brojeva; escapiranje stringova; rekurzivna
+  kanonizacija; sortiranje svojstava po UTF-16 code unitima; **nijedan JCS paket**; **nijedan
+  reducirani podskup predstavljen kao JCS**; **odbijen nevalidan ulaz sa usamljenim surogatom**.
+- **`request_sha256`:** pinovani doslovni digest vektori; `null` naspram odsutnog se razlikuje;
+  ulazni redoslijed ključeva ne mijenja digest; redoslijed elemenata niza mijenja digest;
+  beznačajan whitespace ne mijenja digest; request/context polja ne mijenjaju digest; server
+  defaulti ne kontaminiraju digest; izvor je sačuvano originalno parsirano tijelo; nepoznata polja
+  odbijena prije hashiranja.
+- **Audit/event:** pinovane doslovne `event_sha256` vrijednosti; **tačno 17 ključeva**;
+  `event_sha256` isključen; `previous_event_sha256` prisutan kao `null`; `occurred_at` `.SSS000Z`;
+  kanonska UUID reprezentacija; polja JSONB porijekla ostaju JSON vrijednosti; telemetrijska polja
+  Faze 5 `null`.
+
+**Sav dokaz ostaje DB-free.** **Nijedan test se ovom odlukom ne piše, ne mijenja i ne izvršava.**
+
+---
+
+## Očuvana ugovorna i sigurnosna semantika
+
+D-077 **potvrđuje i ne mijenja**:
+
+- **`request_sha256` algoritam, ulaz i isključenja** (D-069 `RULING 4`; D-072 `OD-P5-I4-3`;
+  `03` §4.1);
+- **`audit_events` `SELF-HASH ONLY` politiku Faze 5** (D-069 `RULING 5`);
+- **`AUDIT_EVENT_HASH_PAYLOAD_V1` sa sedamnaest ključeva** (D-072 `OD-P5-I4-4`);
+- **javni `.sssZ` wire format `createdAt`-a** (D-073) — **nedirnut**;
+- **cjelokupnu `P5-I4A` tenant, sigurnosnu i API semantiku** (D-073, D-075, D-076);
+- **`FORCE RLS` kao primarnu database granicu** (`09` §4, §4.2);
+- **nerazlučiv zaštićeni `404` par** (`08` §12.10; `09` §18.1).
+
+## Security/privacy uticaj
+
+- **Autorizacija ne mijenja nijednu sigurnosnu granicu.** `P5-I4B` je **DB-free** i ne dodiruje
+  RLS, grantove, role ni migracije.
+- **RFC konformansna korekcija POOŠTRAVA, a ne olakšava**: nevalidni Unicode ulaz **mora pasti**
+  umjesto da se tiho hashira, čime se uklanja klasa **tihih razilaženja potpisa/digesta** između
+  implementacija i između zapisa.
+- **Anti-tautologijsko pravilo POOŠTRAVA**: zabranjuje cirkularni dokaz nad **perzistentnim,
+  retroaktivno nepopravljivim** formatima.
+- **Nikakav PHI ne ulazi u `P5-I4B`**: audit minimizacija i zabrana plaintext eksternog ID-a
+  ostaju `P5-I4C` obaveze i **ovdje se ne slabe**.
+- **Nikakva nova runtime zavisnost** ne ulazi u supply chain.
+- **Produkcijski KMS se i dalje ne tvrdi**; `D-OPEN-004a` ostaje otvoren.
+
+## Test dokaz
+
+**D-077 ne izvršava nijedan test i ne tvrdi nijedan rezultat.** Obavezni dokazi `P5-I4B` ostaju
+tačno oni nabrojani u `08` §12.11.
+
+## Granice ove odluke
+
+```text
+D-077 evidentira vlasnicku autorizaciju P5-I4B = YES
+D-077 cini autorizaciju odmah efektivnom       = NO
+D-077 izvrsava implementaciju                  = NO
+D-077 pokrece P5-I4B                           = NO
+D-077 tvrdi da je P5-I4B implementiran         = NO
+D-077 tvrdi da su testovi prosli               = NO
+D-077 tvrdi da je P5-I4 zavrsen                = NO
+D-077 tvrdi da je Faza 5 zavrsena              = NO
+D-077 tvrdi da je D-077 kanonski               = NO
+D-077 tvrdi da je publikacija izvrsena         = NO
+D-077 mijenja kucice                           = NO
+D-077 mijenja schemu/migracije/RLS/grants      = NO
+D-077 instalira zavisnosti                     = NO
+D-077 autorizuje JCS paket                     = NO
+D-077 autorizuje database writer               = NO
+D-077 autorizuje HTTP rutu                     = NO
+D-077 mijenja D-072 D-073 D-074 D-075 ni D-076 = NO
+D-077 autorizuje P5-I4C                        = NO
+D-077 odblokira P5-I5                          = NO
+D-077 autorizuje P5-I6                         = NO
+```
+
+## Supersedes
+
+**Nijedan raniji zapis se ne poništava.** D-077 je **aditivan statusni i autorizacijski zapis** nad
+D-072, D-074 i D-076. Formulacije u D-072, D-074, D-075 i D-076 koje glase
+`P5-I4B IMPLEMENTATION AUTHORIZED = NO` i „podobnost nije autorizacija" opisuju **pred-D-077
+stanje**, **historijski su tačne** i **ne prepisuju se**; **mjerodavan je statusni model iz
+`RULING A`.**
+
+## Zavisnosti
+
+`P5-I4B` zavisi od **kanonskog i formalno zatvorenog `P5-I4A`** (D-076), koji je **ispunjen**.
+Redoslijed **`P5-I4A` → `P5-I4B` → `P5-I4C`** (D-072, `OD-P5-I4-13`) ostaje **strogo
+sekvencijalan**. Redoslijed **`P5-I3` → `P5-I4` → `P5-I5`** (D-069, D-071) ostaje
+**nepromijenjen**.
+
+## Naredni obavezni gate
+
+**Vlasnički pregled D-077 i adjudikacija dokaza**, pa **zaseban publikacioni gate**
+(push / PR / merge) i **post-publikaciona verifikacija**. **Tek nakon toga** smije se otvoriti
+**zaseban `P5-I4B` gate izvršenja implementacije**.
+
+```text
+D-077 AUTHORED                                = YES
+D-077 OWNER-REVIEWED                          = NO
+D-077 OWNER-ACCEPTED                          = NO
+D-077 PUBLISHED                               = NO
+D-077 CANONICAL                               = NO      (do merge-a u origin/main)
+D-077 POST-PUBLICATION VERIFIED               = NO
+P5-I4B IMPLEMENTATION AUTHORIZATION DECISION  = APPROVED WITH NON-SUBSTANTIVE NOTES
+P5-I4B IMPLEMENTATION AUTHORIZATION EFFECTIVE = NO
+P5-I4B IMPLEMENTATION EXECUTION ELIGIBLE      = NO
+P5-I4B IMPLEMENTATION STARTED                 = NO
+P5-I4C IMPLEMENTATION AUTHORIZED              = NO
+P5-I5  IMPLEMENTATION AUTHORIZED              = NO
+P5-I6  IMPLEMENTATION AUTHORIZED              = NO
+OWNER_DECISIONS_REQUIRED_FOR_P5_I4B           = 0
+CURRENT_CHECKLIST                             = 49 / 14
+```
+
+**Dok ova governance grana ne bude merged, kanonski `origin/main` i dalje nosi pred-D-077
+governance stanje**, u kojem je `P5-I4B` **`NOT AUTHORIZED` / `NOT STARTED`**. **Implementacija
+`P5-I4B` NE SMIJE početi prije nego što D-077 bude vlasnički prihvaćen, kanonski i publikaciono
+verifikovan, i prije nego što se otvori zaseban gate izvršenja.**
+
+---
+
 # Otvorene odluke
 
 ## D-OPEN-001 — Produkcijski OIDC provider

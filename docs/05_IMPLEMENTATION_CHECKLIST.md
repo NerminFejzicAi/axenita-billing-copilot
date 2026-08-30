@@ -4137,6 +4137,71 @@ preflight** i **zaseban vlasnički autorizacijski potez**; **D-076 ne izvodi nij
 prihvaćen, kanonski i post-publikaciono verifikovan. Red `Services → redaction` **ostaje
 neoznačen** i ostaje u vlasništvu `P5-I6`. Vidi D-076 u `06`, `04` §7.5a, `03` §11 i `08` §12.10a.
 
+## P5-I4B IMPLEMENTATION AUTHORIZATION ANNOTATION — D-077 (2026-08-30)
+
+**Ovo je ne-checkbox anotacija.** Ona **ne dodaje nijedan checklist red** i **ne mijenja nijednu
+kućicu**; markeri checkboxa se u njoj **namjerno ne koriste**. **Nijedan pasus, blok ni anotacija
+iznad se ne prepisuje.**
+
+- **D-077 evidentira vlasničku autorizaciju implementacije `P5-I4B`:**
+  **`APPROVED WITH NON-SUBSTANTIVE NOTES`**, unutar već kanonskog ugovora D-069 + D-072.
+- **Autorizacija NIJE operativno efektivna.** Postaje efektivna tek nakon što D-077 sam bude
+  autorstvom dovršen, **nezavisno vlasnički pregledan i dokazno adjudiciran**, **vlasnički
+  prihvaćen**, **objavljen/merged**, **kanonski na `origin/main`** i **post-publikaciono
+  verifikovan** — i **i tada** implementacija smije početi **isključivo kroz zaseban gate
+  izvršenja**.
+- **Autorizovan izvršivi obuhvat je tačno `A`–`D`:** lokalni **puni** RFC 8785 / JCS kanonizator;
+  `request_sha256`; `AUDIT_EVENT_HASH_PAYLOAD_V1` formatter; `event_sha256` helper — uz
+  `P5-I4B`-only testove, doslovne nezavisne vektorske fixtures i minimalno export/index wiring.
+  **`P5_I4B_EXECUTION_SHAPE = SINGLE_ATOMIC_IMPLEMENTATION_GATE`.**
+- **RFC 8785 konformansa:** pun kanonizator, **nijedan JCS paket**, **nijedan reducirani podskup
+  imenovan kao JCS**; **usamljeni surogat mora uzrokovati determinističku grešku** (RFC 8785
+  §3.2.2.2). **Read-only pribavljanje normativnog/javnog RFC vektorskog materijala je
+  autorizovano; samogenerisani orakli su zabranjeni; odsustvo nezavisnog dokaza uzrokuje `HOLD`.**
+- **Formatni firewall:** javni `createdAt` ostaje **`.sssZ`** (`P5-I4A`, D-073); audit
+  `occurred_at` hash koristi **`.SSS000Z`**. **Dvije odvojene površine; formatteri se ne dijele.**
+  `event_sha256` ponovo koristi `apps/api/src/crypto/sha256-utf8.ts` **nepromijenjen**.
+- **Anotacije D-072, D-074 i D-076 iznad opisuju pred-D-077 stanje** — „`P5-I4B` ostaje
+  `NOT AUTHORIZED`" i „podobnost nije autorizacija" **historijski su tačne** i **ne prepisuju se**;
+  **mjerodavan je ovaj statusni model.**
+- **Nijedna kućica se ovom autorizacijom ne označava.** Kanonsko pravilo ostaje: **pod-gate
+  `P5-I4A` / `P5-I4B` / `P5-I4C` ne prevodi nijedan red roditeljskog checklista `P5-I4`.**
+  **`P5-I4B` direktno označava `NONE`.**
+- **Dispozicija preflight napomena:** `N-1` = `RESOLVED AS AUTHORIZATION-TIME OPERATIONAL
+  PRECONDITION`; `N-2` = `NON-BLOCKING / CONSERVATIVE-MAXIMAL VECTOR READING`; `N-3` =
+  `IMPLEMENTER DISCRETION WITHIN CANONICAL ARCHITECTURAL BOUNDARY`; `N-4` = `PARTIALLY SUPERSEDED
+  BY RFC CONFORMANCE CORRECTION`; `N-5` = `NON-BLOCKING`; `I-1` … `I-4` = `INFORMATIONAL /
+  NON-BLOCKING`. **Nijedna nije nova vlasnička odluka**, i **`P5_I4B_OWNER_DECISIONS_REQUIRED = 0`.**
+
+```text
+                        prije       poslije
+ukupno redova (§6)      49          49
+oznaceno                14          14
+neoznaceno              35          35
+
+CURRENT_CHECKLIST                      = 49 / 14
+PHASE5_CHECKBOX_TRANSITIONS            = 0
+P5-I4B DIRECTLY CHECKS                 = NONE
+P5-I4 FORECAST ROWS UNCHECKED          = 17
+EXPECTED_POST_P5_I4_CLOSURE_CHECKLIST  = 49 / 31
+```
+
+```text
+P5-I4B  AUTHORIZATION DECISION = APPROVED WITH NON-SUBSTANTIVE NOTES
+        AUTHORIZATION EFFECTIVE = NO   (tek post-D-077-kanonski)
+        EXECUTION ELIGIBLE      = NO
+        NOT STARTED
+P5-I4C  NOT AUTHORIZED / NOT STARTED
+P5-I4   INCOMPLETE / OPEN
+P5-I5   STILL DEPENDENCY-BLOCKED / NOT AUTHORIZED / NOT STARTED
+P5-I6   NOT AUTHORIZED / NOT STARTED
+```
+
+**Autorizacija nije izvršenje.** `P5-I4B` implementacija **NE SMIJE početi** prije nego što D-077
+bude vlasnički prihvaćen, kanonski i post-publikaciono verifikovan, **i** prije nego što se otvori
+**zaseban gate izvršenja implementacije**. Red `Services → redaction` **ostaje neoznačen** i ostaje
+u vlasništvu `P5-I6`. Vidi D-077 u `06`, `04` §7.5a, `03` §4.1 i `08` §12.11.
+
 ## Schema
 
 - [x] patient_references.

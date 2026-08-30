@@ -350,6 +350,35 @@ idempotency_key)`), pa bi njihovo uključivanje u hash stvorilo drugi izvor iste
 ne smije ga izmisliti ni forkovati.** Pravila iz §4 — isti key + isti hash → isti poslovni
 rezultat, isti key + drugi hash → **`409 IDEMPOTENCY_CONFLICT`** — ostaju **nepromijenjena**.
 
+**STATUSNA ANOTACIJA (D-077, 2026-08-30) — §4, §4.1 i §4.2 se NE prepisuju i NE proširuju.** D-077
+evidentira vlasničku autorizaciju implementacije `P5-I4B`
+(`P5-I4B IMPLEMENTATION AUTHORIZATION DECISION = APPROVED WITH NON-SUBSTANTIVE NOTES`), pod-gatea
+koji posjeduje **DB-free** format/hash osnovu: **lokalni puni RFC 8785 / JCS kanonizator**,
+**`request_sha256`**, **`AUDIT_EVENT_HASH_PAYLOAD_V1`** i **`event_sha256` helper**. **Nijedan
+endpoint, header, permisija, rola, polje, error kod, statusni kod, TTL, pravilo cashiranja ni
+ugovor odgovora se ovom anotacijom NE mijenja**, i **nijedan obavezni `Idempotency-Key` endpoint
+se ne dodaje ni ne uklanja.**
+
+**`P5-I4B` NE uvodi nijednu HTTP rutu, nijedan database writer i nijednu novu runtime zavisnost**
+(`PUBLIC_API_ROUTE_MUTATION_REQUIRED = NO`, `DATABASE_WRITER_REQUIRED = NO`,
+`NEW_RUNTIME_DEPENDENCY_REQUIRED = NO`). **Nijedan JCS paket nije autorizovan.** Vlasnik `POST`
+rute, idempotency servisa i audit writera ostaje **`P5-I4C`**, koji je **`NOT AUTHORIZED` /
+`NOT STARTED`**; formulacija u §4.2 koja to konstatuje **ostaje nepromijenjena**.
+
+**Obuhvat obaveznih vektora request hasha — vlasnički omotač.** Doslovni `request_sha256` vektori
+traženi u `08` §9 i `08` §12.11, tačka 3, čitaju se **konzervativno/maksimalno**: gate izvršenja
+pinuje po **jedan doslovan vektor za svaku imenovanu obaveznu §4 request površinu** za koju
+kanonska dokumentacija definiše dovoljno determinističko kanonsko tijelo, **uključujući kanonsko
+tijelo admin aktivacije gdje je primjenjivo**. **Status odgođene rute sam po sebi ne isključuje
+vektor**, jer je identitet endpointa **izričito isključen iz digesta** (§4.1). Ako kanonsko tijelo
+nije dovoljno definisano, taj se pojedinačni vektor **evidentira i stavlja u `HOLD`**;
+**request semantika se ne izmišlja.**
+
+Autorizacija postaje operativno efektivna **tek nakon što D-077 bude vlasnički prihvaćen, kanonski
+i publikaciono verifikovan**, a implementacija smije početi **tek nakon zasebnog gatea izvršenja**.
+**`P5-I4B IMPLEMENTATION STARTED = NO`**; `P5-I4C`, `P5-I5` i `P5-I6` ostaju **`NOT AUTHORIZED`**.
+Vidi D-077 u `06`, `04` §7.5a i `08` §12.11.
+
 ---
 
 ## 4.2 `POST /patient-references` — idempotency pojašnjenja `P5-I4` (D-072, `OD-P5-I4-3`, `OD-P5-I4-7`, `OD-P5-I4-8`)
