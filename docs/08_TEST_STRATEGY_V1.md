@@ -1481,6 +1481,65 @@ očekivane vrijednosti.**
 16. **`session_id_hash`, `ip_address` i `user_agent_hash` su `null`** — **nikakva `inet`
     serijalizacija se ne testira ni ne izmišlja.**
 
+**STATUSNA ANOTACIJA (D-077, 2026-08-30) — §12.11 se NE prepisuje i NE proširuje.** D-077
+evidentira vlasničku autorizaciju implementacije `P5-I4B`
+(`P5-I4B IMPLEMENTATION AUTHORIZATION DECISION = APPROVED WITH NON-SUBSTANTIVE NOTES`) i **ne
+dodaje nijednu novu dokaznu obavezu niti ijednu uklanja**. **Svih šesnaest obaveza iznad ostaje
+obavezno**, u grupama **`1`–`2`** (JCS konformansa/provenijencija), **`3`–`9`**
+(`request_sha256`) i **`10`–`16`** (`AUDIT_EVENT_HASH_PAYLOAD_V1` / `event_sha256`). **Sav dokaz
+ostaje DB-free.** **Nijedan test iz §12.11 nije implementiran ni izvršen, i D-077 ih ne izvršava**
+i ne tvrdi nijedan rezultat.
+
+**Konformansni prag obaveza `1`–`2` je precizirana, ne proširena.** Cilj je **PUN
+RFC 8785-kompatibilan JSON kanonizator**: rekurzivna kanonizacija objekata; sortiranje svojstava
+po **sirovim UTF-16 code unitima**; rekurzivno sortiranje objekata **unutar nizova** uz **očuvan
+redoslijed elemenata niza**; kanonska serijalizacija brojeva; kanonsko escapiranje stringova;
+literali `true` / `false` / `null`; **bez beznačajnog whitespacea**; **UTF-8 kao konačna granica
+hashiranja**; **bez aplikacijski izmišljene Unicode normalizacije**. **Reducirani projektni
+podskup se ne smije imenovati kao JCS**, i **nijedan JCS paket nije autorizovan**.
+
+**Obavezan dodatni negativni konformansni slučaj:** **nevalidan Unicode ulaz sa usamljenim
+surogatom mora uzrokovati da JCS operacija padne/terminira sa prikladnom determinističkom
+greškom** (RFC 8785 §3.2.2.2). **Usamljeni surogat se NE SMIJE tiho prihvatiti** samo zato što ga
+`JSON.stringify` može predstaviti kao `\uXXXX` escape. **Ovo nije nova vlasnička odluka** — slijedi
+direktno iz već ratifikovane pune RFC 8785 konformanse (D-072, `OD-P5-I4-5`).
+
+**Anti-tautologijsko pravilo golden vektora — obavezno.** **Implementacija koja se testira NE SMIJE
+generisati vlastite očekivane vrijednosti**: ista JCS, ista `requestSha256` i ista `eventSha256`
+implementacija kao orakl očekivane vrijednosti = **`PROHIBITED`**. Dozvoljen dokaz su **doslovni
+javni/normativni vektori**, **nezavisno izračunati doslovni fixtures**, **nezavisno pribavljeni
+objavljeni digesti** i **metamorfne tvrdnje tamo gdje ih ova sekcija zahtijeva**. **Svaka
+netrivijalna doslovna golden vrijednost mora nositi provenijenciju u testu/fixtureu.** Vlasnik
+autorizuje **read-only** pribavljanje normativnog/javnog RFC 8785 materijala **isključivo kao
+pribavljanje dokaza** — **bez** instalacije paketa, importa vanjske JCS runtime implementacije,
+kopiranja biblioteke u produkcijski izvor i dodavanja zavisnosti. **Ako dovoljno nezavisan
+službeni/javni dokaz nije dostupan, gate izvršenja MORA STATI (`HOLD`)**; **samogenerisani orakl
+ne zadovoljava.**
+
+**Obuhvat vektora tačke `3` — vlasnički omotač.** Zahtjev „najmanje jedno kanonsko tijelo po
+obaveznom endpointu iz §4" čita se **konzervativno/maksimalno**: **obuhvat se ne smije tiho suziti
+na trenutno isporučene rute.** Pinuje se **jedan doslovan `request_sha256` vektor po imenovanoj
+obaveznoj `03` §4 request površini** za koju kanonska dokumentacija definiše dovoljno
+determinističko kanonsko tijelo, **uključujući kanonsko tijelo admin aktivacije gdje je
+primjenjivo**. **Status odgođene rute sam po sebi ne isključuje vektor**, jer je identitet
+endpointa **izričito isključen iz digesta** (`03` §4.1). Ako kanonsko tijelo nije dovoljno
+definisano, **taj se pojedinačni vektor evidentira i stavlja u `HOLD`**; **buduća tijela endpointa
+se ne izmišljaju radi zadovoljenja broja.**
+
+**Formatni firewall (tačka `13`).** Audit `occurred_at` u ovoj sekciji koristi **`.SSS000Z`**;
+javni patient-reference `createdAt` iz §12.10 / D-073 ostaje **`.sssZ`**. **To su dvije odvojene
+kanonske reprezentacijske površine i nijedan formatter se ne smije tiho ponovo upotrijebiti za onu
+drugu.** `event_sha256` **mora ponovo upotrijebiti `apps/api/src/crypto/sha256-utf8.ts`
+(`sha256HexUtf8`) NEPROMIJENJEN**; JCS i format-specifični omotači pripadaju **izvan** tog fajla, a
+njegov postojeći regresijski spec se **ne mijenja**.
+
+Autorizacija postaje operativno efektivna **tek nakon što D-077 bude vlasnički prihvaćen, kanonski
+i publikaciono verifikovan**, a implementacija smije početi **tek nakon zasebnog gatea izvršenja**;
+formulacija „Kada `P5-I4` bude zasebno autorizovan" ispod opisuje **pred-D-077 stanje** i **ne
+prepisuje se**. Checklist Faze 5 je i dalje **`49 / 14`** uz **`PHASE5_CHECKBOX_TRANSITIONS = 0`**.
+**`P5-I4C`, `P5-I5` i `P5-I6` ostaju `NOT AUTHORIZED`**, pa **§12.12 ostaje neautorizovana**. Vidi
+D-077 u `06`, `04` §7.5a, `05` §6 i `03` §4.1.
+
 ## 12.12 `P5-I4C` — idempotencija, konkurencija, audit i `POST /patient-references` (D-072)
 
 1. **Nedostajući `Idempotency-Key` → `400 IDEMPOTENCY_KEY_REQUIRED`**, statična poruka;

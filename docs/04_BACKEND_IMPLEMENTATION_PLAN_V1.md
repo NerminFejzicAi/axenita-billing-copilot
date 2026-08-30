@@ -2146,6 +2146,112 @@ P5-I6  IMPLEMENTATION AUTHORIZED = NO
 `CO-P5-I3-I4-2` ostaju **neispunjeni** ne-checkbox kriteriji prihvatanja roditeljskog `P5-I4`. Vidi
 D-076 u `06`, `03` §11, `05` §6 i `08` §12.10a.
 
+#### Vlasnička autorizacija implementacije `P5-I4B` (D-077, 2026-08-30)
+
+**Nijedan pasus, blok ni anotacija iznad se ne prepisuje.** D-077 je **aditivan autorizacijski
+zapis**; ugovorne klauzule D-069, D-072, D-073, D-074, D-075 i D-076 ostaju **doslovno na snazi i
+bajt-identične**.
+
+```text
+P5-I4B IMPLEMENTATION AUTHORIZATION           = APPROVED WITH NON-SUBSTANTIVE NOTES
+P5_I4B_IMPLEMENTATION_AUTHORIZATION_EFFECTIVE = NO
+P5_I4B_IMPLEMENTATION_EXECUTION_ELIGIBLE      = NO
+P5-I4B IMPLEMENTATION STARTED                 = NO
+```
+
+**Autorizacija nije operativno efektivna.** Postaje efektivna **tek** kada svih **šest** uslova
+prođe, redom: D-077 **autoriran**; **nezavisno vlasnički pregledan i dokazno adjudiciran**;
+**vlasnički prihvaćen**; **objavljen/merged**; **kanonski na `origin/main`**; **post-publikaciono
+verifikovan**. **I tada** implementacija smije početi **isključivo kroz zaseban `P5-I4B` gate
+izvršenja implementacije**. **Autorstvo, prihvatanje ni publikacija D-077 ne izvršavaju
+implementaciju.**
+
+**Oblik izvršenja i autorizovan obuhvat:**
+
+```text
+P5_I4B_EXECUTION_SHAPE = SINGLE_ATOMIC_IMPLEMENTATION_GATE
+
+A  lokalni PUNI RFC 8785 / JCS kanonizator
+B  request_sha256
+C  AUDIT_EVENT_HASH_PAYLOAD_V1 formatter
+D  event_sha256 helper
+```
+
+uz **`P5-I4B`-only testove**, **doslovne nezavisne golden/vektor fixtures** i **minimalno
+export/index wiring strogo nužno za `A`–`D`**. **Nikakav drugi izvršivi obuhvat nije autorizovan.**
+
+**RFC 8785.** Konformansni cilj je **pun RFC 8785-kompatibilan kanonizator**; **reducirani
+projektni podskup se ne smije imenovati kao JCS**, i **nijedan JCS paket nije autorizovan**.
+**Konformansna korekcija (nova, ali ne nova vlasnička odluka):** nevalidni Unicode podaci sa
+**usamljenim surogatom MORAJU uzrokovati determinističku grešku/prekid JCS operacije** (RFC 8785
+§3.2.2.2), i **ne smiju se tiho prihvatiti** samo zato što ih `JSON.stringify` može predstaviti kao
+`\uXXXX` escape. To slijedi direktno iz već ratifikovane pune RFC 8785 konformanse
+(`OD-P5-I4-5`), pa **`OD-P5-I4B-*` i dalje ne postoji**. **Obavezan je negativni konformansni
+test.**
+
+**Dokazna provenijencija.** Vlasnik autorizuje **read-only vanjski pristup isključivo radi
+pribavljanja normativnog/javnog RFC 8785 materijala** (RFC Editor izdanje, objavljeni primjeri
+kanonizacije i sortiranja, Appendix B uzorci brojeva, javni testni materijal direktno referisan od
+RFC 8785). **To je isključivo pribavljanje dokaza** — **ne** instalacija paketa, **ne** import
+vanjske JCS runtime implementacije, **ne** kopiranje biblioteke u produkcijski izvor, **ne**
+dodavanje zavisnosti. **Anti-tautologija je obavezna:** implementacija koja se testira **ne smije
+generisati vlastite očekivane vrijednosti** — ni za JCS, ni za `requestSha256`, ni za
+`eventSha256`. **Ako nezavisan službeni/javni dokaz nije dostupan, gate izvršenja MORA STATI
+(`HOLD`).**
+
+**Formatni firewall.** Javni patient-reference `createdAt` ostaje **`.sssZ`** (D-073, `P5-I4A`) i
+**ne smije se mijenjati**; audit `occurred_at` hashiranje koristi **`.SSS000Z`**
+(`OD-P5-I4-4`). **To su dvije odvojene reprezentacijske površine i nijedan formatter se ne smije
+tiho ponovo upotrijebiti za onu drugu.** `event_sha256` **mora ponovo upotrijebiti
+`apps/api/src/crypto/sha256-utf8.ts` (`sha256HexUtf8`) NEPROMIJENJEN**; JCS i format-specifični
+omotači pripadaju **izvan** tog fajla.
+
+**Smještaj.** Kanonska dokumentacija ne fiksira putanje. **Preferiran uzak otisak je
+`apps/api/src/crypto/`** uz kolocirane `src/**/*.spec.ts` testove; **to je preferencija, ne novi
+tvrdi arhitektonski ugovor**, a uporedivo uzak smještaj je dozvoljen ako dokaz pokaže da **ne
+prejudicira ni ne apsorbuje `P5-I4C`**.
+
+**Zamrznuti mutacijski predikati:**
+
+```text
+PRISMA_SCHEMA_MUTATION_REQUIRED     = NO
+MIGRATION_REQUIRED                  = NO
+RLS_POLICY_MUTATION_REQUIRED        = NO
+GRANT_MUTATION_REQUIRED             = NO
+NEW_RUNTIME_DEPENDENCY_REQUIRED     = NO
+PUBLIC_API_ROUTE_MUTATION_REQUIRED  = NO
+DATABASE_WRITER_REQUIRED            = NO
+CHECKLIST_TRANSITION_DURING_P5_I4B  = 0
+```
+
+**Autorizacijski firewall:**
+
+```text
+P5-I4C IMPLEMENTATION AUTHORIZED = NO   / NOT STARTED
+P5-I4  PARENT                    = INCOMPLETE / OPEN
+P5-I5  IMPLEMENTATION AUTHORIZED = NO   / STILL DEPENDENCY-BLOCKED
+P5-I6  IMPLEMENTATION AUTHORIZED = NO   / NOT STARTED
+```
+
+**Obuhvat `P5-I4B` iz tabele segmentacije iznad se ne proširuje i ne reinterpretira**; idempotency
+servis, advisory-lock konkurencija, audit writer i `POST /patient-references` ostaju **`P5-I4C`**.
+**Formulacije iznad** koje glase `P5-I4B IMPLEMENTATION AUTHORIZED = NO` i „podobnost nije
+autorizacija" opisuju **pred-D-077 stanje**, **historijski su tačne** i **ne prepisuju se**;
+**mjerodavan je ovaj statusni model.**
+
+**Dispozicija preflight napomena.** `N-1` = **`RESOLVED AS AUTHORIZATION-TIME OPERATIONAL
+PRECONDITION`**; `N-2` = **`NON-BLOCKING / CONSERVATIVE-MAXIMAL VECTOR READING`**; `N-3` =
+**`IMPLEMENTER DISCRETION WITHIN CANONICAL ARCHITECTURAL BOUNDARY`**; `N-4` = **`PARTIALLY
+SUPERSEDED BY RFC CONFORMANCE CORRECTION`** (UTF-16 ordering briga ostaje validna; sugestija o
+prihvatanju usamljenog surogata **nije usvojena**); `N-5` = **`NON-BLOCKING`**; `I-1` … `I-4` =
+**`INFORMATIONAL / NON-BLOCKING`**. **Nijedna nije nova vlasnička odluka**, i
+**`P5_I4B_OWNER_DECISIONS_REQUIRED = 0`**. Puna tabela je u D-077 (`06`).
+
+Checklist Faze 5 ostaje **`49 / 14`** uz **`PHASE5_CHECKBOX_TRANSITIONS = 0`**; **`P5-I4B` direktno
+označava `NONE`**, sedamnaest forecast redova ostaje **neoznačeno**, a
+**`EXPECTED_POST_P5_I4_CLOSURE_CHECKLIST = 49 / 31`**. Vidi D-077 u `06`, `03` §4.1, `05` §6 i
+`08` §12.11.
+
 ### Segmentacija `P5-I2` na četiri pod-gatea (D-064)
 
 `P5-I2` se **ne izvršava kao jedan potez**. Ratifikovana su četiri pod-gatea:
