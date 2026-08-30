@@ -1486,6 +1486,50 @@ autorizovana odlukom D-075**, `P5-I4A` implementacijski kandidat ostaje **nekano
 `P5-I4B`, `P5-I4C`, `P5-I5` i `P5-I6` ostaju **`NOT AUTHORIZED`**. Vidi D-075 u `06`, `04` §7.5a i
 `08` §12.10a.
 
+**STATUSNA ANOTACIJA (D-076, 2026-08-30) — cijela sekcija iznad se NE prepisuje.** Ugovorna
+pojašnjenja D-073, statusna anotacija D-074 i semantičko pomirenje D-075 ostaju **doslovno na
+snazi i nepromijenjeni**. D-076 je **post-merge pomirenje i formalno zatvaranje pod-gatea
+`P5-I4A`**; on **ne mijenja nijedan endpoint, permisiju, rolu, polje, error kod, statusni kod,
+pravilo `X-Practice-ID`-a ni ugovor odgovora.**
+
+**`GET /api/v1/patient-references/{id}` je implementiran, vlasnički pregledan, prihvaćen, merged i
+kanonski na `origin/main`:**
+
+```text
+IMPLEMENTATION COMMIT   1d84e2210f81ac5efbc131cb7f3f27971e8a417f
+PULL REQUEST            #52   (MERGED)
+MERGE COMMIT            1247eea20a07d547a6912ed931c72c5b310a8702
+CANONICAL TREE          4d6bd5f6c540c2e4ba01d91f803978b61c2f27dd
+REVIEWED BLOBS          29 / 29 BYTE-IDENTICAL
+IMPLEMENTATION DRIFT    ZERO
+P5-I4A                  IMPLEMENTED / OWNER-ACCEPTED / CANONICAL /
+                        PUBLICATION-VERIFIED / VERIFICATION PASS
+```
+
+**Formulacije iznad** — „`P5-I4A` je `NOT AUTHORIZED` / `NOT STARTED`",
+„`P5-I4A IMPLEMENTATION STARTED = NO`", „implementacija smije početi tek nakon zasebnog gatea
+izvršenja" i „`P5-I4A` implementacijski kandidat ostaje **nekanonski**" — opisuju **pred-D-076
+stanje**, **historijski su tačne** i **ne prepisuju se**; **mjerodavan je ovaj statusni model.**
+
+**Formalno zatvaranje nije odmah efektivno.** Ono postaje efektivno tek nakon što D-076 sam bude
+autorstvom dovršen, nezavisno vlasnički pregledan, vlasnički prihvaćen, objavljen/merged, kanonski
+na `origin/main` i post-publikaciono verifikovan.
+
+```text
+P5-I4A FORMAL CLOSURE OWNER DECISION = APPROVED
+P5-I4A FORMAL CLOSURE EFFECTIVE      = NO      (do ispunjenja sest uslova)
+P5-I4B PREFLIGHT ELIGIBLE            = YES     (tek u post-D-076-kanonskom stanju)
+P5-I4B IMPLEMENTATION AUTHORIZED     = NO
+P5-I4C IMPLEMENTATION AUTHORIZED     = NO
+P5-I5  IMPLEMENTATION AUTHORIZED     = NO
+P5-I6  IMPLEMENTATION AUTHORIZED     = NO
+CURRENT_CHECKLIST                    = 49 / 14
+PHASE5_CHECKBOX_TRANSITIONS          = 0
+```
+
+**`POST /patient-references` ostaje `P5-I4C` i nije implementiran.** Vidi D-076 u `06`, `04` §7.5a,
+`05` §6 i `08` §12.10a.
+
 ---
 
 # 12. Encounter API
