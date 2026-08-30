@@ -39,6 +39,7 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client.js';
 
 import { PrismaService } from '../../database/prisma.service.js';
+import { type TenantStatement } from '../../database/tenant-statement.js';
 import {
   TenantContextRejectedError,
   type BootstrapUserRow,
@@ -551,6 +552,23 @@ class PrismaIdentityBootstrapSession implements IdentityBootstrapSession {
         and "revoked_at" is null
       order by "platform_role" asc
     `;
+  }
+
+  public async runTenantStatement<TRow>(statement: TenantStatement): Promise<readonly TRow[]> {
+    // THE WHOLE OF THE SMALL_ADAPTER SEAM, AND IT IS ONE LINE ON PURPOSE.
+    //
+    // `this.tx` is the transaction client of the ALREADY-OPEN authenticated transaction — the
+    // same one every statement above runs on, on the same pinned connection, with `app.user_id`
+    // and (by the time a feature statement is reached) `app.practice_id` already established.
+    // There is no `$transaction` here, no second client, no `$connect`, no `SET ROLE` and no
+    // escape from the transaction: a feature statement is executed exactly where the identity
+    // statements are (D-054 clauses 6-8; D-056 clause 5).
+    //
+    // `statement.sql` is a `Prisma.Sql` built by the feature adapter with the `Prisma.sql` tag,
+    // so every value is a BOUND parameter and no client string can reach an identifier position.
+    // `$queryRawUnsafe`, `Prisma.raw` and string concatenation of SQL appear nowhere on this
+    // path, and `label` is a source-code literal that never touches the statement.
+    return this.tx.$queryRaw<TRow[]>(statement.sql);
   }
 }
 

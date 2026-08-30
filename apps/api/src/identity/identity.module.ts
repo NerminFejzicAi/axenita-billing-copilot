@@ -67,5 +67,16 @@ import { PrismaIdentityDatabase } from './infrastructure/prisma-identity.databas
     PracticeSettingsWriteService,
     { provide: IDENTITY_DATABASE, useClass: PrismaIdentityDatabase },
   ],
+  // EXPORTED SO THAT LATER TENANT MODULES REUSE THESE VERY INSTANCES, NEVER COPIES OF THEM.
+  //
+  // `P5-I4A` adds `GET /patient-references/{id}` in its own module (`04` §3.4 keeps a business
+  // module in its own module). That route must enter the SAME authenticated bootstrap chain and
+  // the SAME single tenant admission pipeline as every route above — `TENANT_ADMISSION_PIPELINE_
+  // COUNT = 1` (D-073) — so the pipeline and the bootstrap are exported and imported rather than
+  // re-provided. Re-providing either would create a second provider instance and therefore a
+  // second, independently evolvable admission path, which is precisely what the decision
+  // forbids. `DevelopmentAuthGuard` is exported for the same reason: one guard class, one
+  // instance, one token verification.
+  exports: [DevelopmentAuthGuard, IdentityBootstrapService, TenantRequestPipeline],
 })
 export class IdentityModule {}

@@ -883,7 +883,11 @@ describe('GET /api/v1/practices/{practiceId}', () => {
           // No user is passed: the pipeline derives the membership from the `app.user_id` this
           // session established (D-054 clause 12).
           const admitted = await pipeline.admit(session, {
-            requestedPracticeId: PHASE_3_SEED_IDS.practiceDemo,
+            // `PRACTICE_PATH` — the scope every existing practice route declares (D-073).
+            scope: {
+              mode: 'PRACTICE_PATH',
+              requestedPracticeId: PHASE_3_SEED_IDS.practiceDemo,
+            },
             practiceContextHeader: PHASE_3_SEED_IDS.practiceDemo,
             requiredPermission: 'practice.read',
           });

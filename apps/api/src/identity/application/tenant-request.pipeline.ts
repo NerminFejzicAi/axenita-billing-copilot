@@ -96,10 +96,54 @@ import { assertPathMatchesPracticeContext, readPracticeContext } from './practic
 /** The one `entity_status` value that admits a practice (`02` §4.2, D-047 clause 10). */
 const ACTIVE_PRACTICE_STATUS = 'ACTIVE';
 
+/**
+ * The CLOSED set of tenant request scopes — `TENANT_REQUEST_SCOPE_MODEL =
+ * CLOSED_DISCRIMINATED_UNION` (D-073, `OD-P5-I4A-1`; `03` §11).
+ *
+ * EXACTLY TWO SEMANTIC VARIANTS EXIST, AND EVERY TENANT CALL SITE MUST NAME ITS OWN. There is
+ * no third variant and no implicit default: a route that forgets to state its scope does not
+ * compile, rather than quietly inheriting whichever behaviour happened to be the fallback.
+ *
+ * The two differ in ONE step and in nothing else — whether a practice id appears in the PATH at
+ * all. Everything after that step (practice existence, `practices.status`, the ACTIVE
+ * membership, `set_request_context` and the permission decision) is literally the same code for
+ * both, because there is exactly ONE {@link TenantRequestPipeline}
+ * (`TENANT_ADMISSION_PIPELINE_COUNT = 1`).
+ */
+export const TENANT_SCOPE_MODES = ['PRACTICE_PATH', 'HEADER_ONLY'] as const;
+
+/** One of the two accepted scope discriminants. */
+export type TenantScopeMode = (typeof TENANT_SCOPE_MODES)[number];
+
+/**
+ * The scope of ONE tenant request — a closed discriminated union over {@link TENANT_SCOPE_MODES}.
+ *
+ * WHY THE PATH ID LIVES IN THE VARIANT AND NOT IN {@link TenantRequest}
+ *
+ * D-073 forbids `requestedPracticeId?: string` and `requestedPracticeId: string | undefined`
+ * in so many words. An optional member cannot distinguish "this route has no path practice" from
+ * "this route has one and the caller's was lost", and both read as `undefined` at runtime — which
+ * turns the path/header comparison into a branch that is SKIPPED rather than a check that FAILS.
+ * Carrying the value inside the variant that actually has one makes the absent case
+ * unrepresentable instead of merely discouraged: `HEADER_ONLY` has no member to omit, and
+ * `PRACTICE_PATH` has no way to omit its own.
+ *
+ * `HEADER_ONLY` deliberately carries NO caller-supplied practice id — not mandatory, not
+ * optional, not nullable. Passing the validated header value back in as a pretend path segment
+ * and then comparing it with itself is explicitly forbidden: it is a tautology that looks like a
+ * tenant check and proves nothing at all.
+ */
+export type TenantRequestScope =
+  | { readonly mode: 'PRACTICE_PATH'; readonly requestedPracticeId: string }
+  | { readonly mode: 'HEADER_ONLY' };
+
 /** Everything ONE tenant request supplies, before any of it has been trusted. */
 export interface TenantRequest {
-  /** The raw `{practiceId}` path segment, exactly as received. */
-  readonly requestedPracticeId: string;
+  /**
+   * Which of the two accepted scopes this call site is, and — for `PRACTICE_PATH` only — the raw
+   * `{practiceId}` path segment, exactly as received.
+   */
+  readonly scope: TenantRequestScope;
   /** The raw `X-Practice-ID` value, or `undefined` when the client sent none. */
   readonly practiceContextHeader: string | undefined;
   /**
@@ -162,13 +206,37 @@ export class TenantRequestPipeline {
   ): Promise<AdmittedTenantRequest> {
     // Step 3, deliberately AFTER admission. A caller whose identity has not been admitted must
     // not learn anything about their headers, and `03` §3.7.1 forbids reordering the chain.
+    // BOTH scopes read and validate `X-Practice-ID` here, identically: the header rules of
+    // `03` §3.2 are not changed by D-073 and are not per-variant.
     const practiceId = readPracticeContext(request.practiceContextHeader);
 
-    // `03`: "practiceId iz putanje mora odgovarati uspostavljenom practice contextu". The
-    // mismatch answer is the shared 403, indistinguishable from every other refusal.
-    assertPathMatchesPracticeContext(request.requestedPracticeId, practiceId, accessDenied);
+    // THE ONLY STEP THE TWO SCOPES DO NOT SHARE (D-073, `OD-P5-I4A-1`).
+    //
+    // An EXHAUSTIVE switch over the closed discriminant, so a third variant would be a compile
+    // error here rather than a silently unhandled case that fell through to "no comparison".
+    switch (request.scope.mode) {
+      case 'PRACTICE_PATH':
+        // `03`: "practiceId iz putanje mora odgovarati uspostavljenom practice contextu". The
+        // mismatch answer is the shared 403, indistinguishable from every other refusal, and it
+        // is UNCHANGED by D-073 for every existing practice-path route.
+        assertPathMatchesPracticeContext(
+          request.scope.requestedPracticeId,
+          practiceId,
+          accessDenied,
+        );
+        break;
 
-    // Step 4 — BOTH halves, and both strictly before any tenant context exists.
+      case 'HEADER_ONLY':
+        // NOTHING HAPPENS HERE, AND THAT IS THE CONTRACT. The path of such a route carries no
+        // practice identity, so there is nothing to compare the header with. Comparing the
+        // header-derived practice with itself would be a tautology dressed as a tenant check,
+        // and D-073 forbids it by name. The admitted practice is derived EXCLUSIVELY from the
+        // validated header/context path above.
+        break;
+    }
+
+    // Step 4 — BOTH halves, and both strictly before any tenant context exists. From here on
+    // the two scopes execute literally the same statements in the same order.
     await this.admitRequestedPractice(session, practiceId);
     const membershipId = await this.admitActiveMembership(session, practiceId);
 

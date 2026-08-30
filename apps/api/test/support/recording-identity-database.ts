@@ -29,6 +29,11 @@
  * is the ordering and projection harness and is not a substitute for those.
  */
 
+import { type TenantStatement } from '../../src/database/tenant-statement.js';
+import {
+  PATIENT_REFERENCE_READ_STATEMENT,
+  type PatientReferenceRow,
+} from '../../src/patient-reference/infrastructure/patient-reference-database.port.js';
 import {
   TenantContextRejectedError,
   type BootstrapUserRow,
@@ -52,6 +57,40 @@ export interface OwnedMembership extends MembershipRow {
 /** A platform assignment plus the owning user, which the real query filters on. */
 export interface OwnedPlatformRole extends PlatformRoleRow {
   readonly userId: string;
+}
+
+/**
+ * A `patient_references` row plus its owning practice — the tenant key the `013_rls_policies_
+ * phase5` policy filters on and the real statement predicates on.
+ *
+ * `practiceId` is NOT a member of {@link PatientReferenceRow}: the statement never projects the
+ * tenant of a row, so neither does the double.
+ */
+export interface OwnedPatientReference extends PatientReferenceRow {
+  readonly practiceId: string;
+}
+
+/**
+ * A `patient_references` row with obviously synthetic, non-PHI defaults (`09` §9).
+ *
+ * `createdAt` defaults to a whole second on purpose: it is the vector that proves the public
+ * serialiser emits `.000` rather than eliding the fractional part (D-073 `OD-P5-I4A-3`).
+ */
+export function patientReferenceRow(
+  id: string,
+  practiceId: string,
+  overrides: Partial<OwnedPatientReference> = {},
+): OwnedPatientReference {
+  return {
+    id,
+    practiceId,
+    pseudonym: 'P-K7M2QX4TB9',
+    birthYear: 1968,
+    sexCode: 'F',
+    sourceSystem: 'MANUAL',
+    createdAt: new Date('2026-07-18T10:00:00Z'),
+    ...overrides,
+  };
 }
 
 /**
@@ -97,6 +136,16 @@ export interface World {
    */
   settings: SettingsRow[];
   platformRoles: OwnedPlatformRole[];
+  /**
+   * `patient_references`, held with the OWNING PRACTICE alongside the six public columns.
+   *
+   * The tenant key is stored because the real policy filters on it and the real statement
+   * predicates on it — but it is deliberately NOT part of {@link PatientReferenceRow}, which is
+   * the six-column projection the statement returns. Keeping the two apart here is what lets a
+   * spec store a row that belongs to ANOTHER practice and then observe that the read cannot see
+   * it, without the tenant column ever being reachable from the projected row (M-1).
+   */
+  patientReferences: OwnedPatientReference[];
   /**
    * Practices whose `set_request_context` refuses even though the membership rows say it
    * should succeed — the RACE of D-033 clause 11.
@@ -159,6 +208,7 @@ export function emptyWorld(): World {
     membershipRoles: [],
     settings: [],
     platformRoles: [],
+    patientReferences: [],
     contextRaces: [],
   };
 }
@@ -479,6 +529,62 @@ export class RecordingDatabase implements IdentityDatabase {
       findCurrentPlatformRoles: async (userId: string): Promise<readonly PlatformRoleRow[]> => {
         calls.push(`select platform_roles(${userId})`);
         return Promise.resolve(world.platformRoles.filter((row) => row.userId === userId));
+      },
+      runTenantStatement: async <TRow>(statement: TenantStatement): Promise<readonly TRow[]> => {
+        // THE SMALL_ADAPTER SEAM, MODELLED IN THE SAME ONE ORDERED LOG AS EVERY IDENTITY
+        // STATEMENT. That is the whole point of extending this harness rather than building a
+        // second one (`08` §12.10 point 2): a behavioural spec can assert that the feature
+        // statement ran on THIS session, in THIS transaction, AFTER `set_request_context`, and
+        // exactly once.
+        //
+        // The recorded name is the adapter's own source-code `label`, never its SQL and never a
+        // bound value, so nothing a caller supplies can reach the log.
+        calls.push(`tenant_statement(${statement.label})`);
+
+        if (statement.label !== PATIENT_REFERENCE_READ_STATEMENT) {
+          // A statement this double does not model must FAIL rather than quietly return no
+          // rows: an unmodelled read that looked like "not found" would let a spec pass against
+          // a query nobody had reviewed.
+          throw new Error(`Unmodelled tenant statement: ${statement.label}`);
+        }
+
+        // The parameters the PRODUCTION statement actually binds, in the order it binds them:
+        // the admitted practice first, the resource second. Reading them here rather than
+        // accepting them as arguments is what makes the double filter on the same values the
+        // real statement filters on — a statement that stopped binding the tenant predicate
+        // would stop matching here too.
+        const [boundPracticeId, boundResourceId] = statement.sql.values;
+
+        // `patient_references_select` (`013_rls_policies_phase5`), the PRIMARY control:
+        // `practice_id = nullif(current_setting('app.practice_id', true), '')::uuid`. Without an
+        // established tenant context the predicate is `practice_id = NULL` and NO row is visible
+        // at all, for any practice — fail closed, exactly as in the database.
+        //
+        // The explicit `practice_id` term of the statement is applied on top, as the second
+        // barrier D-073 requires the application to keep.
+        const rows = world.patientReferences.filter(
+          (row) =>
+            appPracticeId !== undefined &&
+            row.practiceId === appPracticeId &&
+            row.practiceId === boundPracticeId &&
+            row.id === boundResourceId,
+        );
+
+        // Projected to EXACTLY the six columns the real statement names. The stored row also
+        // carries `practiceId`, and it must not travel: a double that returned the whole stored
+        // object would let an over-projecting production statement pass here (M-1).
+        const projected: readonly PatientReferenceRow[] = rows.map((row): PatientReferenceRow => ({
+          id: row.id,
+          pseudonym: row.pseudonym,
+          birthYear: row.birthYear,
+          sexCode: row.sexCode,
+          sourceSystem: row.sourceSystem,
+          createdAt: row.createdAt,
+        }));
+
+        // The seam is generic because it names no table; this double models exactly one
+        // statement, so the row type is pinned above and widened here, once, at the boundary.
+        return Promise.resolve(projected as readonly unknown[] as readonly TRow[]);
       },
     };
   }

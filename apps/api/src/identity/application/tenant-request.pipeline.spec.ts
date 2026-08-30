@@ -35,7 +35,12 @@ import {
   type IdentityBootstrapSession,
 } from '../infrastructure/identity-database.port.js';
 import { IdentityBootstrapService } from './identity-bootstrap.service.js';
-import { TenantRequestPipeline, type AdmittedTenantRequest } from './tenant-request.pipeline.js';
+import {
+  TENANT_SCOPE_MODES,
+  TenantRequestPipeline,
+  type AdmittedTenantRequest,
+  type TenantRequestScope,
+} from './tenant-request.pipeline.js';
 
 const SUBJECT = 'dev|practice-admin';
 
@@ -105,6 +110,13 @@ describe('TenantRequestPipeline', () => {
     readonly header?: string | undefined;
     readonly subject?: string;
     readonly permission?: Permission;
+    /**
+     * The tenant scope of the simulated call site (D-073, `OD-P5-I4A-1`).
+     *
+     * Absent means the `PRACTICE_PATH` default every existing practice route declares, which is
+     * what the pre-D-073 suite exercised and must keep exercising unchanged.
+     */
+    readonly scope?: TenantRequestScope;
   }
 
   /**
@@ -119,7 +131,10 @@ describe('TenantRequestPipeline', () => {
       // could receive it (see the `admit` signature specs below).
       async (session: IdentityBootstrapSession) =>
         pipeline.admit(session, {
-          requestedPracticeId: overrides.practiceId ?? PRACTICE,
+          scope: overrides.scope ?? {
+            mode: 'PRACTICE_PATH',
+            requestedPracticeId: overrides.practiceId ?? PRACTICE,
+          },
           practiceContextHeader: 'header' in overrides ? overrides.header : PRACTICE,
           requiredPermission: overrides.permission ?? REQUIRED_PERMISSION,
         }),
@@ -191,7 +206,7 @@ describe('TenantRequestPipeline', () => {
           await session.setAuthSubjectContext(SUBJECT);
 
           return pipeline.admit(session, {
-            requestedPracticeId: PRACTICE,
+            scope: { mode: 'PRACTICE_PATH', requestedPracticeId: PRACTICE },
             practiceContextHeader: PRACTICE,
             requiredPermission: REQUIRED_PERMISSION,
           });
@@ -571,7 +586,7 @@ describe('TenantRequestPipeline', () => {
           };
 
           return pipeline.admit(sabotaged, {
-            requestedPracticeId: PRACTICE,
+            scope: { mode: 'PRACTICE_PATH', requestedPracticeId: PRACTICE },
             practiceContextHeader: PRACTICE,
             requiredPermission: REQUIRED_PERMISSION,
           });
@@ -717,6 +732,119 @@ describe('TenantRequestPipeline', () => {
 
       expect((await refusalOf()).getStatus()).toBe(403);
       expect(database.calls.some((call) => call.startsWith('select platform_roles'))).toBe(false);
+    });
+  });
+
+  /**
+   * `OD-P5-I4A-1` — the CLOSED tenant request scope (D-073; `03` §11; `08` §12.10a, points 1-7).
+   *
+   * These specs are about the SHAPE of the admission contract, not about a status code: the
+   * failure they exist to catch is a `HEADER_ONLY` route that quietly acquires a path comparison,
+   * or a `PRACTICE_PATH` route that quietly loses one.
+   */
+  describe('tenant request scope is a closed two-variant union (D-073, OD-P5-I4A-1)', () => {
+    it('publishes EXACTLY two variants, and no third', () => {
+      expect([...TENANT_SCOPE_MODES]).toEqual(['PRACTICE_PATH', 'HEADER_ONLY']);
+      expect(TENANT_SCOPE_MODES).toHaveLength(2);
+    });
+
+    it('carries no optional or undefined-bearing requestedPracticeId seam', () => {
+      // The forbidden seams of D-073 are `requestedPracticeId?: string` and
+      // `requestedPracticeId: string | undefined`. Both are unrepresentable here because the
+      // member lives INSIDE the variant that has one: a `HEADER_ONLY` scope has no such key at
+      // all, so there is nothing to leave `undefined`.
+      const headerOnly: TenantRequestScope = { mode: 'HEADER_ONLY' };
+      const practicePath: TenantRequestScope = {
+        mode: 'PRACTICE_PATH',
+        requestedPracticeId: PRACTICE,
+      };
+
+      expect(Object.keys(headerOnly)).toEqual(['mode']);
+      expect(Object.keys(headerOnly)).not.toContain('requestedPracticeId');
+      expect(Object.keys(practicePath).sort()).toEqual(['mode', 'requestedPracticeId']);
+
+      // The source of `admit` reaches the path segment only through the variant that carries
+      // it. A bare `request.requestedPracticeId` would be the flattened, optional-bearing shape
+      // the decision forbids.
+      const source = TenantRequestPipeline.prototype.admit.toString();
+
+      expect(source).not.toContain('request.requestedPracticeId');
+      expect(source).toContain('request.scope.requestedPracticeId');
+    });
+
+    it('admits a HEADER_ONLY request through the same pipeline, with no path comparison', async () => {
+      seedEligibleCaller(['PRACTICE_ADMIN']);
+
+      const admitted = await admit({ scope: { mode: 'HEADER_ONLY' } });
+
+      // The admitted practice is derived EXCLUSIVELY from the validated header/context path.
+      expect(admitted.practiceId).toBe(PRACTICE);
+      expect(admitted.membershipId).toBe(MEMBERSHIP);
+    });
+
+    it('performs no fake header-as-path self-comparison on HEADER_ONLY', () => {
+      // A tautology dressed as a check — comparing the header-derived practice with itself —
+      // is forbidden by name. The comparison helper is reached from exactly one place, and that
+      // place is the `PRACTICE_PATH` arm.
+      const source = TenantRequestPipeline.prototype.admit.toString();
+      const comparisons = source.split('assertPathMatchesPracticeContext').length - 1;
+
+      expect(comparisons).toBe(1);
+      expect(source).not.toContain('assertPathMatchesPracticeContext(practiceId, practiceId');
+    });
+
+    it('runs the SAME downstream admission steps for both variants', async () => {
+      // The two scopes may differ in exactly one step. Everything after it — practice existence,
+      // `practices.status`, the ACTIVE membership, `set_request_context`, roles and settings —
+      // must be literally the same recorded sequence.
+      seedEligibleCaller(['PRACTICE_ADMIN']);
+      await admit();
+      const pathCalls = [...database.calls];
+
+      database.calls.length = 0;
+      await admit({ scope: { mode: 'HEADER_ONLY' } });
+      const headerCalls = [...database.calls];
+
+      expect(headerCalls).toEqual(pathCalls);
+    });
+
+    it('keeps the canonical 403 for a PRACTICE_PATH path/header mismatch', async () => {
+      // The frozen non-regression of D-073: existing practice-path routes are unchanged.
+      seedEligibleCaller(['PRACTICE_ADMIN']);
+
+      const failure = await refusalOf({ practiceId: OTHER_PRACTICE });
+
+      expect(failure.getStatus()).toBe(403);
+      expect(failure.code).toBe('ACCESS_DENIED');
+      expect(database.calls.some((call) => call.startsWith('set_request_context('))).toBe(false);
+    });
+
+    it('still validates X-Practice-ID for a HEADER_ONLY request', async () => {
+      // `03` §3.2 is not per-variant: the header rules are unchanged, so an absent header is
+      // still `400 PRACTICE_CONTEXT_REQUIRED` and a malformed one `400 PRACTICE_CONTEXT_INVALID`.
+      seedEligibleCaller(['PRACTICE_ADMIN']);
+
+      const absent = await refusalOf({ scope: { mode: 'HEADER_ONLY' }, header: undefined });
+      expect(absent.getStatus()).toBe(400);
+      expect(absent.code).toBe('PRACTICE_CONTEXT_REQUIRED');
+
+      const malformed = await refusalOf({ scope: { mode: 'HEADER_ONLY' }, header: 'not-a-uuid' });
+      expect(malformed.getStatus()).toBe(400);
+      expect(malformed.code).toBe('PRACTICE_CONTEXT_INVALID');
+    });
+
+    it('refuses a HEADER_ONLY request through the SAME downstream barriers', async () => {
+      // A `HEADER_ONLY` route is not a weaker admission path: a caller with no membership in the
+      // header-named practice is refused exactly as a `PRACTICE_PATH` caller is, and no tenant
+      // context is established.
+      world.bootstrapUsers.push(activeUser());
+      world.practices.push(practiceRow(PRACTICE, 'Demo Praxis Zuerich'));
+
+      const failure = await refusalOf({ scope: { mode: 'HEADER_ONLY' } });
+
+      expect(failure.getStatus()).toBe(403);
+      expect(failure.code).toBe('ACCESS_DENIED');
+      expect(database.calls.some((call) => call.startsWith('set_request_context('))).toBe(false);
     });
   });
 });

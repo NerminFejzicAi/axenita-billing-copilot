@@ -6,6 +6,7 @@ import { CryptoModule } from './crypto/crypto.module.js';
 import { DatabaseModule } from './database/database.module.js';
 import { HealthModule } from './health/health.module.js';
 import { IdentityModule } from './identity/identity.module.js';
+import { PatientReferenceModule } from './patient-reference/patient-reference.module.js';
 
 /**
  * Root module.
@@ -14,9 +15,10 @@ import { IdentityModule } from './identity/identity.module.js';
  * created rather than when this file is imported (see `AppConfigModule`).
  *
  * Wires validated configuration, cross-cutting error handling, the database access layer, the
- * health endpoints and — from phase 3 — the identity domain that owns `GET /me` (04 §5.2).
- * The remaining business modules listed in 01 §6 are introduced by their own phases and must
- * not be stubbed here (04 §3.4).
+ * health endpoints, the identity domain that owns `GET /me` (04 §5.2) and — from the `P5-I4A`
+ * slice — the patient-reference domain that owns `GET /patient-references/{id}` (`03` §11,
+ * D-072 `OD-P5-I4-13`, D-073). The remaining business modules listed in 01 §6 are introduced by
+ * their own phases and must not be stubbed here (04 §3.4).
  *
  * `CryptoModule` is imported although no route consumes it yet, and that is the whole point:
  * building it here is what makes `LocalStaticKeyProvider`'s D-025 clause 10 guards run at
@@ -35,6 +37,7 @@ export class AppModule {
         DatabaseModule,
         HealthModule,
         IdentityModule,
+        PatientReferenceModule,
       ],
     };
   }
