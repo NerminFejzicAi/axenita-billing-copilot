@@ -487,7 +487,7 @@ describe('package 011 tables and models (02 §15.2, §15.4, §22.11, §29.9.3; D
     // treatment the package `013` forward-SQL scan already gives its rollback commentary.
     const schema = readFileSync(resolve(apiRoot, 'prisma/schema.prisma'), 'utf8');
     const declarations = schema
-      .split('\n')
+      .split(/\r?\n/)
       .map((line) => line.replace(/^\s*\/\/.*$/, '').replace(/^\s*\/\/\/.*$/, ''))
       .join('\n');
 
