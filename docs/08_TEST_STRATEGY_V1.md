@@ -1540,6 +1540,95 @@ prepisuje se**. Checklist Faze 5 je i dalje **`49 / 14`** uz **`PHASE5_CHECKBOX_
 **`P5-I4C`, `P5-I5` i `P5-I6` ostaju `NOT AUTHORIZED`**, pa **§12.12 ostaje neautorizovana**. Vidi
 D-077 u `06`, `04` §7.5a, `05` §6 i `03` §4.1.
 
+**KANONSKI DOKAZNI STATUS (D-078, 2026-09-01) — §12.11 se NE prepisuje, NE proširuje i NE slabi.**
+D-078 je **post-merge pomirenje i formalno zatvaranje pod-gatea `P5-I4B`**. On **ne dodaje nijednu
+novu dokaznu obavezu** i **nijednu ne uklanja**; obavezni dokazi `P5-I4B` ostaju **tačno** ono što
+§12.11 već propisuje, i **svi ostaju DB-free**.
+
+**Dokazi §12.11 su implementirani, izvršeni i kanonski.** Formulacije iznad — „nijedan test iz
+§12.11 nije implementiran ni izvršen", „autorizacija postaje operativno efektivna tek nakon što
+D-077 bude vlasnički prihvaćen" i „implementacija smije početi tek nakon zasebnog gatea izvršenja"
+— opisuju **pred-D-078 stanje**, **historijski su tačne** i **ne prepisuju se**; **mjerodavan je
+ovaj statusni model.**
+
+```text
+IMPLEMENTATION COMMIT   9daea14eed649f1ca160beaccc4913c88d26f297
+IMPLEMENTATION PARENT   5c479552aa01538e96828276838f319246b82142
+IMPLEMENTATION TREE     72b4f7d61a49d4ba9394ac937ac3717e23610b39
+PULL REQUEST            #55   (MERGED)
+MERGE COMMIT            5014c7e67b2ad0cdb00965bdd580cac0a3947a44
+PARENT 1                5c479552aa01538e96828276838f319246b82142
+PARENT 2                9daea14eed649f1ca160beaccc4913c88d26f297
+VE-1 HYGIENE COMMIT     e7e64bea84fed931bcc954eeeb54d82aedb629a8   (PR #56)
+VE-1 CANONICAL MERGE    9145abc623ceec7905e82e7b5ba5ceda44113347
+CANONICAL TREE          b6ccbf429120c21acc8523264354ab52b981d430
+REVIEWED BLOBS          9 / 9 BYTE-IDENTICAL
+IMPLEMENTATION DRIFT    ZERO
+D-077 PRESERVED         YES
+```
+
+**Kanonski verifikacijski stack nad `9145abc6…`, šest nivoa:**
+
+```text
+pnpm typecheck        PASS
+pnpm lint             PASS
+pnpm test             PASS    44 fajla   / 1119 testova
+pnpm test:e2e         PASS     5 fajlova /   41 test
+pnpm test:integration PASS     4 fajla   /   46 testova
+pnpm test:security    PASS    22 fajla   /  813 testova
+
+AGREGAT               75 fajlova / 2019 testova / 0 padova / 0 preskoka
+```
+
+**Trajni dokazni vlasnici `P5-I4B`** su četiri spec fajla uvedena implementacijskim commitom i
+očuvana **bajt-identično** u kanonskom stablu:
+
+```text
+apps/api/src/crypto/json-canonicalizer.spec.ts
+apps/api/src/crypto/request-sha256.spec.ts
+apps/api/src/crypto/audit-event-hash-payload.spec.ts
+apps/api/src/crypto/event-sha256.spec.ts
+```
+
+**Nezavisno potvrđeno dokazno jezgro** — konstatovano, ne prošireno: RFC 8785 / JCS ugovor
+**zadovoljen**; **UTF-16** poredak svojstava **ispravan**; **usamljeni surogati odbijeni**; **bez
+Unicode normalizacije**; **bez JCS runtime zavisnosti**; `request_sha256` ugovor **ispravan**;
+**osam** request hash vektora **nezavisno reprodukovano** uz zadovoljen **anti-tautološki** zahtjev;
+`AUDIT_EVENT_HASH_PAYLOAD_V1` = **tačno sedamnaest ključeva**; `previous_event_sha256` =
+**doslovni `null`**; `event_sha256` **ne pojavljuje se u vlastitom hash ulazu**; Faza 5 ostaje
+**`SELF-HASH ONLY`**; audit `occurred_at` = **`.SSS000Z`**; **`D-073` `.sssZ` format firewall
+netaknut**; `event_sha256` **nezavisno ponovo izračunat**; `apps/api/src/crypto/sha256-utf8.ts`
+**ponovo upotrijebljen nepromijenjen**, sa **nepromijenjenim** postojećim regresijskim specom.
+
+**`RFC 8785 Appendix B` pinovanih brojčanih vektora je `13`.** Ranija radna brojka **`24` je
+superseidirana i NIJE mjerodavna**; **`13` je jedini operativni broj** pri svakoj budućoj
+re-verifikaciji.
+
+**Vektor request hasha za `POST /exports/{exportJobId}/retry` ostaje u `HOLD`-u** —
+**`NON_BLOCKING_HOLD_AS_AUTHORIZED` / `CARRIED FORWARD`**, razlog
+**`NO_CANONICAL_REQUEST_BODY_DEFINED_IN_03`**. To je **unaprijed autorizovan ishod** vlasničkog
+omotača obuhvata vektora iz D-077 (`03` §4.1); **request semantika se NE izmišlja** i `HOLD` **nije
+bloker**.
+
+**Odsustvo Nest module wiringa za čiste `P5-I4B` crypto funkcije je `CONFORMANT` / `NO GAP`** —
+**bez remedijacije** i **bez nove dokazne obaveze**.
+
+**Higijenski incident `VE-1` je riješen prije ovog zatvaranja.** Bio je **defekt portabilnosti
+sigurnosnog testa** pod `core.autocrlf=true`, **`NON-ATTRIBUTABLE TO P5-I4B`**, objavljen kroz
+**PR #56** i merged kao `9145abc6`. Post-publikacioni negativni dokaz je **5 / 5 `PASS`**: čist
+skeniranje u `LF` i `CRLF` materijalizaciji, detekcija stvarnog model-level slučaja u obje
+materijalizacije, i prisutnost sirovog dokumentacijskog tokena. **`VE-1` je `CLOSED`** i **ne
+otvara se ponovo**. Poznato, nepovezano Prettier odstupanje u
+`apps/api/test/phase4-membership-role-assignment-constraints.security.ts` ostaje
+**`INFORMATIONAL / ACCEPTED AS-IS`**, **bez drive-by popravke**.
+
+**Nijedan test se odlukom D-078 ne implementira, ne mijenja i ne izvršava.** Checklist Faze 5 je i
+dalje **`49 / 14`** uz **`PHASE5_CHECKBOX_TRANSITIONS = 0`**. **`P5-I4C` je podoban za zaseban
+implementacijski autorizacijski preflight tek u post-D-078-kanonskom stanju, i ostaje
+`NOT AUTHORIZED` / `NOT STARTED`**; **`P5-I5` i `P5-I6` ostaju `NOT AUTHORIZED`**, **`D-079` ostaje
+`UNCONSUMED`**, pa **§12.12 ostaje neautorizovana i njeni dokazi odsutni**. Vidi D-078 u `06`,
+`04` §7.5a, `05` §6 i `03` §4.1.
+
 ## 12.12 `P5-I4C` — idempotencija, konkurencija, audit i `POST /patient-references` (D-072)
 
 1. **Nedostajući `Idempotency-Key` → `400 IDEMPOTENCY_KEY_REQUIRED`**, statična poruka;
