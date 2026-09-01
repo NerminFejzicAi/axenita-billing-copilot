@@ -4202,6 +4202,82 @@ bude vlasnički prihvaćen, kanonski i post-publikaciono verifikovan, **i** prij
 **zaseban gate izvršenja implementacije**. Red `Services → redaction` **ostaje neoznačen** i ostaje
 u vlasništvu `P5-I6`. Vidi D-077 u `06`, `04` §7.5a, `03` §4.1 i `08` §12.11.
 
+## P5-I4B FORMAL CLOSURE ANNOTATION — D-078 (2026-09-01)
+
+**Ovo je ne-checkbox anotacija.** Ona **ne dodaje nijedan checklist red** i **ne mijenja nijednu
+kućicu**; markeri checkboxa se u njoj **namjerno ne koriste**. **Nijedan pasus, blok ni anotacija
+iznad se ne prepisuje.**
+
+- **D-078 je post-merge pomirenje i formalno zatvaranje pod-gatea `P5-I4B`.** `P5-I4B` je
+  **`IMPLEMENTED` / `VERIFIED` / `OWNER-REVIEWED` / `OWNER-ACCEPTED` / `PUBLISHED` / `MERGED` /
+  `CANONICAL` / `PUBLICATION-VERIFIED` / `VERIFICATION PASS` / `FORMALLY CLOSED`**, uz
+  **`P5-I4B UNRESOLVED OWNER DECISIONS = 0`**.
+- **Kanonski dokaz:** implementacijski commit `9daea14eed649f1ca160beaccc4913c88d26f297`,
+  implementacijski roditelj `5c479552aa01538e96828276838f319246b82142`, implementacijsko stablo
+  `72b4f7d61a49d4ba9394ac937ac3717e23610b39`, **PR #55 (MERGED)**, merge commit
+  `5014c7e67b2ad0cdb00965bdd580cac0a3947a44` sa roditeljima `5c479552…` i `9daea14e…`,
+  **9 / 9 blobova bajt-identično**, **nula implementacijskog drifta**, **D-077 očuvan**.
+- **Higijenski incident `VE-1` je riješen PRIJE ovog zatvaranja:** commit
+  `e7e64bea84fed931bcc954eeeb54d82aedb629a8`, **PR #56 (MERGED)**, kanonski merge
+  `9145abc623ceec7905e82e7b5ba5ceda44113347`, tekuće kanonsko stablo
+  `b6ccbf429120c21acc8523264354ab52b981d430`. `VE-1` je bio **defekt portabilnosti sigurnosnog
+  testa**, **`NON-ATTRIBUTABLE TO P5-I4B`**, i **`CLOSED`**; **ne otvara se ponovo**.
+- **Verifikacija:** `typecheck` `PASS`, `lint` `PASS`, `test` `PASS` (44 / 1119), `test:e2e` `PASS`
+  (5 / 41), `test:integration` `PASS` (4 / 46), `test:security` `PASS` (22 / 813); agregat
+  **75 fajlova / 2019 testova / 0 padova / 0 preskoka**, sigurnosna traka **813 / 813 `PASS`**,
+  post-publikacioni negativni dokaz `VE-1` **5 / 5 `PASS`**.
+- **Anotacije D-072, D-074, D-076 i D-077 iznad opisuju pred-D-078 stanje** —
+  „`P5-I4B IMPLEMENTATION AUTHORIZATION EFFECTIVE = NO`",
+  „`P5-I4B IMPLEMENTATION EXECUTION ELIGIBLE = NO`" i
+  „`P5-I4B IMPLEMENTATION STARTED = NO`" **historijski su tačne** i **ne prepisuju se**;
+  **mjerodavan je ovaj statusni model.**
+- **Formalno zatvaranje nije odmah efektivno** — postaje efektivno tek nakon što D-078 sam bude
+  autorstvom dovršen, nezavisno vlasnički pregledan, vlasnički prihvaćen, objavljen/merged,
+  kanonski na `origin/main` i post-publikaciono verifikovan.
+- **Nijedna kućica se ovim zatvaranjem ne označava.** Kanonsko pravilo ostaje: **pod-gate
+  `P5-I4A` / `P5-I4B` / `P5-I4C` ne prevodi nijedan red roditeljskog checklista `P5-I4`.** Iako
+  `P5-I4B` posjeduje dokaz za determinističke formate, ti redovi ostaju neoznačeni do **zasebnog
+  zatvaranja roditeljskog gatea `P5-I4`, nakon `P5-I4C`**.
+- **Dispozicija closure nalaza:** `OD-P5-I4B-C1` = `APPROVED`; `OD-P5-I4B-C2` = `APPROVED`;
+  `OD-P5-I4B-C3` = `APPROVED`; `OD-P5-I4B-C4` =
+  `NON_BLOCKING_HOLD_AS_AUTHORIZED / CARRIED FORWARD`; `OD-P5-I4B-C5` = `CONFORMANT / NO GAP`;
+  `RFC-B-COUNT` = `INFORMATIONAL / ACCEPTED`; `GOV-DRIFT` = `RECONCILED`; `VE-1` = `CLOSED`;
+  `FMT-1` = `INFORMATIONAL / ACCEPTED AS-IS`. **Nijedna implementacijska korekcija nije
+  autorizovana.**
+- **`RFC 8785 Appendix B` pinovanih brojčanih vektora je `13`**; ranija brojka `24` je
+  **superseidirana**.
+- **`CO-P5-I3-I4-1` i `CO-P5-I3-I4-2` ostaju neispunjeni** ne-checkbox kriteriji prihvatanja
+  roditeljskog `P5-I4`; **ne dobijaju vlastite redove** ni sada ni kasnije.
+
+```text
+                        prije       poslije
+ukupno redova (§6)      49          49
+oznaceno                14          14
+neoznaceno              35          35
+
+CURRENT_CHECKLIST                      = 49 / 14
+PHASE5_CHECKBOX_TRANSITIONS            = 0
+P5-I4B DIRECT CHECKBOX TRANSITIONS     = 0
+P5-I4 FORECAST ROWS UNCHECKED          = 17
+EXPECTED_POST_P5_I4_CLOSURE_CHECKLIST  = 49 / 31
+```
+
+```text
+P5-I4C  NEXT / DEFINED / CONTRACT-BEARING / DEPENDENCY-SATISFIED /
+        AUTHORIZATION-PREFLIGHT ELIGIBLE (tek post-D-078-kanonski) /
+        NOT AUTHORIZED / NOT STARTED
+P5-I4   INCOMPLETE / OPEN
+P5-I5   STILL DEPENDENCY-BLOCKED / NOT AUTHORIZED / NOT STARTED
+P5-I6   NOT AUTHORIZED / NOT STARTED
+D-079   UNCONSUMED
+```
+
+**Podobnost nije autorizacija.** `P5-I4C` traži **zaseban implementacijski autorizacijski
+preflight** i **zaseban vlasnički autorizacijski potez**; **D-078 ne izvodi nijedan od njih**, i
+`P5-I4C` autorizacijski preflight **ne smije početi** prije nego što D-078 bude vlasnički
+prihvaćen, kanonski i post-publikaciono verifikovan. Red `Services → redaction` **ostaje
+neoznačen** i ostaje u vlasništvu `P5-I6`. Vidi D-078 u `06`, `04` §7.5a, `03` §4.1 i `08` §12.11.
+
 ## Schema
 
 - [x] patient_references.

@@ -379,6 +379,63 @@ i publikaciono verifikovan**, a implementacija smije početi **tek nakon zasebno
 **`P5-I4B IMPLEMENTATION STARTED = NO`**; `P5-I4C`, `P5-I5` i `P5-I6` ostaju **`NOT AUTHORIZED`**.
 Vidi D-077 u `06`, `04` §7.5a i `08` §12.11.
 
+**STATUSNA ANOTACIJA (D-078, 2026-09-01) — cijela sekcija iznad se NE prepisuje.** Ugovorne
+klauzule §4, §4.1 i §4.2, kao i statusna anotacija D-077, ostaju **doslovno na snazi i
+nepromijenjeni**. D-078 je **post-merge pomirenje i formalno zatvaranje pod-gatea `P5-I4B`**; on
+**ne mijenja nijedan endpoint, header, permisiju, rolu, polje, error kod, statusni kod, TTL,
+pravilo cashiranja ni ugovor odgovora**, i **ne mijenja `request_sha256` ugovor** ni njegovo
+isključenje identiteta endpointa iz digesta.
+
+**Format/hash osnova `P5-I4B` je implementirana, vlasnički pregledana, prihvaćena, merged i
+kanonska na `origin/main`:**
+
+```text
+IMPLEMENTATION COMMIT   9daea14eed649f1ca160beaccc4913c88d26f297
+IMPLEMENTATION PARENT   5c479552aa01538e96828276838f319246b82142
+IMPLEMENTATION TREE     72b4f7d61a49d4ba9394ac937ac3717e23610b39
+PULL REQUEST            #55   (MERGED)
+MERGE COMMIT            5014c7e67b2ad0cdb00965bdd580cac0a3947a44
+VE-1 HYGIENE MERGE      9145abc623ceec7905e82e7b5ba5ceda44113347   (PR #56)
+CANONICAL TREE          b6ccbf429120c21acc8523264354ab52b981d430
+REVIEWED BLOBS          9 / 9 BYTE-IDENTICAL
+IMPLEMENTATION DRIFT    ZERO
+P5-I4B                  IMPLEMENTED / OWNER-ACCEPTED / PUBLISHED / CANONICAL /
+                        PUBLICATION-VERIFIED / VERIFICATION PASS
+```
+
+**Formulacije iznad** — „autorizacija postaje operativno efektivna tek nakon što D-077 bude
+vlasnički prihvaćen", „implementacija smije početi tek nakon zasebnog gatea izvršenja" i
+„`P5-I4B IMPLEMENTATION STARTED = NO`" — opisuju **pred-D-078 stanje**, **historijski su tačne** i
+**ne prepisuju se**; **mjerodavan je ovaj statusni model.**
+
+**Vlasnički omotač obuhvata vektora request hasha iz anotacije D-077 je konzumiran tačno kako je
+napisan.** **Osam** doslovnih `request_sha256` vektora je pinovano i nezavisno reprodukovano;
+vektor za **`POST /exports/{exportJobId}/retry`** je **evidentiran i zadržan u `HOLD`-u**, jer `03`
+za tu rutu **ne definiše kanonsko request tijelo**
+(`NO_CANONICAL_REQUEST_BODY_DEFINED_IN_03`). **Request semantika se NE izmišlja**, `HOLD` se
+**prenosi naprijed** i **nije bloker**.
+
+**Formalno zatvaranje nije odmah efektivno.** Ono postaje efektivno tek nakon što D-078 sam bude
+autorstvom dovršen, nezavisno vlasnički pregledan, vlasnički prihvaćen, objavljen/merged, kanonski
+na `origin/main` i post-publikaciono verifikovan.
+
+```text
+P5-I4B FORMAL CLOSURE OWNER DECISION = APPROVED
+P5-I4B FORMAL CLOSURE EFFECTIVE      = NO      (do ispunjenja sest uslova)
+P5-I4C PREFLIGHT ELIGIBLE            = YES     (tek u post-D-078-kanonskom stanju)
+P5-I4C IMPLEMENTATION AUTHORIZED     = NO
+P5-I4C IMPLEMENTATION STARTED        = NO
+P5-I5  IMPLEMENTATION AUTHORIZED     = NO
+P5-I6  IMPLEMENTATION AUTHORIZED     = NO
+D-079                                = UNCONSUMED
+CURRENT_CHECKLIST                    = 49 / 14
+PHASE5_CHECKBOX_TRANSITIONS          = 0
+```
+
+**`POST /patient-references`, idempotency servis i audit writer ostaju `P5-I4C` i nisu
+implementirani.** **Podobnost nije autorizacija.** Vidi D-078 u `06`, `04` §7.5a, `05` §6 i `08`
+§12.11.
+
 ---
 
 ## 4.2 `POST /patient-references` — idempotency pojašnjenja `P5-I4` (D-072, `OD-P5-I4-3`, `OD-P5-I4-7`, `OD-P5-I4-8`)
