@@ -436,6 +436,111 @@ PHASE5_CHECKBOX_TRANSITIONS          = 0
 implementirani.** **Podobnost nije autorizacija.** Vidi D-078 u `06`, `04` §7.5a, `05` §6 i `08`
 §12.11.
 
+**STATUSNA ANOTACIJA (D-079, 2026-09-02) — cijela sekcija iznad se NE prepisuje.** Ugovorne
+klauzule §4, §4.1 i §4.2, kao i statusne anotacije D-077 i D-078, ostaju **doslovno na snazi i
+nepromijenjene**. D-079 je **vlasnička autorizacija implementacije `P5-I4C`**; on **ne mijenja
+nijedan endpoint, header, permisiju, rolu, polje, error kod, statusni kod, TTL, pravilo cashiranja
+ni ugovor odgovora**, i **ne mijenja `request_sha256` ugovor** ni njegovo isključenje identiteta
+endpointa iz digesta.
+
+**Pet vlasničkih ugovornih odluka `P5-I4C` je ratifikovano, i jedna autorizacijska:**
+
+```text
+OD-P5-I4C-1      APPROVED — OPTION A
+OD-P5-I4C-2      APPROVED — OPTION A
+OD-P5-I4C-3      APPROVED — OPTION C, MODIFIKOVAN (zamrznut domen tag)
+OD-P5-I4C-4      APPROVED — MODIFIKOVAN OPTION A
+OD-P5-I4C-5      APPROVED — OPTION A
+OD-P5-I4C-AUTH   APPROVE
+```
+
+**`OD-P5-I4C-1` — kanonski literal `idempotency_keys.endpoint`.** Perzistira se **doslovno**:
+
+```text
+IDEMPOTENCY_ENDPOINT_LITERAL_SOURCE = CANONICAL_03_S4_MANDATORY_ENDPOINT_SPELLING
+IDEMPOTENCY_ENDPOINT_LITERAL        = POST /patient-references
+```
+
+Vrijednost se **ne izvodi iz runtime mount putanje**, **ne perzistira kao
+`/api/v1/patient-references`** i **ne zamjenjuje simboličkim identifikatorom operacije**. Standing
+pravilo: perzistirana `endpoint` vrijednost je **kanonska obavezna spelling endpointa iz §4,
+doslovno**, za **svaku** `Idempotency-Key` površinu. Runtime ruta ostaje
+`POST /api/v1/patient-references`; **to nije nedosljednost**, nego namjerno razdvajanje mount
+putanje od kanonske idempotency identifikacije, a **identitet endpointa je ionako isključen iz
+`request_sha256` digesta** (§4.1). Kanonska četvorka
+`(practice_id, user_id, endpoint, idempotency_key)` ostaje **nepromijenjena**.
+
+**`OD-P5-I4C-2` — semantika prisutnog ali nevalidnog `Idempotency-Key`-a.**
+
+```text
+odsutan / prazan / samo whitespace     -> 400 IDEMPOTENCY_KEY_REQUIRED
+duzina                                 = 1 .. 255 UTF-8 bajtova
+dozvoljeni bajtovi                     = iskljucivo printable ASCII VCHAR 0x21 .. 0x7E
+prisutan ali nevalidan                 -> 400 VALIDATION_ERROR
+```
+
+Ovo **ne uvodi nijedan novi error kod ni novi statusni kod**: `400 IDEMPOTENCY_KEY_REQUIRED` je već
+kanonski (§4.2, §8), a `400 VALIDATION_ERROR` za **prisutan ali sintaksno neprihvaćen header** je
+već kanonski po §5.2 i §9 (D-055, klauzula 12). **`428` se ni za jedan od ta dva slučaja ne
+koristi.** Poruka je **statična**, **poslani ključ se nikada ne odražava**, **Unicode izvan
+navedenog ASCII raspona je nevalidan**, **kontrolni znakovi su nevalidni** i **whitespace je
+nevalidan** — uključujući razmak `0x20`, koji nije VCHAR. Validacija je **provjera headera** i
+izvodi se **prije** idempotency scope inspekcije, **prije** advisory locka i **prije** hashiranja
+tijela; **nevalidan ključ nikada ne kreira claim i ne dodiruje `idempotency_keys`.**
+
+**`OD-P5-I4C-3` — tačno bajtno enkodiranje advisory locka.**
+
+```text
+ADVISORY_LOCK_DOMAIN_TAG = idem-lock-v1
+
+LP32(X)  = uint32_be( length( UTF8(X) ) ) || UTF8(X)
+preimage = LP32("idem-lock-v1") || LP32(practice_id) || LP32(user_id)
+        || LP32(endpoint) || LP32(idempotency_key)
+
+lock_key = prvih 8 bajtova SHA-256(preimage), BIG-ENDIAN, SIGNED INT64
+```
+
+**Nijedan alternativni domen tag, nijedan 8-bajtni length prefix i nikakva konkatenacija sa
+delimiterom nisu autorizovani.** `endpoint` komponenta je **ista vrijednost** iz `OD-P5-I4C-1`.
+**Lock ključ se ne perzistira i ne logira**, i **advisory lock ostaje kontrola konkurencije, ne
+sigurnosna ni autorizacijska granica.**
+
+**`OD-P5-I4C-4` — vokabular `sexCode`-a.** Zatvoreni ne-null `P5-I4C` v1 vokabular je **`F`** i
+**`M`**; **`O` i `U` se NE prihvataju**; bilo koja druga ne-null vrijednost daje **`422
+VALIDATION_ERROR`** sa **generičkom statičnom porukom koja ne citira poslanu vrijednost**.
+**Postojeća kanonska nullable/opciona semantika se čuva** — `readonly sexCode: string | null`
+(§11) ostaje **nepromijenjena**, i **polje se ne čini tiho obaveznim**. **Polje se NE proširuje u
+FHIR `AdministrativeGender`**; za ovaj v1 ugovor je **TARDOC-relevantni sex diskriminator**.
+**Nikakvo novo sex/gender modeliranje, izmjena scheme, migracija, FHIR mapping ni
+encounter-specifična semantika nisu uvedeni.**
+
+**`OD-P5-I4C-5` — aplikacijska validacija `birthYear`-a.** Aplikacija mora nametnuti **integer**,
+**minimum `1900`**, **maksimum `2200`**, **inkluzivno**, uz **očuvanu** nullable/opcionu semantiku
+(`readonly birthYear: number | null`, §11). Povreda daje **`422 VALIDATION_ERROR`** sa
+**generičkom statičnom porukom**, uz **nula DB round-tripova za nevalidan aplikacijski ulaz**;
+**oslanjanje na `SQLSTATE 23514` za normalnu validaciju je zabranjeno**. DB `CHECK` ostaje
+**nepromijenjen** i **posljednja odbrambena linija**.
+
+**Autorizacija je odobrena, ali NIJE odmah efektivna.** Ona postaje efektivna tek nakon što D-079
+sam bude autorstvom dovršen, nezavisno vlasnički pregledan, vlasnički prihvaćen, objavljen/merged,
+kanonski na `origin/main` i post-publikaciono verifikovan.
+
+```text
+OD-P5-I4C-AUTH                                = APPROVE
+P5-I4C IMPLEMENTATION AUTHORIZATION DECISION  = APPROVED
+P5-I4C IMPLEMENTATION AUTHORIZATION EFFECTIVE = NO      (do ispunjenja sest uslova)
+P5-I4C IMPLEMENTATION STARTED                 = NO
+P5-I4  PARENT                                 = INCOMPLETE / OPEN
+P5-I5  IMPLEMENTATION AUTHORIZED              = NO
+P5-I6  IMPLEMENTATION AUTHORIZED              = NO
+D-080                                         = UNCONSUMED
+CURRENT_CHECKLIST                             = 49 / 14
+PHASE5_CHECKBOX_TRANSITIONS                   = 0
+```
+
+**`POST /patient-references`, idempotency servis i audit writer i dalje NISU implementirani.**
+**Autorizacija nije izvršenje.** Vidi D-079 u `06`, `04` §7.5a, `05` §6 i `08` §12.12.
+
 ---
 
 ## 4.2 `POST /patient-references` — idempotency pojašnjenja `P5-I4` (D-072, `OD-P5-I4-3`, `OD-P5-I4-7`, `OD-P5-I4-8`)
