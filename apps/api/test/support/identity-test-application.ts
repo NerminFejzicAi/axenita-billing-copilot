@@ -1,5 +1,6 @@
 import 'reflect-metadata';
 
+import { type LoggerService } from '@nestjs/common';
 import { type NestExpressApplication } from '@nestjs/platform-express';
 
 import { type DisposableDatabase } from './disposable-database.js';
@@ -25,10 +26,16 @@ import { DEVELOPMENT_AUTH_FIXTURE } from './development-token.js';
  */
 export async function createIdentityTestApplication(
   target: DisposableDatabase = securityDatabase(),
+  logger?: LoggerService,
 ): Promise<NestExpressApplication> {
   const disposable = target;
 
   return createTestApplication({
+    // OPTIONAL and absent by default, so every existing caller is unchanged. A spec that must
+    // prove a forbidden string never reaches a log line (`09` §11) passes a capturing logger;
+    // `createTestApplication` installs it AFTER `configureApplication`, so the levels under test
+    // are the configured ones.
+    logger,
     environment: {
       NODE_ENV: 'test',
       API_PORT: '3001',

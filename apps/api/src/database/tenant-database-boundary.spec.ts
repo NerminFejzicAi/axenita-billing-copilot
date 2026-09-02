@@ -20,9 +20,15 @@
  * by adding its name.
  *
  * THE COMPANION PROOF IS BEHAVIOURAL AND BOTH ARE REQUIRED. Ordering, session reuse and the
- * absence of a second transaction cannot be seen in an import graph; they are proven in
- * `patient-reference-read.service.spec.ts` against the recording session. Neither replaces the
- * other.
+ * absence of a second transaction cannot be seen in an import graph; they are proven against the
+ * recording session in `patient-reference-read.service.spec.ts` for the `P5-I4A` read and in
+ * `patient-reference-create.service.spec.ts` for the `P5-I4C` write. Neither replaces the other.
+ *
+ * IT COVERS `P5-I4C` TOO, AND DOES SO WITHOUT WEAKENING ANYTHING. The `P5-I4A` assertions below
+ * are unchanged; two adapters are added to the allowlist — both independently asserted to live in
+ * an authorised layer — and one new rule states the same property for the whole `P5-I4C`
+ * application surface: the idempotency service, the audit writer, the create service and the
+ * lookup service.
  */
 
 import { readFileSync, readdirSync } from 'node:fs';
@@ -65,8 +71,13 @@ const AUTHORISED_DATABASE_LAYER = [
   'database/tenant-statement.ts',
   // The one implementation of the identity/tenant session.
   'identity/infrastructure/prisma-identity.database.ts',
-  // The patient-reference FEATURE ADAPTER — the only file in the `P5-I4A` slice holding SQL.
+  // The patient-reference FEATURE ADAPTER — the only file in the patient-reference slice holding
+  // SQL, for the `P5-I4A` read and the `P5-I4C` write alike.
   'patient-reference/infrastructure/patient-reference.database.ts',
+  // The `P5-I4C` idempotency adapter — the advisory lock, the claim and the completion.
+  'idempotency/infrastructure/idempotency.database.ts',
+  // The `P5-I4C` append-only audit adapter.
+  'audit/infrastructure/audit.database.ts',
 ];
 
 /**
@@ -164,6 +175,10 @@ describe('static import/source boundary (D-072 OD-P5-I4-12, 08 §12.10 point 1)'
     expect(FILES).toContain('patient-reference/application/patient-reference-read.service.ts');
     expect(FILES).toContain('patient-reference/controllers/patient-references.controller.ts');
     expect(FILES).toContain('database/tenant-database.service.ts');
+    // The `P5-I4C` sentinels, for the same reason: the write slice must be provably in the scan.
+    expect(FILES).toContain('patient-reference/application/patient-reference-create.service.ts');
+    expect(FILES).toContain('idempotency/application/idempotency.service.ts');
+    expect(FILES).toContain('audit/application/audit-writer.service.ts');
   });
 
   it('lets NO file outside the authorised layer import a raw database primitive', () => {
@@ -189,6 +204,37 @@ describe('static import/source boundary (D-072 OD-P5-I4-12, 08 §12.10 point 1)'
   it('keeps the documented non-tenant exception at exactly one file', () => {
     expect(DOCUMENTED_NON_TENANT_EXCEPTIONS).toHaveLength(1);
     expect(FILES).toContain('health/application/readiness.service.ts');
+  });
+
+  it('keeps the whole P5-I4C application surface free of database primitives', () => {
+    // THE STATIC HALF OF THE MANDATORY `P5-I4C` BOUNDARY PROOF (D-072 `OD-P5-I4-12`; D-079).
+    //
+    // `P5-I4C` is the first phase-5 tenant business WRITE, the first concurrent writer over
+    // `idempotency_keys` and the first audit writer, so the facade boundary matters more here
+    // than it did for a read: a service that held a client could open a second transaction and
+    // silently break the atomicity of business + audit. Stated against a NON-EMPTY set, so it
+    // cannot pass because nothing was scanned.
+    const businessFiles = FILES.filter(
+      (file) =>
+        (file.startsWith('idempotency/') ||
+          file.startsWith('audit/') ||
+          file.startsWith('patient-reference/')) &&
+        !file.includes('/infrastructure/'),
+    );
+
+    expect(businessFiles.length).toBeGreaterThan(0);
+    expect(businessFiles).toContain('idempotency/application/idempotency.service.ts');
+    expect(businessFiles).toContain('audit/application/audit-writer.service.ts');
+    expect(businessFiles).toContain(
+      'patient-reference/application/patient-reference-create.service.ts',
+    );
+    expect(businessFiles).toContain(
+      'patient-reference/application/patient-reference-lookup.service.ts',
+    );
+
+    for (const file of businessFiles) {
+      expect([file, importsRawDatabase(file)]).toEqual([file, false]);
+    }
   });
 
   it('keeps the whole P5-I4A application surface free of database primitives', () => {
