@@ -4278,6 +4278,94 @@ preflight** i **zaseban vlasnički autorizacijski potez**; **D-078 ne izvodi nij
 prihvaćen, kanonski i post-publikaciono verifikovan. Red `Services → redaction` **ostaje
 neoznačen** i ostaje u vlasništvu `P5-I6`. Vidi D-078 u `06`, `04` §7.5a, `03` §4.1 i `08` §12.11.
 
+## P5-I4C IMPLEMENTATION AUTHORIZATION ANNOTATION — D-079 (2026-09-02)
+
+**Ovo je ne-checkbox anotacija.** Ona **ne dodaje nijedan checklist red** i **ne mijenja nijednu
+kućicu**; markeri checkboxa se u njoj **namjerno ne koriste**. **Nijedan pasus, blok ni anotacija
+iznad se ne prepisuje.**
+
+- **D-079 je vlasnička autorizacija implementacije `P5-I4C`.** On konstatuje **pet ugovornih
+  vlasničkih odluka** i **jednu autorizacijsku odluku**, i **dokumentacija je isključivo**.
+  **Nijedna linija koda, testa, fixturea, scheme, migracije, granta, zavisnosti ni lockfilea se
+  ovom odlukom ne uvodi**, i **nijedna baza nije kontaktirana**.
+- **Vlasničke odluke:** `OD-P5-I4C-1` = `APPROVED — OPTION A`; `OD-P5-I4C-2` =
+  `APPROVED — OPTION A`; `OD-P5-I4C-3` = `APPROVED — OPTION C, MODIFIKOVAN` (zamrznut domen tag);
+  `OD-P5-I4C-4` = `APPROVED — MODIFIKOVAN OPTION A`; `OD-P5-I4C-5` = `APPROVED — OPTION A`;
+  `OD-P5-I4C-AUTH` = `APPROVE`. **`OWNER_DECISIONS_REQUIRED_FOR_P5_I4C = 0`.**
+- **`OD-P5-I4C-1`:** perzistirani `idempotency_keys.endpoint` literal je **`POST
+  /patient-references`**, doslovno prema kanonskoj obaveznoj spelling listi `03` §4; **ne izvodi se
+  iz runtime mount putanje**, **ne perzistira se kao `/api/v1/patient-references`** i **ne
+  zamjenjuje se simboličkim identifikatorom operacije**.
+- **`OD-P5-I4C-2`:** odsutan / prazan / samo-whitespace `Idempotency-Key` →
+  **`400 IDEMPOTENCY_KEY_REQUIRED`**; prihvaćeni domen je **1–255 UTF-8 bajtova isključivo
+  printable ASCII VCHAR `0x21`–`0x7E`**; prisutan ali nevalidan → **`400 VALIDATION_ERROR`** sa
+  **statičnom porukom koja nikada ne odražava poslani ključ**. **Nijedan novi error kod se ne
+  uvodi.**
+- **`OD-P5-I4C-3`:** domen tag je zamrznut na **`idem-lock-v1`**; preimage je
+  **`LP32("idem-lock-v1") || LP32(practice_id) || LP32(user_id) || LP32(endpoint) ||
+  LP32(idempotency_key)`**, gdje je `LP32(X) = uint32_be(length(UTF8(X))) || UTF8(X)`; lock ključ
+  je **prvih 8 bajtova `SHA-256(preimage)`, big-endian, signed `int64`**. **Nijedan alternativni
+  domen tag, nijedan 8-bajtni length prefix i nikakva konkatenacija sa delimiterom nisu
+  autorizovani.**
+- **`OD-P5-I4C-4`:** zatvoreni ne-null v1 vokabular `sexCode`-a je **`F`** i **`M`**; **`O` i `U`
+  se ne prihvataju**; druga ne-null vrijednost → **`422 VALIDATION_ERROR`** sa generičkom statičnom
+  ne-reflektujućom porukom. **Postojeća nullable/opciona semantika se čuva**; **bez proširenja u
+  FHIR `AdministrativeGender`**; **bez izmjene scheme, migracije i encounter semantike**.
+- **`OD-P5-I4C-5`:** `birthYear` mora biti **integer** u **inkluzivnom** rasponu **`1900`–`2200`**,
+  uz **očuvanu** nullable/opcionu semantiku; povreda → **`422 VALIDATION_ERROR`** sa generičkom
+  statičnom porukom, uz **nula DB round-tripova**; **`SQLSTATE 23514` se ne koristi kao normalna
+  validacija**.
+- **Autorizovan izvršivi obuhvat** je **tačno** onaj iz reda `P5-I4C` tabele segmentacije D-072 —
+  **`idempotency, audit writer and POST`** — u trinaest stavki. **Izvan obuhvata** ostaju: nova
+  HTTP lookup ruta; encounter i document površina; redakcija; encryption envelope write-back;
+  izmjena scheme; migracije; izmjena RLS-a; izmjena grantova; izmjena runtime zavisnosti; izmjena
+  lockfilea.
+- **Zamrznuti mutacijski predikati `P5-I4C`** — schema `NO`, migracija `NO`, RLS `NO`, SQL grant
+  `NO`, zavisnosti `NO`, package/lockfile `NO`. **Ako implementacija ustanovi da je bilo koji
+  zapravo `YES`, MORA STATI (`HOLD`) i vratiti se u governance.** **Nikakvo tiho proširenje
+  obuhvata.**
+- **Anotacije D-072, D-074, D-076, D-077 i D-078 iznad opisuju pred-D-079 stanje** —
+  „`P5-I4C IMPLEMENTATION AUTHORIZED = NO`" i „podobnost nije autorizacija" — **historijski su
+  tačne** i **ne prepisuju se**; **mjerodavan je ovaj statusni model.**
+- **Autorizacija nije odmah efektivna** — postaje efektivna tek nakon što D-079 sam bude autorstvom
+  dovršen, nezavisno vlasnički pregledan, vlasnički prihvaćen, objavljen/merged, kanonski na
+  `origin/main` i post-publikaciono verifikovan. **I nakon toga** implementacija smije početi
+  **isključivo kroz zaseban `P5-I4C` gate izvršenja.**
+- **Nijedna kućica se ovom autorizacijom ne označava.** Kanonsko pravilo ostaje: **pod-gate
+  `P5-I4A` / `P5-I4B` / `P5-I4C` ne prevodi nijedan red roditeljskog checklista `P5-I4`.**
+- **Prenesene dispozicije ostaju nepromijenjene:** `POST /exports/{exportJobId}/retry` request-hash
+  vektor `NON_BLOCKING_HOLD_AS_AUTHORIZED` / `CARRIED FORWARD`; Nest module wiring `CONFORMANT` /
+  `NO GAP`; `RFC 8785 Appendix B` pinovanih brojčanih vektora `13`; `VE-1` `CLOSED`; `FMT-1`
+  `INFORMATIONAL / ACCEPTED AS-IS`.
+- **`CO-P5-I3-I4-1` i `CO-P5-I3-I4-2` ostaju neispunjeni** ne-checkbox kriteriji prihvatanja
+  roditeljskog `P5-I4`; **ne dobijaju vlastite redove** ni sada ni kasnije.
+
+```text
+                        prije       poslije
+ukupno redova (§6)      49          49
+oznaceno                14          14
+neoznaceno              35          35
+
+CURRENT_CHECKLIST                      = 49 / 14
+PHASE5_CHECKBOX_TRANSITIONS            = 0
+P5-I4C DIRECT CHECKBOX TRANSITIONS     = 0
+P5-I4 FORECAST ROWS UNCHECKED          = 17
+EXPECTED_POST_P5_I4_CLOSURE_CHECKLIST  = 49 / 31   (ISKLJUCIVO FORECAST)
+```
+
+```text
+P5-I4C  AUTHORIZED (uslovno, nakon publikacije D-079) / NOT STARTED
+P5-I4   INCOMPLETE / OPEN
+P5-I5   STILL DEPENDENCY-BLOCKED / NOT AUTHORIZED / NOT STARTED
+P5-I6   NOT AUTHORIZED / NOT STARTED
+D-080   UNCONSUMED
+```
+
+**Autorizacija nije izvršenje.** `P5-I4C` implementacija **NE SMIJE početi** prije nego što D-079
+bude vlasnički prihvaćen, kanonski i post-publikaciono verifikovan, **i** prije nego što se otvori
+**zaseban gate izvršenja implementacije**. Red `Services → redaction` **ostaje neoznačen** i ostaje
+u vlasništvu `P5-I6`. Vidi D-079 u `06`, `04` §7.5a, `03` §4.1 i `08` §12.12.
+
 ## Schema
 
 - [x] patient_references.

@@ -1678,6 +1678,114 @@ implementacijski autorizacijski preflight tek u post-D-078-kanonskom stanju, i o
 §21.6 i §21.7 (§26.2) i **ne izostavljaju se tiho**. Checklist Faze 5 je i dalje **`49 / 14`**
 (`05` §6). Vidi D-072 u `06` i `04` §7.5a.3.
 
+**STATUSNA ANOTACIJA (D-079, 2026-09-02) — obaveze `1`–`18` iznad se NE prepisuju.** Svih
+**osamnaest** kanonskih dokaznih obaveza §12.12 ostaje **doslovno na snazi i nepromijenjeno**.
+D-079 je **vlasnička autorizacija implementacije `P5-I4C`**; on **ne dodaje nijednu novu dokaznu
+obavezu i nijednu ne uklanja**, nego **precizira ulazne pragove** unutar obaveza `1`, `6`, `10` i
+`11`.
+
+```text
+OD-P5-I4C-1      APPROVED — OPTION A
+OD-P5-I4C-2      APPROVED — OPTION A
+OD-P5-I4C-3      APPROVED — OPTION C, MODIFIKOVAN (zamrznut domen tag)
+OD-P5-I4C-4      APPROVED — MODIFIKOVAN OPTION A
+OD-P5-I4C-5      APPROVED — OPTION A
+OD-P5-I4C-AUTH   APPROVE
+```
+
+**Preciziranje obaveze `1`** (`OD-P5-I4C-2`). Pored nedostajućeg `Idempotency-Key`-a, dokaz mora
+pokriti i **prisutan ali nevalidan** ključ:
+
+```text
+odsutan / prazan / samo whitespace -> 400 IDEMPOTENCY_KEY_REQUIRED
+duzina                             = 1 .. 255 UTF-8 bajtova
+dozvoljeni bajtovi                 = iskljucivo printable ASCII VCHAR 0x21 .. 0x7E
+prisutan ali nevalidan             -> 400 VALIDATION_ERROR
+```
+
+Dokaz mora pokazati **statičnu poruku**, **da se poslani ključ nikada ne odražava**, da su
+**Unicode izvan navedenog ASCII raspona, kontrolni znakovi i whitespace nevalidni**, i da
+**nevalidan ključ nikada ne kreira claim, ne pribavlja advisory lock i ne dodiruje
+`idempotency_keys`**. **`428` se ne pojavljuje.**
+
+**Preciziranje obaveze `6`** (`OD-P5-I4C-3`). Pinovani vektori advisory locka moraju biti izvedeni
+iz **ove** specifikacije, ne iz implementacije koja se testira:
+
+```text
+ADVISORY_LOCK_DOMAIN_TAG = idem-lock-v1
+
+LP32(X)  = uint32_be( length( UTF8(X) ) ) || UTF8(X)
+preimage = LP32("idem-lock-v1") || LP32(practice_id) || LP32(user_id)
+        || LP32(endpoint) || LP32(idempotency_key)
+
+lock_key = prvih 8 bajtova SHA-256(preimage), BIG-ENDIAN, SIGNED INT64
+```
+
+`endpoint` komponenta nosi **kanonski literal `POST /patient-references`** (`OD-P5-I4C-1`), **ne**
+runtime mount putanju. **Alternativni domen tag, 8-bajtni length prefix i konkatenacija sa
+delimiterom su zabranjeni**, a **lock ključ se ne perzistira i ne logira**.
+
+**Preciziranje obaveza `10` i `11`** (`OD-P5-I4C-4`, `OD-P5-I4C-5`). Pored `sourceSystem` vokabulara
+i generičke ne-reflektujuće poruke, dokaz mora pokriti:
+
+```text
+sexCode ne-null vokabular v1 = { "F", "M" }
+"O" i "U"                    -> 422 VALIDATION_ERROR
+druga ne-null vrijednost     -> 422 VALIDATION_ERROR
+nullable / opciona semantika = OCUVANA, polje se ne cini tiho obaveznim
+
+birthYear                    = integer, 1900 .. 2200, inkluzivno
+povreda                      -> 422 VALIDATION_ERROR
+DB round-trip za nevalidan aplikacijski ulaz = NULA
+SQLSTATE 23514 kao normalna validacija       = ZABRANJENO
+```
+
+**Poruke ostaju generičke i statične i ne citiraju poslanu vrijednost.**
+
+**Prenesene dispozicije ostaju nepromijenjene i ne postaju `P5-I4C` dokazne obaveze:** request-hash
+vektor za `POST /exports/{exportJobId}/retry` ostaje **`NON_BLOCKING_HOLD_AS_AUTHORIZED` /
+`CARRIED FORWARD`** (`NO_CANONICAL_REQUEST_BODY_DEFINED_IN_03`); odsustvo Nest module wiringa za
+čiste `P5-I4B` crypto funkcije ostaje **`CONFORMANT` / `NO GAP`**, pa ih `P5-I4C` konzumira
+**direktnim importom** i **wiring se ne uvodi**; `RFC 8785 Appendix B` pinovanih brojčanih vektora
+je **`13`**, ne `24`; `VE-1` je **`CLOSED`** i **ne otvara se ponovo**; Prettier odstupanje u
+`apps/api/test/phase4-membership-role-assignment-constraints.security.ts` ostaje
+**`INFORMATIONAL / ACCEPTED AS-IS`**, **bez drive-by popravke**.
+
+**Tekuća prihvaćena regresijska osnova** (kanonski `origin/main`, D-078) koju `P5-I4C` mora
+zadržati zelenom — **preuzeta, ne ponovo izvršena**:
+
+```text
+typecheck        PASS
+lint             PASS
+unit             44 fajla / 1119 testova / PASS
+e2e              5 fajlova / 41 test / PASS
+integration      4 fajla / 46 testova / PASS
+security         22 fajla / 813 testova / PASS
+
+agregat          75 fajlova / 2019 testova / 2019 PASS / 0 padova / 0 preskoka
+```
+
+**`★` RI-naspram-RLS dokaz odgovornog fizičara ostaje trajna regresija.**
+
+**Nijedan test se odlukom D-079 ne implementira, ne mijenja i ne izvršava.** Checklist Faze 5 je i
+dalje **`49 / 14`** uz **`PHASE5_CHECKBOX_TRANSITIONS = 0`**; `49 / 31` je **isključivo forecast**.
+**Autorizacija nije odmah efektivna** — postaje efektivna tek nakon nezavisnog vlasničkog pregleda,
+prihvatanja, publikacije, kanonizacije na `origin/main` i post-publikacione verifikacije D-079, i
+**i tada** implementacija traži **zaseban gate izvršenja**.
+
+```text
+OD-P5-I4C-AUTH                                = APPROVE
+P5-I4C IMPLEMENTATION AUTHORIZATION DECISION  = APPROVED
+P5-I4C IMPLEMENTATION AUTHORIZATION EFFECTIVE = NO
+P5-I4C IMPLEMENTATION STARTED                 = NO
+P5-I4  PARENT                                 = INCOMPLETE / OPEN
+P5-I5  IMPLEMENTATION AUTHORIZED              = NO
+P5-I6  IMPLEMENTATION AUTHORIZED              = NO
+D-080                                         = UNCONSUMED
+```
+
+Vidi D-079 u `06`, `04` §7.5a, `05` §6 i `03` §4.1.
+
 ---
 
 # 13. Analysis/outbox/queue
