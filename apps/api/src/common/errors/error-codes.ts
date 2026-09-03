@@ -12,6 +12,14 @@
  *   (D-020);
  * - most codes belong to later phases. They are listed here because the catalogue is a
  *   single frozen artefact, not because the corresponding behaviour exists yet.
+ *
+ * `PATIENT_REFERENCE_ALREADY_EXISTS` was added to the frozen §8 catalogue by D-072 (2026-08-29),
+ * which was a DOCUMENTATION decision and therefore left this mirror behind. `P5-I4C` owns the
+ * behaviour (D-079 `RULING B` item 8), so the mirror is brought back into agreement with §8 here.
+ * This is a CONFORMANCE RESTORATION, not a catalogue change: the code was already canonical, the
+ * §8.1 mapping (`409`, `POST /patient-references`) was already canonical, and nothing else in the
+ * list moves — the position matches §8 exactly, between `REQUEST_ALREADY_IN_PROGRESS` and
+ * `INVALID_STATE_TRANSITION`.
  */
 export const ERROR_CODES = [
   'AUTHENTICATION_REQUIRED',
@@ -27,6 +35,7 @@ export const ERROR_CODES = [
   'IDEMPOTENCY_KEY_REQUIRED',
   'IDEMPOTENCY_CONFLICT',
   'REQUEST_ALREADY_IN_PROGRESS',
+  'PATIENT_REFERENCE_ALREADY_EXISTS',
   'INVALID_STATE_TRANSITION',
   'REVISION_CONFLICT',
   'ENCOUNTER_NOT_ANALYSABLE',
@@ -78,6 +87,7 @@ export const ERROR_TITLES: Readonly<Record<ErrorCode, string>> = {
   IDEMPOTENCY_KEY_REQUIRED: 'Idempotency key required',
   IDEMPOTENCY_CONFLICT: 'Idempotency conflict',
   REQUEST_ALREADY_IN_PROGRESS: 'Request already in progress',
+  PATIENT_REFERENCE_ALREADY_EXISTS: 'Patient reference already exists',
   INVALID_STATE_TRANSITION: 'Invalid state transition',
   REVISION_CONFLICT: 'Revision conflict',
   ENCOUNTER_NOT_ANALYSABLE: 'Encounter not analysable',

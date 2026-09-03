@@ -12,7 +12,10 @@
  * ONE HARNESS, NOT TWO. `GET /me` and `GET /practices/{practiceId}` share the same bootstrap
  * chain and therefore share this recorder. A second, parallel fake database stack would be free
  * to drift from this one and from the real adapter, which is exactly the failure mode these
- * specs exist to prevent.
+ * specs exist to prevent. `P5-I4A` extended it with the SMALL_ADAPTER seam and `P5-I4C` extends
+ * it again with the eight statements of the write path — the advisory lock, the claim, the
+ * completion, the targeted insert, the two service-level lookups and the audit append — for the
+ * same reason: a parallel ungoverned DB test seam is forbidden (D-072 `OD-P5-I4-12`).
  *
  * IT MODELS THE TWO GUCS THE POLICIES READ. `app.user_id` and `app.practice_id` are held as
  * session state and the reads apply the same predicates the accepted policies apply — most
@@ -29,8 +32,19 @@
  * is the ordering and projection harness and is not a substitute for those.
  */
 
+import { AUDIT_EVENT_INSERT_STATEMENT } from '../../src/audit/infrastructure/audit-database.port.js';
 import { type TenantStatement } from '../../src/database/tenant-statement.js';
 import {
+  IDEMPOTENCY_ADVISORY_LOCK_STATEMENT,
+  IDEMPOTENCY_CLAIM_INSERT_STATEMENT,
+  IDEMPOTENCY_CLAIM_READ_STATEMENT,
+  IDEMPOTENCY_COMPLETION_UPDATE_STATEMENT,
+} from '../../src/idempotency/infrastructure/idempotency-database.port.js';
+import {
+  DuplicateExternalReferenceError,
+  PATIENT_REFERENCE_EXTERNAL_REFERENCE_LOOKUP_STATEMENT,
+  PATIENT_REFERENCE_INSERT_STATEMENT,
+  PATIENT_REFERENCE_PSEUDONYM_LOOKUP_STATEMENT,
   PATIENT_REFERENCE_READ_STATEMENT,
   type PatientReferenceRow,
 } from '../../src/patient-reference/infrastructure/patient-reference-database.port.js';
@@ -68,6 +82,63 @@ export interface OwnedPlatformRole extends PlatformRoleRow {
  */
 export interface OwnedPatientReference extends PatientReferenceRow {
   readonly practiceId: string;
+  /**
+   * `external_patient_ref_hash` — the keyed token, held so that
+   * `patient_references_source_external_ref_key` can be modelled.
+   *
+   * It is NOT a member of {@link PatientReferenceRow} and never travels out of the double: the
+   * statement never projects it, and neither does this harness (D-060 clause 38).
+   */
+  readonly externalPatientRefHash?: string;
+}
+
+/**
+ * One `idempotency_keys` row, in the shape the double stores it.
+ *
+ * The four scope columns are held alongside the mutable ones because the real statements
+ * predicate on all four (`02` §15.2), so a statement that stopped binding one would stop matching
+ * here too.
+ */
+export interface StoredIdempotencyKey {
+  readonly id: string;
+  readonly practiceId: string;
+  readonly userId: string;
+  readonly endpoint: string;
+  readonly idempotencyKey: string;
+  readonly requestSha256: string;
+  readonly responseStatus: number | null;
+  readonly responseBody: unknown;
+  readonly lockedAt: Date | null;
+  readonly completedAt: Date | null;
+  readonly expiresAt: Date | null;
+}
+
+/**
+ * One `audit_events` row, in the shape the double stores it — ALL SEVENTEEN columns.
+ *
+ * Seventeen and not eleven: the six the statement writes as SQL `NULL` are stored as `null` here
+ * too, so a spec can reproduce `AUDIT_EVENT_HASH_PAYLOAD_V1` FROM THE STORED ROW rather than from
+ * the object the writer happened to build (`08` §12.12 obligation 16).
+ */
+export interface StoredAuditEvent {
+  readonly id: string;
+  readonly practiceId: string;
+  readonly occurredAt: Date;
+  readonly actorType: string;
+  readonly actorUserId: string | null;
+  readonly actorService: string | null;
+  readonly action: string;
+  readonly resourceType: string;
+  readonly resourceId: string | null;
+  readonly requestId: string | null;
+  readonly sessionIdHash: string | null;
+  readonly ipAddress: string | null;
+  readonly userAgentHash: string | null;
+  readonly previousValue: unknown;
+  readonly newValue: unknown;
+  readonly metadata: unknown;
+  readonly eventSha256: string;
+  readonly previousEventSha256: string | null;
 }
 
 /**
@@ -89,6 +160,10 @@ export function patientReferenceRow(
     sexCode: 'F',
     sourceSystem: 'MANUAL',
     createdAt: new Date('2026-07-18T10:00:00Z'),
+    // A syntactically canonical `h1.<64 hex>` token derived from the row id, so that a stored
+    // fixture is distinct per row without any spec having to invent one. It is a FIXTURE, not a
+    // real digest, and it never leaves the double.
+    externalPatientRefHash: `h1.${id.replace(/-/g, '').padEnd(64, '0').slice(0, 64)}`,
     ...overrides,
   };
 }
@@ -146,6 +221,32 @@ export interface World {
    * it, without the tenant column ever being reachable from the projected row (M-1).
    */
   patientReferences: OwnedPatientReference[];
+  /**
+   * `idempotency_keys`, with the FULL four-component scope alongside the mutable columns.
+   *
+   * A spec seeds a row here to drive a replay, an idempotency conflict or an unfinished claim,
+   * and reads it back to assert what the completion actually wrote.
+   */
+  idempotencyKeys: StoredIdempotencyKey[];
+  /**
+   * `audit_events`, append-only.
+   *
+   * The double never updates or deletes an entry, exactly as the grant never permits one
+   * (`02` §29.4a.4), so a spec asserting "exactly one row, and only for a successful create"
+   * asserts against a store that could not have lost one.
+   */
+  auditEvents: StoredAuditEvent[];
+  /**
+   * Advisory-lock keys held by ANOTHER transaction, as decimal `int64` strings.
+   *
+   * The genuinely concurrent proof needs a real database and lives in
+   * `test/phase5-patient-reference-create.security.ts`. This member models the OBSERVABLE
+   * consequence of losing the race — `pg_try_advisory_xact_lock` returning `false` without
+   * waiting — so that a unit spec can assert the `409` branch deterministically. Seeding it is
+   * the exact analogue of `contextRaces` above: a state the application cannot reach by choosing
+   * its own inputs is injected at the point the database would report it.
+   */
+  heldAdvisoryLocks: string[];
   /**
    * Practices whose `set_request_context` refuses even though the membership rows say it
    * should succeed — the RACE of D-033 clause 11.
@@ -209,6 +310,9 @@ export function emptyWorld(): World {
     settings: [],
     platformRoles: [],
     patientReferences: [],
+    idempotencyKeys: [],
+    auditEvents: [],
+    heldAdvisoryLocks: [],
     contextRaces: [],
   };
 }
@@ -235,12 +339,32 @@ export class RecordingDatabase implements IdentityDatabase {
 
     const session = this.createSession();
 
+    // THE PHASE-5 WRITE STORES ARE SNAPSHOTTED, so that `ROLLBACK` means what it means in
+    // PostgreSQL: no row survives a failed transaction. Without this a unit spec could not
+    // observe the atomicity requirement of `04` §7.5a.3 at all — an audit failure would leave the
+    // `patient_references` row and the completed claim visibly behind here while a real database
+    // discarded all three.
+    //
+    // The three arrays are restored IN PLACE, so a spec holding a reference to `world.auditEvents`
+    // keeps observing the same array. The phase-3 and phase-4 stores are deliberately NOT
+    // snapshotted: no existing spec writes to them through this seam, and changing their
+    // behaviour would alter merged, accepted tests.
+    const snapshots: readonly [unknown[], unknown[]][] = [
+      [this.world.patientReferences, [...this.world.patientReferences]],
+      [this.world.idempotencyKeys, [...this.world.idempotencyKeys]],
+      [this.world.auditEvents, [...this.world.auditEvents]],
+    ];
+
     try {
       const result = await work(session);
       this.calls.push('COMMIT');
       this.committed += 1;
       return result;
     } catch (error) {
+      for (const [live, snapshot] of snapshots) {
+        live.splice(0, live.length, ...snapshot);
+      }
+
       this.calls.push('ROLLBACK');
       this.rolledBack += 1;
       throw error;
@@ -541,11 +665,17 @@ export class RecordingDatabase implements IdentityDatabase {
         // bound value, so nothing a caller supplies can reach the log.
         calls.push(`tenant_statement(${statement.label})`);
 
+        // EVERY `P5-I4C` STATEMENT IS MODELLED IN THIS SAME ONE ORDERED LOG, on this same
+        // session, under the same modelled GUCs. That is what lets the behavioural proof assert
+        // that the advisory lock, the claim, the business insert, the audit insert and the
+        // completion all ran inside ONE admitted pinned transaction, in the canonical order of
+        // `04` §7.5a.3, and that a replay ran the read instead of the insert.
+        //
+        // Each branch reads `statement.sql.values` in the order the PRODUCTION statement binds
+        // them, exactly as the read branch does: a statement that stopped binding its tenant
+        // predicate would stop matching here too, rather than silently keep passing.
         if (statement.label !== PATIENT_REFERENCE_READ_STATEMENT) {
-          // A statement this double does not model must FAIL rather than quietly return no
-          // rows: an unmodelled read that looked like "not found" would let a spec pass against
-          // a query nobody had reviewed.
-          throw new Error(`Unmodelled tenant statement: ${statement.label}`);
+          return runPhase5Statement<TRow>(statement, world, appPracticeId);
         }
 
         // The parameters the PRODUCTION statement actually binds, in the order it binds them:
@@ -588,4 +718,323 @@ export class RecordingDatabase implements IdentityDatabase {
       },
     };
   }
+}
+
+/**
+ * The `P5-I4C` half of the SMALL_ADAPTER seam — the eight statements the write path issues.
+ *
+ * IT MODELS THE POLICIES, NOT JUST THE TABLES. Every branch fails closed without an established
+ * `app.practice_id`, exactly as `patient_references_*`, `idempotency_keys_*` and
+ * `audit_events_insert` do under `FORCE ROW LEVEL SECURITY`: the reads see nothing and the writes
+ * are refused. Without that, a unit spec could not observe an ordering defect at all — a
+ * statement issued before `set_request_context` would look perfectly fine here while returning
+ * zero rows against a real database.
+ *
+ * IT IS NOT A SECOND DB TEST SEAM. It is the SAME harness the `P5-I4A` behavioural proof already
+ * uses, extended; a parallel double would be free to drift from this one and from the real
+ * adapter, which is precisely the failure mode these specs exist to prevent. Real PostgreSQL
+ * semantics — genuine advisory-lock contention between two connections, real `23505` mapping,
+ * real `FORCE RLS`, the real HTTP surface and the stored-row audit reproduction — are proven
+ * against a real database in `test/phase5-patient-reference-create.security.ts`. Both halves are
+ * required; neither replaces the other.
+ */
+function runPhase5Statement<TRow>(
+  statement: TenantStatement,
+  world: World,
+  appPracticeId: string | undefined,
+): Promise<readonly TRow[]> {
+  const values = statement.sql.values;
+  const rows = (result: readonly unknown[]): Promise<readonly TRow[]> =>
+    Promise.resolve(result as readonly TRow[]);
+
+  switch (statement.label) {
+    case IDEMPOTENCY_ADVISORY_LOCK_STATEMENT: {
+      // `pg_try_advisory_xact_lock(<key>::bigint)` — ONE bound value, the decimal `int64`.
+      //
+      // NON-BLOCKING is the property under test, so the double NEVER waits: a key another
+      // transaction holds returns `false` immediately, which is the whole difference between
+      // `pg_try_advisory_xact_lock` and its blocking sibling.
+      const [lockKey] = values;
+
+      return rows([{ acquired: !world.heldAdvisoryLocks.includes(String(lockKey)) }]);
+    }
+
+    case IDEMPOTENCY_CLAIM_READ_STATEMENT: {
+      // The FOUR scope columns, in the order the statement binds them (`02` §15.2).
+      const [practiceId, userId, endpoint, idempotencyKey] = values;
+
+      const claim = world.idempotencyKeys.find(
+        (row) =>
+          appPracticeId !== undefined &&
+          row.practiceId === appPracticeId &&
+          row.practiceId === practiceId &&
+          row.userId === userId &&
+          row.endpoint === endpoint &&
+          row.idempotencyKey === idempotencyKey,
+      );
+
+      if (claim === undefined) {
+        return rows([]);
+      }
+
+      // Projected to EXACTLY the four columns the real statement names. The store holds the whole
+      // row, and it must not travel: a double that returned everything would let an
+      // over-projecting production statement pass.
+      return rows([
+        {
+          id: claim.id,
+          requestSha256: claim.requestSha256,
+          responseStatus: claim.responseStatus,
+          responseBody: claim.responseBody,
+          completedAt: claim.completedAt,
+        },
+      ]);
+    }
+
+    case IDEMPOTENCY_CLAIM_INSERT_STATEMENT: {
+      const [id, practiceId, userId, idempotencyKey, endpoint, requestSha256, lockedAt, expiresAt] =
+        values;
+
+      // `idempotency_keys_insert` — `WITH CHECK (practice_id = app.practice_id)`. Without a
+      // context the predicate is `practice_id = NULL` and the write is refused.
+      if (appPracticeId === undefined || practiceId !== appPracticeId) {
+        throw new Error('idempotency_keys_insert refused the row (no matching tenant context).');
+      }
+
+      world.idempotencyKeys.push({
+        id: String(id),
+        practiceId: String(practiceId),
+        userId: String(userId),
+        endpoint: String(endpoint),
+        idempotencyKey: String(idempotencyKey),
+        requestSha256: String(requestSha256),
+        // The claim carries NO cached answer: the statement does not name either column, so a
+        // freshly claimed row cannot already look completed.
+        responseStatus: null,
+        responseBody: null,
+        lockedAt: lockedAt as Date,
+        completedAt: null,
+        expiresAt: expiresAt as Date,
+      });
+
+      return rows([{ id }]);
+    }
+
+    case IDEMPOTENCY_COMPLETION_UPDATE_STATEMENT: {
+      const [responseStatus, resourceId, completedAt, id, practiceId] = values;
+
+      const index = world.idempotencyKeys.findIndex(
+        (row) =>
+          appPracticeId !== undefined &&
+          row.practiceId === appPracticeId &&
+          row.id === id &&
+          row.practiceId === practiceId,
+      );
+      const stored = world.idempotencyKeys[index];
+
+      if (stored === undefined) {
+        return rows([]);
+      }
+
+      // Exactly the FOUR granted mutable columns (`02` §29.4a.3). Everything else is copied
+      // forward unchanged, so a spec can assert that the scope, the digest and `expires_at`
+      // survived the completion untouched — a production statement that tried to move one would
+      // be refused on privilege AND on policy anyway.
+      world.idempotencyKeys[index] = {
+        ...stored,
+        responseStatus: responseStatus as number,
+        // `jsonb_build_object('resourceId', <uuid>)` — the MINIMAL cache, and the only shape the
+        // statement can produce.
+        responseBody: { resourceId: String(resourceId) },
+        completedAt: completedAt as Date,
+        lockedAt: null,
+      };
+
+      return rows([{ id }]);
+    }
+
+    case PATIENT_REFERENCE_INSERT_STATEMENT: {
+      const [
+        id,
+        practiceId,
+        sourceSystem,
+        externalPatientRefHash,
+        pseudonym,
+        birthYear,
+        sexCode,
+        createdAt,
+      ] = values;
+
+      if (appPracticeId === undefined || practiceId !== appPracticeId) {
+        throw new Error('patient_references_insert refused the row (no matching tenant context).');
+      }
+
+      // THE CONFLICT TARGET IS CHECKED FIRST, and that ordering is the database's, not a
+      // convenience: `ON CONFLICT ("practice_id","pseudonym") DO NOTHING` SKIPS the row on a
+      // pseudonym collision, so no other constraint is evaluated at all and no error is raised.
+      const pseudonymTaken = world.patientReferences.some(
+        (row) => row.practiceId === practiceId && row.pseudonym === pseudonym,
+      );
+
+      if (pseudonymTaken) {
+        return rows([]);
+      }
+
+      // `patient_references_source_external_ref_key` —
+      // `unique (practice_id, source_system, external_patient_ref_hash)`. It is NOT the conflict
+      // target, so it RAISES, and the adapter translates that one violation into a type.
+      const externalReferenceTaken = world.patientReferences.some(
+        (row) =>
+          row.practiceId === practiceId &&
+          row.sourceSystem === sourceSystem &&
+          row.externalPatientRefHash === externalPatientRefHash,
+      );
+
+      if (externalReferenceTaken) {
+        throw new DuplicateExternalReferenceError();
+      }
+
+      const inserted: OwnedPatientReference = {
+        id: String(id),
+        practiceId: String(practiceId),
+        pseudonym: String(pseudonym),
+        birthYear: birthYear as number | null,
+        sexCode: sexCode as string | null,
+        sourceSystem: String(sourceSystem),
+        createdAt: createdAt as Date,
+        externalPatientRefHash: String(externalPatientRefHash),
+      };
+
+      world.patientReferences.push(inserted);
+
+      // The RETURNING list is EXACTLY the six public columns — the same six the read projects, so
+      // `201` and `200` are built from identical material. `external_patient_ref_hash` is stored
+      // and deliberately not returned.
+      return rows([
+        {
+          id: inserted.id,
+          pseudonym: inserted.pseudonym,
+          birthYear: inserted.birthYear,
+          sexCode: inserted.sexCode,
+          sourceSystem: inserted.sourceSystem,
+          createdAt: inserted.createdAt,
+        },
+      ]);
+    }
+
+    case PATIENT_REFERENCE_PSEUDONYM_LOOKUP_STATEMENT: {
+      const [practiceId, pseudonym] = values;
+
+      // PLAIN EQUALITY, exactly as the statement applies it: no case folding here either, so a
+      // production statement that dropped the uppercase canonicalisation upstream would fail
+      // here rather than be rescued by a lenient double.
+      return rows(
+        projectPublicColumns(
+          world,
+          practiceId,
+          appPracticeId,
+          (row) => row.pseudonym === pseudonym,
+        ),
+      );
+    }
+
+    case PATIENT_REFERENCE_EXTERNAL_REFERENCE_LOOKUP_STATEMENT: {
+      const [practiceId, sourceSystem, externalPatientRefHash] = values;
+
+      return rows(
+        projectPublicColumns(
+          world,
+          practiceId,
+          appPracticeId,
+          (row) =>
+            row.sourceSystem === sourceSystem &&
+            row.externalPatientRefHash === externalPatientRefHash,
+        ),
+      );
+    }
+
+    case AUDIT_EVENT_INSERT_STATEMENT: {
+      const [
+        id,
+        practiceId,
+        occurredAt,
+        actorType,
+        actorUserId,
+        action,
+        resourceType,
+        resourceId,
+        requestId,
+        metadata,
+        eventSha256,
+      ] = values;
+
+      if (appPracticeId === undefined || practiceId !== appPracticeId) {
+        throw new Error('audit_events_insert refused the row (no matching tenant context).');
+      }
+
+      // ALL SEVENTEEN columns are stored, with the six the statement writes as SQL `NULL` held as
+      // `null` here. `metadata` is stored as the PARSED value, because the column is `jsonb` and
+      // the statement casts the bound string with `::jsonb` — so a spec reproducing the hash
+      // payload from this row works with a JSON value, exactly as `04` §7.5a.3 requires.
+      world.auditEvents.push({
+        id: String(id),
+        practiceId: String(practiceId),
+        occurredAt: occurredAt as Date,
+        actorType: String(actorType),
+        actorUserId: String(actorUserId),
+        actorService: null,
+        action: String(action),
+        resourceType: String(resourceType),
+        resourceId: String(resourceId),
+        requestId: typeof requestId === 'string' ? requestId : null,
+        sessionIdHash: null,
+        ipAddress: null,
+        userAgentHash: null,
+        previousValue: null,
+        newValue: null,
+        metadata: JSON.parse(String(metadata)) as unknown,
+        eventSha256: String(eventSha256),
+        previousEventSha256: null,
+      });
+
+      return rows([{ id }]);
+    }
+
+    default:
+      // A statement this double does not model must FAIL rather than quietly return no rows: an
+      // unmodelled read that looked like "not found" would let a spec pass against a query
+      // nobody had reviewed.
+      throw new Error(`Unmodelled tenant statement: ${statement.label}`);
+  }
+}
+
+/**
+ * The six public columns of every `patient_references` row matching a predicate, under the tenant
+ * policy AND the statement's own explicit predicate.
+ *
+ * Shared by the two service-level lookups so that neither can accidentally project a seventh
+ * column or forget a barrier.
+ */
+function projectPublicColumns(
+  world: World,
+  boundPracticeId: unknown,
+  appPracticeId: string | undefined,
+  matches: (row: OwnedPatientReference) => boolean,
+): readonly PatientReferenceRow[] {
+  return world.patientReferences
+    .filter(
+      (row) =>
+        appPracticeId !== undefined &&
+        row.practiceId === appPracticeId &&
+        row.practiceId === boundPracticeId &&
+        matches(row),
+    )
+    .map((row): PatientReferenceRow => ({
+      id: row.id,
+      pseudonym: row.pseudonym,
+      birthYear: row.birthYear,
+      sexCode: row.sexCode,
+      sourceSystem: row.sourceSystem,
+      createdAt: row.createdAt,
+    }));
 }
