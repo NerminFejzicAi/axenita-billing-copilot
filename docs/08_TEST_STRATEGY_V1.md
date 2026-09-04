@@ -1786,6 +1786,111 @@ D-080                                         = UNCONSUMED
 
 Vidi D-079 u `06`, `04` §7.5a, `05` §6 i `03` §4.1.
 
+**KANONSKI DOKAZNI STATUS (D-080, 2026-09-05) — §12.12 se NE prepisuje, NE proširuje i NE slabi.**
+D-080 je **post-merge pomirenje i formalno zatvaranje pod-gatea `P5-I4C`**. **Svih osamnaest
+kanonskih dokaznih obaveza `1`–`18` iznad ostaje doslovno na snazi i nepromijenjeno**; D-080 **ne
+dodaje nijednu novu dokaznu obavezu i nijednu ne uklanja**, i **ne mijenja nijedan prag preciziran
+u D-079**.
+
+**Dokazi `P5-I4C` su implementirani, izvršeni, vlasnički prihvaćeni i kanonski:**
+
+```text
+IMPLEMENTATION COMMIT   ec470faab8afc32ef9a0fdeb9eb12130e0507e15
+IMPLEMENTATION TREE     d8fe6e9dbd3f1d591dae4e02041763d8ad709a7d
+PULL REQUEST            #59   (MERGED)
+MERGE COMMIT            533b73bbe3f40df1d711b0254982c12acff55d58
+PUBLICATION DRIFT       ZERO
+
+NUL HYGIENE COMMIT      d7b0d43c638bdc6904372ec36ebde59df7eaf278
+HYGIENE TREE            b149efe47661de8930fd7c967978e7f783b65251
+PULL REQUEST            #60   (MERGED)
+MERGE COMMIT            c5a778b6841264801f32f48d3292914f45c8a605
+PUBLICATION DRIFT       ZERO
+
+CANONICAL TREE          b149efe47661de8930fd7c967978e7f783b65251
+```
+
+**Formulacije iznad** — „nijedan test iz §12.10–§12.12 nije implementiran ni izvršen" i
+„`P5-I4C IMPLEMENTATION STARTED = NO`" — opisuju **pred-D-080 stanje**, **historijski su tačne** i
+**ne prepisuju se**; **mjerodavan je ovaj statusni model.**
+
+**Prihvaćeni kanonski verifikacijski stack `P5-I4C` nad implementacijskim artefaktom:**
+
+```text
+typecheck        PASS
+lint             PASS
+unit             49 fajlova / 1259 testova / PASS
+e2e               5 fajlova /   41 test    / PASS
+integration       4 fajla   /   46 testova / PASS
+security         23 fajla   /  851 test    / PASS
+
+agregat          81 fajl / 2197 testova / 2197 PASS / 0 padova / 0 preskoka
+```
+
+**Prethodna prihvaćena osnova (D-078) bila je `75 fajlova / 2019 testova`**; delta je **`+6 fajlova
+/ +178 testova`**, i **nijedan postojeći test nije nestao**.
+
+**Zasebna verifikacija higijenske ispravke sirovog `NUL`-a — ODVOJENA TRAKA DOKAZA:**
+
+```text
+pogodjeni spec                      62 / 62 PASS
+P5-I4C ciljani unit set            154 / 154 PASS
+puna unit svita                   1259 / 1259 PASS
+typecheck                               PASS
+lint                                    PASS
+diferencijalni format                   PASS   (nula novih prekrsilaca)
+```
+
+**Obavezno preciziranje dokaznog obuhvata.** Agregat **`81 / 2197`** je **prihvaćeni dokaz
+implementacijskog artefakta** i **NIJE ponovo izvršen nakon higijenske ispravke**. **E2E,
+integration i security trake NISU rerunovane tokom higijenskog gatea**, i **nijedna tvrdnja ovdje
+ne kaže suprotno**. **Originalni prihvaćeni dokaz ostaje važeći** jer je jedini post-publikacioni
+delta bila **zasebno pregledana i kanonska semantički očuvana higijenska izmjena test-source
+reprezentacije** jednog `U+0000` separatora u
+`apps/api/src/patient-reference/application/patient-reference-create.service.spec.ts` — tekstualni
+escape je **runtime bajt-identičan** sirovom bajtu, pa **nijedan digest, nijedna tvrdnja i nijedno
+ponašanje nisu promijenjeni** — a **higijenska verifikacija je nezavisno potvrdila izmijenjeni
+artefakt**.
+
+**`★` RI-naspram-RLS dokaz odgovornog fizičara ostaje trajna regresija.**
+
+**Dispozicija nalaza `P5-I4C` reviewa:** `F-1`, `F-2`, `F-3` i `F-4` = **`INFORMATIONAL` /
+`ACCEPTED` / `NON-BLOCKING`**;
+**`ERROR_CODE_MIRROR_CONFORMANCE_RESTORATION_CONFIRMED = CONFIRMED`** — vraćanje
+`PATIENT_REFERENCE_ALREADY_EXISTS` u TypeScript ogledalo `03` §8 kataloga je **konformansna
+restauracija, ne izmjena kataloga**, i **nijedan novi error kod nije uveden**; `P5-I4C` sirovi
+`NUL` = **`RESOLVED` / `CANONICAL` / `NON-BLOCKING`**; sirovi `NUL` u
+`apps/api/src/identity/domain/permission-matrix.ts` = **`PRE-EXISTING` / `OUT OF P5-I4C SCOPE` /
+`UNCHANGED` / `SEPARATE NON-BLOCKING FOLLOW-UP`**, **bez remedijacije u ovom gateu**. Prenesene
+dispozicije D-078 / D-079 `RULING E` ostaju **nepromijenjene**: `POST /exports/{exportJobId}/retry`
+request-hash vektor **`NON_BLOCKING_HOLD_AS_AUTHORIZED` / `CARRIED FORWARD`**; Nest module wiring
+**`CONFORMANT` / `NO GAP`**; `RFC 8785 Appendix B` pinovanih brojčanih vektora **`13`**, ne `24`;
+`VE-1` **`CLOSED`**; Prettier odstupanje Faze 4 **`INFORMATIONAL / ACCEPTED AS-IS`**.
+**`BLOCKING FINDINGS OPEN = 0`.**
+
+**Nijedan test se odlukom D-080 ne implementira, ne mijenja i ne izvršava.** Checklist Faze 5 je i
+dalje **`49 / 14`** uz **`PHASE5_CHECKBOX_TRANSITIONS = 0`** i
+**`P5-I4C_CLOSURE_CHECKBOX_TRANSITIONS = 0`**; **`49 / 31` je isključivo forecast** i **nije tekuće
+stanje**. **Formalno zatvaranje nije odmah efektivno** — postaje efektivno tek nakon nezavisnog
+vlasničkog pregleda, eksplicitnog prihvatanja, publikacije, kanonizacije na `origin/main` i
+post-publikacione verifikacije D-080.
+
+```text
+P5-I4C FORMAL CLOSURE OWNER DECISION = APPROVED
+P5-I4C FORMAL CLOSURE EFFECTIVE      = NO
+OD-P5-I4C-CLOSE-1                    = SATISFIED
+OD-P5-I4C-CLOSE-2                    = SATISFIED
+P5-I4D                               = DOES NOT EXIST
+NEXT LIFECYCLE GATE                  = SEPARATE P5-I4 PARENT FORMAL CLOSURE
+P5-I4  PARENT                        = INCOMPLETE / OPEN
+P5-I5  IMPLEMENTATION AUTHORIZED     = NO / STILL DEPENDENCY-BLOCKED / NOT STARTED
+P5-I6  IMPLEMENTATION AUTHORIZED     = NO / NOT STARTED
+D-081                                = UNCONSUMED
+CURRENT_CHECKLIST                    = 49 / 14
+```
+
+Vidi D-080 u `06`, `04` §7.5a, `05` §6 i `03` §4.1.
+
 ---
 
 # 13. Analysis/outbox/queue

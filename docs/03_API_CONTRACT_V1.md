@@ -541,6 +541,79 @@ PHASE5_CHECKBOX_TRANSITIONS                   = 0
 **`POST /patient-references`, idempotency servis i audit writer i dalje NISU implementirani.**
 **Autorizacija nije izvršenje.** Vidi D-079 u `06`, `04` §7.5a, `05` §6 i `08` §12.12.
 
+**STATUSNA ANOTACIJA (D-080, 2026-09-05) — cijela sekcija iznad se NE prepisuje.** Ugovorne
+klauzule §4, §4.1 i §4.2, kao i statusne anotacije D-077, D-078 i D-079, ostaju **doslovno na snazi
+i nepromijenjene**. D-080 je **post-merge pomirenje i formalno zatvaranje pod-gatea `P5-I4C`**; on
+**ne mijenja nijedan endpoint, header, permisiju, rolu, polje, error kod, statusni kod, TTL,
+pravilo cashiranja ni ugovor odgovora**, **ne mijenja `request_sha256` ugovor** ni njegovo
+isključenje identiteta endpointa iz digesta, i **ne mijenja nijedan od pet ugovornih pragova
+`OD-P5-I4C-1` … `OD-P5-I4C-5`**.
+
+**`P5-I4C` je implementiran, vlasnički pregledan, prihvaćen, merged i kanonski na `origin/main`,
+a zasebna higijenska rekonsilijacija je takođe kanonska:**
+
+```text
+IMPLEMENTATION COMMIT   ec470faab8afc32ef9a0fdeb9eb12130e0507e15
+IMPLEMENTATION PARENT   61b12c5e56ff51f4c2e807369c2ea671e10423e5
+IMPLEMENTATION TREE     d8fe6e9dbd3f1d591dae4e02041763d8ad709a7d
+PULL REQUEST            #59   (MERGED)
+MERGE COMMIT            533b73bbe3f40df1d711b0254982c12acff55d58
+PUBLICATION DRIFT       ZERO
+
+NUL HYGIENE COMMIT      d7b0d43c638bdc6904372ec36ebde59df7eaf278
+HYGIENE PARENT          533b73bbe3f40df1d711b0254982c12acff55d58
+HYGIENE TREE            b149efe47661de8930fd7c967978e7f783b65251
+PULL REQUEST            #60   (MERGED)
+MERGE COMMIT            c5a778b6841264801f32f48d3292914f45c8a605
+PUBLICATION DRIFT       ZERO
+
+CANONICAL TREE          b149efe47661de8930fd7c967978e7f783b65251
+P5-I4C                  IMPLEMENTED / OWNER-ACCEPTED / PUBLISHED / CANONICAL /
+                        PUBLICATION-VERIFIED / VERIFICATION PASS
+```
+
+**Formulacije iznad** — „autorizacija postaje efektivna tek nakon što D-079 bude vlasnički
+prihvaćen", „implementacija smije početi tek nakon zasebnog gatea izvršenja",
+„`P5-I4C IMPLEMENTATION STARTED = NO`" i „`POST /patient-references`, idempotency servis i audit
+writer i dalje NISU implementirani" — opisuju **pred-D-080 stanje**, **historijski su tačne** i **ne
+prepisuju se**; **mjerodavan je ovaj statusni model.**
+
+**Zamrznuti katalog §8 se NE mijenja.** Vraćanje `PATIENT_REFERENCE_ALREADY_EXISTS` u TypeScript
+ogledalo kataloga je **konformansna restauracija, ne izmjena kataloga**: kod je u §8 kanonski od
+D-072, `409` mapiranje u §8.1 je kanonsko, pozicija je identična §8, i D-079 `RULING B` stavka 8
+dodjeljuje ponašanje `P5-I4C`-u. **Nijedan novi error kod nije uveden.**
+
+```text
+ERROR_CODE_MIRROR_CONFORMANCE_RESTORATION_CONFIRMED = CONFIRMED
+```
+
+**Formalno zatvaranje nije odmah efektivno.** Ono postaje efektivno tek nakon što D-080 sam bude
+autorstvom dovršen, nezavisno vlasnički pregledan, eksplicitno vlasnički prihvaćen,
+objavljen/merged, kanonski na `origin/main` i post-publikaciono verifikovan.
+
+```text
+P5-I4C FORMAL CLOSURE OWNER DECISION = APPROVED
+P5-I4C FORMAL CLOSURE EFFECTIVE      = NO      (do ispunjenja sest uslova)
+P5-I4C NUL HYGIENE                   = RESOLVED / CANONICAL
+OD-P5-I4C-CLOSE-1                    = SATISFIED
+OD-P5-I4C-CLOSE-2                    = SATISFIED
+P5-I4D                               = DOES NOT EXIST
+NEXT LIFECYCLE GATE                  = SEPARATE P5-I4 PARENT FORMAL CLOSURE
+P5-I4  PARENT                        = INCOMPLETE / OPEN
+P5-I5  IMPLEMENTATION AUTHORIZED     = NO / STILL DEPENDENCY-BLOCKED / NOT STARTED
+P5-I6  IMPLEMENTATION AUTHORIZED     = NO / NOT STARTED
+D-081                                = UNCONSUMED
+CURRENT_CHECKLIST                    = 49 / 14
+PHASE5_CHECKBOX_TRANSITIONS          = 0
+P5-I4C_CLOSURE_CHECKBOX_TRANSITIONS  = 0
+EXPECTED_POST_P5_I4_CLOSURE_CHECKLIST = 49 / 31   (FORECAST ONLY)
+```
+
+**Zatvaranje pod-gatea nije zatvaranje roditelja.** **`P5-I4C` je treći i posljednji pod-gate; `P5-I4D`
+ne postoji**, a naredni lifecycle gate je **zaseban gate formalnog zatvaranja roditeljskog `P5-I4`**
+— **ne `P5-I5`**. **`49 / 31` je isključivo forecast** i **nije tekuće stanje**. Vidi D-080 u `06`,
+`04` §7.5a, `05` §6 i `08` §12.12.
+
 ---
 
 ## 4.2 `POST /patient-references` — idempotency pojašnjenja `P5-I4` (D-072, `OD-P5-I4-3`, `OD-P5-I4-7`, `OD-P5-I4-8`)
