@@ -4366,6 +4366,91 @@ bude vlasnički prihvaćen, kanonski i post-publikaciono verifikovan, **i** prij
 **zaseban gate izvršenja implementacije**. Red `Services → redaction` **ostaje neoznačen** i ostaje
 u vlasništvu `P5-I6`. Vidi D-079 u `06`, `04` §7.5a, `03` §4.1 i `08` §12.12.
 
+## P5-I4C FORMAL CLOSURE ANNOTATION — D-080 (2026-09-05)
+
+**Ovo je ne-checkbox anotacija.** Ona **ne dodaje nijedan checklist red** i **ne mijenja nijednu
+kućicu**; markeri checkboxa se u njoj **namjerno ne koriste**. **Nijedan pasus, blok ni anotacija
+iznad se ne prepisuje.**
+
+- **D-080 je post-merge pomirenje i formalno zatvaranje pod-gatea `P5-I4C`.** `P5-I4C` je
+  **implementiran, vlasnički pregledan, prihvaćen, objavljen kroz PR #59, merged kao `533b73bb…`,
+  kanonski i publikaciono verifikovan**; zasebna higijenska ispravka sirovog `NUL`-a objavljena je
+  kroz **PR #60** i kanonska je kao **`c5a778b6…`**. **Publikacioni drift je nula na obje trake.**
+  **Dokumentacija je isključivo**; **nijedna linija koda, testa, scheme, migracije, granta,
+  zavisnosti ni lockfilea se ovom odlukom ne uvodi**, i **nijedna baza nije kontaktirana**.
+- **Vlasnički closure uslovi:** `OD-P5-I4C-CLOSE-1` (nezavisan review mora prethoditi) =
+  **`SATISFIED`**; `OD-P5-I4C-CLOSE-2` (higijenski nalaz sirovog `NUL`-a mora biti riješen i
+  kanonski prije zatvaranja) = **`SATISFIED`**.
+- **Autorizovan izvršivi obuhvat D-079 `RULING B` je ispunjen u cijelosti** — svih **trinaest**
+  stavki: idempotency servis; advisory-lock kontrola konkurencije; audit writer;
+  `POST /patient-references`; konzumacija `MANUAL` v1 normalizacije; perzistencija HMAC-a kao
+  `external_patient_ref_hash`; ciljani retry pseudonima; `PATIENT_REFERENCE_ALREADY_EXISTS`;
+  servisni lookup po pseudonimu; servisni lookup po eksternoj referenci; `CO-P5-I3-I4-1`;
+  `CO-P5-I3-I4-2`; integracioni / sigurnosni / API / concurrency dokazi. **Obuhvat nije proširen.**
+- **Prihvaćeni verifikacijski dokaz `P5-I4C`:** `typecheck` `PASS`, `lint` `PASS`, unit
+  `49 / 1259`, e2e `5 / 41`, integration `4 / 46`, security `23 / 851`; agregat **81 fajl / 2197
+  testova / 2197 `PASS` / 0 padova / 0 preskoka**. **Zasebna higijenska verifikacija:** pogođeni
+  spec `62 / 62 PASS`, ciljani `P5-I4C` set `154 / 154 PASS`, puna unit svita `1259 / 1259 PASS`,
+  `typecheck` `PASS`, `lint` `PASS`, **diferencijalni** format `PASS`. **Agregat `81 / 2197` NIJE
+  ponovo izvršen nakon higijene**, i **e2e / integration / security trake NISU rerunovane tokom
+  higijenskog gatea.**
+- **Dispozicija nalaza `P5-I4C` reviewa:** `F-1`, `F-2`, `F-3`, `F-4` = **`INFORMATIONAL` /
+  `ACCEPTED` / `NON-BLOCKING`**;
+  **`ERROR_CODE_MIRROR_CONFORMANCE_RESTORATION_CONFIRMED = CONFIRMED`**; `P5-I4C` sirovi `NUL` =
+  **`RESOLVED` / `CANONICAL` / `NON-BLOCKING`**; sirovi `NUL` u
+  `apps/api/src/identity/domain/permission-matrix.ts` = **`PRE-EXISTING` / `OUT OF P5-I4C SCOPE` /
+  `UNCHANGED` / `SEPARATE NON-BLOCKING FOLLOW-UP`**, **bez remedijacije u ovom gateu**.
+  **`BLOCKING FINDINGS OPEN = 0`.**
+- **Anotacije D-072, D-074, D-076, D-077, D-078 i D-079 iznad opisuju pred-D-080 stanje** —
+  „`P5-I4C IMPLEMENTATION AUTHORIZED = NO`", „`P5-I4C IMPLEMENTATION STARTED = NO`" i
+  „`POST /patient-references` nije implementiran" — **historijski su tačne** i **ne prepisuju se**;
+  **mjerodavan je ovaj statusni model.**
+- **Formalno zatvaranje nije odmah efektivno** — postaje efektivno tek nakon što D-080 sam bude
+  autorstvom dovršen, nezavisno vlasnički pregledan, eksplicitno vlasnički prihvaćen,
+  objavljen/merged, kanonski na `origin/main` i post-publikaciono verifikovan.
+  **`P5-I4C FORMAL CLOSURE OWNER DECISION MADE = YES`**;
+  **`P5-I4C FORMAL CLOSURE EFFECTIVE = NO`.**
+- **Nijedna kućica se ovim zatvaranjem ne označava.** Kanonsko pravilo ostaje: **pod-gate
+  `P5-I4A` / `P5-I4B` / `P5-I4C` ne prevodi nijedan red roditeljskog checklista `P5-I4`.**
+  Sedamnaest forecast redova prevodi **isključivo** zaseban gate zatvaranja roditeljskog `P5-I4`.
+- **`CO-P5-I3-I4-1` i `CO-P5-I3-I4-2` su ispunjeni obuhvatom `P5-I4C`**, ali ostaju **ne-checkbox
+  kriteriji prihvatanja** roditeljskog `P5-I4`; **ne dobijaju vlastite redove** ni sada ni kasnije,
+  i **njihova ispunjenost sama po sebi ne prevodi nijednu kućicu.**
+- **`P5-I4C` je treći i posljednji pod-gate; `P5-I4D` ne postoji.** Naredni lifecycle gate nakon
+  efektivnog zatvaranja `P5-I4C` je **zaseban gate formalnog zatvaranja roditeljskog `P5-I4`** —
+  **ne `P5-I5`**.
+
+```text
+                        prije       poslije
+ukupno redova (§6)      49          49
+oznaceno                14          14
+neoznaceno              35          35
+
+CURRENT_CHECKLIST                      = 49 / 14
+PHASE5_CHECKBOX_TRANSITIONS            = 0
+P5-I4C_CLOSURE_CHECKBOX_TRANSITIONS    = 0
+P5-I4C DIRECT CHECKBOX TRANSITIONS     = 0
+P5-I4 FORECAST ROWS UNCHECKED          = 17
+NEW CHECKLIST ROWS                     = 0
+EXPECTED_POST_P5_I4_CLOSURE_CHECKLIST  = 49 / 31   (ISKLJUCIVO FORECAST, NIJE TEKUCE STANJE)
+```
+
+```text
+P5-I4C  CANONICAL / FORMALLY CLOSED (efektivno tek po publikaciji D-080)
+P5-I4D  DOES NOT EXIST
+P5-I4   INCOMPLETE / OPEN
+P5-I5   DEPENDENCY-BLOCKED / NOT AUTHORIZED / NOT STARTED
+P5-I6   NOT AUTHORIZED / NOT STARTED
+D-081   UNCONSUMED
+
+NEXT LIFECYCLE GATE = SEPARATE P5-I4 PARENT FORMAL CLOSURE
+```
+
+**Zatvaranje pod-gatea nije zatvaranje roditelja.** Zatvaranje `P5-I4C` **NE zatvara automatski
+`P5-I4`**, **NE prevodi automatski sedamnaest roditeljskih forecast redova** i **NE odblokira
+`P5-I5`**. Red `Services → redaction` **ostaje neoznačen** i ostaje u vlasništvu `P5-I6`. Vidi
+D-080 u `06`, `04` §7.5a, `03` §4.1 i `08` §12.12.
+
 ## Schema
 
 - [x] patient_references.
