@@ -140,6 +140,38 @@ otvorenom, pinovanom tenant transakcijom. **Devet obaveza iz `05` §6 postaju kr
 prihvatanja tenant database granicu nosi postojeći `TenantRequestPipeline`, uz nepromijenjene
 sigurnosne invarijante.
 
+**Pomirenje uslovnog facade triggera (D-081, 2026-09-05) — oba pasusa iznad se NE mijenjaju.**
+D-069 anotacija je **tačna na dan svog zapisa**: tada je konkretan facade zaista bio **uslovno
+odgođen**, `P5-I4` **`NOT_STARTED`** i nijedan facade kod **nije bio ovlašten**. Ta tvrdnja **ostaje
+historijski važeća** i **ne prepisuje se**; ona **više ne opisuje tekuće stanje**.
+
+**Uslovni trigger D-056 je u međuvremenu dosegnut i zadovoljen.** `P5-I4` je vlasnički autorizovan
+(D-074, D-077, D-079), implementiran, verifikovan, objavljen i formalno pomiren po pod-gateovima
+(D-076, D-078, D-080). Pod-gate `P5-I4A` je kanonski implementirao konkretan `TenantDatabaseService`
+(`apps/api/src/database/tenant-database.service.ts`, registrovan u `database.module.ts`), a
+**D-054, klauzule 6–10 i D-056, klauzula 5 su ponovo dokazani trajnim regresijama**
+(`tenant-database.service.spec.ts`, `tenant-database-boundary.spec.ts`) **prije prihvatanja**.
+**Svih devet facade obaveza iz `05` §6 je time dokazano** i **vlasnički autorizovano za prelazak u
+označeno** gateom formalnog zatvaranja roditeljskog `P5-I4`.
+
+**Ova anotacija ne mijenja nijedan sigurnosni zahtjev.** Sloj 5 zadržava identičnu semantiku:
+
+```text
+jedan PrismaService                                        NEPROMIJENJENO
+jedna pinovana interaktivna transakcija po zahtjevu        NEPROMIJENJENO
+set_request_context unutar te iste transakcije             NEPROMIJENJENO
+nijedan caller-supplied identitet kao granica povjerenja   NEPROMIJENJENO
+nijedna druga, ugnijezdena ni paralelna transakcija        NEPROMIJENJENO
+default-deny bez uspostavljenog konteksta                  NEPROMIJENJENO
+```
+
+**Facade je tanak omotač postojeće pinovane granice `TenantRequestPipeline` — ne novi i ne paralelan
+database stack** (D-054, dio C.2), i **ne posjeduje vlastiti `PrismaClient`** (D-054, klauzula 7).
+**Nijedno transakciono, kontekstno ni default-deny pravilo nije oslabljeno**, **nijedan grant,
+nijedna RLS politika i nijedan predikat izolacije se ne dira**, i **nijedan sigurnosni zahtjev nije
+uklonjen ni ublažen**. Anotacija je **isključivo aditivno činjenično pomirenje** i **ne prepisuje
+historiju**. Vidi D-081 u `06`, `05` §6, `04` §7.5a, `03` §4.1 i `08` §12.12.
+
 Object storage key primjer:
 
 ```text

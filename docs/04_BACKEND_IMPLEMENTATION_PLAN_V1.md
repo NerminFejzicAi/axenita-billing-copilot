@@ -2709,6 +2709,136 @@ obuhvatom `P5-I4C`**, ali ostaju **ne-checkbox kriteriji prihvatanja** roditeljs
 dobijaju vlastite redove**. `D-081` ostaje **`UNCONSUMED`** i **nije rezervisan**. Vidi D-080 u
 `06`, `03` §4.1, `05` §6 i `08` §12.12.
 
+### `P5-I4` RODITELJSKO FORMALNO ZATVARANJE — D-081 (2026-09-05)
+
+**Cijele sekcije iznad se NE prepisuju.** Implementacijski ugovor **D-072**, rafinacija **D-073**,
+autorizacije **D-074** / **D-077** / **D-079**, semantičko pomirenje **D-075** i zatvaranja
+pod-gateova **D-076** / **D-078** / **D-080** ostaju **doslovno na snazi i nepromijenjeni**. D-081
+je **governance zapis formalnog zatvaranja roditeljskog gatea `P5-I4`**; on **ne mijenja nijednu
+normativnu klauzulu implementacijskog plana**, **ne uvodi nijedan novi ugovor**, **ne mijenja
+nijedan endpoint, header, grant, rolu, schemu, migraciju, RLS politiku ni zavisnost**, i **nijedan
+test se njime ne izvršava**.
+
+**Kanonsko stanje pod-gateova — rekonstruisano iz Git historije:**
+
+```text
+P5-I4A   D-074 -> 1d84e2210f81ac5efbc131cb7f3f27971e8a417f
+         PR #52 -> 1247eea20a07d547a6912ed931c72c5b310a8702
+         zatvaranje D-076 -> PR #53 -> 103c22144b93a77e5488dcfe3a1e882d6c9785b2
+         publikacioni drift ZERO
+
+P5-I4B   D-077 -> 9daea14eed649f1ca160beaccc4913c88d26f297
+         PR #55 -> 5014c7e67b2ad0cdb00965bdd580cac0a3947a44
+         VE-1 CRLF higijena -> PR #56 -> 9145abc623ceec7905e82e7b5ba5ceda44113347
+         zatvaranje D-078 -> PR #57 -> 9ef87541ab94ef28669f25135c2b37000bbb1edf
+         publikacioni drift ZERO
+
+P5-I4C   D-079 -> ec470faab8afc32ef9a0fdeb9eb12130e0507e15
+         PR #59 -> 533b73bbe3f40df1d711b0254982c12acff55d58
+         NUL higijena d7b0d43c638bdc6904372ec36ebde59df7eaf278 -> PR #60 ->
+         c5a778b6841264801f32f48d3292914f45c8a605
+         zatvaranje D-080 -> 096ca8db09da4c1c634d6c2a5062582a66c20251 -> PR #61 ->
+         0bb301ca339bc6c985bc85b4a990f8ff7065680d
+         publikacioni drift ZERO
+
+P5-I4A / P5-I4B / P5-I4C   FORMALLY CLOSED / EFFECTIVE
+P5-I4D                     NE POSTOJI
+```
+
+**Vlasnička odluka je donesena, ali zatvaranje NIJE odmah efektivno.** Ono postaje efektivno tek
+nakon što D-081 sam bude autorstvom dovršen, nezavisno pregledan, eksplicitno vlasnički prihvaćen,
+objavljen/merged, kanonski na `origin/main` i post-publikaciono verifikovan.
+
+```text
+P5-I4 PARENT FORMAL CLOSURE OWNER DECISION MADE = YES
+P5-I4 PARENT FORMAL CLOSURE EFFECTIVE           = NO
+D-081                                           = LOCALLY AUTHORED / NOT CANONICAL
+P5_I4_PARENT_ACCEPTANCE_CRITERIA                = 16
+UNSATISFIED                                     = 0
+P5_I4_PARENT_BLOCKING_FINDINGS                  = 0
+```
+
+**Prenesene obaveze su prihvaćene na roditeljskom nivou:**
+
+```text
+CO-P5-I3-I4-1   PARENT_ACCEPTED = YES   NEW CHECKLIST ROW = NO
+CO-P5-I3-I4-2   PARENT_ACCEPTED = YES   NEW CHECKLIST ROW = NO
+```
+
+`CO-P5-I3-I4-1` je razriješen jedinstvenošću `unique (practice_id, pseudonym)`, ograničenim
+regenerate-and-retry putem bez ijednog determinističkog fallbacka, uppercase kanonizacijom i
+validacijom uz običnu jednakost, i tenant-scoped lookupom. `CO-P5-I3-I4-2` je razriješen
+perzistencijom `external_patient_ref_hash`, tenant-scoped lookupom po tokenu, integracijom
+ordinacije, `source_system`-a i domene u HMAC poruku, poslovnom validacijom i mapiranjem grešaka,
+ciljanim rukovanjem jedinstvenošću i konfliktom, te odsustvom izlaganja eksternog identifikatora u
+čistom tekstu. **Obje ostaju ne-checkbox kriteriji prihvatanja i ne dobijaju vlastite redove.**
+
+**Checklist — kanonsko naspram kandidatskog stanja:**
+
+```text
+CANONICAL_ENTRY_CHECKLIST                 = 49 / 14
+D081_LOCAL_CANDIDATE_CHECKLIST            = 49 / 31
+P5-I4_PARENT_CLOSURE_CHECKBOX_TRANSITIONS = 17   (9 facade + 8 API/Services/Tests)
+NEW_CHECKLIST_ROWS                        = 0
+DELETED_CHECKLIST_ROWS                    = 0
+49 / 31 CANONICAL EFFECT                  = PENDING D-081 PUBLICATION LIFECYCLE
+```
+
+**`49 / 31` je lokalno kandidatsko stanje**, **ne kanonsko i ne tekuće**; kanonski `origin/main` i
+dalje nosi **`49 / 14`** dok D-081 ne bude objavljen i verifikovan.
+
+**Formulacije iznad** koje glase `P5-I4 PARENT = INCOMPLETE / OPEN`, „sedamnaest forecast redova
+ostaje neoznačeno" i `EXPECTED_POST_P5_I4_CLOSURE_CHECKLIST = 49 / 31 (FORECAST ONLY)` opisuju
+**pred-D-081 stanje**, **historijski su tačne** i **ne prepisuju se**; **mjerodavan je ovaj statusni
+model.**
+
+**Zamrznuti mutacijski predikati ostaju nepromijenjeni:**
+
+```text
+PRISMA_SCHEMA_MUTATION_REQUIRED    = NO
+MIGRATION_REQUIRED                 = NO
+RLS_POLICY_MUTATION_REQUIRED       = NO
+GRANT_MUTATION_REQUIRED            = NO
+NEW_RUNTIME_DEPENDENCY_REQUIRED    = NO
+PUBLIC_API_ROUTE_MUTATION_REQUIRED = NO
+DATABASE_WRITER_REQUIRED           = NO
+NEW_P5_I4_NORMATIVE_CONTRACT       = NONE
+HISTORICAL_RECORDS_REWRITTEN       = 0
+```
+
+**Nizvodni / autorizacijski firewall:**
+
+```text
+prije efektivnog zatvaranja D-081:
+P5-I5   STILL DEPENDENCY-BLOCKED / NOT AUTHORIZED / NOT STARTED
+
+nakon efektivnog zatvaranja D-081:
+P5-I4   COMPLETE / VERIFIED / CANONICAL / FORMALLY CLOSED
+P5-I5   NEXT / POLICY-RESOLVED / DEPENDENCY-SATISFIED / NOT AUTHORIZED / NOT STARTED
+
+nepromijenjeno u oba slucaja:
+P5-I6   NOT AUTHORIZED / NOT STARTED
+Faza 5  IN_PROGRESS   (nije DONE)
+D-082   UNCONSUMED / NOT RESERVED / NOT ASSIGNED
+```
+
+**Efektivno zatvaranje roditelja mijenja isključivo zavisnosnu osu `P5-I5`.** **Tabela zavisnosti
+§7.5 ostaje mjerodavna i neoslabljena**; nijedna zavisnost se ne waivuje. Tri ose ostaju razdvojene:
+zavisnost **`SATISFIED`** (tek nakon efektivnosti), autorizacija **`NOT AUTHORIZED`**, početak
+**`NOT STARTED`**. **`Podobnost nije autorizacija.`** `P5-I5` i dalje traži **zaseban read-only
+autorizacijski / pre-execution preflight** i **zasebnu izričitu vlasničku autorizaciju**, a
+**`★` RI-naspram-RLS ostaje HARD preduslov `P5-I5`** i trajna regresija.
+**`OWNER_DECISIONS_REQUIRED_FOR_P5_I5 = 0`** ostaje već kanonizovano policy stanje i **ne otvara se
+ponovo**. **`P5-I6` se ovim zapisom ne mijenja.** **`D-082` se ne troši i ne rezerviše.**
+
+**Naredni gate:**
+
+```text
+NEXT LIFECYCLE GATE = INDEPENDENT OWNER REVIEW OF LOCAL D-081 COMMIT
+```
+
+Vidi D-081 u `06`, `05` §6, `03` §4.1, `08` §12.12 i `09` §4.
+
 ### Segmentacija `P5-I2` na četiri pod-gatea (D-064)
 
 `P5-I2` se **ne izvršava kao jedan potez**. Ratifikovana su četiri pod-gatea:

@@ -614,6 +614,58 @@ ne postoji**, a naredni lifecycle gate je **zaseban gate formalnog zatvaranja ro
 — **ne `P5-I5`**. **`49 / 31` je isključivo forecast** i **nije tekuće stanje**. Vidi D-080 u `06`,
 `04` §7.5a, `05` §6 i `08` §12.12.
 
+**STATUSNA ANOTACIJA (D-081, 2026-09-05) — cijela sekcija iznad se NE prepisuje.** Ugovorne klauzule
+§4, §4.1 i §4.2, kao i statusne anotacije D-077, D-078, D-079 i D-080, ostaju **doslovno na snazi i
+nepromijenjene**. D-081 je **governance zapis formalnog zatvaranja roditeljskog gatea `P5-I4`**; on
+**ne mijenja nijednu rutu, metodu, payload, header, permisiju, rolu, polje, validaciju, statusni kod,
+error kod, TTL, idempotencijsko pravilo, lookup pravilo, autorizacijsko pravilo, pravilo cashiranja
+ni ugovor odgovora**, i **ne mijenja `request_sha256` ugovor**. **Zamrznuti katalog §8 ostaje
+nepromijenjen** i **nijedan novi error kod nije uveden.**
+
+**Obuhvat `P5-I4` patient-reference površine je zadovoljen na roditeljskom nivou.** `POST
+/patient-references` i `GET /patient-references/{id}` su kanonski implementirani, nezavisno
+pregledani, objavljeni i formalno zatvoreni kroz pod-gateove `P5-I4A`, `P5-I4B` i `P5-I4C`
+(D-076, D-078, D-080); **`P5-I4D` ne postoji**. Odgovarajuća dva `API` reda `05` §6 su ovim gateom
+vlasnički autorizovana za prelazak u označeno — **bez ijedne izmjene semantike endpointa**.
+
+**Prenesene obaveze su prihvaćene na roditeljskom nivou:**
+
+```text
+CO-P5-I3-I4-1   PARENT_ACCEPTED = YES   NEW CHECKLIST ROW = NO
+CO-P5-I3-I4-2   PARENT_ACCEPTED = YES   NEW CHECKLIST ROW = NO
+```
+
+**Formalno zatvaranje roditelja nije odmah efektivno.** Ono postaje efektivno tek nakon što D-081 sam
+bude autorstvom dovršen, nezavisno pregledan, eksplicitno vlasnički prihvaćen, objavljen/merged,
+kanonski na `origin/main` i post-publikaciono verifikovan.
+
+```text
+P5-I4 PARENT FORMAL CLOSURE OWNER DECISION MADE = YES
+P5-I4 PARENT FORMAL CLOSURE EFFECTIVE           = NO
+D-081                                           = LOCALLY AUTHORED / NOT CANONICAL
+P5-I4D                                          = DOES NOT EXIST
+P5-I5  IMPLEMENTATION AUTHORIZED                = NO / STILL DEPENDENCY-BLOCKED / NOT STARTED
+P5-I6  IMPLEMENTATION AUTHORIZED                = NO / NOT STARTED
+D-082                                           = UNCONSUMED / NOT RESERVED
+CANONICAL_ENTRY_CHECKLIST                       = 49 / 14
+D081_LOCAL_CANDIDATE_CHECKLIST                  = 49 / 31
+P5-I4_PARENT_CLOSURE_CHECKBOX_TRANSITIONS       = 17
+NEW_CHECKLIST_ROWS                              = 0
+DELETED_CHECKLIST_ROWS                          = 0
+API SEMANTIC MUTATION                           = 0
+FROZEN §8 ERROR CODE CATALOGUE                  = UNCHANGED
+NEXT LIFECYCLE GATE                             = INDEPENDENT OWNER REVIEW OF LOCAL D-081 COMMIT
+```
+
+**Formulacije iznad** — `P5-I4 PARENT = INCOMPLETE / OPEN`, `D-081 = UNCONSUMED`,
+`CURRENT_CHECKLIST = 49 / 14` i „`49 / 31` je isključivo forecast" — opisuju **pred-D-081 stanje**,
+**historijski su tačne** i **ne prepisuju se**. **`49 / 31` je i dalje samo lokalno kandidatsko
+stanje**: kanonski `origin/main` nosi **`49 / 14`** dok D-081 ne bude objavljen i verifikovan.
+
+**Podobnost nije autorizacija.** Efektivno zatvaranje roditelja mijenja **isključivo zavisnosnu osu**
+`P5-I5`; `P5-I5` i dalje traži zaseban read-only preflight i zasebnu izričitu vlasničku autorizaciju,
+a `P5-I6` se ne mijenja. Vidi D-081 u `06`, `04` §7.5a, `05` §6, `08` §12.12 i `09` §4.
+
 ---
 
 ## 4.2 `POST /patient-references` — idempotency pojašnjenja `P5-I4` (D-072, `OD-P5-I4-3`, `OD-P5-I4-7`, `OD-P5-I4-8`)
