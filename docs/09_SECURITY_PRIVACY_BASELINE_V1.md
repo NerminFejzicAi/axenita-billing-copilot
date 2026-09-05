@@ -865,6 +865,127 @@ digest **ne nosi identitet ni PHI-kontekst**.
 
 ---
 
+## 12.2 `P5-I5` encounter audit katalog, minimizacija i sanitizacija razloga otkazivanja (D-082, 2026-09-06)
+
+**Sekcije §12 i §12.1 iznad se NE prepisuju.** D-082 ih **pooštrava** za `P5-I5` i **ne slabi**
+nijednu njihovu tvrdnju. **Ovo je ugovor, ne implementacija:** `P5-I5` je **`NOT AUTHORIZED`** i
+**`NOT STARTED`**.
+
+### Obuhvat audita u `P5-I5` (`OD-D082-5`)
+
+```text
+AUDIT_ACTOR_TYPE    = USER
+AUDIT_RESOURCE_TYPE = ENCOUNTER
+
+katalog akcija P5-I5:
+  ENCOUNTER_CREATED
+  ENCOUNTER_UPDATED
+  ENCOUNTER_CANCELLED
+```
+
+- **`P5-I5` konzumira postojeću `P5-I4` audit infrastrukturu i hash ugovor nepromijenjene.**
+  **`P5-I5` NE SMIJE uvesti drugi audit mehanizam.**
+- **Katalog je iscrpan za closure obuhvat `P5-I5`.** Audit akcija `ENCOUNTER_READY_FOR_ANALYSIS`
+  (`03` §29.1a) pripada **komandi unosa dokumenta**, ostaje **izvan** ovog kataloga, i `P5-I5` je
+  **ne piše** i **ne prejudicira**.
+- **Poslovna mutacija i audit `INSERT` su u istoj admitovanoj tenant transakciji**; neuspjeh
+  perzistencije audita **obara/abortira poslovnu transakciju**. **Ne postoji lažan success audit**, i
+  **nikada se ne bilježi uspjeh za mutaciju koja se rollback-uje.**
+- **Konzumira se kanonski `AUDIT_EVENT_HASH_PAYLOAD_V1`** (`04` §7.5a.2, §12.1 iznad):
+  `previous_event_sha256` ostaje **`null`**; `id` i `occurred_at` se generišu **tačno jednom prije
+  hashiranja** i **iste** vrijednosti se perzistiraju; hashira se **konačna sanitizovana pohranjena
+  reprezentacija**.
+- **Faza-5 opciona audit telemetrija ostaje neispunjena:** `session_id_hash`, `ip_address` i
+  `user_agent_hash` ostaju **`null`** svuda gdje to zamrznuti Faza-5 audit ugovor traži.
+- **Sirovi klinički / slobodno-tekstualni podaci se ne upisuju** — jedini izuzetak je **izričito
+  dozvoljen sanitizovan sadržaj razloga otkazivanja**.
+
+### Semantička minimizacija payloada — zamrznuto
+
+```text
+ENCOUNTER_CREATED
+  previous_value = null
+  new_value      = iskljucivo minimalno stanje kreiranja encountera nuzno za auditabilnost
+  ZABRANJENO     = kompletan snapshot encountera
+                   duplirani patient payload
+                   nepotrebni podaci koji identifikuju pacijenta
+
+ENCOUNTER_UPDATED
+  previous_value = iskljucivo polja koja je prihvaceni PATCH stvarno promijenio
+  new_value      = ista ta polja, u novoj vrijednosti
+  ZABRANJENO     = nepromijenjena polja
+                   snapshot cijelog reda
+
+ENCOUNTER_CANCELLED
+  previous_value / new_value = iskljucivo materijal tranzicije stanja nuzan da se dokaze
+                               otkazivanje
+  sanitizovan razlog         = iskljucivo u koloni metadata
+  ZABRANJENO                 = sirov razlog, bilo gdje i bilo kada
+```
+
+Ovo je **stroža** primjena §3 (data minimization) i §12, **ne izuzetak od njih**. Cilj je da encounter
+audit **ne postane sekundarni PHI store**.
+
+**Granica ugovora.** Koriste se **postojeća kanonska imena** audit scheme i hash payloada.
+**Fizička imena JSON članova unutar `previous_value`, `new_value` i `metadata` nisu kanonizovana ni u
+jednom ranijem zapisu i ovdje se NE izmišljaju** — zamrznut je **semantički zahtjev**, a **fizičko
+mapiranje je izričito odgođeno u kasniji autorizovani implementacijski gate**. To odgađanje **ne
+slabi nijedno pravilo minimizacije iznad**.
+
+### Sanitizacija razloga otkazivanja (`OD-D082-6`)
+
+**`P5-I5` posjeduje uzak, determinističan sanitizer razloga otkazivanja encountera.** On **NE SMIJE
+zavisiti od buduće `P5-I6` redakcije.** `encounters` **nema kolonu za razlog i ona se ne uvodi**
+(D-062, Dio F.3); razlog završava **isključivo u audit tragu**, i to **isključivo sanitizovan**.
+
+```text
+ 1  izvrsava se tek NAKON normalne validacije zahtjeva
+ 2  cuva vec kanonski required/optional i max-length API ugovor za reason
+ 3  deterministicki Unicode-normalizuje
+ 4  zamjenjuje CR, LF, TAB i druge sekvence kontrolnih znakova sigurnim razmakom,
+    umjesto da zadrzi sirove kontrolne znakove
+ 5  sazima ponovljeni whitespace
+ 6  trimuje vodeci i prateci whitespace
+ 7  perzistira/auditira ISKLJUCIVO sanitizovan rezultat
+ 8  nikada ne pise i ne logira nesanitizovan ulaz
+ 9  ne radi nikakvo semanticko prepisivanje
+10  ne koristi nikakvu AI/model-baziranu sanitizaciju
+11  ne trazi nikakvu izmjenu baze ni scheme
+```
+
+- **Ako sanitizovan rezultat prekrši već kanonsko validacijsko pravilo za `reason`, primjenjuje se
+  normalna validacijska greška.** **Sanitizer NE SMIJE prećutno proizvesti zamjenski sadržaj.**
+- **Ovo je granica protiv audit/log injectiona i granica privatnosti.** Nesanitizovan `reason` u
+  auditu je **defekt klase `T3`** (§11, §12, §18.1), ne kozmetički propust.
+- **Ovo NIJE `P5-I6` klinička redakcija.** `phase5-basic-v1` ostaje `P5-I6`, a §8.3 / D-060,
+  klauzula 41 („redakcija nije sigurnosna granica") ostaju **nepromijenjeni**.
+- **Sirov `reason` se ne vraća ni u jednom odgovoru i ne logira se u sirovom obliku** (`03`, cancel
+  ugovor).
+
+### Granice tvrdnje — izričito očuvane
+
+- **Nijedno sigurnosno proširenje.** Ne uvodi se `SECURITY DEFINER`, `BYPASSRLS`, nova rola, owner
+  politika, trigger, funkcija ni migracija.
+- **Nikakva izmjena scheme, migracije, RLS politike ni granta se ne tvrdi ni ne traži** — `P5-I5`
+  konzumira kanonsku `P5-I2` sigurnosnu osnovu **nepromijenjenu**.
+- **Zabrana opšteg existence oraclea ostaje sigurnosna klauzula** — opšti read-before-write
+  diskriminator nad `encounters` bio bi cross-tenant enumeracijski kanal (§18.1, `T1`).
+- **Faza 5 i dalje NE tvrdi linearni audit lanac.** `previous_event_sha256` ostaje `NULL`.
+- **Produkcijski KMS se NE tvrdi.** `D-OPEN-004a` ostaje otvoren.
+
+```text
+P5-I5    DEPENDENCY-SATISFIED
+P5-I5    NOT AUTHORIZED / NOT STARTED
+P5-I5A / P5-I5B / P5-I5C / P5-I5D   NOT AUTHORIZED / NOT STARTED
+D-082    LOCALLY AUTHORED / NOT CANONICAL / NOT EFFECTIVE
+```
+
+**`DEPENDENCY-SATISFIED != IMPLEMENTATION AUTHORIZED`.** Vidi D-082 u `06`, `04` §7.5a, `05` §6,
+`03` §4 i §4.1, i `08` §12.13.
+
+---
+
+
 # 13. Upload sigurnost
 
 - content length limit;

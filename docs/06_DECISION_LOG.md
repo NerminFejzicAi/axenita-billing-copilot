@@ -17190,6 +17190,726 @@ prihvaćen, kanonski i post-publikaciono verifikovan.**
 
 ---
 
+# D-082 — `P5-I5` governance pomirenje, izvršni ugovor i segmentacija: post-publikaciona efektivnost D-081, tekući metapodaci, šest redova checklista i četiri pod-gatea
+
+- **Status:** ACCEPTED / OWNER-RATIFIED — **LOCAL / NOT CANONICAL**
+- **Datum:** 2026-09-06
+- **Tip:** vlasnički ratifikovan **governance zapis pomirenja, izvršnog ugovora i segmentacije za
+  `P5-I5`**. On konstatuje **post-publikacionu efektivnost D-081**, pomiruje **zastarjele tekuće**
+  statusne metapodatke, zamrzava izvršni ugovor `P5-I5` u tačkama koje su do sada ostale otvorene i
+  ratifikuje segmentaciju `P5-I5A` → `P5-I5B` → `P5-I5C` → `P5-I5D`. **Dokumentacija isključivo.**
+- **Amandman na:** **statusne i izvršno-ugovorne tvrdnje** — ne na sigurnosni dizajn. **D-006**,
+  **D-018**, **D-025**, **D-028**, **D-029**, **D-034**, **D-035**, **D-047**, **D-054**, **D-055**,
+  **D-056** i **D-060** … **D-081** ostaju **doslovno na snazi i nepromijenjeni**. **Nijedan zapis
+  D-001 … D-081 se ne prepisuje, ne prenumeriše i ne briše — svi ostaju bajt-identični.** Sve
+  promjene su **aditivne anotacije** ili ažuriranje **tekućeg** statusa.
+- **Ova odluka NE implementira ništa.** Ne uvodi nijednu liniju izvornog koda, nijedan test,
+  nijedan fixture, nijednu migraciju, schemu, Prisma model, contract TypeScript, API rutu, grant,
+  rolu, politiku, izmjenu `package.json`/lockfilea, izmjenu CI-ja ni izmjenu `.env.example`.
+  **Nijedna baza nije kontaktirana**, **nijedan paket nije instaliran** i **nijedan test se ovom
+  odlukom ne izvršava.**
+- **Ova odluka NE označava nijednu kućicu.** **`AUTHORIZATION_CHECKBOX_TRANSITIONS = 0`.** Checklist
+  Faze 5 ostaje mehanički **`49 / 31`** — **31 označeno, 18 neoznačeno** — nepromijenjen.
+- **Ova odluka NE autorizuje `P5-I5`.** `P5-I5` ostaje **`NOT AUTHORIZED`** i **`NOT STARTED`**.
+  **`DEPENDENCY-SATISFIED` NIJE `IMPLEMENTATION AUTHORIZED`.**
+- **Ova odluka NE autorizuje `P5-I5A`, `P5-I5B`, `P5-I5C` ni `P5-I5D`.** Segmentacija je **plan
+  izvršenja**, ne dozvola izvršenja.
+- **Ova odluka NE mijenja `P5-I6` ni `P5-I7`.** Oba ostaju **`NOT AUTHORIZED` / `NOT STARTED`.**
+- **Ova odluka NE zatvara Fazu 5.** Faza 5 ostaje **`IN_PROGRESS`**; **nije `DONE`**.
+- **Ova odluka troši ISKLJUČIVO `D-082`.** **`D-083` se ne troši, ne rezerviše i ne dodjeljuje**, i
+  nijedan drugi decision ID se ovim zapisom ne zauzima.
+
+## Kontekst/problem — trigger
+
+D-081 je formalno zatvorio roditeljski `P5-I4`, preveo sedamnaest redova checklista Faze 5 i
+prihvatio dvije prenesene obaveze. Taj zapis je autorstvom bio dovršen, ali **u trenutku svog
+pisanja nije bio ni pregledan, ni prihvaćen, ni objavljen**, pa je — ispravno — nosio
+`P5-I4 PARENT FORMAL CLOSURE EFFECTIVE = NO`, `D-081 = LOCALLY AUTHORED / NOT CANONICAL`,
+`CURRENT_CHECKLIST = 49 / 14` i `P5-I5 = STILL DEPENDENCY-BLOCKED`.
+
+**Cijeli D-081 lifecycle je u međuvremenu dovršen:** autorstvo, nezavisan pregled, izričito vlasničko
+prihvatanje, publikacija kroz **PR #62**, kanonizacija na `origin/main` i post-publikaciona
+verifikacija. Time je nastao **governance drift suprotnog smjera** od onog koji je D-081 uklonio:
+kanonski repozitorij **jeste** u post-D-081 stanju, ali **tekuće** statusne formulacije u više
+dokumenata i dalje glase kao da D-081 nije objavljen.
+
+```text
+kanonski main                       cfa384eaf0bd7b353ba86080599209300f6727b8
+mehanicki checklist Faze 5          49 / 31   (31 oznaceno, 18 neoznaceno)
+stanje D-081                        OBJAVLJEN / KANONSKI / VERIFIKOVAN
+
+zastarjele TEKUCE formulacije koje jos stoje kao tekuce:
+  EFFECTIVE = NO
+  PENDING PUBLICATION
+  LOCALLY AUTHORED / NOT CANONICAL
+  CURRENT_CHECKLIST = 49 / 14
+  P5-I5 STILL DEPENDENCY-BLOCKED
+```
+
+Uz taj drift, **izvršni ugovor `P5-I5` je ostao nepotpun na četiri tačke** koje se ne smiju
+improvizovati u implementacijskom gateu: obaveznost `Idempotency-Key` na `cancel` komandi, tačan
+opseg vlasništva redova checklista, katalog i minimizacija encounter audita, i sanitizacija
+slobodnog `reason` teksta. Nedostajala je i **ratifikovana segmentacija** `P5-I5`, iako presedan
+D-072 traži da se višekomandni slice segmentira **prije** autorizacije.
+
+**Ovaj zapis uklanja taj drift, zamrzava te četiri tačke i ratifikuje segmentaciju — i ništa više.**
+
+## Kanonsko stanje ulaza ovog gatea
+
+Sve vrijednosti ispod su **verifikovane iz Git historije i stvarnih bajtova datoteka**, ne prepisane
+iz ranijih izvještaja.
+
+```text
+repozitorij                  D:\AI\Arztpraxis
+origin                       NerminFejzicAi/axenita-billing-copilot
+kanonski main                cfa384eaf0bd7b353ba86080599209300f6727b8
+HEAD tree                    15f286b23cc1937037ccae3e759d08bc412e7e80
+zivi remote refs/heads/main  cfa384eaf0bd7b353ba86080599209300f6727b8
+ahead / behind               0 / 0
+worktree                     CLEAN
+stash                        EMPTY
+
+D-081 autorstvo              488b63252ea994b7e10ac7bc60a0d8af5dda8c4b
+D-081 publikacija            PR #62 -> cfa384eaf0bd7b353ba86080599209300f6727b8
+D-081 publikacioni drift     ZERO   (tree 488b632 == tree cfa384e)
+
+MANIFEST                     19 / 19 MATCH
+checklist Faze 5             49 ukupno / 31 oznaceno / 18 neoznaceno
+najnovija kanonska odluka    D-081
+D-082 prije ovog zapisa      OWNER-ASSIGNED / UNCONSUMED / NOT CANONICAL
+D-083                        0 pojavljivanja
+* RI-vs-RLS regresija        PRESENT / VALID / UNMODIFIED
+P5-I5 implementacija         NOT STARTED
+```
+
+## Odluka
+
+### `RULING A` — `OD-D082-1`: post-publikaciona efektivnost D-081
+
+**Vlasnik prihvata i ratifikuje dovršeni lifecycle D-081.** Svih šest uslova efektivnosti iz D-081
+`RULING A` je **ispunjeno**:
+
+```text
+1  D-081 autorstvom dovrsen                       YES
+2  D-081 nezavisno pregledan                      YES
+3  D-081 eksplicitno vlasnicki prihvacen          YES
+4  D-081 objavljen / merged                       YES   (PR #62)
+5  D-081 kanonski na origin/main                  YES   (cfa384ea...)
+6  D-081 post-publikaciono verifikovan            YES
+
+P5-I4 PARENT FORMAL CLOSURE EFFECTIVE = YES
+```
+
+**Kanonsko tekuće stanje roditelja i pod-gateova:**
+
+```text
+P5-I4    COMPLETE / VERIFIED / CANONICAL / FORMALLY CLOSED / EFFECTIVE
+P5-I4A   FORMALLY CLOSED / EFFECTIVE
+P5-I4B   FORMALLY CLOSED / EFFECTIVE
+P5-I4C   FORMALLY CLOSED / EFFECTIVE
+P5-I4D   DOES NOT EXIST
+```
+
+**Formulacije `EFFECTIVE = NO`, `PENDING PUBLICATION`, `LOCALLY AUTHORED`, `NOT CANONICAL`,
+`49 / 14` i `P5-I5 STILL DEPENDENCY-BLOCKED` su od ovog zapisa metapodatkovni drift SVUDA GDJE SU
+PREDSTAVLJENE KAO TEKUĆE STANJE.** Tamo gdje stoje **unutar datiranog historijskog tijela odluke ili
+as-of-time bloka**, one su **historijski tačne**, **ostaju bajt-očuvane** i **ne prepisuju se**.
+
+**Historijski dokazni tekst D-081 se NE prepravlja da bi izgledao kao da je publikacija bila poznata
+prije nego što se dogodila.** Primjenjuje se **uspostavljeni obrazac aditivne anotacije/pomirenja**
+(presedan D-063, D-065 … D-069, D-071, D-076, D-078, D-080 i D-069 `RULING 7`).
+
+**Kanonska posljedica:**
+
+```text
+P5-I5   DEPENDENCY-SATISFIED
+P5-I5   NOT AUTHORIZED
+P5-I5   NOT STARTED
+```
+
+**Zadovoljenje zavisnosti se NE SMIJE predstaviti kao implementacijska autorizacija.**
+**`Podobnost nije autorizacija.`** Efektivno zatvaranje roditelja mijenja **isključivo zavisnosnu
+osu**; **autorizacija i početak ostaju zasebni vlasnički potezi**.
+
+### `RULING B` — `OD-D082-2`: pomirenje tekućih metapodataka faze i checklista
+
+**Kanonsko tekuće stanje Faze 5:**
+
+```text
+UKUPNO REDOVA             49
+FORMALNO ZAVRSENO         31
+PREOSTALO NEOZNACENO      18
+FORMALNA ZAVRSENOST       31 / 49  ~= 63.3 %
+FAZA 5                    IN_PROGRESS
+```
+
+**Zastarjeli tekući metapodaci koji glase `49 / 14` ili tvrde da je `P5-I5` dependency-blocked
+ispravljaju se ovim zapisom — isključivo kao metapodaci.**
+
+```text
+AUTHORIZATION_CHECKBOX_TRANSITIONS = 0
+NEW_CHECKLIST_ROWS                 = 0
+DELETED_CHECKLIST_ROWS             = 0
+```
+
+**Nijedna kućica se u ovom autorskom gateu ne mijenja.** Mehanički tekuće stanje **31 označeno /
+18 neoznačeno** ostaje **tačno nepromijenjeno**. **D-082 sam po sebi ne završava nijedan
+implementacijski red checklista** i **ne povećava napredak Faze 5.**
+
+### `RULING C` — `OD-D082-3`: idempotencija `POST /api/v1/encounters/{encounterId}/cancel`
+
+**Zamrznuto:**
+
+```text
+POST /api/v1/encounters/{encounterId}/cancel   REQUIRES Idempotency-Key
+```
+
+**Mjerodavan je endpoint-specifičan encounter ugovor** (`03`,
+*POST `/encounters/{encounterId}/cancel`*, „Idempotency key."). Napomena §4 da
+`POST /analyses/{id}/cancel` **namjerno nije** na listi obaveznih endpointa odnosi se na **analysis
+cancel Faze 7**, **ne** na encounter cancel, i **ne prenosi se analogijom**. Ovim se uklanja jedina
+preostala dvosmislenost između §4 liste i encounter ugovora.
+
+**`P5-I5` MORA konzumirati/ponovo koristiti kanonski `P5-I4` idempotencijski mehanizam.**
+**`P5-I5` NE SMIJE uvesti paralelan idempotencijski podsistem.**
+
+Ako se postojeća implementacijska površina pokaže **prespecifičnom za `create`** da bi predstavila
+`cancel` komandu, `P5-I5` smije kasnije napraviti **minimalno unazad-kompatibilno proširenje** nužno
+da se predstavi ne-create command/replay semantika. **To proširenje se u ovom gateu NE
+implementira** i **ovim zapisom nije autorizovano.**
+
+Takvo buduće implementacijsko proširenje **mora očuvati sve već zamrznute invarijante**:
+
+```text
+kanonsko hashiranje zahtjeva (RFC 8785 JCS nad validiranim parsiranim tijelom)
+scope = practice + user + endpoint + idempotency-key
+isti key + isti hash            -> replay
+isti key + drugi hash           -> 409 IDEMPOTENCY_CONFLICT
+nedovrsen / in-progress claim   -> 409 REQUEST_ALREADY_IN_PROGRESS
+jedna admitovana tenant transakcija
+transakcijski-scoped neblokirajuci advisory lock
+nema preuzimanja ustajalog claima (no stale-claim takeover)
+nema drugog idempotencijskog mehanizma
+```
+
+**`cancel` NE dobija `If-Match` / version-conflict semantiku samo zato što je idempotentan.**
+`409 VERSION_CONFLICT` se na toj ruti **ne koristi** (`03` §5.3; D-069, `RULING 2.2`).
+
+**Kanonska semantika vidljivosti/stanja ostaje nepromijenjena:**
+
+```text
+vidljiv encounter u pogresnom stanju      -> 409 INVALID_STATE_TRANSITION
+nepostojec ili tenant-nevidljiv encounter -> 404 RESOURCE_NOT_FOUND
+```
+
+**Ta razlika mora ostati race-free** i **NE SMIJE koristiti opšti diskriminirajući pre-read oracle**.
+Preferirana pozicija ostaje **jedan ograničen atomičan SQL iskaz / CTE unutar iste admitovane tenant
+transakcije** (D-069, `RULING 2.2`; `09` §18.1, `T1`).
+
+### `RULING D` — `OD-D082-4`: tačno šest redova checklista u vlasništvu `P5-I5`
+
+**Zamrznuto je tačno šest closure-owned redova `P5-I5` iz `05` §6:**
+
+```text
+1  Services   state machine.
+2  Services   optimistic locking.
+3  API        POST encounter.
+4  API        PATCH encounter.
+5  API        cancel encounter.
+6  Tests      stale ETag.
+
+P5_I5_CHECKLIST_ROWS = 6
+```
+
+**`API → GET encounter list` i `API → GET encounter detail` NISU u closure vlasništvu `P5-I5`.** Oni
+ostaju dodijeljeni **`P5-I7`**, pod kanonskim kasnijim read/list sliceom (`04` §7.5 — „Čitanje,
+lista, filteri, arhiva").
+
+**Sljedeća tri reda ostaju dijeljeni/kasniji obuhvat zatvaranja Faze 5 i NE SMIJU se označiti samo
+zato što je `P5-I5` zatvoren:**
+
+```text
+Services   outbox base.
+Tests      cross-tenant FK.
+Tests      no text in logs.
+```
+
+`P5-I5` smije kasnije proizvesti dokaze relevantne za te dijeljene invarijante, ali **vlasništvo nad
+njihovim kućicama ostaje izvan šestočlanog closure skupa `P5-I5`**, osim ako to kasnija kanonska
+odluka izričito promijeni. Ovo je **doslovno očuvanje** D-064 stava da značenje reda
+`Tests → cross-tenant FK` uključuje i kasnije API/`422` ponašanje.
+
+**`Services → redaction` i redovi document API/audita ostaju izvan `P5-I5`** prema postojećem
+governanceu; `Services → redaction` ostaje u vlasništvu **`P5-I6`**.
+
+**Pomirenje modela vlasništva nad osamnaest neoznačenih redova — bez ijedne promjene kućice:**
+
+```text
+P5-I5                              6   state machine / optimistic locking /
+                                       POST encounter / PATCH encounter /
+                                       cancel encounter / stale ETag
+P5-I6                              6   redaction / POST text document /
+                                       read redacted / read original permission /
+                                       archive / document read audit
+P5-I7                              3   GET encounter list / GET encounter detail /
+                                       list documents
+dijeljeni / kasniji Faza-5 obuhvat  3   outbox base / cross-tenant FK / no text in logs
+ukupno                            18
+
+CHECKBOX_TRANSITIONS               = 0
+```
+
+**Svih šest redova `P5-I5` ostaje NEOZNAČENO.** Dokumentovanje vlasništva **nije** dokaz izvršenja.
+
+### `RULING E` — `OD-D082-5`: katalog encounter audita `P5-I5`
+
+**`P5-I5` konzumira postojeću `P5-I4` audit infrastrukturu i hash ugovor nepromijenjene.**
+**`P5-I5` NE SMIJE uvesti drugi audit mehanizam.**
+
+```text
+AUDIT_RESOURCE_TYPE = ENCOUNTER
+
+katalog akcija P5-I5:
+  ENCOUNTER_CREATED
+  ENCOUNTER_UPDATED
+  ENCOUNTER_CANCELLED
+```
+
+**Katalog je iscrpan za closure obuhvat `P5-I5`.** Audit akcija `ENCOUNTER_READY_FOR_ANALYSIS`
+(`03` §29.1a) pripada **komandi unosa dokumenta** i ostaje **izvan** ovog tročlanog kataloga;
+`P5-I5` je **ne piše** i **ne prejudicira**.
+
+**Svaki kasniji `P5-I5` encounter audit upis mora:**
+
+- nastati u **istoj admitovanoj tenant transakciji** kao poslovna mutacija;
+- **oboriti/abortirati poslovnu transakciju** ako perzistencija audita ne uspije;
+- konzumirati **kanonski postojeći** event-hash / RFC 8785 JCS ugovor
+  (`AUDIT_EVENT_HASH_PAYLOAD_V1`; `04` §7.5a.2; `09` §12.1);
+- zadržati **`previous_event_sha256 = null`** u Fazi 5;
+- generisati **`id` i `occurred_at` tačno jednom prije hashiranja**, i perzistirati **iste**
+  vrijednosti;
+- hashirati **konačne sanitizovane vrijednosti koje se stvarno pohranjuju**;
+- zadržati **`session_id_hash`, `ip_address` i `user_agent_hash` kao `null`** svuda gdje to
+  zamrznuti Faza-5 audit ugovor traži;
+- **izbjeći sirove kliničke/slobodno-tekstualne podatke**, osim izričito dozvoljenog **sanitizovanog
+  sadržaja razloga otkazivanja**;
+- slijediti **strogu minimizaciju payloada**;
+- **nikada ne zabilježiti uspjeh za mutaciju koja se rollback-uje.**
+
+**Semantička minimizacija payloada — zamrznuto:**
+
+```text
+ENCOUNTER_CREATED
+  previous_value = null
+  new_value      = iskljucivo minimalno stanje kreiranja encountera nuzno za auditabilnost
+  ZABRANJENO     = kompletan snapshot encountera
+                   duplirani patient payload
+                   nepotrebni podaci koji identifikuju pacijenta
+
+ENCOUNTER_UPDATED
+  previous_value = iskljucivo polja koja je prihvaceni PATCH stvarno promijenio
+  new_value      = ista ta polja, u novoj vrijednosti
+  ZABRANJENO     = nepromijenjena polja
+                   snapshot cijelog reda
+
+ENCOUNTER_CANCELLED
+  previous_value / new_value = iskljucivo materijal tranzicije stanja nuzan da se dokaze
+                               otkazivanje
+  sanitizovan razlog         = iskljucivo na izricito odredjenoj audit metadata lokaciji
+  ZABRANJENO                 = sirov razlog, bilo gdje i bilo kada
+```
+
+**Izričito određena audit metadata lokacija za sanitizovan razlog je kolona `metadata`** — kanonski
+član `AUDIT_EVENT_HASH_PAYLOAD_V1` (`04` §7.5a.2). **Sirov `reason` se nikada ne pohranjuje, ne
+vraća u odgovoru i ne logira** (`03`, cancel ugovor; D-062, Dio F.3; `09` §12).
+
+**Granica autorstva.** Ovaj zapis koristi **postojeća kanonska imena** audit scheme i hash payloada.
+**Fizička imena JSON članova unutar `previous_value`, `new_value` i `metadata` nisu kanonizovana ni u
+jednom ranijem zapisu i ovdje se NE izmišljaju.** Zamrznut je **semantički zahtjev**; **fizičko
+mapiranje se izričito odgađa u kasniji autorizovani implementacijski gate**, i to odgađanje **ne
+slabi nijedno pravilo minimizacije iznad**.
+
+### `RULING F` — `OD-D082-6`: sanitizacija razloga otkazivanja
+
+**`P5-I5` posjeduje uzak, determinističan sanitizer razloga otkazivanja encountera.**
+**On NE SMIJE zavisiti od buduće `P5-I6` redakcije.**
+
+**Ugovor sanitizera — jedanaest klauzula:**
+
+```text
+ 1  izvrsava se tek NAKON normalne validacije zahtjeva
+ 2  cuva vec kanonski required/optional i max-length API ugovor za reason
+ 3  deterministicki Unicode-normalizuje
+ 4  zamjenjuje CR, LF, TAB i druge sekvence kontrolnih znakova sigurnim razmakom,
+    umjesto da zadrzi sirove kontrolne znakove
+ 5  sazima ponovljeni whitespace
+ 6  trimuje vodeci i prateci whitespace
+ 7  perzistira/auditira ISKLJUCIVO sanitizovan rezultat
+ 8  nikada ne pise i ne logira nesanitizovan ulaz
+ 9  ne radi nikakvo semanticko prepisivanje
+10  ne koristi nikakvu AI/model-baziranu sanitizaciju
+11  ne trazi nikakvu izmjenu baze ni scheme
+```
+
+**Ako sanitizovan rezultat prekrši već kanonsko validacijsko pravilo za `reason`, primjenjuje se
+normalna validacijska greška.** **Sanitizer NE SMIJE prećutno proizvesti zamjenski sadržaj.**
+
+**Ovo je granica protiv audit/log injectiona i granica privatnosti.**
+**Ovo NIJE `P5-I6` klinička redakcija** — `phase5-basic-v1` ostaje `P5-I6`, a D-060, klauzula 41
+(„redakcija nije sigurnosna granica") ostaje nepromijenjena.
+
+**U ovom gateu se ne izmišlja nikakva implementacija izvornog koda.**
+
+### `RULING G` — `OD-D082-7`: segmentacija `P5-I5`
+
+**Roditeljski `P5-I5` se NE izvršava kao jedan potez.** Ratifikovana su četiri pod-gatea:
+
+| Pod-gate | Obuhvat | Zavisi od |
+|---|---|---|
+| **`P5-I5A`** | **Encounter domen / state machine** — table-driven mašina stanja; **svih 15 kanonskih tranzicija** predstavljeno; **četiri dosežne** tranzicije Faze 5; **zabranjene tranzicije eksplicitno enforce-ovane**; repozitorijski/perzistencijski primitivi nužni za kasnije encounter komande; **bez implementacije endpointa** izvan onoga što je strogo nužno za izolovan dokaz | efektivan `P5-I4` |
+| **`P5-I5B`** | **Encounter create** — `POST /api/v1/encounters`; ponašanje composite FK-a odgovornog ljekara; granica internal-error za cross-tenant/nepostojeći `patientReferenceId`; konzumacija `P5-I4` idempotencije; konzumacija `ENCOUNTER_CREATED` audita; create-specifičan negativni/sigurnosni dokaz | `P5-I5A` |
+| **`P5-I5C`** | **Encounter PATCH / optimistička konkurencija** — `PATCH /api/v1/encounters/{encounterId}`; tačan patch allowlist; atomičan optimistički `UPDATE`; rukovanje `If-Match`; nula redova → `409 VERSION_CONFLICT` **bez diskriminirajućeg pre-reada**; revalidacija odgovornog ljekara; `ENCOUNTER_UPDATED` audit; dokaz zastarjelog `ETag`-a | `P5-I5B` |
+| **`P5-I5D`** | **Encounter cancel** — `POST /api/v1/encounters/{encounterId}/cancel`; race-free razlika vidljivo-pogrešno-stanje `409` naspram nevidljivo/nepostojeće `404`; **obavezan `Idempotency-Key`**; minimalno unazad-kompatibilno proširenje idempotency servisa **ako se pokaže nužnim**; sanitizacija razloga otkazivanja; `ENCOUNTER_CANCELLED` audit; **bez opšteg existence oraclea** | `P5-I5C` |
+
+**Redoslijed izvršenja:**
+
+```text
+P5-I5A  ->  P5-I5B  ->  P5-I5C  ->  P5-I5D
+```
+
+**Mapiranje na checklist — tačno šest redova, bez preklapanja:**
+
+```text
+P5-I5A   Services  state machine.
+P5-I5B   API       POST encounter.
+P5-I5C   Services  optimistic locking.
+         API       PATCH encounter.
+         Tests     stale ETag.
+P5-I5D   API       cancel encounter.
+
+ukupno   6
+```
+
+**Nijedna implementacija `GET` liste ni `GET` detalja se ovom segmentacijom NE uvlači u `P5-I5`.**
+
+**Nijedan pod-gate ne smije prećutno apsorbovati naredni.** `P5-I5A` **ne autorizuje** `P5-I5B`;
+`P5-I5B` **ne autorizuje** `P5-I5C`; `P5-I5C` **ne autorizuje** `P5-I5D`. **Svaki traži zasebnu
+izričitu vlasničku autorizaciju.**
+
+**Lifecycle pravilo:** **svaki veći implementacijski pod-gate koristi svježu Claude Code sesiju** i
+**uspostavljenu separaciju gateova** — read-only preflight → vlasnička autorizacija → implementacija
+→ nezavisan pregled → vlasničko prihvatanje → publikacija → post-publikaciona verifikacija →
+formalno zatvaranje — osim ako to kasnija izričita vlasnička odluka promijeni.
+
+**Ovaj autorski gate NE autorizuje `P5-I5A` ni ijedan kasniji implementacijski slice.**
+
+### `RULING H` — `OD-D082-8`: svrha D-082 i autorizacijski firewall
+
+**Tačna svrha D-082 je zamrznuta:**
+
+```text
+D-082 JESTE:
+  P5-I5 GOVERNANCE RECONCILIATION /
+  EXECUTABLE-CONTRACT /
+  SEGMENTATION DECISION
+
+D-082 NIJE:
+  P5-I5 IMPLEMENTATION AUTHORIZATION
+```
+
+**Svrha je:**
+
+- kanonski konstatovati **post-publikacionu efektivnost D-081**;
+- pomiriti **zastarjele tekuće** statusne metapodatke;
+- zamrznuti **`OD-D082-3` … `OD-D082-7`**;
+- uspostaviti **tačno vlasništvo i segmentaciju `P5-I5`**.
+
+**Nakon što D-082 bude:**
+
+```text
+1  nezavisno pregledan
+2  izricito vlasnicki prihvacen
+3  zasebno autorizovan za publikaciju
+4  objavljen / merged
+5  kanonski na origin/main
+6  post-publikaciono verifikovan
+```
+
+**mora se, nad tom novom kanonskom osnovom, izvesti SVJEŽ `P5-I5` autorizacijski / pre-execution
+checkpoint.** **Tek nakon tog kasnijeg checkpointa** smije se razmatrati **zaseban izričit vlasnički
+akt implementacijske autorizacije.**
+
+**Prominentno i trajno:**
+
+```text
+DEPENDENCY-SATISFIED  !=  IMPLEMENTATION AUTHORIZED
+
+P5-I5 = NOT AUTHORIZED / NOT STARTED
+```
+
+## Očuvana postojeća politika `P5-I5` — inkorporirana, ne prepisana
+
+D-082 **inkorporira i očuvava** svu ranije ratifikovanu `P5-I5` politiku. Ništa ispod nije novo
+pravilo ovog zapisa; nabrojano je da bi izvršni ugovor bio čitljiv na jednom mjestu:
+
+- **kanonski lanac zavisnosti `P5-I3` → `P5-I4` → `P5-I5`** (D-069, `RULING 1`);
+- **`★` RI-naspram-RLS trajna regresija je HARD implementacijski preduslov `P5-I5`**; njeno buduće
+  rušenje ostaje `HARD HOLD` i ponovo otvara `OD-P5-D2-5`;
+- **`PATCH /encounters/{encounterId}` koristi jedan atomičan optimistički `UPDATE`**;
+- **nula pogođenih redova → `409 VERSION_CONFLICT`**, bez obzira na uzrok;
+- **`PATCH` ne izvodi diskriminirajući existence/version pre-read** (D-055, klauzule 16, 19–21);
+- **`cancel` nad vidljivim encounterom u nedozvoljenom stanju → `409 INVALID_STATE_TRANSITION`**;
+- **`cancel` nad nevidljivim/nepostojećim encounterom → `404 RESOURCE_NOT_FOUND`**;
+- **ta razlika mora biti race-free, bez opšteg existence oraclea**;
+- **odgovorni ljekar ostaje composite-FK / database-originated validacija** (D-062, Dio D);
+- **`422` mapiranje odgovornog ljekara ostaje usko** — isključivo
+  `encounters_responsible_physician_membership_fk`;
+- **cross-tenant/nepostojeći `patientReferenceId` pri `create` NIJE dio tog `422` mapiranja** i
+  ostaje na kanonskoj internal-error putanji; **globalno `23503 → 422` ostaje zabranjeno**;
+- **`P5-I5` konzumira `P5-I4` idempotenciju**;
+- **`P5-I5` konzumira `P5-I4` audit**;
+- **`P5-I5` konzumira `TenantDatabaseService`**;
+- **nikakva direktna paralelna tenant/database apstrakcija**;
+- **nikakav drugi idempotencijski ni audit podsistem**;
+- **nikakva izmjena scheme, migracije, RLS-a ni granta**, osim ako je zasebno autorizovana kasnijim
+  governanceom;
+- **sve `P5-I5`-specifične invarijante već zamrznute odlukom D-069 i srodnim odlukama.**
+
+**Gdje D-082 razrješava ranije otvorenu izvršnu dvosmislenost, to je izričito:**
+
+```text
+RAZRIJESENO OVIM ZAPISOM
+  1  obaveznost Idempotency-Key na encounter cancel        (RULING C)
+  2  tacan opseg vlasnistva redova checklista P5-I5        (RULING D)
+  3  katalog i minimizacija encounter audita P5-I5         (RULING E)
+  4  ugovor sanitizacije razloga otkazivanja               (RULING F)
+  5  segmentacija P5-I5 i redoslijed izvrsenja             (RULING G)
+
+VEC ZAMRZNUTO RANIJE — ovdje samo inkorporirano, ne izmisljeno iznova
+  PATCH jednoiskazna optimisticka putanja                  (D-055, D-069)
+  cancel 409/404 semantika bez existence oraclea           (D-069)
+  usko 23503 -> 422 mapiranje                              (D-062, D-069)
+  request_sha256 / event_sha256 ugovori                    (D-069, D-072)
+  D-056 facade vlasnistvo i konzumacija                    (D-069, D-081)
+```
+
+## Razlog
+
+- **Objavljena odluka koja se i dalje čita kao neobjavljena je governance defekt.** D-081 je
+  kanonski od `cfa384ea…`; ostaviti `EFFECTIVE = NO` i `49 / 14` kao **tekuće** tvrdnje značilo bi
+  da naredni gate ne može mehanički utvrditi ni zavisnosno stanje ni napredak faze.
+- **Historijski tekst se ne prepravlja.** D-081 je u trenutku pisanja **ispravno** tvrdio da nije
+  efektivan. Prepisati to značilo bi tvrditi znanje koje tada nije postojalo; jedini ispravan zahvat
+  je **aditivno pomirenje**, po presedanu D-069, `RULING 7`.
+- **Zadovoljena zavisnost nije dozvola.** Ista granica koju su povukli D-068, `RULING H` i D-081,
+  `RULING E` vrijedi i ovdje: uklonjena blokada ne pokreće slice.
+- **Idempotencija `cancel` komande morala je biti riješena prije implementacije.** §4 lista i
+  endpoint ugovor su se prividno razilazili; da je to ostalo otvoreno, implementacijski gate bi
+  morao improvizovati — ili bi izmislio drugi idempotencijski mehanizam, što je trajno zabranjeno.
+- **Vlasništvo redova mora biti tačno prije nego što se ijedan red označi.** Bez `RULING D`,
+  zatvaranje `P5-I5` bi moglo prećutno povući `GET` redove ili dijeljene `Tests` redove i time
+  proizvesti lažnu tvrdnju o završenosti.
+- **Audit katalog koji nije zamrznut postaje improvizovan.** Tri akcije, jedan resource type i
+  stroga minimizacija sprječavaju i drugi audit mehanizam i curenje PHI-ja u audit payload.
+- **Sanitizacija razloga ne smije čekati `P5-I6`.** `reason` je slobodan klinički tekst koji ulazi u
+  audit već u `P5-I5D`; vezati ga za buduću redakciju značilo bi svjesno upisati `T3` defekt.
+- **Segmentacija prije autorizacije je presedan.** D-064 je segmentirao `P5-I2`, D-072 `P5-I4`;
+  `P5-I5` nosi četiri različite komande i mora se izvršiti istim disciplinovanim modelom.
+- **Svrha zapisa mora biti nedvosmislena.** Bez `RULING H`, D-082 bi se — jer sadrži izvršni ugovor
+  — mogao pročitati kao autorizacija. Nije.
+
+## Alternative
+
+- **Prepisati tijelo D-081 tako da glasi kao da je publikacija bila poznata** — **odbijeno.**
+  Prekršilo bi D-069, `RULING 7` i obezvrijedilo historijski dokaz.
+- **Preskočiti pomirenje i odmah autorizovati `P5-I5`** — **odbijeno.** Autorizacija na
+  kontradiktornoj metapodatkovnoj osnovi nije autorizacija nego pretpostavka.
+- **Označiti neki od šest `P5-I5` redova jer je ugovor sada potpun** — **odbijeno.** Ugovor nije
+  izvršenje; `AUTHORIZATION_CHECKBOX_TRANSITIONS = 0`.
+- **Povući `GET encounter list` / `GET encounter detail` u `P5-I5`** — **odbijeno.** Oni pripadaju
+  `P5-I7`; uvlačenje bi promijenilo ratifikovanu segmentaciju od osam slice-ova.
+- **Označiti `Tests → cross-tenant FK` zatvaranjem `P5-I5`** — **odbijeno.** D-064 je već utvrdio da
+  značenje tog reda prelazi jedan slice.
+- **Izuzeti `cancel` od `Idempotency-Key` po analogiji sa `POST /analyses/{id}/cancel`** —
+  **odbijeno.** Analysis cancel je state-idempotentna komanda Faze 7; encounter cancel ima
+  eksplicitan endpoint ugovor i kaskadnu semantiku.
+- **Uvesti drugi, `cancel`-specifičan idempotencijski podsistem** — **odbijeno, i trajno.** Faza 5 bi
+  završila sa dva request-hash ponašanja.
+- **Dati `cancel` komandi `If-Match` semantiku jer je sada idempotentna** — **odbijeno.** `cancel`
+  nema version ugovor; `409 VERSION_CONFLICT` bi tvrdio nepostojeći konflikt verzija.
+- **Izmisliti fizička imena JSON članova audit payloada da odluka izgleda potpuna** — **odbijeno.**
+  Zamrzava se semantika; fizičko mapiranje je implementacijsko i pripada kasnijem gateu.
+- **Vezati sanitizaciju razloga za `P5-I6` redakciju** — **odbijeno.** `P5-I5D` piše razlog u audit
+  prije nego što `P5-I6` uopšte postoji.
+- **Koristiti AI/model-baziranu sanitizaciju razloga** — **odbijeno, i trajno.** Nedeterministička
+  transformacija u audit putanji je neprovjerljiva.
+- **Izvršiti `P5-I5` kao jedan potez** — **odbijeno.** Četiri komande i četiri dokazna profila;
+  jedan potez bi onemogućio izolovan review.
+- **Rezervisati `D-083` za `P5-I5A`** — **odbijeno.** Presedan traži da se decision ID troši tek u
+  trenutku autorstva.
+- **Proglasiti D-082 efektivnim po commitu** — **odbijeno.** Efektivnost traži pun lifecycle.
+
+## Posljedice — dokumentaciono pomirenje
+
+| Dokument | Zahvat |
+|---|---|
+| `03` §4 / §4.1 | aditivna anotacija: `cancel` traži `Idempotency-Key`; statusno pomirenje D-081; **nijedna ruta, metoda, payload, header, permisija, validacija, statusni ni error kod se ne mijenja**; zamrznuti katalog §8 netaknut |
+| `04` §7.5a | aditivan blok: post-publikaciona efektivnost D-081, izvršni ugovor `P5-I5`, segmentacija `P5-I5A`–`P5-I5D`, firewall `NOT AUTHORIZED` / `NOT STARTED`; tabela zavisnosti §7.5 ostaje mjerodavna i neoslabljena |
+| `05` §6 | aditivna **ne-checkbox** anotacija: `49 / 31` je tekuće kanonsko stanje; šest redova u vlasništvu `P5-I5`; **nijedna kućica se ne mijenja** |
+| `06` | ovaj zapis D-082; **D-001 … D-081 se ne prenumerišu i ne mijenjaju**; `D-083` ostaje slobodan |
+| `08` §12.13 | dokazne obaveze `P5-I5` po pod-gateovima; **nijedan test nije napisan ni izvršen ovim gateom** |
+| `09` §12.2 | katalog i minimizacija encounter audita; ugovor sanitizacije razloga otkazivanja; **§12 i §12.1 bajt-očuvani** |
+| `MANIFEST.md` | ponovo izračunati bajtovi i SHA-256 za šest izmijenjenih dokumenata; **19 redova ostaje 19** |
+
+**Nijedan drugi dokument se ne mijenja.** `00`, `01`, `02`, `07`, `10` … `15`, `README.md`,
+`AGENTS.md` i `ECOSYSTEM_COMPATIBILITY_AUDIT_2026-08-10.md` ostaju netaknuti, kao i sav izvorni kod,
+testovi, migracije, Prisma, SQL, grantovi, RLS politike, paketi, lockfile, CI i `.env.example`.
+
+## Security/privacy uticaj
+
+- **Nijedan sigurnosni zahtjev se ne mijenja, ne slabi i ne uklanja.** `RULING E` i `RULING F` su
+  **pooštrenja**, ne izuzeci.
+- **Zabrana opšteg existence oraclea ostaje sigurnosna klauzula**, ne stilska: opšti
+  read-before-write diskriminator nad `encounters` bio bi cross-tenant enumeracijski kanal
+  (`09` §18.1, `T1`).
+- **Sanitizacija razloga otkazivanja je granica protiv audit/log injectiona i granica privatnosti.**
+  Nesanitizovan `reason` u auditu je defekt klase `T3` (`09` §11, §12).
+- **Minimizacija audit payloada sprječava da encounter audit postane sekundarni PHI store** — bez
+  kompletnog snapshota, bez dupliranog patient payloada, bez nepotrebnih identifikujućih podataka.
+- **Hash se i dalje računa nad konačnim sanitizovanim pohranjenim vrijednostima**, pa nikada ne pina
+  nesanitizovan PHI (`02` §15.4; `09` §12; D-062, Dio F.3; D-069, `RULING 5`).
+- **Transakcijska pravila ostaju nepromijenjena**: jedan `PrismaService`, jedna pinovana interaktivna
+  transakcija, `set_request_context` unutar nje, nijedan caller-supplied identitet i nijedna druga,
+  ugniježdena ni paralelna transakcija.
+- **Nijedan grant, nijedna RLS politika i nijedan predikat izolacije se ne dira.**
+- **Nijedno sigurnosno proširenje.** Ne uvodi se `SECURITY DEFINER`, `BYPASSRLS`, nova rola, owner
+  politika ni migracija.
+
+## Migration/rollout
+
+**Nema.** Dokumentaciona odluka bez migracije, bez rollouta i bez runtime uticaja.
+
+```text
+PRISMA_SCHEMA_MUTATION_REQUIRED    = NO
+MIGRATION_REQUIRED                 = NO
+RLS_POLICY_MUTATION_REQUIRED       = NO
+GRANT_MUTATION_REQUIRED            = NO
+NEW_RUNTIME_DEPENDENCY_REQUIRED    = NO
+PUBLIC_API_ROUTE_MUTATION_REQUIRED = NO
+DATABASE_WRITER_REQUIRED           = NO
+HISTORICAL_RECORDS_REWRITTEN       = 0
+```
+
+## Test dokaz
+
+**Nijedan test se ovim zapisom ne piše, ne mijenja i ne izvršava.**
+
+```text
+TESTS WRITTEN IN THIS GATE   0
+TESTS RERUN IN THIS GATE     0
+```
+
+**`★` RI-naspram-RLS dokaz ostaje `PRESENT` / `VALID` / `UNMODIFIED`** i ostaje **HARD preduslov
+`P5-I5`**.
+
+Zapisuju se **buduće** dokazne obaveze vlasnika (`08` §12.13), koje se **ne izvršavaju ovdje**:
+
+- **`P5-I5A`** — table-driven test nad **cijelom** mašinom stanja: svih 15 tranzicija predstavljeno,
+  četiri dosežne prolaze, preostalih 11 eksplicitno → `409 INVALID_STATE_TRANSITION`.
+- **`P5-I5B`** — `POST /encounters` sa cross-tenant `patientReferenceId` **ne** daje `422`; usko
+  `422` isključivo za `encounters_responsible_physician_membership_fk`; `ENCOUNTER_CREATED` audit u
+  istoj transakciji; minimizacija payloada dokazana iz stvarnog pohranjenog reda.
+- **`P5-I5C`** — `PATCH` nad nepostojećim, tenant-nevidljivim i stale encounterom daje
+  **`409 VERSION_CONFLICT`** bez ijednog dodatnog čitanja; zastarjeli `ETag` dokazan;
+  `ENCOUNTER_UPDATED` payload sadrži **isključivo** promijenjena polja.
+- **`P5-I5D`** — nedostajući `Idempotency-Key` odbijen; replay istog ključa i istog hasha;
+  `409 IDEMPOTENCY_CONFLICT` na drugi hash; `409 REQUEST_ALREADY_IN_PROGRESS` na in-progress claim;
+  vidljivo pogrešno stanje → `409 INVALID_STATE_TRANSITION`; nevidljivo/nepostojeće →
+  `404 RESOURCE_NOT_FOUND`; **odsustvo existence oraclea**; sanitizovan razlog u auditu i **odsustvo
+  sirovog razloga** u bazi, odgovoru i logovima.
+
+## Šta D-082 ne mijenja
+
+- **Ne mijenja nijedan sigurnosni dizajn.** D-006, D-018, D-025, D-028, D-029, D-034, D-035, D-047,
+  D-054, D-055, D-056 i D-060 … D-081 ostaju doslovno na snazi.
+- **Ne mijenja nijednu rutu, metodu, payload, header, permisiju, statusni ni error kod** — samo
+  **konstatuje** već postojeći endpoint zahtjev za `Idempotency-Key` na encounter cancel ruti.
+- **Ne mijenja `request_sha256` ni `event_sha256` ugovor.**
+- **Ne tvrdi produkcijski KMS.** `D-OPEN-004a` ostaje otvoren.
+- **Ne tvrdi da je redakcija implementirana.** `phase5-basic-v1` je `P5-I6`.
+- **Ne uvodi Faza-5 linearni audit lanac.** `previous_event_sha256` ostaje `NULL`.
+- **Ne zatvara Fazu 5.** Faza 5 ostaje **`IN_PROGRESS`**.
+- **Ne mijenja `★`.** `★` ostaje trajna regresija i HARD preduslov `P5-I5`.
+- **Ne autorizuje i ne započinje `P5-I5`, `P5-I5A`–`P5-I5D`, `P5-I6` ni `P5-I7`.**
+- **Ne popravlja nijedan poznati neblokirajući prateći nalaz.** Sirovi `NUL` u
+  `apps/api/src/identity/domain/permission-matrix.ts` ostaje **`PRE-EXISTING` /
+  `SEPARATE NON-BLOCKING FOLLOW-UP`**; Prettier odstupanje Faze 4 ostaje **`PRE-EXISTING` /
+  `NON-BLOCKING` / `NO DRIVE-BY FIX`**; `POST /exports/{exportJobId}/retry` request-hash vektor
+  ostaje **`CARRIED FORWARD` / `NON_BLOCKING_HOLD_AS_AUTHORIZED`**.
+- **Ne prepisuje nijedan historijski zapis.** **`HISTORICAL_RECORDS_REWRITTEN = 0`.**
+- **Ne troši i ne rezerviše `D-083`.**
+
+## Otvorena pitanja koja D-082 ne zatvara
+
+- **`D-OPEN-004a`** — KMS provider, produkcijski model pristupa ključu, rotation cadence, recovery.
+- **`D-OPEN-007`** — retention politika, koja i dalje uslovljava per-row DEK i crypto-shredding.
+- **`D-OPEN-009`** — Axenita API scope; **`BLOCKED EXTERNAL`**, i profil `AXENITA` s njim.
+- **Predecessor ulančavanje audita** — ostaje odgođeno izvan Faze 5 (D-069, `RULING 5`).
+- **Fizičko mapiranje članova encounter audit payloada** — izričito odgođeno u kasniji autorizovani
+  implementacijski gate (`RULING E`).
+
+## Zavisnosti
+
+- **`P5-I5` zavisi od `P5-I2` uključujući `★`, od `P5-I3` i od `P5-I4`** (`04` §7.5). Sve tri su
+  kanonske i efektivne, pa je **`P5-I5` = `DEPENDENCY-SATISFIED`** — i **ništa više od toga**.
+- **`P5-I5B` zavisi od `P5-I5A`; `P5-I5C` od `P5-I5B`; `P5-I5D` od `P5-I5C`.**
+- **`P5-I6` zavisi od `P5-I3` i `P5-I5`** i ostaje **`NOT AUTHORIZED` / `NOT STARTED`**.
+- **`P5-I7` zavisi od `P5-I5` i `P5-I6`** i ostaje **`NOT AUTHORIZED` / `NOT STARTED`**.
+- **D-069** — `P5-I5` preflight politika; not-found/conflict semantika; vlasništvo cross-cutting
+  kapaciteta; `request_sha256`; audit self-hash.
+- **D-062** — deklaracije zavisnosti; composite FK i usko `23503` mapiranje; Dio F.3 sanitizacija
+  `reason`-a; Dio H.2 patchable skup.
+- **D-055** — presedan jednoiskazne optimističke write putanje bez pre-reada.
+- **D-072** — `P5-I4` implementacijski ugovor, presedan segmentacije i audit minimizacije.
+- **D-081** — formalno zatvaranje roditeljskog `P5-I4`, čija je efektivnost `RULING A` ovog zapisa.
+
+## Naredni obavezni gate
+
+**Nezavisan pregled lokalnog D-082 commita**, pa — tek nakon izričitog vlasničkog prihvatanja —
+zaseban publikacioni gate (push / PR / merge) i post-publikaciona verifikacija.
+
+```text
+D-082 LOCALLY AUTHORED                   = YES
+D-082 OWNER RULINGS INCORPORATED         = YES
+D-082 INDEPENDENTLY REVIEWED             = NO
+D-082 OWNER-ACCEPTED AS COMMIT           = NO
+D-082 PUBLISHED / MERGED                 = NO
+D-082 CANONICAL                          = NO
+D-082 EFFECTIVE                          = NO
+
+P5-I4 PARENT FORMAL CLOSURE EFFECTIVE    = YES  (kanonski, od cfa384ea...)
+P5-I5 DEPENDENCY                         = SATISFIED
+P5-I5 POLICY CONTRACT                    = LOCALLY RECONCILED BY D-082 CANDIDATE
+P5-I5 IMPLEMENTATION AUTHORIZED          = NO
+P5-I5 IMPLEMENTATION STARTED             = NO
+P5-I5A / P5-I5B / P5-I5C / P5-I5D        = NOT AUTHORIZED / NOT STARTED
+D-083                                    = UNCONSUMED / NOT RESERVED
+```
+
+**Dok ova grana ne bude merged, kanonski `origin/main` i dalje nosi pred-D-082 governance stanje** —
+efektivan `P5-I4` bez pomirenih tekućih metapodataka i bez zamrznutog izvršnog ugovora `P5-I5`.
+**Tek merge-om i post-publikacionom verifikacijom** postaju kanonski `RULING A` … `RULING H`.
+
+**Ako i samo ako ovaj D-082 kandidat kasnije dovrši nezavisan pregled, izričito vlasničko
+prihvatanje, publikaciju/merge i post-publikacionu kanonsku verifikaciju**, tada — i tek tada —
+**svjež `P5-I5` autorizacijski / pre-execution checkpoint smije se izvesti nad tom novom kanonskom
+osnovom**. **Taj checkpoint sam po sebi i dalje nije implementacijska autorizacija**; ona ostaje
+**zaseban izričit vlasnički akt**.
+
+**Gate implementacije `P5-I5` NE SMIJE početi prije toga.**
+
+---
+
 # Otvorene odluke
 
 ## D-OPEN-001 — Produkcijski OIDC provider
