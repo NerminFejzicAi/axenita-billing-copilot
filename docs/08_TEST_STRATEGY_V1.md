@@ -1891,6 +1891,88 @@ CURRENT_CHECKLIST                    = 49 / 14
 
 Vidi D-080 u `06`, `04` §7.5a, `05` §6 i `03` §4.1.
 
+## `P5-I4` RODITELJSKO FORMALNO ZATVARANJE — DOKAZNI BLOK D-081 (2026-09-05)
+
+**Cijela sekcija iznad se NE prepisuje.** D-081 je **governance zapis formalnog zatvaranja
+roditeljskog gatea `P5-I4`**. **Nijedan test se ovim gateom ne piše, ne mijenja, ne uklanja i ne
+izvršava**, i **nijedna nova testna obaveza se ne uvodi**. **Nijedna postojeća obaveza se ne
+uklanja.**
+
+**Dokazna osnova je kanonski historijski dokaz pod-gateova**, prihvaćen zasebnim vlasničkim
+odlukama; on se ovim zapisom **ne reprodukuje ponovnim izvršavanjem**:
+
+```text
+P5-I4A   dokaz prihvacen D-076    (implementacija 1d84e2210f81..., PR #52 -> 1247eea20a07...)
+P5-I4B   dokaz prihvacen D-078    (implementacija 9daea14eed64..., PR #55 -> 5014c7e67b2a...,
+                                   VE-1 CRLF higijena PR #56 -> 9145abc623ce...)
+P5-I4C   dokaz prihvacen D-080    (implementacija ec470faab8af..., PR #59 -> 533b73bbe3f4...,
+                                   NUL higijena d7b0d43c638b..., PR #60 -> c5a778b68412...)
+
+P5-I4A / P5-I4B / P5-I4C   FORMALLY CLOSED / EFFECTIVE
+P5-I4D                     DOES NOT EXIST
+P5-I4 EVIDENCE             ACCEPTED AT PARENT LEVEL
+TESTS RERUN IN THIS GATE   0
+NEW TEST OBLIGATIONS       0
+REMOVED TEST OBLIGATIONS   0
+```
+
+**`★` RI-naspram-RLS dokaz odgovornog fizičara:**
+
+```text
+* RI-vs-RLS PERMANENT REGRESSION   PRESENT / VALID / UNMODIFIED
+```
+
+Regresija je **prisutna, važeća i neizmijenjena**; ona ostaje **trajna** i **HARD preduslov
+`P5-I5`**, a njeno buduće rušenje ostaje `HARD HOLD`.
+
+**Prenesene obaveze su prihvaćene na roditeljskom nivou:**
+
+```text
+CO-P5-I3-I4-1   PARENT_ACCEPTED = YES   NEW CHECKLIST ROW = NO
+CO-P5-I3-I4-2   PARENT_ACCEPTED = YES   NEW CHECKLIST ROW = NO
+```
+
+`CO-P5-I3-I4-1` je razriješen jedinstvenošću `unique (practice_id, pseudonym)`, ograničenim
+regenerate-and-retry putem bez determinističkog fallbacka, uppercase kanonizacijom i validacijom uz
+običnu jednakost, i tenant-scoped lookupom. `CO-P5-I3-I4-2` je razriješen perzistencijom
+`external_patient_ref_hash`, tenant-scoped lookupom po tokenu, integracijom ordinacije,
+`source_system`-a i domene u HMAC poruku, poslovnom validacijom i mapiranjem grešaka, ciljanim
+rukovanjem jedinstvenošću i konfliktom, te odsustvom izlaganja eksternog identifikatora u čistom
+tekstu. **Obje ostaju ne-checkbox kriteriji prihvatanja.**
+
+**Prenesene dispozicije nalaza ostaju nepromijenjene i nijedna se ne otvara ponovo:** sirovi `NUL` u
+`apps/api/src/identity/domain/permission-matrix.ts` = **`PRE-EXISTING` / `OUT OF P5-I4 SCOPE FOR
+THIS CLOSURE` / `SEPARATE NON-BLOCKING FOLLOW-UP`**; Prettier odstupanje Faze 4 = **`PRE-EXISTING` /
+`NON-BLOCKING` / `NO DRIVE-BY FIX`**; `P5-I4A` `L` / `I` nalazi = **već prihvaćeni /
+`NON-BLOCKING`**; `P5-I4B` `VE-1` = **`CLOSED` / `CANONICAL`**; `P5-I4C` sirovi `NUL` =
+**`RESOLVED` / `CANONICAL`**; `P5-I4C` `F-1` … `F-4` = **`INFORMATIONAL` / `ACCEPTED` /
+`NON-BLOCKING`**; restauracija TypeScript ogledala `03` §8 kataloga = **`CONFIRMED`**;
+`POST /exports/{exportJobId}/retry` request-hash vektor = **`CARRIED FORWARD` /
+`NON_BLOCKING_HOLD_AS_AUTHORIZED`**. **`BLOCKING FINDINGS OPEN = 0`.**
+
+**Formalno zatvaranje roditelja nije odmah efektivno** — postaje efektivno tek nakon nezavisnog
+pregleda, eksplicitnog vlasničkog prihvatanja, publikacije, kanonizacije na `origin/main` i
+post-publikacione verifikacije D-081.
+
+```text
+P5-I4 PARENT FORMAL CLOSURE OWNER DECISION MADE = YES
+P5-I4 PARENT FORMAL CLOSURE EFFECTIVE           = NO
+D-081                                           = LOCALLY AUTHORED / NOT CANONICAL
+P5-I5  IMPLEMENTATION AUTHORIZED                = NO / STILL DEPENDENCY-BLOCKED / NOT STARTED
+P5-I6  IMPLEMENTATION AUTHORIZED                = NO / NOT STARTED
+D-082                                           = UNCONSUMED / NOT RESERVED
+CANONICAL_ENTRY_CHECKLIST                       = 49 / 14
+D081_LOCAL_CANDIDATE_CHECKLIST                  = 49 / 31
+P5-I4_PARENT_CLOSURE_CHECKBOX_TRANSITIONS       = 17
+NEXT LIFECYCLE GATE                             = INDEPENDENT OWNER REVIEW OF LOCAL D-081 COMMIT
+```
+
+**Formulacije iznad** — `CURRENT_CHECKLIST = 49 / 14`, `D-081 = UNCONSUMED`,
+`P5-I4 PARENT = INCOMPLETE / OPEN` i „`49 / 31` je isključivo forecast" — opisuju **pred-D-081
+stanje**, **historijski su tačne** i **ne prepisuju se**. **`49 / 31` je lokalno kandidatsko
+stanje**; kanonski `origin/main` nosi **`49 / 14`** dok D-081 ne bude objavljen i verifikovan.
+Vidi D-081 u `06`, `04` §7.5a, `05` §6, `03` §4.1 i `09` §4.
+
 ---
 
 # 13. Analysis/outbox/queue

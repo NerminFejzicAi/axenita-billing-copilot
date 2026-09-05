@@ -3048,34 +3048,50 @@ oslabljena, preformulisana ni označena završenom. **Sve ostaju `[ ]`**, i osta
 ovlašteno**. Do tada tenant database granicu nosi postojeći `TenantRequestPipeline`, i **svi
 sigurnosni invarijanti važe nepromijenjeno**.
 
-- [ ] Facade **omotava postojeću** pinovanu sesijsku/transakcijsku granicu (`TenantRequestPipeline`)
+- [x] Facade **omotava postojeću** pinovanu sesijsku/transakcijsku granicu (`TenantRequestPipeline`)
       — ne stvara novu.
-- [ ] Facade **ne posjeduje vlastiti `PrismaClient`** — runtime i dalje ima tačno jedan
+- [x] Facade **ne posjeduje vlastiti `PrismaClient`** — runtime i dalje ima tačno jedan
       `PrismaService` i tačno jedan `copilot_app` klijent (D-054, klauzula 7).
-- [ ] Facade **ne otvara drugu, ugniježdenu ni paralelnu** aplikacijsku transakciju
+- [x] Facade **ne otvara drugu, ugniježdenu ni paralelnu** aplikacijsku transakciju
       (D-054, klauzula 8).
-- [ ] Facade **ne postavlja `app.practice_id` prije** kanonskih provjera `practices.status` i
+- [x] Facade **ne postavlja `app.practice_id` prije** kanonskih provjera `practices.status` i
       aktivnog membershipa (`03` §3.7.1, koraci 3–4; D-047, klauzula 10; D-054, klauzula 9).
-- [ ] Facade **ne prima caller-supplied identitet** i **nikada** ga ne tretira kao granicu
+- [x] Facade **ne prima caller-supplied identitet** i **nikada** ga ne tretira kao granicu
       povjerenja — identitet dolazi isključivo iz `app.user_id` autentifikovanog admission/session
       stanja (D-054, klauzula 10).
-- [ ] Facade **koristi postojeću** pinovanu transakciju/sesiju autentifikovanog zahtjeva
+- [x] Facade **koristi postojeću** pinovanu transakciju/sesiju autentifikovanog zahtjeva
       (D-054, klauzula 6).
-- [ ] `set_request_context` ostaje **unutar te iste** transakcije; tenant business komanda se
+- [x] `set_request_context` ostaje **unutar te iste** transakcije; tenant business komanda se
       izvršava **tek nakon** uspostavljenog konteksta; bez konteksta vrijedi **default-deny**.
-- [ ] Facade ostaje **tanak** — **ne** postaje paralelan database stack (D-054, dio C.2).
-- [ ] **D-054, klauzule 6–10 su ponovo dokazane** trajnim testovima prije prihvatanja
+- [x] Facade ostaje **tanak** — **ne** postaje paralelan database stack (D-054, dio C.2).
+- [x] **D-054, klauzule 6–10 su ponovo dokazane** trajnim testovima prije prihvatanja
       (D-056, klauzula 5).
 
 Evidence:
 
 ```text
-Trigger (tenant business modul):
-Implementacija:
-Test command:
-Test result:
-D-054 klauzule 6-10 ponovo dokazane:
+Trigger (tenant business modul):        P5-I4 (patient reference) - USLOVNI TRIGGER AKTIVIRAN
+Implementacija:                         apps/api/src/database/tenant-database.service.ts
+                                        registrovan u apps/api/src/database/database.module.ts
+                                        uveden P5-I4A commitom 1d84e2210f81...
+                                        kanonski od mergea PR #52 -> 1247eea20a07...
+Trajne regresije:                       apps/api/src/database/tenant-database.service.spec.ts
+                                        apps/api/src/database/tenant-database-boundary.spec.ts
+Test command:                           kanonski P5-I4A / P5-I4B / P5-I4C verifikacijski stack
+Test result:                            PASS - prihvacen odlukama D-076, D-078 i D-080
+D-054 klauzule 6-10 ponovo dokazane:    DA - D-056 klauzula 5 zadovoljena; prihvaceno D-076
 ```
+
+**ADITIVNA ANOTACIJA ZATVARANJA RODITELJA — D-081 (2026-09-05).** **Nijedan pasus ni red iznad se
+ne prepisuje.** Formulacija D-069 anotacije „**`P5-I4` je `NOT_STARTED` i nije autorizovan**",
+„**nijedan facade kod nije ovlašten**" i „**Sve ostaju `[ ]`**" je bila **tačna na dan svog
+zapisa** i **ostaje bajt-očuvana**; ona **više ne opisuje tekuće stanje**. Uslovni trigger D-056 je
+u međuvremenu **dosegnut** — `P5-I4` je autorizovan (D-074, D-077, D-079), implementiran,
+verifikovan, kanonski i formalno pomiren po pod-gateovima (D-076, D-078, D-080) — pa je **devet
+obaveza iznad dokazano** i **vlasnički autorizovano za prelazak u označeno** ovim gateom zatvaranja
+roditeljskog `P5-I4`. **Tekst nijedne od devet obaveza se ne mijenja**, **nijedna nije oslabljena**
+i **nijedan novi red se ne kreira**. Prelazak je **efektivan tek nakon publikacije D-081**; vidi
+sekciju „P5-I4 PARENT FORMAL CLOSURE ANNOTATION — D-081" niže u ovom poglavlju.
 
 ## Slice `P5-I1` — schema foundation — **IMPLEMENTIRAN / NEZAVISNO REVIEWOVAN / OBJAVLJEN — KANONSKI**
 
@@ -4451,6 +4467,175 @@ NEXT LIFECYCLE GATE = SEPARATE P5-I4 PARENT FORMAL CLOSURE
 `P5-I5`**. Red `Services → redaction` **ostaje neoznačen** i ostaje u vlasništvu `P5-I6`. Vidi
 D-080 u `06`, `04` §7.5a, `03` §4.1 i `08` §12.12.
 
+## P5-I4 PARENT FORMAL CLOSURE ANNOTATION — D-081 (2026-09-05)
+
+**Ovo je ne-checkbox anotacija.** Ona **ne dodaje nijedan checklist red**, **ne briše nijedan** i
+**sama ne mijenja nijednu kućicu**; markeri checkboxa se u njoj **namjerno ne koriste**. **Nijedan
+pasus, blok ni anotacija iznad se ne prepisuje.**
+
+- **D-081 je governance zapis formalnog zatvaranja roditeljskog gatea `P5-I4`.** On konstatuje
+  kanonsko izvršenje tri pod-gatea, prevodi **sedamnaest** postojećih redova ovog poglavlja i
+  **prihvata na roditeljskom nivou** dvije prenesene obaveze. **Dokumentacija je isključivo**;
+  **nijedna linija koda, testa, scheme, migracije, granta, RLS politike, zavisnosti, lockfilea, CI-ja
+  ni tooling konfiguracije se ovom odlukom ne uvodi i ne mijenja**, **nijedna baza nije kontaktirana**
+  i **nijedan test se ovim gateom ne izvršava**.
+- **Vlasnička adjudikacija:** `OD-P5-I4-PARENT-1` (zatvaranje odobreno za autorstvo);
+  `OD-P5-I4-PARENT-2` (`D-081` dodijeljen ekskluzivno ovom zapisu); `OD-P5-I4-PARENT-3`
+  (`CO-P5-I3-I4-1` prihvaćen); `OD-P5-I4-PARENT-4` (`CO-P5-I3-I4-2` prihvaćen);
+  `OD-P5-I4-PARENT-5` (aditivno pomirenje `09` §4).
+- **Kanonsko stanje pod-gateova:**
+
+```text
+P5-I4A   D-074 -> 1d84e2210f81... -> PR #52 -> 1247eea20a07...
+         zatvaranje D-076 -> PR #53 -> 103c22144b93...        drift ZERO
+
+P5-I4B   D-077 -> 9daea14eed64... -> PR #55 -> 5014c7e67b2a...
+         VE-1 CRLF higijena -> PR #56 -> 9145abc623ce...
+         zatvaranje D-078 -> PR #57 -> 9ef87541ab94...        drift ZERO
+
+P5-I4C   D-079 -> ec470faab8af... -> PR #59 -> 533b73bbe3f4...
+         NUL higijena d7b0d43c638b... -> PR #60 -> c5a778b68412...
+         zatvaranje D-080 -> 096ca8db09da... -> PR #61 -> 0bb301ca339b...   drift ZERO
+
+P5-I4A / P5-I4B / P5-I4C   FORMALLY CLOSED / EFFECTIVE
+P5-I4D                     DOES NOT EXIST
+```
+
+- **Kriteriji prihvatanja roditelja:** **`P5_I4_PARENT_ACCEPTANCE_CRITERIA = 16`**,
+  **`UNSATISFIED = 0`**. Uključuju zatvorenost i efektivnost sva tri pod-gatea, nepostojanje
+  `P5-I4D`, kanonsku dokazanost i vlasničku autorizaciju tačno sedamnaest redova, nepromijenjen
+  ukupan broj redova, nula novih i nula obrisanih redova, roditeljsko prihvatanje obje `CO` bez
+  kućice, dokazanost devet D-056 facade obaveza, očuvanu **`★`** RI-naspram-RLS trajnu regresiju,
+  nula blokirajućih nalaza, nula neriješenih vlasničkih odluka pod-gateova, netaknute zamrznute
+  predikate i očuvan MANIFEST/governance integritet.
+- **`CO-P5-I3-I4-1 = ACCEPTED AT P5-I4 PARENT LEVEL`.** Dokaz razrješenja: jedinstvenost
+  `unique (practice_id, pseudonym)`; ograničen regenerate-and-retry sa padom nakon iscrpljenih
+  pokušaja; **nikakav deterministički fallback**; uppercase kanonizacija i validacija pa **obična
+  jednakost**; tenant-scoped lookup pseudonima.
+  **`READY_FOR_PARENT_ACCEPTANCE = YES`**, **`PARENT_ACCEPTED = YES`**,
+  **`NEW CHECKLIST ROW = NO`**.
+- **`CO-P5-I3-I4-2 = ACCEPTED AT P5-I4 PARENT LEVEL`.** Dokaz razrješenja: perzistencija
+  `external_patient_ref_hash`; tenant-scoped lookup po tokenu; integracija ordinacije,
+  `source_system`-a i domene u HMAC poruku; poslovna validacija i mapiranje grešaka; ciljano
+  rukovanje jedinstvenošću i konfliktom; **nijedno izlaganje eksternog identifikatora u čistom
+  tekstu**.
+  **`READY_FOR_PARENT_ACCEPTANCE = YES`**, **`PARENT_ACCEPTED = YES`**,
+  **`NEW CHECKLIST ROW = NO`**.
+- **Registar prenesenih obaveza ostaje ne-checkbox** (D-071, `RULING 2`). Prihvatanje obje `CO`
+  **ne stvara nijedan red** i **ne ulazi u aritmetiku kućica**; obje ostaju kriteriji prihvatanja,
+  ne stavke checklista.
+- **Dispozicija pratećih nalaza — nijedan se ne otvara ponovo i nijedan se ne popravlja u ovom
+  gateu:** sirovi `NUL` u `apps/api/src/identity/domain/permission-matrix.ts` = **`PRE-EXISTING` /
+  `OUT OF P5-I4 SCOPE FOR THIS CLOSURE` / `SEPARATE NON-BLOCKING FOLLOW-UP`**; Prettier odstupanje
+  Faze 4 = **`PRE-EXISTING` / `NON-BLOCKING` / `NO DRIVE-BY FIX`**; `P5-I4A` `L` / `I` nalazi =
+  **već prihvaćeni / `NON-BLOCKING`**; `P5-I4B` `VE-1` = **`CLOSED` / `CANONICAL`**; `P5-I4C` sirovi
+  `NUL` = **`RESOLVED` / `CANONICAL`**; `P5-I4C` `F-1` … `F-4` = **`INFORMATIONAL` / `ACCEPTED` /
+  `NON-BLOCKING`**; restauracija ogledala error kodova = **`CONFIRMED`**;
+  `POST /exports/{exportJobId}/retry` request-hash vektor = **`CARRIED FORWARD` /
+  `NON_BLOCKING_HOLD_AS_AUTHORIZED`**; `D-OPEN-004a` / `D-OPEN-007` / `D-OPEN-009` =
+  **eksterni / odgođeni, ne blokiraju zatvaranje ovog slicea**.
+  **`P5_I4_PARENT_BLOCKING_FINDINGS = 0`.**
+- **Anotacije D-069, D-072, D-074, D-076, D-077, D-078, D-079 i D-080 iznad opisuju pred-D-081
+  stanje** — „`P5-I4` je `NOT_STARTED`", „nijedan facade kod nije ovlašten", „Sve ostaju `[ ]`",
+  „sedamnaest forecast redova ostaje neoznačeno" — **historijski su tačne** i **ne prepisuju se**;
+  **mjerodavan je ovaj statusni model.**
+- **Formalno zatvaranje roditelja nije odmah efektivno** — postaje efektivno tek nakon što D-081 sam
+  bude autorstvom dovršen, nezavisno pregledan, eksplicitno vlasnički prihvaćen, objavljen/merged,
+  kanonski na `origin/main` i post-publikaciono verifikovan.
+  **`P5-I4 PARENT FORMAL CLOSURE OWNER DECISION MADE = YES`**;
+  **`P5-I4 PARENT FORMAL CLOSURE EFFECTIVE = NO`.**
+- **Nijedan test nije rerunovan ovim gateom.** Dokazna osnova je **kanonski historijski dokaz**
+  pod-gateova, prihvaćen odlukama D-076, D-078 i D-080. **`★` RI-naspram-RLS dokaz ostaje prisutan,
+  važeći i neizmijenjen.**
+
+**Sedamnaest ovlaštenih tranzicija — devet facade + osam `API` / `Services` / `Tests`:**
+
+```text
+GRUPA A - devet D-056 TenantDatabaseService facade redova
+ 1  Facade omotava postojecu pinovanu sesijsku/transakcijsku granicu (TenantRequestPipeline)
+ 2  Facade ne posjeduje vlastiti PrismaClient                        (D-054, klauzula 7)
+ 3  Facade ne otvara drugu, ugnijezdenu ni paralelnu transakciju     (D-054, klauzula 8)
+ 4  Facade ne postavlja app.practice_id prije kanonskih provjera     (D-054, klauzula 9)
+ 5  Facade ne prima caller-supplied identitet                        (D-054, klauzula 10)
+ 6  Facade koristi postojecu pinovanu transakciju/sesiju             (D-054, klauzula 6)
+ 7  set_request_context ostaje unutar te iste transakcije; default-deny bez konteksta
+ 8  Facade ostaje tanak - ne postaje paralelan database stack        (D-054, dio C.2)
+ 9  D-054 klauzule 6-10 ponovo dokazane trajnim testovima            (D-056, klauzula 5)
+
+GRUPA B - osam API / Services / Tests redova
+10  API       POST patient reference.
+11  API       GET patient reference.
+12  Services  idempotency service.
+13  Services  audit.
+14  Tests     unknown field rejected.
+15  Tests     duplicate idempotency.
+16  Tests     idempotency conflict.
+17  Tests     cross-tenant GET.
+```
+
+**Aritmetika — mehanički izvedena, ne pretpostavljena:**
+
+```text
+                        prije       poslije
+ukupno redova (S6)      49          49
+oznaceno                14          31
+neoznaceno              35          18
+
+CANONICAL_ENTRY_CHECKLIST                 = 49 / 14
+D081_LOCAL_CANDIDATE_CHECKLIST            = 49 / 31
+P5-I4_PARENT_CLOSURE_CHECKBOX_TRANSITIONS = 17
+FACADE TRANSITIONS                        = 9
+API / SERVICES / TESTS TRANSITIONS        = 8
+TRANSITIONS_OUTSIDE_EXACT_17              = 0
+NEW_CHECKLIST_ROWS                        = 0
+DELETED_CHECKLIST_ROWS                    = 0
+49 / 31 CANONICAL EFFECT                  = PENDING D-081 PUBLICATION LIFECYCLE
+```
+
+**Firewall kanonskog naspram kandidatskog stanja.** Dok D-081 nije nezavisno pregledan, vlasnički
+prihvaćen, objavljen i kanonski, **kanonski `origin/main` i dalje nosi `49 / 14`**. **`49 / 31` je
+isključivo lokalno kandidatsko stanje** i **ne smije se opisivati kao kanonsko ni tekuće.**
+
+**Preostalih osamnaest neoznačenih redova — buduci obuhvat, ne adjudicira se ovdje:**
+
+```text
+Services   redaction. / state machine. / optimistic locking. / outbox base.
+API        POST encounter. / GET encounter list. / GET encounter detail. /
+           PATCH encounter. / cancel encounter. / POST text document. /
+           list documents. / read redacted. / read original permission. / archive.
+Tests      stale ETag. / cross-tenant FK. / document read audit. / no text in logs.
+
+ocekivana pripadnost (iz preflighta, bez adjudikacije ovdje):
+P5-I5                        6
+P5-I6                        6
+P5-I7                        3
+P5-I5 / kasniji Faza-5 obuhvat  3
+ukupno                      18
+```
+
+**Nijedan od tih osamnaest redova se ovim gateom ne mijenja.** Red `Services → redaction` **ostaje
+neoznačen** i ostaje u vlasništvu `P5-I6`. **Faza 5 ostaje `IN_PROGRESS`; nije `DONE`.**
+
+```text
+P5-I4   OWNER FORMAL-CLOSURE DECISION MADE / NOT EFFECTIVE
+        (COMPLETE / VERIFIED / CANONICAL / FORMALLY CLOSED tek po publikaciji D-081)
+P5-I4D  DOES NOT EXIST
+P5-I5   DEPENDENCY-BLOCKED / NOT AUTHORIZED / NOT STARTED
+        (NEXT / POLICY-RESOLVED / DEPENDENCY-SATISFIED / NOT AUTHORIZED / NOT STARTED
+         tek po efektivnom zatvaranju D-081)
+P5-I6   NOT AUTHORIZED / NOT STARTED
+Faza 5  IN_PROGRESS
+D-082   UNCONSUMED / NOT RESERVED
+
+NEXT LIFECYCLE GATE = INDEPENDENT OWNER REVIEW OF LOCAL D-081 COMMIT
+```
+
+**Podobnost nije autorizacija.** Efektivno zatvaranje roditelja mijenja **isključivo zavisnosnu osu**
+`P5-I5`; **autorizacija i početak ostaju zasebni vlasnički potezi**, a `P5-I5` i dalje traži
+**zaseban read-only autorizacijski / pre-execution preflight**. **`★` RI-naspram-RLS ostaje HARD
+preduslov `P5-I5`.** **`OWNER_DECISIONS_REQUIRED_FOR_P5_I5 = 0`** ostaje već kanonizovano policy
+stanje i **ne otvara se ponovo**. Vidi D-081 u `06`, `04` §7.5a, `03` §4.1, `08` §12.12 i `09` §4.
+
 ## Schema
 
 - [x] patient_references.
@@ -4472,15 +4657,15 @@ D-080 u `06`, `04` §7.5a, `03` §4.1 i `08` §12.12.
 - [x] text normalization.
 - [ ] redaction.
 - [ ] state machine.
-- [ ] idempotency service.
+- [x] idempotency service.
 - [ ] optimistic locking.
-- [ ] audit.
+- [x] audit.
 - [ ] outbox base.
 
 ## API
 
-- [ ] POST patient reference.
-- [ ] GET patient reference.
+- [x] POST patient reference.
+- [x] GET patient reference.
 - [ ] POST encounter.
 - [ ] GET encounter list.
 - [ ] GET encounter detail.
@@ -4494,11 +4679,11 @@ D-080 u `06`, `04` §7.5a, `03` §4.1 i `08` §12.12.
 
 ## Tests
 
-- [ ] unknown field rejected.
-- [ ] duplicate idempotency.
-- [ ] idempotency conflict.
+- [x] unknown field rejected.
+- [x] duplicate idempotency.
+- [x] idempotency conflict.
 - [ ] stale ETag.
-- [ ] cross-tenant GET.
+- [x] cross-tenant GET.
 - [ ] cross-tenant FK.
 - [ ] document read audit.
 - [ ] no text in logs.
