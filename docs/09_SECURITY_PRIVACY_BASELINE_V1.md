@@ -1006,6 +1006,29 @@ P5-I5B / P5-I5C / P5-I5D   NOT AUTHORIZED / NOT STARTED
 
 Vidi D-084 u `06`.
 
+**STATUSNA ANOTACIJA (D-085, 2026-10-04) — sekcija, tačke 1–11 i anotacije iznad se NE prepisuju.**
+D-085 zamrzava ugovor `P5-I5B` (Encounter Create). **Nijedan sigurnosni zahtjev se ne slabi**; za
+`P5-I5B` se dodatno fiksira:
+
+- **audit minimizacija**: `ENCOUNTER_CREATED.new_value` isključivo `{status, version}`, `metadata = {}`
+  — bez `patientReferenceId`, `responsiblePhysicianId`, pseudonima, dijagnostičkih kodova,
+  `insuranceContext`, `guarantorType`, `specialtyCode`, starosti/spola, `occurredAt`, `treatmentDate`,
+  slobodnog teksta i snapshota zahtjeva;
+- **nema existence oraclea**: bez membership i patient-reference pre-reada; jedino
+  `encounters_responsible_physician_membership_fk` → generički `422`; globalno `23503 → 422`
+  zabranjeno; cross-tenant/nepostojeći `patientReferenceId` → statični `500` (§18.1, `T1`);
+- **higijena stringova** specifična za `P5-I5B` (bez NUL, C0/C1, CR/LF/TAB, rubnog whitespacea;
+  bez prećutne transformacije) — **nije nova globalna politika**;
+- **`★` RI-naspram-RLS** ostaje trajna regresija; pad → `HARD HOLD`.
+
+```text
+D-085    LOCALLY AUTHORED / NOT CANONICAL / NOT EFFECTIVE
+P5-I5B   CONTRACT FROZEN IN LOCAL D-085 CANDIDATE / NOT AUTHORIZED FOR MUTATION / NOT STARTED
+P5-I5C / P5-I5D   NOT AUTHORIZED / NOT STARTED   (L-4 nepromijenjen)
+```
+
+Vidi D-085 u `06`.
+
 ---
 
 

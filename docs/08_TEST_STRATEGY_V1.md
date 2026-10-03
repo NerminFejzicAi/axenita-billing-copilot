@@ -2124,6 +2124,75 @@ CHECKBOX TRANSITIONS (D-084 kandidat) = 1   (Services -> state machine)
 
 Vidi D-084 u `06`.
 
+### Anotacija dokaznih obaveza `P5-I5B` (D-085, 2026-10-04) — sekcije iznad se NE prepisuju
+
+D-085 zamrzava ugovor `P5-I5B` (`03` §12). Stavka **`P5-I5B` — create** iznad ostaje na snazi; kasnija
+implementacija `P5-I5B` je **dodatno** obavezna dokazati (B-specifični testovi, `OD-D085-1` …
+`OD-D085-13`):
+
+- **zatvoren skup članova**: nepoznat član → `422`; obavezni non-null članovi; opcioni nullable
+  članovi prihvataju odsutno i eksplicitni `null`, oba perzistirana kao SQL `NULL`;
+- **odsutno naspram eksplicitnog `null` daje različit `requestSha256`** (isti ključ → `409
+  IDEMPOTENCY_CONFLICT`), bez server defaulta prije hasha;
+- `sourceSystem`: `MANUAL` prolazi; `AXENITA` / `CSV` / `FHIR` / `OTHER` / ostalo → `422`;
+- `diagnoses`: `0` i `50` elemenata prolaze, `51` → `422`; `description` / `diagnosisType` → `422`;
+  više od jednog `isPrimary=true` → `422`; **duplikat `(codingSystem, code)` → `422` bez ijednog
+  `INSERT`-a** (nije `23505` → `500`); perzistirano `review_state = UNREVIEWED`, `source = MANUAL`;
+- higijena stringova: NUL, C0/C1, CR/LF/TAB, vodeći/prateći whitespace → `422`, **bez prećutnog
+  trima**;
+- `occurredAt` bez vremenske zone → `422`; `treatmentDate` izvan `YYYY-MM-DD` → `422`;
+  `patientAgeAtEncounter` `-1` / `131` / necijeli broj → `422` prije perzistencije; `occurredAt` i
+  `createdAt` u odgovoru su UTC, milisekunde, sufiks `Z`;
+- `201`, `status = DRAFT`, `version = 1`, `ETag: "1"`;
+- **replay**: isti id, **jedan** red `encounters`, **jedan** `ENCOUNTER_CREATED`; replay nakon kasnije
+  promjene stanja vraća tekuće stanje istog encountera (dokazivo kada `P5-I5C`/`P5-I5D` postoje —
+  bez uvođenja `PATCH`/cancel u `P5-I5B`);
+- **audit iz stvarnog pohranjenog reda**: `new_value` je tačno `{"status":"DRAFT","version":1}`,
+  `metadata = {}`, bez ijednog zabranjenog polja iz `OD-D085-8`; neuspjeh audita → nijedan red
+  encountera ni dijagnoze;
+- **compile-time** jednakost skupova domenskog i Prisma `EncounterStatus`; domen bez Prisma importa;
+- FK: odgovorni ljekar odsutan/`null`/validan co-member → `201`; ne-član, cross-tenant član,
+  nepostojeći → **isti** generički `422`; cross-tenant/nepostojeći `patientReferenceId` → `500`
+  statično tijelo, puni rollback; **oba FK-a nevaljana → stvarno ponašanje empirijski prikovano**,
+  bez tretiranja redoslijeda trigera kao sigurnosnog ugovora; **negativan dokaz da nema pre-read
+  oraclea**;
+- **`★` RI-naspram-RLS**: `apps/api/test/phase5-responsible-physician-ri.security.ts` ponovo izvršen
+  **neizmijenjen**, puni `test:security` prolazi, plus **HTTP dokaz** da validan co-member odgovorni
+  ljekar uspijeva kroz stvarni pipeline; pad → **`HARD HOLD`**.
+
+```text
+TESTS WRITTEN IN THIS GATE   0
+TESTS RERUN IN THIS GATE     0
+D-085    LOCALLY AUTHORED / NOT CANONICAL / NOT EFFECTIVE
+P5-I5B   CONTRACT FROZEN IN LOCAL D-085 CANDIDATE / NOT AUTHORIZED FOR MUTATION / NOT STARTED
+CHECKBOX TRANSITIONS (D-085 kandidat) = 0
+```
+
+Formulacija `P5-I5B … NOT AUTHORIZED / NOT STARTED` iznad opisuje **pred-D-085 stanje** i **ne
+prepisuje se**. Vidi D-085 u `06`.
+
+**Korektivni dodatak (D-085, `OD-D085-16` / `OD-D085-17`) — lista iznad se NE prepisuje.** Dokazne
+posljedice, ne nove ugovorne odluke; kasnija implementacija `P5-I5B` dodatno dokazuje:
+
+- **prazan obavezni string** (npr. `patientReferenceId`, `occurredAt`, `treatmentDate`,
+  `sourceSystem`, `diagnoses[].codingSystem`, `diagnoses[].code` = `""`) → `422`;
+- **prazan prisutan opcioni string** (npr. `responsiblePhysicianId`, `guarantorType`,
+  `insuranceContext`, `specialtyCode`, `patientSexAtEncounter` = `""`) → `422`;
+- opcioni nullable član **odsutan** → dozvoljen; **eksplicitni `null`** → dozvoljen;
+- `201` odgovor: **tačan skup top-level ključeva** `{id, status, version, patient, occurredAt,
+  treatmentDate, createdAt}`; **tačan skup ključeva `patient`** `{id, pseudonym}`;
+- **zabranjena polja odsutna** iz odgovora (`responsiblePhysicianId`, `guarantorType`,
+  `insuranceContext`, `specialtyCode`, `patientAgeAtEncounter`, `patientSexAtEncounter`,
+  `sourceSystem`, `diagnoses`, audit/idempotencijski metapodaci, interna polja baze);
+- originalni odgovor kreiranja nosi **`ETag: "1"`**;
+- **replay čuva tačno istu šemu** (isti skupovi ključeva).
+
+```text
+TESTS WRITTEN IN THIS GATE   0
+TESTS RERUN IN THIS GATE     0
+CHECKBOX TRANSITIONS         0
+```
+
 ---
 
 

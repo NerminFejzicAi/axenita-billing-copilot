@@ -772,6 +772,25 @@ API SEMANTIC MUTATION      = 0
 Nakon efektivnog D-084 `P5-I5B` (`POST /api/v1/encounters`) postaje **isključivo podoban za svjež
 autorizacijski / pre-execution checkpoint** — **ne autorizovan**. Vidi D-084 u `06`.
 
+**STATUSNA ANOTACIJA (D-085, 2026-10-04) — sekcija i anotacije iznad se NE prepisuju.** D-085
+zamrzava ugovor `P5-I5B` (`POST /api/v1/encounters`; vlasničke odluke `OD-D085-1` … `OD-D085-15`,
+tekući ugovor u §12) i bilježi **odgođenu** implementacijsku autorizaciju. **Nijedna druga ruta se ne
+mijenja**; zamrznuti katalog §8 i `request_sha256` ugovor §4.1 ostaju nepromijenjeni. Formulacije
+`P5-I5B … NOT AUTHORIZED / NOT STARTED` i `D-084 … NOT EFFECTIVE` iznad opisuju **pred-D-085 stanje**
+i **ne prepisuju se**.
+
+```text
+D-085    LOCALLY AUTHORED / NOT INDEPENDENTLY REVIEWED / NOT OWNER-ACCEPTED /
+         NOT PUBLISHED / NOT CANONICAL / NOT EFFECTIVE
+P5-I5A   COMPLETE / VERIFIED / FORMALLY CLOSED / EFFECTIVE
+P5-I5B   CONTRACT FROZEN IN LOCAL D-085 CANDIDATE / NOT AUTHORIZED FOR MUTATION / NOT STARTED
+P5-I5C / P5-I5D   NOT AUTHORIZED / NOT STARTED
+```
+
+**Mutacija `P5-I5B` postaje autorizovana tek nakon efektivnog D-085** (nezavisan pregled → vlasničko
+prihvatanje → publikacija / merge → kanonska post-publikaciona verifikacija), i to **isključivo
+unutar `OD-D085-1` … `OD-D085-14`**. Vidi D-085 u `06`.
+
 
 ---
 
@@ -2059,6 +2078,97 @@ eksternu encounter referencu, pa **`encounters` u Fazi 5 ne nosi nikakav ciphert
 `encounter_documents.external_document_ref_hash`, `encounter_documents.source_storage_object_id`, i
 **cijela tabela `storage_objects`**, koja u Fazi 5 nema pisca i drži nula redova (§13.2 je
 `DEFERRED`).
+
+### Tekući ugovor `P5-I5B` (D-085, `OD-D085-1` … `OD-D085-13`) — sekcije iznad se NE prepisuju
+
+**Status: lokalni D-085 kandidat — `NOT CANONICAL` / `NOT EFFECTIVE`.** Kada D-085 postane efektivan,
+ova sekcija je **mjerodavna za `POST /encounters` u `P5-I5B`**; gdje je tekst iznad širi (primjer
+odgovora bez milisekundi; `diagnosisType` u free-form listi), važi ovo sužavanje. Puni zapis: D-085
+u `06`.
+
+```text
+CLANOVI ZAHTJEVA (iskljucivo)
+  obavezni, non-null    patientReferenceId, occurredAt, treatmentDate, sourceSystem, diagnoses
+  opcioni, nullable     responsiblePhysicianId, guarantorType, insuranceContext, specialtyCode,
+                        patientAgeAtEncounter, patientSexAtEncounter
+  nepoznat clan         422 VALIDATION_ERROR
+  odsutan / null        oba dozvoljena, oba -> SQL NULL; ALI razlicite reprezentacije za hash;
+                        bez precutne normalizacije / defaulta prije requestSha256
+
+sourceSystem            iskljucivo MANUAL; svaka druga vrijednost -> 422 (D-OPEN-009 nepromijenjen)
+
+diagnoses               obavezan non-null niz, 0..50; element tacno {codingSystem, code, isPrimary},
+                        sva tri obavezna i non-null; description / diagnosisType NISU prihvaceni;
+                        najvise 1 isPrimary=true (vise -> 422); prazan niz dozvoljen;
+                        duplikat (codingSystem, code) -> 422 PRIJE perzistencije (ne 23505 -> 500);
+                        perzistirano: review_state = UNREVIEWED, source = MANUAL
+
+stringovi (P5-I5B)      validan Unicode; bez NUL, C0/C1, CR/LF/TAB; bez vodeceg/prateceg whitespacea;
+                        bez precutnog trima / transformacije; postojeci limiti duzine vaze;
+                        krsenje -> 422  (nije globalna cross-modul politika)
+
+occurredAt              RFC 3339 sa eksplicitnom zonom (Z ili numericki offset); bez zone -> 422
+treatmentDate           strogo YYYY-MM-DD
+patientAgeAtEncounter   kada nije null: cijeli broj 0..130; van opsega -> 422 prije perzistencije
+odgovor occurredAt /
+createdAt               UTC ISO-8601, milisekundna preciznost, sufiks Z
+pocetno stanje          status DRAFT, version 1, ETag "1"
+
+IDEMPOTENCIJA           P5-I4 mehanizam; Idempotency-Key obavezan; TTL 48h;
+                        hash = validirano originalno parsirano tijelo;
+                        replay: isti id, nema drugog INSERT-a ni drugog ENCOUNTER_CREATED audita;
+                        replay se rekonstruise iz TEKUCEG kanonskog stanja (nakon kasnijeg PATCH-a /
+                        cancel-a smije vratiti tekuci status, version i ETag);
+                        bez semantickog prepisivanja IdempotencyService.runOnce
+
+AUDIT                   USER / ENCOUNTER / ENCOUNTER_CREATED / resource_id = id encountera;
+                        ista transakcija, neuspjeh audita rollback-uje kreiranje;
+                        new_value iskljucivo {status, version} = {DRAFT, 1}; metadata = {}
+
+FK / GRESKE             responsiblePhysicianId odsutan/null -> dozvoljeno;
+                        validan clan iste ordinacije -> dozvoljeno (bez obzira na rolu / aktivan status);
+                        ne-clan / cross-tenant / nepostojeci -> isti genericki 422 VALIDATION_ERROR;
+                        malformiran UUID -> 422 validacija zahtjeva;
+                        samo encounters_responsible_physician_membership_fk -> 422;
+                        globalno 23503 -> 422 ZABRANJENO;
+                        cross-tenant / nepostojeci patientReferenceId -> 500 INTERNAL_ERROR, staticno,
+                        puni rollback; nema pre-read oraclea; oba FK-a nevaljana -> empirijski
+                        prikovano testom, redoslijed trigera nije sigurnosni ugovor
+
+TRANSAKCIJA             jedna admitovana interaktivna transakcija: claim, INSERT encountera,
+                        INSERT-i dijagnoza, citanje pseudonima istog tenanta, audit, dovrsenje
+                        idempotencije; bez ugnijezdene / paralelne transakcije i savepoint
+                        zaobilaznice; neuspjeh -> puni rollback
+```
+
+### Korektivni dodatak tekućeg ugovora `P5-I5B` (D-085, `OD-D085-16` / `OD-D085-17`) — sekcija iznad se NE prepisuje
+
+**Status: lokalni D-085 kandidat — `NOT CANONICAL` / `NOT EFFECTIVE`.** Aditivno uz tekući ugovor
+iznad; `OD-D085-1` … `OD-D085-15` se ne mijenjaju. Statusne reference „`OD-D085-1` … `OD-D085-14`"
+(§4) uključuju `OD-D085-16` / `OD-D085-17`. Puni zapis: D-085 u `06` (`RULING P`, `RULING Q`).
+
+```text
+NEPRAZNI STRINGOVI      svaki clan zahtjeva tipa string, prisutan i non-null: duzina >= 1 nakon
+(OD-D085-16)            JSON parsiranja, bez prethodnog trima / transformacije; "" -> 422 VALIDATION_ERROR
+                        obuhvat (izmedju ostalih): patientReferenceId, occurredAt, treatmentDate,
+                        responsiblePhysicianId, guarantorType, insuranceContext, specialtyCode,
+                        patientSexAtEncounter, sourceSystem, diagnoses[].codingSystem, diagnoses[].code
+  obavezni string       ""       -> 422
+  opcioni nullable      odsutan  -> dozvoljeno;  null -> dozvoljeno;  "" -> 422
+  OD-D085-4             nepromijenjen: bez trima; rubni whitespace zabranjen; limiti duzine vaze
+                        (nije globalna cross-modul politika)
+
+ZATVOREN 201 ODGOVOR    top-level tacno: id, status, version, patient, occurredAt, treatmentDate,
+(OD-D085-17)            createdAt
+  patient               tacno: id, pseudonym
+  zabranjeno            responsiblePhysicianId, guarantorType, insuranceContext, specialtyCode,
+                        patientAgeAtEncounter, patientSexAtEncounter, sourceSystem, diagnoses,
+                        audit metapodaci, idempotencijski metapodaci, interna polja baze;
+                        nijedan drugi clan
+  ETag                  originalni odgovor kreiranja: ETag: "1"
+  replay                ista zatvorena sema; isti id; smije nositi tekuci kanonski status,
+                        version i ETag (OD-D085-7); nijedan dodatni clan
+```
 
 ## GET `/encounters`
 

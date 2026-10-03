@@ -248,6 +248,16 @@ ulazi u aplikaciju, nijedna kolona se ne projektuje i nijedan upit ne imenuje ci
 Naivan cross-member `SELECT` vratio bi **nula redova** pod caller-self politikom
 `practice_memberships_self_select` i tiho bi oborio validaciju — zato ga ovaj tok nema.
 
+**Napomena (D-085, lokalni kandidat — `NOT CANONICAL` / `NOT EFFECTIVE`; dijagram iznad se ne
+prepisuje).** Za `P5-I5B`: cijeli tok — claim, `INSERT` encountera i dijagnoza, čitanje pseudonima u
+istom tenantu, `ENCOUNTER_CREATED` audit i dovršenje idempotencije — je **jedna** admitovana
+interaktivna transakcija, bez ugniježdene/paralelne transakcije i savepointa; svaki neuspjeh je puni
+rollback. **Cross-tenant ili nepostojeći `patientReferenceId`** (`encounters_patient_reference_fk`)
+nije `422` nego statični **`500 INTERNAL_ERROR`**. Grana „same completed" **ne vraća keširanu punu
+reprezentaciju**: cache je pokazivač na resurs, a odgovor se **rekonstruiše iz tekućeg kanonskog
+stanja** istog encountera (može nositi tekući `status`, `version` i `ETag`), bez drugog `INSERT`-a i
+bez drugog audita. Vidi D-085 u `06` i `03` §12.
+
 Mapiranje `23503` je **usko**: hvata se **isključivo** to jedno ime constrainta. **Globalno
 `23503 → 422` mapiranje je zabranjeno.**
 
