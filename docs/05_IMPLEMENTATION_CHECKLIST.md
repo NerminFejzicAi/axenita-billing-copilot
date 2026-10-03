@@ -4852,6 +4852,44 @@ kanonski `origin/main` do tada nosi **`49 / 31`**. Nakon efektivnog D-084 `P5-I5
 **isključivo podoban za svjež autorizacijski / pre-execution checkpoint** — **ne autorizovan**. Vidi
 D-084 u `06`.
 
+## P5-I5B CONTRACT FREEZE ANNOTATION — D-085 (2026-10-04)
+
+**Nijedan pasus, blok ni anotacija iznad se ne prepisuje.** Ova anotacija **ne mijenja nijednu
+kućicu**, ne dodaje i ne briše nijedan red.
+
+- **D-085 zamrzava ugovor `P5-I5B` (Encounter Create)** kroz vlasničke odluke `OD-D085-1` …
+  `OD-D085-15` i bilježi **odgođenu** implementacijsku autorizaciju. **Dokumentacija isključivo.**
+- **Closure-owned red `P5-I5B` = tačno `API → POST encounter`** (`OD-D085-14`). **Ne označava se ni u
+  D-085 ni u implementaciji**; zatvara se isključivo kroz formalno zatvaranje `P5-I5B` nakon punog
+  lifecyclea (D-084, `OD-D084-1`).
+- **Anotacija D-084 iznad** (`D-084 LOCALLY AUTHORED …`, `P5-I5A … FORMALLY CLOSING`, `D-085
+  UNCONSUMED / NOT RESERVED`) opisuje **pred-D-085 stanje** i **ne prepisuje se**.
+
+```text
+                        kanonski (prije)   D-085 kandidat
+ukupno redova (S6)      49                 49
+oznaceno                32                 32
+neoznaceno              17                 17
+
+UNCHECKED_TO_CHECKED    = 0
+CHECKED_TO_UNCHECKED    = 0
+NEW_ROWS                = 0
+DELETED_ROWS            = 0
+```
+
+```text
+D-085    LOCALLY AUTHORED / NOT INDEPENDENTLY REVIEWED / NOT OWNER-ACCEPTED /
+         NOT PUBLISHED / NOT CANONICAL / NOT EFFECTIVE
+P5-I5A   COMPLETE / VERIFIED / FORMALLY CLOSED / EFFECTIVE
+P5-I5    IN_PROGRESS
+P5-I5B   CONTRACT FROZEN IN LOCAL D-085 CANDIDATE / NOT AUTHORIZED FOR MUTATION / NOT STARTED
+P5-I5C / P5-I5D   NOT AUTHORIZED / NOT STARTED   (P5-I5D iza L-4)
+D-086    UNCONSUMED / NOT RESERVED / NOT ASSIGNED
+```
+
+Nakon efektivnog D-085 `P5-I5B` postaje **`IMPLEMENTATION AUTHORIZED / NOT STARTED`**, isključivo
+unutar `OD-D085-1` … `OD-D085-14`. Vidi D-085 u `06`.
+
 
 ## Schema
 

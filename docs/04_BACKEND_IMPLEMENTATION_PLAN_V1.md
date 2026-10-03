@@ -3089,6 +3089,42 @@ ijedne nove supstantivne odluke o njihovom obliku. Nakon efektivnog D-084 `P5-I5
 **isključivo podoban za svjež autorizacijski / pre-execution checkpoint** — **ne autorizovan**. Vidi
 D-084 u `06`.
 
+#### Statusna anotacija (D-085) — blokovi iznad se NE prepisuju
+
+**D-085 zamrzava ugovor `P5-I5B` (Encounter Create)** — vlasničke odluke `OD-D085-1` … `OD-D085-15`,
+adjudikacija blokatora `B-1` iz `P5-I5B` autorizacijskog checkpointa — i bilježi **odgođenu**
+implementacijsku autorizaciju. Prenesene granice iz D-084 (`OD-D084-5`) za `P5-I5B` su ovim
+adjudicirane; tekući ugovor je u `03` §12.
+
+**Implementacijska granica (`OD-D085-13`).** Kasnija implementacija **smije**: `POST
+/api/v1/encounters`, `encounter.create`, DTO/validaciju, create aplikacijski servis, perzistencijski
+port, database adapter kroz `TenantDatabaseService`, perzistenciju encountera + dijagnoza, projekciju
+odgovora, početni `DRAFT` / verziju `1` / `ETag "1"`, idempotencijski endpoint literal, reupotrebu
+postojećeg `runOnce`, `ENCOUNTER_CREATED` audit proširenje, compile-time vezivanje domenskog i Prisma
+`EncounterStatus` na perzistencijskoj granici (domen ne importuje Prismu), Nest modul/controller
+ožičenje, contract export i B-specifične testove. **Ne smije:** `PATCH`, `If-Match`, optimističke
+inkremente verzije, cancel, razlog otkazivanja, `GET` list/detail, dokumente/redakciju, outbox, izmjene
+scheme/migracije/RLS-a/granta, novi idempotencijski ili audit framework, novu tabelu mašine stanja,
+izmjenu `P5-I5A` grafa, izmjenu trajnog RI-naspram-RLS testa, nadogradnje zavisnosti ni nepovezano
+čišćenje.
+
+```text
+D-085    LOCALLY AUTHORED / NOT INDEPENDENTLY REVIEWED / NOT OWNER-ACCEPTED /
+         NOT PUBLISHED / NOT CANONICAL / NOT EFFECTIVE
+P5-I5A   COMPLETE / VERIFIED / FORMALLY CLOSED / EFFECTIVE
+P5-I5B   CONTRACT FROZEN IN LOCAL D-085 CANDIDATE /
+         DELAYED IMPLEMENTATION AUTHORIZATION RECORDED /
+         NOT AUTHORIZED FOR MUTATION / NOT STARTED
+P5-I5C / P5-I5D   NOT AUTHORIZED / NOT STARTED   (P5-I5D iza L-4)
+
+CANONICAL CHECKLIST              = 49 / 32
+D-085 LOCAL CANDIDATE CHECKLIST  = 49 / 32
+```
+
+**Nakon efektivnog D-085:** `P5-I5B = IMPLEMENTATION AUTHORIZED / NOT STARTED`, isključivo unutar
+`OD-D085-1` … `OD-D085-14`. Formulacije `P5-I5B … NOT AUTHORIZED / NOT STARTED` iznad opisuju
+**pred-D-085 stanje** i **ne prepisuju se**. Vidi D-085 u `06`.
+
 
 ### Segmentacija `P5-I2` na četiri pod-gatea (D-064)
 
