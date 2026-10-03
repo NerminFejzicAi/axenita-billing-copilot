@@ -962,6 +962,13 @@ zavisiti od buduće `P5-I6` redakcije.** `encounters` **nema kolonu za razlog i 
 - **Sirov `reason` se ne vraća ni u jednom odgovoru i ne logira se u sirovom obliku** (`03`, cancel
   ugovor).
 
+**L-4 anotacija (D-083, `OD-D083-3`) — ugovor iznad se NE prepisuje.** Tačka 2 pretpostavlja već
+kanonski required/optional i max-length ugovor za `reason`, ali **konkretno encounter-cancel pravilo
+trenutno nije zamrznuto**. Status: **`DEFERRED — MUST BE ADJUDICATED BEFORE P5-I5D IMPLEMENTATION
+AUTHORIZATION`**. D-083 **ne odlučuje** obaveznost, minimalnu ni maksimalnu dužinu, ponašanje praznog
+stringa, sadržajne zahtjeve ni zamjenski/default tekst. **Nijedno pravilo sanitizacije iznad se ne
+slabi.**
+
 ### Granice tvrdnje — izričito očuvane
 
 - **Nijedno sigurnosno proširenje.** Ne uvodi se `SECURITY DEFINER`, `BYPASSRLS`, nova rola, owner

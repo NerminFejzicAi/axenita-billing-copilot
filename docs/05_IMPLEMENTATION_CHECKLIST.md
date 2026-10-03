@@ -4785,6 +4785,27 @@ autorizacijski / pre-execution checkpoint**; tek nakon njega dolazi u obzir **za
 vlasnički akt implementacijske autorizacije**. Vidi D-082 u `06`, `04` §7.5a, `03` §4 i §4.1,
 `08` §12.13 i `09` §12.2.
 
+**STATUSNA ANOTACIJA (D-083) — ne-checkbox; blok iznad se NE prepisuje.** Nijedna kućica se ne
+mijenja; checklist Faze 5 ostaje **`49 / 31`** (31 označeno, 18 neoznačeno, ≈ 63.3 %). D-083
+pojašnjava isključivo aritmetiku reda `Services state machine.` (`P5-I5A`): *(kreiranje)* → `DRAFT`
+je inicijalizacija, **nije ivica grafa**; dosežno je **kreiranje + 3 od 15**, zabranjeno
+**preostalih 12 od 15** (`03` §29.1a). Red `API cancel encounter.` (`P5-I5D`) nosi L-4 firewall:
+**bez implementacijske autorizacije dok required/optional i max-length ugovor za `reason` ne bude
+zasebno vlasnički adjudiciran.**
+
+```text
+D-082    PUBLISHED / MERGED / CANONICAL / POST-PUBLICATION VERIFIED / EFFECTIVE
+D-083    LOCALLY AUTHORED / NOT INDEPENDENTLY REVIEWED / NOT OWNER-ACCEPTED AS COMMIT /
+         NOT PUBLISHED / NOT CANONICAL / NOT EFFECTIVE
+
+P5-I5A   kreiranje + 3 od 15 dosezne / preostalih 12 od 15 zabranjeno   (3 + 12 = 15)
+L-4      DEFERRED - MUST BE ADJUDICATED BEFORE P5-I5D IMPLEMENTATION AUTHORIZATION
+
+P5-I5 / P5-I5A / P5-I5B / P5-I5C / P5-I5D   NOT AUTHORIZED / NOT STARTED
+```
+
+Vidi D-083 u `06`, `04` §7.5a i `09` §12.2.
+
 
 ## Schema
 

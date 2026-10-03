@@ -17932,6 +17932,310 @@ osnovom**. **Taj checkpoint sam po sebi i dalje nije implementacijska autorizaci
 
 ---
 
+# D-083 — `P5-I5A` kanonsko pojašnjenje aritmetike tranzicija i L-4 firewall razloga otkazivanja
+
+- **Status:** vlasničke odluke `OD-D083-1` … `OD-D083-4` OWNER-RATIFIED — **LOCAL AUTHORING CANDIDATE /
+  NOT OWNER-ACCEPTED AS COMMIT / NOT PUBLISHED / NOT CANONICAL / NOT EFFECTIVE**
+- **Datum:** 2026-10-03
+- **Tip:** vlasnički ratifikovan **governance zapis aritmetičkog/kategorijskog pojašnjenja** za
+  `P5-I5A`, uz zapis **L-4 defer/firewall stanja** ugovora razloga otkazivanja encountera.
+  **Dokumentacija isključivo.**
+- **Amandman na:** **isključivo aritmetičku/kategorijsku interpretaciju** dosežnog podskupa Faze 5
+  (D-062, Dio F; D-082). **Kanonski graf od 15 tranzicija (D-027; `03` §29.1) se ne mijenja.**
+  **Nijedan zapis D-001 … D-082 se ne prepisuje, ne prenumeriše i ne briše — svi ostaju
+  bajt-identični.**
+- **Ova odluka NE implementira ništa.** Ne uvodi nijednu liniju izvornog koda, nijedan test, nijednu
+  migraciju, schemu, Prisma model, API rutu, grant, rolu ni politiku. **Nijedna baza nije
+  kontaktirana** i **nijedan test se ovom odlukom ne izvršava.**
+- **Ova odluka NE označava nijednu kućicu.** **`AUTHORIZATION_CHECKBOX_TRANSITIONS = 0`.** Checklist
+  Faze 5 ostaje mehanički **`49 / 31`** — **31 označeno, 18 neoznačeno**, ≈ 63.3 %.
+- **Ova odluka NE autorizuje `P5-I5`, `P5-I5A`, `P5-I5B`, `P5-I5C` ni `P5-I5D`.**
+- **Ova odluka troši ISKLJUČIVO `D-083`.** `D-084` se ne troši, ne rezerviše i ne dodjeljuje.
+
+## Kontekst/problem — trigger
+
+Svjež `P5-I5` autorizacijski / pre-execution checkpoint nad kanonskom osnovom nakon D-082 pronašao je
+**blocker B-1 — kontradikciju u aritmetici tranzicija.** D-062, Dio F i D-082 (te tekući dokumenti
+izvedeni iz njih) navode „**tačno 4 od 15** dosežne / **preostalih 11** → `409`". Ali tabela tih
+„četiri" sadrži *(kreiranje)* → `DRAFT`, koja **nije** jedna od 15 ivica kanonskog grafa §29.1 —
+kanonski graf nema ulaznu ivicu u `DRAFT`. Stvarni broj je **3 dosežne od 15**, pa je zabranjenih
+**12**, ne 11. Iskaz „4 od 15 / 11" bi `P5-I5A` table-driven testu ostavio dvosmislen kriterij: ili
+bi jedna zabranjena ivica ostala neimenovana, ili bi se inicijalizacija lažno predstavila kao ivica
+grafa.
+
+Isti preflight je identifikovao i **L-4**: kanonski ugovor sanitizacije razloga otkazivanja
+(`09` §12.2, tačka 2; D-082 `OD-D082-6`) pretpostavlja **već kanonski** required/optional i
+max-length ugovor za `reason`, a takvo konkretno encounter-cancel pravilo **trenutno nije
+zamrznuto**.
+
+## Kanonsko stanje ulaza ovog gatea
+
+```text
+repozitorij                  D:\AI\Arztpraxis
+origin                       NerminFejzicAi/axenita-billing-copilot
+kanonski main                649a001ec819430594f080b5f11a8ad006640dbe
+HEAD tree                    4ac2dc71a70733061a6496400d709254abdc32e7
+zivi remote refs/heads/main  649a001ec819430594f080b5f11a8ad006640dbe
+worktree                     CLEAN
+stash                        EMPTY
+
+MANIFEST                     19 / 19 MATCH
+checklist Faze 5             49 ukupno / 31 oznaceno / 18 neoznaceno   (~63.3 %)
+najnovija kanonska odluka    D-082
+D-082                        PUBLISHED / MERGED / CANONICAL / POST-PUBLICATION VERIFIED / EFFECTIVE
+D-083 prije ovog zapisa      OWNER-ASSIGNED / UNCONSUMED / 0 heading pojavljivanja
+
+P5-I5                        DEPENDENCY-SATISFIED / POLICY-CONTRACT CANONICAL /
+                             NOT AUTHORIZED / NOT STARTED
+P5-I5A                       NOT AUTHORIZED / NOT STARTED
+blocker                      B-1 transition-arithmetic contradiction
+```
+
+## Odluka
+
+### `RULING A` — `OD-D083-1`: aritmetika tranzicija `P5-I5A`
+
+**Kanonski graf od 15 tranzicija ostaje potpuno nepromijenjen:**
+
+```text
+ 1  DRAFT                 -> READY_FOR_ANALYSIS
+ 2  DRAFT                 -> CANCELLED
+ 3  READY_FOR_ANALYSIS    -> ANALYSIS_IN_PROGRESS
+ 4  READY_FOR_ANALYSIS    -> CANCELLED
+ 5  ANALYSIS_IN_PROGRESS  -> REVIEW_REQUIRED
+ 6  ANALYSIS_IN_PROGRESS  -> READY_FOR_ANALYSIS
+ 7  ANALYSIS_IN_PROGRESS  -> CANCELLED
+ 8  REVIEW_REQUIRED       -> APPROVED
+ 9  REVIEW_REQUIRED       -> ANALYSIS_IN_PROGRESS
+10  REVIEW_REQUIRED       -> CANCELLED
+11  APPROVED              -> EXPORT_PENDING
+12  APPROVED              -> REVIEW_REQUIRED
+13  EXPORT_PENDING        -> EXPORTED
+14  EXPORT_PENDING        -> APPROVED
+15  EXPORTED              -> CLOSED
+
+CANCELLED  terminalno
+CLOSED     terminalno
+CANCELLED -> CLOSED   eksplicitno zabranjeno
+```
+
+**`(kreiranje) → DRAFT` NIJE jedna od 15 tranzicionih ivica.** To je zasebno **ponašanje
+inicijalizacije encountera**. Kanonska klasifikacija Faze 5 je:
+
+```text
+INICIJALIZACIJA
+  (kreiranje)           -> DRAFT
+
+PLUS TRI dosezne ivice Faze 5 unutar kanonskog grafa od 15:
+  1  DRAFT              -> READY_FOR_ANALYSIS
+  2  DRAFT              -> CANCELLED
+  3  READY_FOR_ANALYSIS -> CANCELLED
+
+TOTAL_CANONICAL_TRANSITION_EDGES  = 15
+PHASE5_REACHABLE_CANONICAL_EDGES  = 3
+PHASE5_FORBIDDEN_CANONICAL_EDGES  = 12
+3 + 12                            = 15
+
+NO TRANSITION SEMANTICS CHANGED
+```
+
+**Raniji iskaz „4 od 15 dosežne / preostalih 11 → `409`" je aritmetička/kategorijska greška**
+nastala brojanjem inicijalizacije *(kreiranje)* → `DRAFT` kao da je ivica grafa.
+
+**Mjerodavna kanonska formulacija nakon D-083:**
+
+> **kreiranje + 3 od 15 dosežnih ivica; preostalih 12 od 15 kanonskih tranzicionih ivica zabranjeno
+> u Fazi 5** → `409 INVALID_STATE_TRANSITION`.
+
+**Ovo pojašnjenje NE mijenja:** nijednu od 15 kanonskih ivica; tri dosežne ivice; ponašanje
+*(kreiranje)* → `DRAFT`; nazive stanja; terminalnu semantiku; semantiku zabranjenih tranzicija;
+`INVALID_STATE_TRANSITION` ponašanje ni HTTP/error mapiranje; obuhvat, segmentaciju ni redoslijed
+`P5-I5A` → `P5-I5B` → `P5-I5C` → `P5-I5D`; vlasništvo redova checklista; optimističku konkurenciju;
+cancel ponašanje; idempotenciju; audit; sanitizer; `★` RI-naspram-RLS preduslov; RLS ni tenant
+izolaciju. **Ovo nije redizajn ponašanja.**
+
+### `RULING B` — `OD-D083-2`: historijsko očuvanje i kanonsko pomirenje
+
+**D-001 … D-082 ostaju historijski nepromijenjeni** — posebno **D-062** (Dio F.1 „tačno 4 od 15" /
+„Preostalih 11", dokazni iskaz „četiri dosežne … preostalih jedanaest" i tabela segmentacije
+„4 dosežne") i **D-082** (`P5-I5A` red segmentacije „četiri dosežne"; budući `P5-I5A` dokaz „četiri
+dosežne prolaze, preostalih 11"). Ta formulacija ostaje **historijski dokaz** ranijeg iskaza.
+
+**D-083 aditivno pojašnjava i supersedira ISKLJUČIVO aritmetičku/kategorijsku interpretaciju** —
+**prospektivno**, za implementaciju i dokaz `P5-I5A`. Gdje historijsko tijelo kaže „4 od 15" ili
+„preostalih 11", mjerodavno se čita kao „kreiranje + 3 od 15" i „preostalih 12 od 15".
+
+Tekući normativni dokumenti izvan nepromjenljivih historijskih tijela koji su tu formulaciju nosili
+kao tekuće pravilo **usko se pomiruju** (vidi „Posljedice"). **Nijedna druga `P5-I5` semantika se ne
+otvara.**
+
+### `RULING C` — `OD-D083-3`: L-4 firewall razloga otkazivanja
+
+Kanonski ugovor sanitizacije razloga otkazivanja (`09` §12.2, tačka 2) pretpostavlja već kanonski
+**required/optional** i **max-length** ugovor za `reason`, a **konkretno encounter-cancel pravilo
+trenutno nije zamrznuto.**
+
+```text
+L-4   DEFERRED - MUST BE ADJUDICATED BEFORE P5-I5D IMPLEMENTATION AUTHORIZATION
+
+blokira P5-I5A        NE
+blokira P5-I5B/C      NE  (osim ako kasniji dokaz pokaze direktnu zavisnost)
+blokira P5-I5D        DA  - bez implementacijske autorizacije prije zasebne vlasnicke adjudikacije
+```
+
+**D-083 NE odlučuje:** da li je razlog obavezan; da li je opcionalan; minimalnu dužinu; maksimalnu
+dužinu; ponašanje praznog stringa; sadržajne zahtjeve; zamjenski/default tekst. **Nijedno pravilo
+sanitizacije iz D-082 `OD-D082-6` se ne slabi.** `P5-I5A` smije nastaviti svoj lifecycle nakon što
+B-1 bude kanonski razriješen.
+
+### `RULING D` — `OD-D083-4`: svrha D-083 i lifecycle firewall
+
+**D-083 postoji isključivo za kanonsko pojašnjenje aritmetike tranzicija `P5-I5A` i za zapis L-4
+defer/firewall stanja.**
+
+**D-083 NIJE:** implementacijska autorizacija `P5-I5` ni `P5-I5A`; autorizacija `P5-I5B`/`C`/`D`;
+implementacijski preflight; početak implementacije; završetak checklista; supstantivna adjudikacija
+razloga otkazivanja.
+
+**Autorstvo D-083 NE SMIJE:** kreirati runtime kod; kreirati testove; mijenjati schemu/migracije;
+mijenjati stanje kućica checklista; autorizovati ili započeti implementaciju.
+
+**D-083 postaje kanonski/efektivan tek nakon vlastitog lifecyclea:**
+
+```text
+autorstvo
+-> nezavisan pregled
+-> vlasnicko prihvatanje
+-> publikacijska autorizacija
+-> publikacija / merge
+-> post-publikaciona kanonska verifikacija
+```
+
+**Do tada je D-083 isključivo lokalni governance kandidat.**
+
+## Razmotrene i odbijene alternative
+
+- **Prepisati D-062 i D-082 da nestanu grep pogoci** — **odbijeno.** Historijska tijela ostaju
+  bajt-identična; korekcija je aditivna.
+- **Dodati 16. ivicu `(kreiranje) → DRAFT` u kanonski graf da „4 od 15" postane tačno** —
+  **odbijeno.** Mijenja kanonski graf D-027, a greška je isključivo u brojanju.
+- **Ostaviti „4 od 15" i razriješiti ga u implementaciji** — **odbijeno.** Implementacijski gate ne
+  smije improvizovati kriterij table-driven testa.
+- **Odlučiti required/optional i max-length za `reason` ovdje** — **odbijeno.** Nije predmet
+  vlasničkih odluka ovog zapisa; ostaje zasebna adjudikacija prije `P5-I5D` autorizacije.
+
+## Posljedice — dokumentaciono pomirenje
+
+Klasifikacija pogodaka svježe pretrage („4 od 15", „tačno četiri", „četiri dosežne", „4 dosežne",
+„4 prolaze", „preostalih 11", „11 daje", „jedanaest", „dosežni podskup"):
+
+| Lokacija | Klasa | Zahvat |
+|---|---|---|
+| `06` D-062 (Dio F.1, dokazni iskaz, tabela segmentacije, završni kriterij) | A — historijsko tijelo | **netaknuto** |
+| `06` D-082 (`P5-I5A` red segmentacije, test dokaz) | A — historijsko tijelo | **netaknuto** |
+| `03` §29.1a | B — tekući normativ | naslov; napomena o aritmetici; inicijalizacija označena `—` i „nije ivica grafa", ivice numerisane 1–3; „preostalih 12 od 15" |
+| `04` §7.5 tabela, §7.5a segmentacija, §7.6 završni kriterij | B — tekući normativ | „kreiranje + 3 od 15", „12 od 15"; aditivna D-083 statusna anotacija u §7.5a |
+| `07` prompt Faze 5 („Dokaži") | B — tekući normativ (izvršni prompt) | „inicijalizacija + 3 dosezne, preostalih 12 od 15" |
+| `08` §11.1, §12.13 (`P5-I5A`), matrica pokrivenosti | B — tekući normativ | „kreiranje + 3 od 15", „preostalih 12 od 15" |
+| `14` §12.0 | C — objašnjavajući dokument koji propisuje ponašanje | ispravljeno, jer bi „tačno četiri / preostalih 11" materijalno protivrječilo tekućoj politici; mermaid dijagram nepromijenjen |
+| `05` §6 | tekući statusni metapodaci | aditivna **ne-checkbox** D-083 anotacija; **nijedna kućica se ne mijenja** |
+| `09` §12.2 | tekući normativ (sanitizer) | aditivna L-4 anotacija; **tačke 1–11 bajt-očuvane** |
+| `MANIFEST.md` | metapodaci | ponovo izračunati bajtovi i SHA-256 za izmijenjene dokumente; **19 redova ostaje 19** |
+
+Pogoci „tačno četiri" / „jedanaest" u `02`, `04`, `05`, `06` i `07` koji se odnose na funkcije
+`app_security`, allowlistu tabela, stanja ćelija, pod-gateove, statusne tvrdnje ili jedanaestokoračni
+autorizacijski redoslijed **nisu vezani za encounter tranzicije** i ostaju netaknuti. Ranije statusne
+formulacije `D-082 = LOCALLY AUTHORED …` i `D-083 = UNCONSUMED / NOT RESERVED` u `03`, `04` i `05`
+opisuju **pred-publikaciono stanje D-082**, **historijski su tačne** i **ne prepisuju se**; mjerodavne
+su D-083 anotacije u `04` §7.5a i `05` §6.
+
+**Nijedan drugi dokument se ne mijenja.** Sav izvorni kod, testovi, migracije, Prisma, SQL, grantovi,
+RLS politike, paketi, lockfile, CI i `.env.example` ostaju netaknuti.
+
+## Security/privacy uticaj
+
+- **Nijedan sigurnosni zahtjev se ne mijenja, ne slabi i ne uklanja.** Pojašnjenje eksplicitno
+  imenuje **12** zabranjenih ivica, pa je negativni dokaz `P5-I5A` **potpuniji**.
+- **L-4 firewall je pooštrenje**: `P5-I5D` ne može dobiti autorizaciju nad nedefinisanim
+  validacijskim ugovorom razloga, koji bi inače bio improvizovan u audit putanji.
+- **Nijedan grant, nijedna RLS politika i nijedan predikat izolacije se ne dira.**
+
+## Migration/rollout
+
+**Nema.**
+
+```text
+PRISMA_SCHEMA_MUTATION_REQUIRED    = NO
+MIGRATION_REQUIRED                 = NO
+RLS_POLICY_MUTATION_REQUIRED       = NO
+GRANT_MUTATION_REQUIRED            = NO
+NEW_RUNTIME_DEPENDENCY_REQUIRED    = NO
+PUBLIC_API_ROUTE_MUTATION_REQUIRED = NO
+DATABASE_WRITER_REQUIRED           = NO
+HISTORICAL_RECORDS_REWRITTEN       = 0
+```
+
+## Test dokaz
+
+**Nijedan test se ovim zapisom ne piše, ne mijenja i ne izvršava.**
+
+```text
+TESTS WRITTEN IN THIS GATE   0
+TESTS RERUN IN THIS GATE     0
+```
+
+**Buduća dokazna obaveza `P5-I5A`** (`08` §12.13), koja se **ne izvršava ovdje**: table-driven test
+nad **cijelom** mašinom — svih 15 kanonskih ivica predstavljeno; inicijalizacija *(kreiranje)* →
+`DRAFT` prolazi i **ne broji se kao ivica**; **3** dosežne ivice prolaze; **preostalih 12 od 15**
+eksplicitno → `409 INVALID_STATE_TRANSITION`.
+
+## Šta D-083 ne mijenja
+
+- **Ne mijenja kanonski graf od 15 tranzicija, nazive stanja ni terminalnu semantiku.**
+- **Ne mijenja nijednu rutu, metodu, payload, header, permisiju, statusni ni error kod.**
+- **Ne mijenja segmentaciju, redoslijed ni vlasništvo redova checklista `P5-I5`.**
+- **Ne mijenja `★`.** `★` ostaje trajna regresija i HARD preduslov `P5-I5`.
+- **Ne definiše required/optional ni dužinu `reason`-a.**
+- **Ne autorizuje i ne započinje `P5-I5`, `P5-I5A`–`P5-I5D`, `P5-I6` ni `P5-I7`.**
+- **Ne prepisuje nijedan historijski zapis.** **`HISTORICAL_RECORDS_REWRITTEN = 0`.**
+
+## Otvorena pitanja koja D-083 ne zatvara
+
+- **L-4** — required/optional, min/max dužina, prazan string i sadržajni zahtjevi za encounter cancel
+  `reason`; **mora biti adjudicirano prije `P5-I5D` implementacijske autorizacije.**
+- **`D-OPEN-004a`**, **`D-OPEN-007`**, **`D-OPEN-009`** — nepromijenjeni.
+
+## Zavisnosti
+
+- **D-027** — kanonski graf encounter tranzicija.
+- **D-062, Dio F** — dosežni podskup Faze 5, čija se aritmetika ovdje pojašnjava.
+- **D-082** — segmentacija `P5-I5A`–`P5-I5D` i ugovor sanitizacije razloga (`OD-D082-6`).
+
+## Naredni obavezni gate
+
+**Nezavisan pregled lokalnog D-083 commita**, pa — tek nakon izričitog vlasničkog prihvatanja —
+zaseban publikacioni gate i post-publikaciona verifikacija.
+
+```text
+D-083 LOCALLY AUTHORED                   = YES
+D-083 OWNER RULINGS INCORPORATED         = YES
+D-083 INDEPENDENTLY REVIEWED             = NO
+D-083 OWNER-ACCEPTED AS COMMIT           = NO
+D-083 PUBLISHED / MERGED                 = NO
+D-083 CANONICAL                          = NO
+D-083 EFFECTIVE                          = NO
+
+B-1                                      = RESOLVED BY D-083 CANDIDATE (efektivno tek nakon lifecyclea)
+L-4                                      = DEFERRED - MUST BE ADJUDICATED BEFORE P5-I5D IMPLEMENTATION AUTHORIZATION
+P5-I5 IMPLEMENTATION AUTHORIZED          = NO
+P5-I5A / P5-I5B / P5-I5C / P5-I5D        = NOT AUTHORIZED / NOT STARTED
+```
+
+**Gate implementacije `P5-I5A` NE SMIJE početi prije kanonizacije D-083 i zasebnog izričitog
+vlasničkog akta implementacijske autorizacije.**
+
+---
+
 # Otvorene odluke
 
 ## D-OPEN-001 — Produkcijski OIDC provider

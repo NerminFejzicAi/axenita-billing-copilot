@@ -1187,7 +1187,8 @@ Dokaži:
 - GET /encounters ne izvršava nijedan upit nad users;
 - ★ RI-naspram-RLS dokaz (gore) prolazi PRIJE encounter jezgra;
 - cross-practice dodjela odgovornog ljekara daje 422, i neuspjeh nastaje U BAZI;
-- svih 15 kanonskih tranzicija je pokriveno: 4 prolaze, 11 daje 409 INVALID_STATE_TRANSITION;
+- svih 15 kanonskih tranzicija je pokriveno: inicijalizacija (kreiranje) -> DRAFT i 3 dosezne
+  prolaze, preostalih 12 od 15 daje 409 INVALID_STATE_TRANSITION (D-083);
 - view=redacted pri FAILED odbija i NIKADA ne pada nazad na normalizovani ni originalni tekst;
 - copilot_system ima nula grantova nad svih pet tabela; PUBLIC nula;
 - practice_memberships i dalje ima tačno jednu politiku, users tačno dvije, nepromijenjene.

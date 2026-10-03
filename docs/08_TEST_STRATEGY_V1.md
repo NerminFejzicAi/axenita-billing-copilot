@@ -431,17 +431,18 @@ EXPORT_PENDING        → APPROVED
 EXPORTED              → CLOSED
 ```
 
-**Dosežni podskup Faze 5 — tačno 4 od 15 (D-062, Dio F; `03` §29.1a).** Faza 5 nema analizu,
-approval ni export rute, pa su u njoj dosežne isključivo:
+**Dosežni podskup Faze 5 — kreiranje + 3 od 15 (D-062, Dio F; D-083; `03` §29.1a).** Faza 5 nema
+analizu, approval ni export rute, pa su u njoj dosežne isključivo inicijalizacija i tri kanonske
+ivice:
 
 ```text
-(kreiranje)           → DRAFT
+(kreiranje)           → DRAFT                 inicijalizacija, NIJE ivica grafa
 DRAFT                 → READY_FOR_ANALYSIS
 DRAFT                 → CANCELLED
 READY_FOR_ANALYSIS    → CANCELLED
 ```
 
-**Preostalih 11 kanonskih tranzicija mora u Fazi 5 biti testirano kao eksplicitno zabranjeno** →
+**Preostalih 12 od 15 kanonskih tranzicija mora u Fazi 5 biti testirano kao eksplicitno zabranjeno** →
 `409 INVALID_STATE_TRANSITION`. Prećutno odsustvo koda **nije** ispunjenje ovog ugovora: table-driven
 test ide nad **cijelom** mašinom, a ne samo nad dosežnim podskupom.
 
@@ -2010,9 +2011,10 @@ redoslijed   P5-I5A -> P5-I5B -> P5-I5C -> P5-I5D
 **`P5-I5A` — mašina stanja.** Table-driven test nad **cijelom** mašinom, po §11.1:
 
 - **svih 15 kanonskih tranzicija** predstavljeno u tabeli;
-- **četiri dosežne tranzicije Faze 5** prolaze — kreiranje → `DRAFT`,
-  `DRAFT → READY_FOR_ANALYSIS`, `DRAFT → CANCELLED`, `READY_FOR_ANALYSIS → CANCELLED`;
-- **preostalih 11 eksplicitno zabranjeno** → `409 INVALID_STATE_TRANSITION`, a **ne prećutno
+- inicijalizacija kreiranje → `DRAFT` prolazi, **ali se ne broji kao ivica grafa** (D-083);
+- **tri dosežne kanonske tranzicije Faze 5** prolaze — `DRAFT → READY_FOR_ANALYSIS`,
+  `DRAFT → CANCELLED`, `READY_FOR_ANALYSIS → CANCELLED`;
+- **preostalih 12 od 15 eksplicitno zabranjeno** → `409 INVALID_STATE_TRANSITION`, a **ne prećutno
   odsutno**;
 - repozitorijski/perzistencijski primitivi dokazani izolovano, **bez implementacije endpointa**
   izvan strogo nužnog.
@@ -3729,7 +3731,7 @@ očekivani status/kod, obaveznu audit asertaciju i da li blokira završetak faze
 | §23.2 kaskada otkazivanja (D-035) — **ISPRAVLJENO (D-062, Dio F.5)** | integration + e2e | **Faza 7** — kaskada zahtijeva `analysis_runs` (paket `005`), pa **nije testabilna u Fazi 5**; raniji unos "Faza 5" bio je netačan | — | **da** |
 | §17.1 D-036 permisije | e2e | Faza 10 | — | **da** |
 | §18.1 D-037 approval kodovi | contract + e2e | Faza 11 | — | **da** |
-| §11.1–11.2 state machine | unit + e2e | prema fazi vlasnika stanja; **Faza 5 pokriva table-driven test nad svih 15 tranzicija — 4 dosežne prolaze, 11 daje `409`** (D-062, Dio F) | — | **da** |
+| §11.1–11.2 state machine | unit + e2e | prema fazi vlasnika stanja; **Faza 5 pokriva table-driven test nad svih 15 tranzicija — kreiranje + 3 dosežne prolaze, preostalih 12 daje `409`** (D-062, Dio F; D-083) | — | **da** |
 | **§12.9 schema/RI/odgovorni ljekar (D-062)** — uključujući **`★` RI-naspram-RLS dokaz** | security/integration + contract | **Faza 5**; **§12.9.3 katalog test (stavka 14a) u slice-u `P5-I1`**; `★` u slice-u `P5-I2`, **blokirajuće prije `P5-I5`** | `003`, `011`, `013`, `014` | **da** |
 | §20.1 error matrica | contract | Faza 12 | — | **da** |
 | §24.1 D-038 schema constrainti | integration | Faza 3 | `002_identity_and_practices` | **da** |

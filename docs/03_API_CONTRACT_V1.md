@@ -3847,25 +3847,31 @@ Eksplicitno:
 - `REJECT` odluke nad analizom **ne mijenjaju** encounter status — ostaje
   `REVIEW_REQUIRED` (§20).
 
-## 29.1a Dosežni podskup Faze 5 — tačno 4 od 15 (D-062, Dio F)
+## 29.1a Dosežni podskup Faze 5 — kreiranje + 3 od 15 (D-062, Dio F; aritmetika D-083)
 
 **Kanonski graf iznad se NE mijenja i ne otvara.** Ovaj pododjeljak isključivo bilježi koje su
 tranzicije **dosežne** u Fazi 5, jer Faza 5 nema ni analizu, ni approval, ni export rute.
 
 **Stanje kreiranja Faze 5:** `DRAFT`, jedino i uvijek.
 
+**Aritmetika (D-083, `OD-D083-1`).** *(kreiranje)* → `DRAFT` je **inicijalizacija encountera**, a
+**ne** jedna od 15 kanonskih tranzicionih ivica iz §29.1. U Fazi 5 je dosežno **tačno 3 od 15**
+kanonskih ivica (redovi 1–3 ispod inicijalizacije); **preostalih 12 od 15** je zabranjeno.
+`3 + 12 = 15`. Raniji iskaz „4 od 15 / preostalih 11" brojao je inicijalizaciju kao ivicu grafa;
+**ponašanje se ne mijenja**, mijenja se isključivo klasifikacija i brojanje.
+
 | # | Tranzicija | Okidač | Akter | `version` |
 |---|---|---|---|---|
-| 1 | *(kreiranje)* → `DRAFT` | `POST /encounters` | `encounter.create` — PHYSICIAN, MPA | `1`, `ETag: "1"` |
-| 2 | `DRAFT` → `READY_FOR_ANALYSIS` | uspješan unos dokumenta (§13.1) | `encounter.document.create` — PHYSICIAN, MPA | **bez inkrementa** |
-| 3 | `DRAFT` → `CANCELLED` | `POST …/cancel` | `encounter.cancel` — **isključivo PHYSICIAN** | inkrement |
-| 4 | `READY_FOR_ANALYSIS` → `CANCELLED` | `POST …/cancel` | `encounter.cancel` — isključivo PHYSICIAN | inkrement |
+| — | *(kreiranje)* → `DRAFT` — **inicijalizacija, nije ivica grafa** | `POST /encounters` | `encounter.create` — PHYSICIAN, MPA | `1`, `ETag: "1"` |
+| 1 | `DRAFT` → `READY_FOR_ANALYSIS` | uspješan unos dokumenta (§13.1) | `encounter.document.create` — PHYSICIAN, MPA | **bez inkrementa** |
+| 2 | `DRAFT` → `CANCELLED` | `POST …/cancel` | `encounter.cancel` — **isključivo PHYSICIAN** | inkrement |
+| 3 | `READY_FOR_ANALYSIS` → `CANCELLED` | `POST …/cancel` | `encounter.cancel` — isključivo PHYSICIAN | inkrement |
 
 **Nedosežna stanja u Fazi 5:** `ANALYSIS_IN_PROGRESS`, `REVIEW_REQUIRED`, `APPROVED`,
 `EXPORT_PENDING`, `EXPORTED`, `CLOSED`.
 
-**Preostalih 11 tranzicija mora biti implementirano kao eksplicitno zabranjeno** →
-`409 INVALID_STATE_TRANSITION`, a **ne prećutno odsutno**: `08` §11.1 traži table-driven test nad
+**Preostalih 12 od 15 kanonskih tranzicija mora biti implementirano kao eksplicitno zabranjeno**
+(D-083) → `409 INVALID_STATE_TRANSITION`, a **ne prećutno odsutno**: `08` §11.1 traži table-driven test nad
 **cijelom** mašinom. **Ponašanje Faze 7+ se ne uvlači u Fazu 5.**
 
 **`DRAFT → READY_FOR_ANALYSIS` — ratifikovani trigger (`OD-P5-D2-7`):**
