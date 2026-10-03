@@ -4806,6 +4806,52 @@ P5-I5 / P5-I5A / P5-I5B / P5-I5C / P5-I5D   NOT AUTHORIZED / NOT STARTED
 
 Vidi D-083 u `06`, `04` §7.5a i `09` §12.2.
 
+## P5-I5A FORMAL CLOSURE ANNOTATION — D-084 (2026-10-03)
+
+**Nijedan pasus, blok ni anotacija iznad se ne prepisuje.** Ova anotacija ne dodaje i ne briše
+nijedan red; prati **tačno jednu** tranziciju kućice ispod.
+
+- **D-084 je post-publikaciono pomirenje i formalno zatvaranje pod-gatea `P5-I5A`.** Kanonska
+  implementacija (`ce219281…`, merged kroz **PR #65** kao **`38976047…`**) je implementirana,
+  nezavisno pregledana, vlasnički prihvaćena, objavljena, kanonska, post-publikaciono verifikovana i
+  funkcionalno završena (`OD-D084-2`). **Dokumentacija je isključivo.**
+- **Pravilo vremena zatvaranja za `P5-I5` (`OD-D084-1`, prospektivno, isključivo `P5-I5`):** svaki
+  pod-gate zatvara **tačno redove koje mu mapira D-082**, ali **tek nakon** kanonske /
+  post-publikacione verifikacije i formalnog zatvaranja. **Precedent `P5-I2` / `P5-I3` / `P5-I4` se
+  ne mijenja.**
+- **Closure-owned red `P5-I5A` = `Services → state machine`** — označen ispod. **Preostalih pet
+  `P5-I5` redova ostaje neoznačeno.**
+- **Anotacije D-082 i D-083 iznad** (`49 / 31`, `CHECKBOX TRANSITIONS = 0`, `P5-I5A NOT AUTHORIZED /
+  NOT STARTED`, `D-083 LOCALLY AUTHORED …`) opisuju **pred-D-084 stanje**, **historijski su tačne** i
+  **ne prepisuju se**.
+
+```text
+                        kanonski (prije)   D-084 kandidat
+ukupno redova (S6)      49                 49
+oznaceno                31                 32
+neoznaceno              18                 17
+
+UNCHECKED_TO_CHECKED    = 1   (Services -> state machine)
+CHECKED_TO_UNCHECKED    = 0
+NEW_ROWS                = 0
+DELETED_ROWS            = 0
+```
+
+```text
+D-084    LOCALLY AUTHORED / NOT INDEPENDENTLY REVIEWED / NOT OWNER-ACCEPTED AS COMMIT /
+         NOT PUBLISHED / NOT CANONICAL / NOT EFFECTIVE
+P5-I5A   CANONICAL IMPLEMENTATION COMPLETE / FORMALLY CLOSING UNDER D-084 /
+         NOT YET EFFECTIVE (tek po publikaciji i verifikaciji D-084)
+P5-I5    IN_PROGRESS
+P5-I5B / P5-I5C / P5-I5D   NOT AUTHORIZED / NOT STARTED
+D-085    UNCONSUMED / NOT RESERVED
+```
+
+**`49 / 32` je isključivo lokalno kandidatsko stanje** dok D-084 ne bude objavljen i verifikovan;
+kanonski `origin/main` do tada nosi **`49 / 31`**. Nakon efektivnog D-084 `P5-I5B` postaje
+**isključivo podoban za svjež autorizacijski / pre-execution checkpoint** — **ne autorizovan**. Vidi
+D-084 u `06`.
+
 
 ## Schema
 
@@ -4827,7 +4873,7 @@ Vidi D-083 u `06`, `04` §7.5a i `09` §12.2.
 - [x] local encryption implementation.
 - [x] text normalization.
 - [ ] redaction.
-- [ ] state machine.
+- [x] state machine.
 - [x] idempotency service.
 - [ ] optimistic locking.
 - [x] audit.
