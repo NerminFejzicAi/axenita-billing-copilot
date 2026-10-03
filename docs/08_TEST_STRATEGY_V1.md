@@ -1975,6 +1975,132 @@ Vidi D-081 u `06`, `04` §7.5a, `05` §6, `03` §4.1 i `09` §4.
 
 ---
 
+## 12.13 `P5-I5` — dokazne obaveze po pod-gateovima (D-082, `OD-D082-3` … `OD-D082-7`)
+
+**Sekcije §11.1, §12.0 … §12.12 se NE prepisuju.** Ova sekcija zapisuje **buduće** dokazne obaveze
+`P5-I5`, po ratifikovanoj segmentaciji. **Nijedan test se ovim gateom ne piše, ne mijenja i ne
+izvršava.**
+
+```text
+TESTS WRITTEN IN THIS GATE   0
+TESTS RERUN IN THIS GATE     0
+NEW TEST OBLIGATIONS         zapisane, ne izvrsene
+REMOVED TEST OBLIGATIONS     0
+```
+
+**`★` RI-naspram-RLS dokaz odgovornog fizičara:**
+
+```text
+* RI-vs-RLS PERMANENT REGRESSION   PRESENT / VALID / UNMODIFIED
+```
+
+Regresija ostaje **trajna** i **HARD preduslov `P5-I5`**; njeno buduće rušenje ostaje `HARD HOLD`.
+
+### Segmentacija i vlasništvo dokaza
+
+```text
+P5-I5A   Encounter domen / state machine
+P5-I5B   Encounter create
+P5-I5C   Encounter PATCH / optimisticka konkurencija
+P5-I5D   Encounter cancel
+
+redoslijed   P5-I5A -> P5-I5B -> P5-I5C -> P5-I5D
+```
+
+**`P5-I5A` — mašina stanja.** Table-driven test nad **cijelom** mašinom, po §11.1:
+
+- **svih 15 kanonskih tranzicija** predstavljeno u tabeli;
+- **četiri dosežne tranzicije Faze 5** prolaze — kreiranje → `DRAFT`,
+  `DRAFT → READY_FOR_ANALYSIS`, `DRAFT → CANCELLED`, `READY_FOR_ANALYSIS → CANCELLED`;
+- **preostalih 11 eksplicitno zabranjeno** → `409 INVALID_STATE_TRANSITION`, a **ne prećutno
+  odsutno**;
+- repozitorijski/perzistencijski primitivi dokazani izolovano, **bez implementacije endpointa**
+  izvan strogo nužnog.
+
+**`P5-I5B` — create.**
+
+- `POST /encounters` sa **cross-tenant ili nepostojećim `patientReferenceId`** **ne** daje `422` i
+  ostaje na kanonskoj internal-error putanji;
+- usko `422 VALIDATION_ERROR` **isključivo** za `encounters_responsible_physician_membership_fk`, uz
+  generičku poruku koja ne citira vrijednost;
+- **globalno `23503 → 422` ostaje zabranjeno** i dokazuje se kao takvo;
+- konzumacija `P5-I4` idempotencije **bez drugog mehanizma**;
+- `ENCOUNTER_CREATED` audit u **istoj** admitovanoj tenant transakciji; rollback poslovne mutacije
+  pri neuspjehu audita; **nema success audita za mutaciju koja se rollback-uje**;
+- **minimizacija payloada dokazana iz stvarnog pohranjenog reda**: `previous_value = null`,
+  `new_value` nosi isključivo minimalno stanje kreiranja, **bez kompletnog snapshota**, **bez
+  dupliranog patient payloada**, **bez nepotrebnih identifikujućih podataka**.
+
+**`P5-I5C` — PATCH / optimistička konkurencija.**
+
+- `PATCH` nad **nepostojećim**, **tenant-nevidljivim** i **stale** encounterom daje
+  **`409 VERSION_CONFLICT`**, **bez ijednog dodatnog čitanja** i **bez diskriminirajućeg pre-reada**;
+- **jedan atomičan optimistički `UPDATE`**;
+- tačan **patch allowlist** — polja izvan njega odbijena;
+- **zastarjeli `ETag` dokazan** (red `Tests → stale ETag`);
+- **revalidacija odgovornog ljekara** na patch putanji;
+- `ENCOUNTER_UPDATED` audit payload sadrži **isključivo polja koja je prihvaćeni `PATCH` stvarno
+  promijenio** — nepromijenjena polja **odsutna**, **bez snapshota cijelog reda**.
+
+**`P5-I5D` — cancel.**
+
+- **nedostajući `Idempotency-Key` odbijen** — encounter cancel ga **traži**;
+- **replay** istog ključa i istog canonical request hasha daje isti poslovni rezultat;
+- isti ključ + **drugi** hash → **`409 IDEMPOTENCY_CONFLICT`**;
+- **in-progress claim** → **`409 REQUEST_ALREADY_IN_PROGRESS`**;
+- **nema preuzimanja ustajalog claima** i **nema drugog idempotencijskog podsistema**;
+- **vidljiv** encounter u nedozvoljenom stanju → **`409 INVALID_STATE_TRANSITION`**;
+- **nepostojeći / tenant-nevidljiv** encounter → **`404 RESOURCE_NOT_FOUND`**;
+- ta razlika dokazana **race-free**, **bez opšteg existence oraclea** — negativan dokaz da nijedan
+  generički cross-tenant read-before-write diskriminator ne postoji (`09` §18.1, `T1`);
+- **`409 VERSION_CONFLICT` se na ovoj ruti ne pojavljuje** — `cancel` nema `If-Match` ugovor;
+- `ENCOUNTER_CANCELLED` audit u istoj transakciji, sa **isključivo** materijalom tranzicije stanja;
+- **sanitizovan razlog** prisutan u koloni `metadata`, i **odsustvo sirovog razloga** dokazano u
+  bazi, u odgovoru i u logovima — nesanitizovan `reason` je defekt klase `T3`.
+
+### Audit ugovor koji `P5-I5` dokazuje, a ne izmišlja
+
+```text
+AUDIT_RESOURCE_TYPE = ENCOUNTER
+katalog akcija      = ENCOUNTER_CREATED / ENCOUNTER_UPDATED / ENCOUNTER_CANCELLED
+hash ugovor         = AUDIT_EVENT_HASH_PAYLOAD_V1   (nepromijenjen, §12.11, §12.12)
+previous_event_sha256 = null
+session_id_hash / ip_address / user_agent_hash = null
+```
+
+**`event_sha256` se reprodukuje iz stvarnog pohranjenog reda**, kao i u §12.11 i §12.12; **`id` i
+`occurred_at` u pohranjenom redu su identični onima korištenim pri hashiranju**. **Audit akcija
+`ENCOUNTER_READY_FOR_ANALYSIS` pripada komandi unosa dokumenta i ostaje izvan `P5-I5` kataloga.**
+
+### Granica dokaza — vlasništvo redova checklista
+
+**Tačno šest redova `05` §6 je u closure vlasništvu `P5-I5`**: `Services → state machine`,
+`Services → optimistic locking`, `API → POST encounter`, `API → PATCH encounter`,
+`API → cancel encounter`, `Tests → stale ETag`. **`GET encounter list` i `GET encounter detail`
+ostaju `P5-I7`.** **`Services → outbox base`, `Tests → cross-tenant FK` i `Tests → no text in logs`
+ostaju dijeljeni / kasniji Faza-5 obuhvat**; `P5-I5` smije proizvesti relevantne dokaze, ali **ne
+stiče vlasništvo nad njihovim kućicama.**
+
+```text
+P5-I5 IMPLEMENTATION AUTHORIZED   = NO
+P5-I5 IMPLEMENTATION STARTED      = NO
+P5-I5A / P5-I5B / P5-I5C / P5-I5D = NOT AUTHORIZED / NOT STARTED
+CHECKBOX TRANSITIONS              = 0
+```
+
+**Formulacije u sekcijama iznad** — `CURRENT_CHECKLIST = 49 / 14`, `CANONICAL_ENTRY_CHECKLIST = 49 / 14`,
+„`49 / 31` je isključivo forecast“, „`49 / 31` je lokalno kandidatsko stanje“, `D-081 = UNCONSUMED`,
+`D-081 = LOCALLY AUTHORED / NOT CANONICAL`, `P5-I5 IMPLEMENTATION AUTHORIZED = NO / STILL DEPENDENCY-BLOCKED`
+i `D-082 = UNCONSUMED / NOT RESERVED` — opisuju **pred-publikaciono stanje D-081**, **historijski su
+tačne** i **ne prepisuju se**. **Tekuće kanonsko stanje je `49 / 31` (31 označeno, 18 neoznačeno),
+`P5-I4 = EFFECTIVE` i `P5-I5 = DEPENDENCY-SATISFIED / NOT AUTHORIZED / NOT STARTED`.**
+
+**Ovo je ugovor dokaza, ne izvršenje dokaza.** Vidi D-082 u `06`, `04` §7.5a, `05` §6, `03` §4 i
+§4.1, i `09` §12.2.
+
+---
+
+
 # 13. Analysis/outbox/queue
 
 ## HTTP

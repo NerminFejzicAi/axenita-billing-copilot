@@ -310,6 +310,37 @@ concurrency. Nijedan endpoint ne vraća `425` i status se ne pojavljuje u §9.
 `POST /analyses/{id}/cancel` namjerno **nije** na listi obaveznih `Idempotency-Key`
 endpointa: komanda je state-idempotentna (§15.4), pa ponovljeni poziv ne mijenja stanje.
 
+**Encounter cancel TRAŽI `Idempotency-Key` — objavljeno (D-082, `OD-D082-3`, 2026-09-06).** Lista
+obaveznih endpointa iznad **se ne prepisuje**; ova anotacija uklanja jedinu preostalu dvosmislenost
+između nje i endpoint-specifičnog encounter ugovora.
+
+```text
+POST /api/v1/encounters/{encounterId}/cancel   REQUIRES Idempotency-Key
+```
+
+**Mjerodavan je endpoint-specifičan encounter ugovor** — vidi *POST
+`/encounters/{encounterId}/cancel`* niže, „Idempotency key.". Napomena o
+`POST /analyses/{id}/cancel` odnosi se **isključivo na analysis cancel Faze 7**, koji je
+state-idempotentna komanda; **ona se NE prenosi analogijom na encounter cancel**, koji nosi kaskadnu
+semantiku i audit posljedicu.
+
+`P5-I5` **MORA konzumirati/ponovo koristiti kanonski `P5-I4` idempotencijski mehanizam** i **NE SMIJE
+uvesti paralelan idempotencijski podsistem**. Ako se postojeća implementacijska površina pokaže
+prespecifičnom za `create`, `P5-I5` smije kasnije napraviti **minimalno unazad-kompatibilno
+proširenje** za ne-create command/replay semantiku, uz očuvanje svih pravila §4 iznad — isti key +
+isti hash → replay; isti key + drugi hash → `409 IDEMPOTENCY_CONFLICT`; in-progress →
+`409 REQUEST_ALREADY_IN_PROGRESS`; scope `practice + user + endpoint`; jedna admitovana tenant
+transakcija; transakcijski-scoped neblokirajući advisory lock; **bez preuzimanja ustajalog claima** i
+**bez drugog idempotencijskog mehanizma**. **To proširenje D-082 ne implementira i ne autorizuje.**
+
+**`cancel` NE dobija `If-Match` / version-conflict semantiku samo zato što je idempotentan.**
+`409 VERSION_CONFLICT` se na toj ruti **i dalje ne koristi** (§5.3). Njegova kanonska semantika
+ostaje nepromijenjena: vidljivo pogrešno stanje → **`409 INVALID_STATE_TRANSITION`**; nepostojeće ili
+tenant-nevidljivo → **`404 RESOURCE_NOT_FOUND`**; razlika mora ostati **race-free** i **bez opšteg
+diskriminirajućeg pre-read oraclea**. Vidi D-082 u `06`, `04` §7.5a, `05` §6, `08` §12.13 i
+`09` §12.2.
+
+
 ## 4.1 Kanonski request hash — `idempotency_keys.request_sha256` (D-069, `RULING 4`)
 
 **Ovo je jedini kanonski algoritam „canonical request hasha" iz §4.** Kolona je `varchar(64)`
@@ -665,6 +696,64 @@ stanje**: kanonski `origin/main` nosi **`49 / 14`** dok D-081 ne bude objavljen 
 **Podobnost nije autorizacija.** Efektivno zatvaranje roditelja mijenja **isključivo zavisnosnu osu**
 `P5-I5`; `P5-I5` i dalje traži zaseban read-only preflight i zasebnu izričitu vlasničku autorizaciju,
 a `P5-I6` se ne mijenja. Vidi D-081 u `06`, `04` §7.5a, `05` §6, `08` §12.12 i `09` §4.
+
+**STATUSNA ANOTACIJA (D-082, 2026-09-06) — cijela sekcija iznad se NE prepisuje.** Ugovorne klauzule
+§4, §4.1 i §4.2, kao i statusne anotacije D-077 … D-081, ostaju **doslovno na snazi i
+nepromijenjene**. D-082 je **governance zapis pomirenja, izvršnog ugovora i segmentacije za
+`P5-I5`**; on **ne mijenja nijednu rutu, metodu, payload, header, permisiju, rolu, polje, validaciju,
+statusni kod, error kod, TTL, lookup pravilo, autorizacijsko pravilo, pravilo cashiranja ni ugovor
+odgovora**, i **ne mijenja `request_sha256` ugovor**. **Zamrznuti katalog §8 ostaje nepromijenjen** i
+**nijedan novi error kod nije uveden.** Jedini API-relevantan zahvat je **konstatacija** već
+postojećeg endpoint zahtjeva za `Idempotency-Key` na encounter cancel ruti (§4, anotacija
+`OD-D082-3`).
+
+**D-081 lifecycle je dovršen (`OD-D082-1`).** D-081 je autorstvom dovršen, nezavisno pregledan,
+izričito vlasnički prihvaćen, objavljen kroz **PR #62**, kanonski na `origin/main`
+(`cfa384eaf0bd7b353ba86080599209300f6727b8`) i post-publikaciono verifikovan.
+
+```text
+P5-I4 PARENT FORMAL CLOSURE EFFECTIVE = YES
+P5-I4    COMPLETE / VERIFIED / CANONICAL / FORMALLY CLOSED / EFFECTIVE
+P5-I4A / P5-I4B / P5-I4C   FORMALLY CLOSED / EFFECTIVE
+P5-I4D                     DOES NOT EXIST
+CURRENT_CHECKLIST                  = 49 / 31   (31 oznaceno, 18 neoznaceno)
+FAZA 5                             = IN_PROGRESS   (nije DONE)
+AUTHORIZATION_CHECKBOX_TRANSITIONS = 0
+D-082                              = LOCALLY AUTHORED / NOT CANONICAL / NOT EFFECTIVE
+D-083                              = UNCONSUMED / NOT RESERVED
+```
+
+**Formulacije iznad** — `P5-I4 PARENT = INCOMPLETE / OPEN`, `D-081 = UNCONSUMED`,
+`D-081 = LOCALLY AUTHORED / NOT CANONICAL`, `P5-I4 PARENT FORMAL CLOSURE EFFECTIVE = NO`,
+`CURRENT_CHECKLIST = 49 / 14`, „`49 / 31` je isključivo forecast", „`49 / 31` je i dalje samo lokalno
+kandidatsko stanje", `P5-I5 ... STILL DEPENDENCY-BLOCKED` i `D-082 = UNCONSUMED / NOT RESERVED` —
+opisuju **pred-publikaciono stanje D-081**, **historijski su tačne** i **ne prepisuju se**.
+**Mjerodavan je statusni model iznad.**
+
+**Izvršni ugovor `P5-I5` je zamrznut, ali `P5-I5` nije autorizovan.** D-082 zamrzava obaveznost
+`Idempotency-Key` na encounter cancel ruti, tačno šest closure-owned redova checklista, katalog i
+minimizaciju encounter audita (`ENCOUNTER` / `ENCOUNTER_CREATED` / `ENCOUNTER_UPDATED` /
+`ENCOUNTER_CANCELLED`), ugovor sanitizacije razloga otkazivanja i segmentaciju
+`P5-I5A` → `P5-I5B` → `P5-I5C` → `P5-I5D`.
+
+```text
+P5-I5    DEPENDENCY-SATISFIED
+P5-I5    POLICY-CONTRACT LOCALLY RECONCILED BY D-082 CANDIDATE
+P5-I5    NOT AUTHORIZED / NOT STARTED
+P5-I5A / P5-I5B / P5-I5C / P5-I5D   NOT AUTHORIZED / NOT STARTED
+P5-I6    NOT AUTHORIZED / NOT STARTED
+P5-I7    NOT AUTHORIZED / NOT STARTED
+API SEMANTIC MUTATION               = 0
+FROZEN §8 ERROR CODE CATALOGUE      = UNCHANGED
+NEXT LIFECYCLE GATE                 = INDEPENDENT REVIEW OF LOCAL D-082 COMMIT
+```
+
+**`DEPENDENCY-SATISFIED != IMPLEMENTATION AUTHORIZED`.** **`Podobnost nije autorizacija.`**
+**`★` RI-naspram-RLS ostaje HARD preduslov `P5-I5`.** Nakon što D-082 postane kanonski, **mora se
+izvesti svjež `P5-I5` autorizacijski / pre-execution checkpoint**; tek nakon njega dolazi u obzir
+zaseban izričit vlasnički akt implementacijske autorizacije. Vidi D-082 u `06`, `04` §7.5a, `05` §6,
+`08` §12.13 i `09` §12.2.
+
 
 ---
 

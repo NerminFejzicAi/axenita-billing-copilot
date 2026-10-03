@@ -9,7 +9,7 @@
 
 | Polje | Vrijednost |
 |---|---|
-| Current phase | Faza 1 — `DONE`; Ecosystem Compatibility Audit `DONE`; Faza 2 — `DONE`; **D-OPEN-011 decision gate — `DONE` (D-047 prihvaćen 2026-08-12)**; **D-047 dokumentaciona rekonsilijacija — `DONE`, merged u kanonski `main` (PR #7)**; **D-048–D-051 governance gate — `DONE`, merged u kanonski `main` (PR #10)**; **Faza 3 — `DONE`, merged u kanonski `main` (PR #12, merge commit `5c2786d`) (§4)**; **Faza 4 — `DONE`, zatvorena (§5)**; **P4-5D je `MERGED` u kanonski `main` (PR #20)**; **retrospektivni evidence gate `P4-013` — `COMPLETE`** (`UNRESOLVED_REQUIRED = 0`, `SECURITY_CLOSURE_BLOCKERS = 0`; §5, „Gate zatvaranja Faze 4 — P4-013 — `COMPLETE`"); **prelazak `IN_PROGRESS → DONE` je izvršen zasebnim, vlasnički pregledanim gateom zatvaranja Faze 4 — odluka D-059** (§5, „Zatvaranje Faze 4 — D-059"). `DONE` je ovdje **rezervisani lifecycle status** i postaje kanonski **merge-om ove zatvaračke grane u `origin/main`**, po presedanu Faze 3 (`9af070d`); **Faza 5 — `IN_PROGRESS`** (§6): prelazak je izvršen kanonskim slice-om **`P5-I1`** (PR #30, merge `fcd88fbe`); **`P5-I2` je `COMPLETE` / `VERIFIED` / `CANONICAL` / formalno zatvoren nakon sva četiri pod-gatea `P5-I2A`–`P5-I2V` (D-068, PR #40, merge `31de9523`)**, čime checklist prelazi sa **49 / 8** na **49 / 9**; **`P5-I5` = `ELIGIBLE FOR SEPARATE OWNER AUTHORIZATION` / `NOT AUTHORIZED`**; Faza 5 **nije** `DONE`; **tekući izvršni redoslijed je `P5-I3` → `P5-I4` → `P5-I5` (D-069, 2026-08-27)** — `P5-I3` = `NEXT` / `NOT AUTHORIZED`; `P5-I4` = poslije `P5-I3` / `NOT_STARTED`, i posjeduje D-056 facade obavezu, idempotency servis, audit writer, `request_sha256` i audit self-hash; `P5-I5` = `POLICY-RESOLVED` / `DEPENDENCY-BLOCKED` / `NOT AUTHORIZED` / `NOT STARTED`; `OWNER_DECISIONS_REQUIRED_FOR_P5_I5 = 0`; checklist ostaje **49 / 9**; **AŽURIRANO (D-071, 2026-08-29) — klauzule `P5-I3` iznad opisuju stanje prije formalnog zatvaranja i ne prepisuju se:** **`P5-I3` = `COMPLETE` / `VERIFIED` / `CANONICAL` / `FORMALLY CLOSED`** nakon kanonskih pod-gateova `P5-I3A` (merge `ea0769f1bc34baf8670aa8d4b4b5dfc3433e94db`), `P5-I3B` (merge `13bee31fcdd5e4717eface4677e41f0d949ff080`) i `P5-I3C` (merge `6cffd9bf319068b78fa395b29ec76d9327593062`), čime checklist prelazi sa **49 / 9** na **49 / 14**; **`P5-I4` = `NEXT` / `DEPENDENCY-SATISFIED` / `NOT AUTHORIZED` / `NOT STARTED`** — nepromijenjeno D-069 cross-cutting vlasništvo plus prenesene obaveze `CO-P5-I3-I4-1` i `CO-P5-I3-I4-2`; **`P5-I5` = `STILL DEPENDENCY-BLOCKED` / `NOT AUTHORIZED` / `NOT STARTED`**; **`P5-I6` = `NOT AUTHORIZED` / `NOT STARTED`** i posjeduje redakciju; Faza 5 **i dalje nije `DONE`**; tekući checklist je **49 / 14** |
+| Current phase | Faza 1 — `DONE`; Ecosystem Compatibility Audit `DONE`; Faza 2 — `DONE`; **D-OPEN-011 decision gate — `DONE` (D-047 prihvaćen 2026-08-12)**; **D-047 dokumentaciona rekonsilijacija — `DONE`, merged u kanonski `main` (PR #7)**; **D-048–D-051 governance gate — `DONE`, merged u kanonski `main` (PR #10)**; **Faza 3 — `DONE`, merged u kanonski `main` (PR #12, merge commit `5c2786d`) (§4)**; **Faza 4 — `DONE`, zatvorena (§5)**; **P4-5D je `MERGED` u kanonski `main` (PR #20)**; **retrospektivni evidence gate `P4-013` — `COMPLETE`** (`UNRESOLVED_REQUIRED = 0`, `SECURITY_CLOSURE_BLOCKERS = 0`; §5, „Gate zatvaranja Faze 4 — P4-013 — `COMPLETE`"); **prelazak `IN_PROGRESS → DONE` je izvršen zasebnim, vlasnički pregledanim gateom zatvaranja Faze 4 — odluka D-059** (§5, „Zatvaranje Faze 4 — D-059"). `DONE` je ovdje **rezervisani lifecycle status** i postaje kanonski **merge-om ove zatvaračke grane u `origin/main`**, po presedanu Faze 3 (`9af070d`); **Faza 5 — `IN_PROGRESS`** (§6): prelazak je izvršen kanonskim slice-om **`P5-I1`** (PR #30, merge `fcd88fbe`); **`P5-I2` je `COMPLETE` / `VERIFIED` / `CANONICAL` / formalno zatvoren nakon sva četiri pod-gatea `P5-I2A`–`P5-I2V` (D-068, PR #40, merge `31de9523`)**, čime checklist prelazi sa **49 / 8** na **49 / 9**; **`P5-I5` = `ELIGIBLE FOR SEPARATE OWNER AUTHORIZATION` / `NOT AUTHORIZED`**; Faza 5 **nije** `DONE`; **tekući izvršni redoslijed je `P5-I3` → `P5-I4` → `P5-I5` (D-069, 2026-08-27)** — `P5-I3` = `NEXT` / `NOT AUTHORIZED`; `P5-I4` = poslije `P5-I3` / `NOT_STARTED`, i posjeduje D-056 facade obavezu, idempotency servis, audit writer, `request_sha256` i audit self-hash; `P5-I5` = `POLICY-RESOLVED` / `DEPENDENCY-BLOCKED` / `NOT AUTHORIZED` / `NOT STARTED`; `OWNER_DECISIONS_REQUIRED_FOR_P5_I5 = 0`; checklist ostaje **49 / 9**; **AŽURIRANO (D-071, 2026-08-29) — klauzule `P5-I3` iznad opisuju stanje prije formalnog zatvaranja i ne prepisuju se:** **`P5-I3` = `COMPLETE` / `VERIFIED` / `CANONICAL` / `FORMALLY CLOSED`** nakon kanonskih pod-gateova `P5-I3A` (merge `ea0769f1bc34baf8670aa8d4b4b5dfc3433e94db`), `P5-I3B` (merge `13bee31fcdd5e4717eface4677e41f0d949ff080`) i `P5-I3C` (merge `6cffd9bf319068b78fa395b29ec76d9327593062`), čime checklist prelazi sa **49 / 9** na **49 / 14**; **`P5-I4` = `NEXT` / `DEPENDENCY-SATISFIED` / `NOT AUTHORIZED` / `NOT STARTED`** — nepromijenjeno D-069 cross-cutting vlasništvo plus prenesene obaveze `CO-P5-I3-I4-1` i `CO-P5-I3-I4-2`; **`P5-I5` = `STILL DEPENDENCY-BLOCKED` / `NOT AUTHORIZED` / `NOT STARTED`**; **`P5-I6` = `NOT AUTHORIZED` / `NOT STARTED`** i posjeduje redakciju; Faza 5 **i dalje nije `DONE`**; tekući checklist je **49 / 14**; **AŽURIRANO (D-082, 2026-09-06) — klauzule `P5-I4` i `P5-I5` iznad opisuju stanje prije publikacije D-081 i ne prepisuju se:** **`P5-I4` = `COMPLETE` / `VERIFIED` / `CANONICAL` / `FORMALLY CLOSED` / `EFFECTIVE`** nakon kanonskih pod-gateova `P5-I4A`, `P5-I4B` i `P5-I4C` i roditeljskog zatvaranja D-081 (PR #62, merge `cfa384eaf0bd7b353ba86080599209300f6727b8`); **`P5-I4D` ne postoji**; čime checklist prelazi sa **49 / 14** na **49 / 31**, tj. **31 / 49 ≈ 63.3 %** formalne završenosti; **`P5-I5` = `DEPENDENCY-SATISFIED` / `NOT AUTHORIZED` / `NOT STARTED`** — **`DEPENDENCY-SATISFIED` nije `IMPLEMENTATION AUTHORIZED`**, a njegova segmentacija `P5-I5A` → `P5-I5B` → `P5-I5C` → `P5-I5D` i šest closure-owned redova su zamrznuti D-082 kandidatom, koji je **`LOCALLY AUTHORED` / `NOT CANONICAL` / `NOT EFFECTIVE`**; **`P5-I6` i `P5-I7` = `NOT AUTHORIZED` / `NOT STARTED`**; Faza 5 **i dalje nije `DONE`**; tekući checklist je **49 / 31** |
 | Current branch | Faza 3 je merged u kanonski `main`; implementacijski branch `backend/03-identity-practices` (tehnička implementacija HEAD, Gate 3E = `9f60d32c66023c4aad5ac34df267658ddfe5d6b1`; zatvarački dokumentacioni checkpoint = `2c7d7778a9ec1dae92fd0a5683d1f4afc7b36950`; završni head prije merge-a = `5c1699a0ea4d98e2f540c6e8cd9ae84997896a42`) je time potrošen. **Kanonska remote grana je `origin/main`. Živi kanonski commit se rezolvira iz te reference i ovaj dokument ga ne ugrađuje** (D-056, klauzule 15–16); tačni SHA-ovi ispod su **nepromjenljivi historijski lifecycle događaji**, ne živi pokazivač. Implementacijski branch Faze 4 `backend/04-practice-settings-patch` nosio je slice P4-5D i **merged je** u kanonski `main` kroz **PR #20** (`3658c6e2d9c08e3ca3f0c306d8dbeaf41a6a01f5`), pa je time potrošen. Historijski: `0866e530b6086e7dba7f0bc0d98b19eee69ee0d5` (PR #19, kanonski `main` neposredno prije merge-a P4-5D), `5c2786d689b50f73f49bfca52d2335ea50ee52c2` (PR #12, kanonski `main` po zatvaranju Faze 3), `251544f0b10abb00ee818f1ff5183c95b0ed0d03` (PR #11, kanonski `main` neposredno prije merge-a Faze 3) i `65e2552e13520ead86092f75ca3cc75d206b9f35` (PR #10) |
 | Last completed phase | **Faza 4 — Tenant/RLS, `DONE`** — zatvorena odlukom **D-059** (§5, „Zatvaranje Faze 4 — D-059"); aplikacija merged kroz PR #20 (`3658c6e`), retrospektivni evidence gate **P4-013** `COMPLETE`, `UNRESOLVED_REQUIRED = 0`. Prethodna: Faza 3 — Identity & Practices, `DONE` (PR #12, `5c2786d`). **Naredna faza — Faza 5 — Encounter/documents — bila je `NOT_STARTED` u trenutku tog zatvaranja i njime nije autorizovana; tekući status Faze 5 je `IN_PROGRESS`** nakon kanonskog `P5-I1` (§6) |
 | Last commit | `c4b89d0` (Phase 2 implementation), merged via `dae9649`; dokumentarno zatvaranje `98910b3`, merged via `d6b5efe`; D-047 rekonsilijacija `76dbc6d` + `dda7538`, merged via `ec7d100` (PR #7); dokumentaciona usklađivanja merged via `2befadc` i `5d38ba8` (PR #8, PR #9); D-048–D-051 rekonsilijacija `b2a99ce`, merged via `65e2552` (PR #10); dokumentaciono zatvaranje governancea merged via `251544f` (PR #11); **Faza 3 — sedam commitova branča `backend/03-identity-practices` (Gate 3A–3E, tehnička implementacija `HEAD` = `9f60d32`; zatvarački dokumentacioni checkpoint `2c7d777`; korekcija reference kanonskog `main`-a `5c1699a`), merged via `5c2786d` (PR #12)** (§4, „Gate checkpointi Faze 3"); historijski kanonski `main` prije P4-5D = `0866e530b6086e7dba7f0bc0d98b19eee69ee0d5` (PR #19); **PR #20 (slice P4-5D) je `MERGED`, merge commit `3658c6e2d9c08e3ca3f0c306d8dbeaf41a6a01f5`**. Živi kanonski commit se rezolvira iz `origin/main` i ovdje se **ne** upisuje (D-056, klauzule 15–16) |
@@ -4635,6 +4635,156 @@ NEXT LIFECYCLE GATE = INDEPENDENT OWNER REVIEW OF LOCAL D-081 COMMIT
 **zaseban read-only autorizacijski / pre-execution preflight**. **`★` RI-naspram-RLS ostaje HARD
 preduslov `P5-I5`.** **`OWNER_DECISIONS_REQUIRED_FOR_P5_I5 = 0`** ostaje već kanonizovano policy
 stanje i **ne otvara se ponovo**. Vidi D-081 u `06`, `04` §7.5a, `03` §4.1, `08` §12.12 i `09` §4.
+
+## P5-I5 GOVERNANCE RECONCILIATION / EXECUTABLE CONTRACT ANNOTATION — D-082 (2026-09-06)
+
+**Ovo je ne-checkbox anotacija.** Ona **ne dodaje nijedan checklist red**, **ne briše nijedan** i
+**ne mijenja nijednu kućicu**; markeri checkboxa se u njoj **namjerno ne koriste**. **Nijedan pasus,
+blok ni anotacija iznad se ne prepisuje.**
+
+- **D-082 je governance zapis pomirenja, izvršnog ugovora i segmentacije za `P5-I5`.**
+  **Dokumentacija je isključivo**; **nijedna linija koda, testa, scheme, migracije, granta, RLS
+  politike, zavisnosti, lockfilea, CI-ja ni tooling konfiguracije se ovom odlukom ne uvodi i ne
+  mijenja**, **nijedna baza nije kontaktirana** i **nijedan test se njime ne izvršava**.
+- **D-082 ne označava nijednu kućicu i ne završava nijedan implementacijski red.**
+
+**Post-publikaciona efektivnost D-081 (`OD-D082-1`).** Svih šest uslova efektivnosti iz D-081,
+`RULING A` je ispunjeno: autorstvo, nezavisan pregled, izričito vlasničko prihvatanje, publikacija
+kroz **PR #62**, kanonizacija na `origin/main` (`cfa384eaf0bd7b353ba86080599209300f6727b8`) i
+post-publikaciona verifikacija.
+
+```text
+P5-I4 PARENT FORMAL CLOSURE EFFECTIVE = YES
+P5-I4    COMPLETE / VERIFIED / CANONICAL / FORMALLY CLOSED / EFFECTIVE
+P5-I4A   FORMALLY CLOSED / EFFECTIVE
+P5-I4B   FORMALLY CLOSED / EFFECTIVE
+P5-I4C   FORMALLY CLOSED / EFFECTIVE
+P5-I4D   DOES NOT EXIST
+```
+
+**Formulacije iznad** — `P5-I4 PARENT FORMAL CLOSURE EFFECTIVE = NO`, `D-081 = UNCONSUMED`,
+`CANONICAL_ENTRY_CHECKLIST = 49 / 14`, `D081_LOCAL_CANDIDATE_CHECKLIST = 49 / 31`, „`49 / 31` je
+isključivo lokalno kandidatsko stanje", `EXPECTED_POST_P5_I4_CLOSURE_CHECKLIST = 49 / 31 (FORECAST
+ONLY)`, `P5-I4 PARENT = INCOMPLETE / OPEN`, `P5-I5 STILL DEPENDENCY-BLOCKED` i
+`D-082 = UNCONSUMED / NOT RESERVED` — opisuju **pred-publikaciono stanje D-081**, **historijski su
+tačne** i **ne prepisuju se**. **Mjerodavno je tekuće stanje ispod.**
+
+**Tekuće kanonsko stanje checklista Faze 5 (`OD-D082-2`) — mehanički prebrojano iz ovog poglavlja:**
+
+```text
+UKUPNO REDOVA (S6)                 49
+OZNACENO                           31
+NEOZNACENO                         18
+NOTACIJA                           49 / 31
+FORMALNA ZAVRSENOST                31 / 49  ~= 63.3 %
+FAZA 5                             IN_PROGRESS   (nije DONE)
+
+AUTHORIZATION_CHECKBOX_TRANSITIONS = 0
+NEW_CHECKLIST_ROWS                 = 0
+DELETED_CHECKLIST_ROWS             = 0
+```
+
+**Nijedna kućica se ovim gateom ne mijenja.** **`49 / 31` je od publikacije D-081 kanonsko i tekuće
+stanje**, a ne kandidatsko; **`49 / 14` je historijska, pred-publikaciona vrijednost.**
+
+**Tačno šest redova ovog poglavlja u closure vlasništvu `P5-I5` (`OD-D082-4`) — svi ostaju
+NEOZNAČENI:**
+
+```text
+1  Services   state machine.
+2  Services   optimistic locking.
+3  API        POST encounter.
+4  API        PATCH encounter.
+5  API        cancel encounter.
+6  Tests      stale ETag.
+
+P5_I5_CHECKLIST_ROWS = 6
+```
+
+**`API → GET encounter list` i `API → GET encounter detail` NISU closure-owned u `P5-I5`** — ostaju
+dodijeljeni **`P5-I7`**, pod kanonskim kasnijim read/list sliceom.
+
+**Sljedeća tri reda ostaju dijeljeni / kasniji obuhvat zatvaranja Faze 5 i NE SMIJU se označiti samo
+zato što je `P5-I5` zatvoren:**
+
+```text
+Services   outbox base.
+Tests      cross-tenant FK.
+Tests      no text in logs.
+```
+
+`P5-I5` smije kasnije proizvesti dokaze relevantne za te dijeljene invarijante, ali **vlasništvo nad
+njihovim kućicama ostaje izvan šestočlanog closure skupa `P5-I5`**, osim ako to kasnija kanonska
+odluka izričito promijeni — doslovno očuvanje D-064 stava za `Tests → cross-tenant FK`.
+**`Services → redaction` ostaje neoznačen i u vlasništvu `P5-I6`.**
+
+**Model vlasništva nad osamnaest neoznačenih redova — bez ijedne promjene kućice (sužen
+korekcijom nakon nezavisnog pregleda, `OD-D082-REVIEW-2` / `OD-D082-REVIEW-3`):**
+
+```text
+P5-I5 — definitivno (OD-D082-4)              6   state machine / optimistic locking /
+                                                 POST encounter / PATCH encounter /
+                                                 cancel encounter / stale ETag
+P5-I7 — definitivno (OD-D082-4)                  GET encounter list / GET encounter detail
+P5-I6 — definitivno (postojeći governance)       redaction
+dijeljeni / kasniji Faza-5 obuhvat               outbox base / cross-tenant FK / no text in logs
+P5-I6 / P5-I7 — NOT ADJUDICATED BY D-082         POST text document / list documents /
+                                                 read redacted / read original permission /
+                                                 archive / document read audit
+ukupno                                      18
+```
+
+**D-082 NE adjudicira raspodjelu šest document redova između `P5-I6` i `P5-I7`.** Njihov status je
+**`P5-I6 / P5-I7 — NOT ADJUDICATED BY D-082`**; tačna raspodjela pripada odgovarajućem budućem
+authorization/governance gateu. **D-082 ne dodjeljuje `archive` → `P5-I6`** i ne protivreči
+postojećem tematskom obimu `04` §7.5 („Čitanje, lista, filteri, arhiva" pod `P5-I7`), ali ga ni ne
+pretvara u row-level adjudikaciju. D-082 ne uvodi zamjenske agregatne brojeve za `P5-I6` / `P5-I7`.
+Historijski D-081 agregat (`6 / 6 / 3 / 3`) ostaje kvalifikovan kao očekivana pripadnost iz
+preflighta, bez adjudikacije, i D-082 ga **ne** pretvara u definitivnu raspodjelu po redovima.
+
+**Segmentacija `P5-I5` (`OD-D082-7`) i mapiranje na ovih šest redova:**
+
+```text
+P5-I5A   Encounter domen / state machine        ->  Services  state machine.
+P5-I5B   Encounter create                       ->  API       POST encounter.
+P5-I5C   Encounter PATCH / optimisticka konk.   ->  Services  optimistic locking.
+                                                    API       PATCH encounter.
+                                                    Tests     stale ETag.
+P5-I5D   Encounter cancel                       ->  API       cancel encounter.
+
+redoslijed   P5-I5A -> P5-I5B -> P5-I5C -> P5-I5D
+ukupno       6 redova, bez preklapanja
+```
+
+**Podobnost nije autorizacija.** Efektivno zatvaranje roditelja promijenilo je **isključivo
+zavisnosnu osu** `P5-I5`; **autorizacija i početak ostaju zasebni vlasnički potezi**.
+
+```text
+D-082    LOCALLY AUTHORED / OWNER-RULINGS INCORPORATED /
+         NOT INDEPENDENTLY REVIEWED / NOT OWNER-ACCEPTED AS COMMIT /
+         NOT PUBLISHED / NOT CANONICAL / NOT EFFECTIVE
+D-083    UNCONSUMED / NOT RESERVED
+
+P5-I5    DEPENDENCY-SATISFIED
+P5-I5    POLICY-CONTRACT LOCALLY RECONCILED BY D-082 CANDIDATE
+P5-I5    NOT AUTHORIZED
+P5-I5    NOT STARTED
+P5-I5A / P5-I5B / P5-I5C / P5-I5D   NOT AUTHORIZED / NOT STARTED
+P5-I6    NOT AUTHORIZED / NOT STARTED
+P5-I7    NOT AUTHORIZED / NOT STARTED
+
+DEPENDENCY-SATISFIED != IMPLEMENTATION AUTHORIZED
+
+NEXT LIFECYCLE GATE = INDEPENDENT REVIEW OF LOCAL D-082 COMMIT
+```
+
+**`★` RI-naspram-RLS ostaje HARD preduslov `P5-I5`** i trajna regresija — **prisutna, važeća i
+neizmijenjena**. **`OWNER_DECISIONS_REQUIRED_FOR_P5_I5 = 0`** ostaje već kanonizovano policy stanje i
+**ne otvara se ponovo**. Nakon što D-082 postane kanonski, **mora se izvesti svjež `P5-I5`
+autorizacijski / pre-execution checkpoint**; tek nakon njega dolazi u obzir **zaseban izričit
+vlasnički akt implementacijske autorizacije**. Vidi D-082 u `06`, `04` §7.5a, `03` §4 i §4.1,
+`08` §12.13 i `09` §12.2.
+
 
 ## Schema
 
