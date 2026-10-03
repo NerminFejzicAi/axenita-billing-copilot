@@ -18577,6 +18577,8 @@ D-084 LOCAL CANDIDATE CHECKLIST          = 32 / 49
 - **Ova odluka NE autorizuje mutaciju `P5-I5B` prije vlastite efektivnosti** (`RULING O`), i **ne
   autorizuje `P5-I5C` ni `P5-I5D`**.
 - **Ova odluka troši ISKLJUČIVO `D-085`.** `D-086` se ne troši, ne rezerviše i ne dodjeljuje.
+- **Korektivni dodatak (drugi lokalni commit):** vlasničke odluke `OD-D085-16` i `OD-D085-17`
+  OWNER-RATIFIED, dodane **aditivno** kao `RULING P` / `RULING Q`; **D-085 ostaje jedan zapis**.
 
 ## Kontekst/problem — trigger
 
@@ -18874,6 +18876,112 @@ prije efektivnosti D-085    P5-I5B = NOT AUTHORIZED FOR MUTATION / NOT STARTED
 nakon efektivnosti D-085    P5-I5B = IMPLEMENTATION AUTHORIZED / NOT STARTED
                                      (isključivo unutar OD-D085-1 ... OD-D085-14)
 ```
+
+### `RULING P` — `OD-D085-16`: neprazni stringovi (korektivni dodatak)
+
+Za `P5-I5B`, **svaki član zahtjeva tipa string čija je vrijednost prisutna i non-null mora imati
+dužinu `>= 1` nakon JSON parsiranja.** Provjera se vrši **bez ikakvog prethodnog trima ili
+transformacije**. Prazan string `""` je **zabranjen** → **`422 VALIDATION_ERROR`**.
+
+Pravilo se primjenjuje, između ostalih, na:
+
+```text
+patientReferenceId
+occurredAt
+treatmentDate
+responsiblePhysicianId
+guarantorType
+insuranceContext
+specialtyCode
+patientSexAtEncounter
+sourceSystem
+diagnoses[].codingSystem
+diagnoses[].code
+```
+
+```text
+obavezni string              ""        -> 422 VALIDATION_ERROR
+opcioni nullable string      odsutan   -> dozvoljeno
+                             null      -> dozvoljeno
+                             ""        -> 422 VALIDATION_ERROR
+```
+
+**Ovo NE mijenja `OD-D085-4`:** nema prećutnog trima; vodeći/prateći whitespace ostaje zabranjen;
+postojeći maksimalni DTO / kolonski limiti dužine ostaju mjerodavni. **Pravilo je specifično za
+`P5-I5B`, NE nova globalna cross-modul politika.**
+
+### `RULING Q` — `OD-D085-17`: zatvoren `201` odgovor (korektivni dodatak)
+
+Uspješan `POST /api/v1/encounters` vraća **`HTTP 201`** sa **tačno** ovim top-level članovima
+odgovora:
+
+```text
+id
+status
+version
+patient
+occurredAt
+treatmentDate
+createdAt
+```
+
+`patient` sadrži **tačno**:
+
+```text
+id
+pseudonym
+```
+
+**Nijedan drugi član odgovora nije dozvoljen u `P5-I5B`.** Izričito su isključeni:
+
+```text
+responsiblePhysicianId
+guarantorType
+insuranceContext
+specialtyCode
+patientAgeAtEncounter
+patientSexAtEncounter
+sourceSystem
+diagnoses
+audit metapodaci
+idempotencijski metapodaci
+interna polja baze
+```
+
+- **Originalni odgovor kreiranja nosi `ETag: "1"`.**
+- **Idempotentni replay koristi ISTU šemu odgovora.** Pod `OD-D085-7` replay smije rekonstruisati
+  **tekući kanonski `status`, `version` i `ETag`** istog encounter resursa; identitet resursa (`id`)
+  ostaje isti. **Nijedan dodatni član odgovora se ne dodaje.**
+
+### Korektivni dodatak — obuhvat i pomirenje (`OD-D085-16` / `OD-D085-17`)
+
+- `OD-D085-16` i `OD-D085-17` su **OWNER-RATIFIED** i dodani **aditivno**, drugim lokalnim
+  korektivnim commitom nad `390a6acf14cc5bade725f52c8ead70f551715007`. **`RULING A` … `RULING O` se
+  ne prepisuju**; **značenje `OD-D085-1` … `OD-D085-15` je nepromijenjeno**. D-085 ostaje **jedan**
+  zapis odluke.
+- `OD-D085-16` / `OD-D085-17` su **dio zamrznutog ugovora `P5-I5B`** i podliježu **istom odgođenom
+  efektu** iz `RULING O` (`OD-D085-15`). Nakon efektivnog D-085, implementacijska autorizacija
+  `P5-I5B` važi **isključivo unutar `OD-D085-1` … `OD-D085-14`, `OD-D085-16` i `OD-D085-17`**.
+  Postojeće formulacije „`OD-D085-1` … `OD-D085-14`" (`RULING O`; anotacije `03` §4, `04` §7.5a,
+  `05` §6) i „`OD-D085-1` … `OD-D085-15`" (statusne reference u ovom zapisu i anotacijama) **čitaju se
+  kao da uključuju `OD-D085-16` / `OD-D085-17`**; ti tekstovi se ne prepisuju.
+- **Dokumentaciono pomirenje korekcije:** `06` (ovaj dodatak), `03` §12 (aditivna podsekcija nakon
+  tekućeg ugovora `P5-I5B`), `08` §12.13 (aditivne dokazne posljedice), `MANIFEST.md` (bajtovi i
+  SHA-256 izmijenjenih dokumenata; 19 redova). **`04`, `05`, `09` i `14` se korekcijom ne mijenjaju.**
+- **Checklist:** `32 / 49`; `UNCHECKED_TO_CHECKED = CHECKED_TO_UNCHECKED = NEW_ROWS = DELETED_ROWS = 0`.
+  **`D-086` se ne troši, ne rezerviše i ne dodjeljuje.**
+
+```text
+D-085    LOCAL GOVERNANCE CANDIDATE / TWO LOCAL COMMITS / NOT OWNER-ACCEPTED /
+         NOT PUBLISHED / NOT CANONICAL / NOT EFFECTIVE
+P5-I5B   CONTRACT FROZEN IN CORRECTED LOCAL D-085 CANDIDATE /
+         DELAYED IMPLEMENTATION AUTHORIZATION RECORDED /
+         NOT AUTHORIZED FOR MUTATION / NOT STARTED
+```
+
+**Naredni obavezni gate za korekciju:** svjež nezavisan **delta** pregled
+`390a6acf14cc5bade725f52c8ead70f551715007` → korektivni commit, ograničen na `OD-D085-16` /
+`OD-D085-17` i nužno aditivno pomirenje.
 
 ## Razmotrene i odbijene alternative
 

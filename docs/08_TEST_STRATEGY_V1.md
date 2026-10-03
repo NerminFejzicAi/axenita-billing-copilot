@@ -2171,6 +2171,28 @@ CHECKBOX TRANSITIONS (D-085 kandidat) = 0
 Formulacija `P5-I5B … NOT AUTHORIZED / NOT STARTED` iznad opisuje **pred-D-085 stanje** i **ne
 prepisuje se**. Vidi D-085 u `06`.
 
+**Korektivni dodatak (D-085, `OD-D085-16` / `OD-D085-17`) — lista iznad se NE prepisuje.** Dokazne
+posljedice, ne nove ugovorne odluke; kasnija implementacija `P5-I5B` dodatno dokazuje:
+
+- **prazan obavezni string** (npr. `patientReferenceId`, `occurredAt`, `treatmentDate`,
+  `sourceSystem`, `diagnoses[].codingSystem`, `diagnoses[].code` = `""`) → `422`;
+- **prazan prisutan opcioni string** (npr. `responsiblePhysicianId`, `guarantorType`,
+  `insuranceContext`, `specialtyCode`, `patientSexAtEncounter` = `""`) → `422`;
+- opcioni nullable član **odsutan** → dozvoljen; **eksplicitni `null`** → dozvoljen;
+- `201` odgovor: **tačan skup top-level ključeva** `{id, status, version, patient, occurredAt,
+  treatmentDate, createdAt}`; **tačan skup ključeva `patient`** `{id, pseudonym}`;
+- **zabranjena polja odsutna** iz odgovora (`responsiblePhysicianId`, `guarantorType`,
+  `insuranceContext`, `specialtyCode`, `patientAgeAtEncounter`, `patientSexAtEncounter`,
+  `sourceSystem`, `diagnoses`, audit/idempotencijski metapodaci, interna polja baze);
+- originalni odgovor kreiranja nosi **`ETag: "1"`**;
+- **replay čuva tačno istu šemu** (isti skupovi ključeva).
+
+```text
+TESTS WRITTEN IN THIS GATE   0
+TESTS RERUN IN THIS GATE     0
+CHECKBOX TRANSITIONS         0
+```
+
 ---
 
 

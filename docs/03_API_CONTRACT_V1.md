@@ -2141,6 +2141,35 @@ TRANSAKCIJA             jedna admitovana interaktivna transakcija: claim, INSERT
                         zaobilaznice; neuspjeh -> puni rollback
 ```
 
+### Korektivni dodatak tekućeg ugovora `P5-I5B` (D-085, `OD-D085-16` / `OD-D085-17`) — sekcija iznad se NE prepisuje
+
+**Status: lokalni D-085 kandidat — `NOT CANONICAL` / `NOT EFFECTIVE`.** Aditivno uz tekući ugovor
+iznad; `OD-D085-1` … `OD-D085-15` se ne mijenjaju. Statusne reference „`OD-D085-1` … `OD-D085-14`"
+(§4) uključuju `OD-D085-16` / `OD-D085-17`. Puni zapis: D-085 u `06` (`RULING P`, `RULING Q`).
+
+```text
+NEPRAZNI STRINGOVI      svaki clan zahtjeva tipa string, prisutan i non-null: duzina >= 1 nakon
+(OD-D085-16)            JSON parsiranja, bez prethodnog trima / transformacije; "" -> 422 VALIDATION_ERROR
+                        obuhvat (izmedju ostalih): patientReferenceId, occurredAt, treatmentDate,
+                        responsiblePhysicianId, guarantorType, insuranceContext, specialtyCode,
+                        patientSexAtEncounter, sourceSystem, diagnoses[].codingSystem, diagnoses[].code
+  obavezni string       ""       -> 422
+  opcioni nullable      odsutan  -> dozvoljeno;  null -> dozvoljeno;  "" -> 422
+  OD-D085-4             nepromijenjen: bez trima; rubni whitespace zabranjen; limiti duzine vaze
+                        (nije globalna cross-modul politika)
+
+ZATVOREN 201 ODGOVOR    top-level tacno: id, status, version, patient, occurredAt, treatmentDate,
+(OD-D085-17)            createdAt
+  patient               tacno: id, pseudonym
+  zabranjeno            responsiblePhysicianId, guarantorType, insuranceContext, specialtyCode,
+                        patientAgeAtEncounter, patientSexAtEncounter, sourceSystem, diagnoses,
+                        audit metapodaci, idempotencijski metapodaci, interna polja baze;
+                        nijedan drugi clan
+  ETag                  originalni odgovor kreiranja: ETag: "1"
+  replay                ista zatvorena sema; isti id; smije nositi tekuci kanonski status,
+                        version i ETag (OD-D085-7); nijedan dodatni clan
+```
+
 ## GET `/encounters`
 
 Permission: `encounter.read`.
