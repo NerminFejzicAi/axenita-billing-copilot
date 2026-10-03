@@ -37,3 +37,13 @@ export const AUDIT_RESOURCE_TYPE_PATIENT_REFERENCE = 'PATIENT_REFERENCE' as cons
 
 /** `audit_events.action` — the ONE action `P5-I4` writes. */
 export const AUDIT_ACTION_PATIENT_REFERENCE_CREATED = 'PATIENT_REFERENCE_CREATED' as const;
+
+/** `audit_events.resource_type` for `P5-I5B` (D-082 audit catalogue; D-085 `OD-D085-8`). */
+export const AUDIT_RESOURCE_TYPE_ENCOUNTER = 'ENCOUNTER' as const;
+
+/**
+ * `audit_events.action` — the ONE action `P5-I5B` writes, for a genuinely successful encounter
+ * creation only (D-085 `OD-D085-8`). Not for a replay, a validation failure or a rolled-back
+ * transaction.
+ */
+export const AUDIT_ACTION_ENCOUNTER_CREATED = 'ENCOUNTER_CREATED' as const;

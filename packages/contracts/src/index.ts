@@ -47,3 +47,8 @@ export { type PracticeResponseDto } from './practice-contract.js';
 export { type PracticeSettingsResponseDto } from './practice-settings-contract.js';
 
 export { type PatientReferenceResponseDto } from './patient-reference-contract.js';
+
+export {
+  type EncounterCreatedPatientDto,
+  type EncounterCreatedResponseDto,
+} from './encounter-contract.js';

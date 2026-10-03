@@ -73,6 +73,14 @@ export interface AuditEventInsert {
    */
   readonly metadata: JsonObject;
   /**
+   * `audit_events.new_value` — `jsonb`, nullable.
+   *
+   * `null` for `PATIENT_REFERENCE_CREATED`. For `ENCOUNTER_CREATED` exactly
+   * `{"status":"DRAFT","version":1}` (D-085 `OD-D085-8`), built by the audit writer from a closed
+   * shape so no caller can widen it.
+   */
+  readonly newValue: JsonObject | null;
+  /**
    * `SHA-256( UTF8( JCS( AUDIT_EVENT_HASH_PAYLOAD_V1 ) ) )` — 64 lowercase hex characters.
    *
    * Computed from the seventeen-key payload built out of the ten values above, and EXCLUDED from

@@ -32,14 +32,23 @@
 export const IDEMPOTENCY_ENDPOINT_POST_PATIENT_REFERENCES = 'POST /patient-references' as const;
 
 /**
+ * `POST /encounters`, the canonical `03` §4 spelling, byte for byte (`P5-I5B`; D-085
+ * `OD-D085-7`). Added under the standing rule of `OD-P5-I4C-1`; nothing else about the mechanism
+ * changes.
+ */
+export const IDEMPOTENCY_ENDPOINT_POST_ENCOUNTERS = 'POST /encounters' as const;
+
+/**
  * Every endpoint literal that currently has an implemented `Idempotency-Key` surface.
  *
- * `03` §4 lists nine mandatory surfaces; exactly one of them is implemented in this phase, so
- * exactly one literal exists here. The other eight are NOT pre-declared: a literal in this union
- * would advertise an idempotency scope for a route that does not exist, and the persisted
- * `endpoint` value of a future route is that route's slice to ratify, not this one's to guess.
+ * `03` §4 lists nine mandatory surfaces; exactly two of them are implemented so far
+ * (`P5-I4C`, `P5-I5B`), so exactly two literals exist here. The others are NOT pre-declared: a
+ * literal in this union would advertise an idempotency scope for a route that does not exist,
+ * and the persisted `endpoint` value of a future route is that route's slice to ratify, not this
+ * one's to guess.
  */
-export type IdempotencyEndpoint = typeof IDEMPOTENCY_ENDPOINT_POST_PATIENT_REFERENCES;
+export type IdempotencyEndpoint =
+  typeof IDEMPOTENCY_ENDPOINT_POST_PATIENT_REFERENCES | typeof IDEMPOTENCY_ENDPOINT_POST_ENCOUNTERS;
 
 /**
  * The canonical uniqueness scope of one idempotent command (`03` §4; `02` §15.2).

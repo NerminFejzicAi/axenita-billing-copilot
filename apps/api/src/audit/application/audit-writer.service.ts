@@ -15,11 +15,14 @@
  *
  * THE MINIMISATION IS STRUCTURAL, NOT PROCEDURAL
  *
- * `previous_value` and `new_value` are not parameters of {@link PatientReferenceCreatedEvent} and
- * are not written by the statement: they are fixed SQL `NULL` in the adapter and fixed `null` in
- * the hash payload. `metadata` is built HERE from a closed literal, so the caller cannot widen
- * it. The pseudonym, `birthYear`, `sexCode`, the external reference and its HMAC therefore have
- * no route into an audit row at all — there is no field to put them in (`04` §7.5a.3).
+ * `previous_value` and `new_value` are not parameters of {@link PatientReferenceCreatedEvent}:
+ * `previous_value` is fixed SQL `NULL` in the adapter, and this writer passes `new_value = null`
+ * for a patient reference, so both stay `null` in the row and in the hash payload. For an
+ * encounter, `new_value` is built HERE from the two members of the closed
+ * {@link EncounterCreatedEvent} and nothing else (D-085 `OD-D085-8`). `metadata` is built HERE
+ * from a closed literal, so the caller cannot widen it. The pseudonym, `birthYear`, `sexCode`,
+ * the external reference and its HMAC therefore have no route into an audit row at all — there
+ * is no field to put them in (`04` §7.5a.3).
  *
  * THE DIGEST IS TAKEN OVER THE PAYLOAD THAT DESCRIBES THE STORED ROW
  *
@@ -41,8 +44,10 @@ import { type AdmittedTenantSession } from '../../database/tenant-statement.js';
 import { eventSha256 } from '../../crypto/event-sha256.js';
 import { type JsonObject } from '../../crypto/json-canonicalizer.js';
 import {
+  AUDIT_ACTION_ENCOUNTER_CREATED,
   AUDIT_ACTION_PATIENT_REFERENCE_CREATED,
   AUDIT_ACTOR_TYPE_USER,
+  AUDIT_RESOURCE_TYPE_ENCOUNTER,
   AUDIT_RESOURCE_TYPE_PATIENT_REFERENCE,
 } from '../audit.constants.js';
 import { AuditDatabase } from '../infrastructure/audit.database.js';
@@ -55,6 +60,12 @@ import { AuditDatabase } from '../infrastructure/audit.database.js';
  * could only ever be wrong or wider. Frozen, so a caller cannot mutate the shared object either.
  */
 const PATIENT_REFERENCE_CREATED_METADATA: JsonObject = Object.freeze({ sourceSystem: 'MANUAL' });
+
+/**
+ * The complete `ENCOUNTER_CREATED` metadata — `{}` (D-085 `OD-D085-8`). Frozen, for the reason
+ * the patient-reference metadata is.
+ */
+const ENCOUNTER_CREATED_METADATA: JsonObject = Object.freeze({});
 
 /** Everything ONE successful patient-reference creation contributes to the audit trail. */
 export interface PatientReferenceCreatedEvent {
@@ -70,6 +81,29 @@ export interface PatientReferenceCreatedEvent {
   readonly occurredAt: Date;
   /** The `03` §3.5 correlation id, or `null` outside an HTTP request. */
   readonly requestId: string | null;
+}
+
+/**
+ * Everything ONE successful encounter creation contributes to the audit trail (D-085
+ * `OD-D085-8`).
+ *
+ * CLOSED. `status` and `version` are the ONLY business values, and they become `new_value`
+ * verbatim. There is no member for the patient reference, the responsible physician, the
+ * pseudonym, a diagnosis, an insurance field, the specialty, the patient's age or sex, either
+ * date, free text or a request snapshot — so none of them can reach an audit row.
+ */
+export interface EncounterCreatedEvent {
+  readonly id: string;
+  readonly practiceId: string;
+  readonly actorUserId: string;
+  /** The encounter that was just created. */
+  readonly resourceId: string;
+  readonly occurredAt: Date;
+  readonly requestId: string | null;
+  /** The persisted initial status — `DRAFT`. */
+  readonly status: string;
+  /** The persisted initial version — `1`. */
+  readonly version: number;
 }
 
 @Injectable()
@@ -123,10 +157,57 @@ export class AuditWriterService {
       resourceType: AUDIT_RESOURCE_TYPE_PATIENT_REFERENCE,
       resourceId: event.resourceId,
       requestId: event.requestId,
+      newValue: null,
       metadata: PATIENT_REFERENCE_CREATED_METADATA,
       // The SAME eleven values that were just written, canonicalised by the `P5-I4B` primitives
       // and hashed. The digest is computed from the payload rather than from the row object, so
       // the two cannot describe different events.
+      eventSha256: eventSha256(hashInput),
+    });
+  }
+
+  /**
+   * Appends the ONE audit row a successful encounter creation produces (D-085 `OD-D085-8`).
+   *
+   * `actor_type = USER`, `resource_type = ENCOUNTER`, `action = ENCOUNTER_CREATED`,
+   * `resource_id` = the encounter, `new_value` = exactly `{status, version}`, `metadata = {}`.
+   * Same transaction as the creation; a failure propagates and rolls the creation back.
+   */
+  public async recordEncounterCreated(
+    tenant: AdmittedTenantSession,
+    event: EncounterCreatedEvent,
+  ): Promise<void> {
+    // Built member by member from the closed event, never spread, so it holds exactly two keys.
+    const newValue: JsonObject = { status: event.status, version: event.version };
+
+    const hashInput = {
+      id: event.id,
+      practiceId: event.practiceId,
+      occurredAt: event.occurredAt,
+      actorType: AUDIT_ACTOR_TYPE_USER,
+      actorUserId: event.actorUserId,
+      actorService: null,
+      action: AUDIT_ACTION_ENCOUNTER_CREATED,
+      resourceType: AUDIT_RESOURCE_TYPE_ENCOUNTER,
+      resourceId: event.resourceId,
+      requestId: event.requestId,
+      previousValue: null,
+      newValue,
+      metadata: ENCOUNTER_CREATED_METADATA,
+    };
+
+    await this.auditEvents.append(tenant, {
+      id: event.id,
+      practiceId: event.practiceId,
+      occurredAt: event.occurredAt,
+      actorType: AUDIT_ACTOR_TYPE_USER,
+      actorUserId: event.actorUserId,
+      action: AUDIT_ACTION_ENCOUNTER_CREATED,
+      resourceType: AUDIT_RESOURCE_TYPE_ENCOUNTER,
+      resourceId: event.resourceId,
+      requestId: event.requestId,
+      newValue,
+      metadata: ENCOUNTER_CREATED_METADATA,
       eventSha256: eventSha256(hashInput),
     });
   }
