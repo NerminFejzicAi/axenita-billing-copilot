@@ -18236,6 +18236,329 @@ vlasničkog akta implementacijske autorizacije.**
 
 ---
 
+# D-084 — `P5-I5A` post-publikaciono pomirenje i formalno zatvaranje pod-gatea; pravilo vremena zatvaranja checklista za `P5-I5`
+
+- **Status:** vlasničke odluke `OD-D084-1` … `OD-D084-6` OWNER-RATIFIED — **LOCAL AUTHORING CANDIDATE /
+  NOT INDEPENDENTLY REVIEWED / NOT OWNER-ACCEPTED AS COMMIT / NOT PUBLISHED / NOT CANONICAL /
+  NOT EFFECTIVE**
+- **Datum:** 2026-10-03
+- **Tip:** vlasnički ratifikovan **governance zapis post-publikacionog pomirenja i formalnog
+  zatvaranja pod-gatea `P5-I5A`**, uz **prospektivno pravilo vremena zatvaranja checklista** za
+  pod-gateove `P5-I5`. **Dokumentacija isključivo.**
+- **Amandman na:** **isključivo tekuće statusne metapodatke** `P5-I5A` i **jednu kućicu** checklista
+  Faze 5 (`Services → state machine`). **Nijedan zapis D-001 … D-083 se ne prepisuje, ne prenumeriše
+  i ne briše — svi ostaju bajt-identični.**
+- **Ova odluka NE implementira ništa.** Ne uvodi nijednu liniju izvornog koda, nijedan test, nijednu
+  migraciju, schemu, Prisma model, API rutu, grant, rolu ni politiku. **Nijedna baza nije
+  kontaktirana** i **nijedan test se ovom odlukom ne izvršava.**
+- **Ova odluka mijenja TAČNO JEDNU kućicu:** `Services → state machine` `[ ]` → `[x]`. Checklist Faze 5
+  prelazi iz **`31 / 49`** u **`32 / 49`** — **isključivo u ovom lokalnom kandidatu**; kanonski
+  `origin/main` nosi **`31 / 49`** dok D-084 ne prođe vlastiti lifecycle.
+- **Ova odluka NE autorizuje `P5-I5B`, `P5-I5C` ni `P5-I5D`.**
+- **Ova odluka troši ISKLJUČIVO `D-084`.** `D-085` se ne troši, ne rezerviše i ne dodjeljuje.
+- **Lokalni authoring commit ove odluke NIJE kanonski ni efektivan.** Formalno zatvaranje `P5-I5A`
+  postaje efektivno tek nakon vlastitog lifecyclea D-084 (vidi `RULING B`).
+
+## Kontekst/problem — trigger
+
+Pod-gate `P5-I5A` (encounter domen / state machine, D-082 `OD-D082-7`; aritmetika D-083) je
+implementiran, nezavisno pregledan, vlasnički prihvaćen, objavljen kroz **PR #65** i merged na
+`origin/main` kao **`38976047ccb73736d964d693f377fc4aa047051e`**. Kanonski checklist Faze 5 ipak i dalje
+nosi `Services → state machine` kao neoznačen, a tekući statusni blokovi u `03`, `04`, `05`, `08` i `09`
+i dalje opisuju `P5-I5A` kao `NOT AUTHORIZED / NOT STARTED`. Za `P5-I5` dodatno nije bilo kanonski
+zapisano **kada** pod-gate smije prevesti kućice koje mu D-082 dodjeljuje: za `P5-I4` je važilo
+pravilo da pod-gate ne prevodi nijedan roditeljski red (D-076 … D-080), a sedamnaest redova je
+preveo tek roditeljski gate (D-081). Vlasnik je adjudicirao to pitanje za `P5-I5` i dodijelio
+`D-084` formalnom zatvaranju `P5-I5A`.
+
+## Kanonsko stanje ulaza ovog gatea
+
+```text
+repozitorij                  D:\AI\Arztpraxis
+origin                       NerminFejzicAi/axenita-billing-copilot
+kanonski main                38976047ccb73736d964d693f377fc4aa047051e
+HEAD tree                    8b741cb9bbf9ea250e604c2c2eaed36cb1e4e011
+zivi remote refs/heads/main  38976047ccb73736d964d693f377fc4aa047051e
+worktree                     CLEAN
+stash                        EMPTY
+
+MANIFEST                     19 / 19 MATCH
+checklist Faze 5             49 ukupno / 31 oznaceno / 18 neoznaceno   (~63.3 %)
+Services -> state machine    NEOZNACEN
+najnovija kanonska odluka    D-083
+D-082                        PUBLISHED / MERGED / CANONICAL / POST-PUBLICATION VERIFIED / EFFECTIVE
+D-083                        PUBLISHED / MERGED (PR #64, f70a1d7b...) / CANONICAL / EFFECTIVE
+D-084 prije ovog zapisa      OWNER-ASSIGNED / AUTHORING AUTHORIZED / UNCONSUMED / 0 heading pojavljivanja
+D-085                        UNCONSUMED / NOT RESERVED / NOT ASSIGNED / 0 heading pojavljivanja
+
+P5-I5                        IN_PROGRESS
+P5-I5A                       KANONSKA IMPLEMENTACIJA PRISUTNA / FUNKCIONALNO ZAVRSENA
+P5-I5B / P5-I5C / P5-I5D     NOT AUTHORIZED / NOT STARTED
+```
+
+**Kanonska implementacija `P5-I5A`:**
+
+```text
+implementacijski commit      ce219281ba28e2a521cc693a6ad53d19ec1187e7   feat: add encounter state machine
+merge commit (PR #65)        38976047ccb73736d964d693f377fc4aa047051e
+roditelji merge commita      f70a1d7b0a213c06c1032d919706ff6d459bb248 / ce219281ba28e2a521cc693a6ad53d19ec1187e7
+
+fajlovi
+  apps/api/src/encounter/domain/encounter-state-machine.ts
+  apps/api/src/encounter/domain/encounter-state-transition.error.ts
+  apps/api/src/encounter/domain/encounter-state-machine.spec.ts
+
+lifecycle   IMPLEMENTED / INDEPENDENTLY REVIEWED / OWNER-ACCEPTED / PUBLISHED / MERGED /
+            CANONICAL / POST-PUBLICATION VERIFIED / FUNCTIONALLY COMPLETE
+```
+
+Implementacija predstavlja kanonski graf od 15 ivica (`03` §29.1) jednom, označava **3** dosežne
+ivice Faze 5 (`03` §29.1a; D-083), drži *(kreiranje)* → `DRAFT` kao zasebnu inicijalizaciju i odbija
+svaki drugi uređeni par postojećim kodom `INVALID_STATE_TRANSITION`, uz table-driven iscrpne unit
+testove. **Nema repozitorija, perzistencije, rute, DTO-a, scheme ni zavisnosti.** Lifecycle
+činjenice iznad su **vlasnički utvrđene** (`OD-D084-2`); **ovaj gate ih ne ponavlja izvršavanjem
+testova.**
+
+## Odluka
+
+### `RULING A` — `OD-D084-1`: vrijeme zatvaranja checklista za `P5-I5`
+
+**Za `P5-I5` isključivo:** svaki pod-gate `P5-I5A` / `P5-I5B` / `P5-I5C` / `P5-I5D` zatvara **tačno one
+redove checklista Faze 5 koje mu kanonski D-082 (`OD-D082-7`) mapira** — ali **tek nakon** što je taj
+pod-gate prošao propisani lifecycle **do kanonske / post-publikacione verifikacije i formalnog
+zatvaranja**.
+
+```text
+P5-I5A   Services  state machine.                          1
+P5-I5B   API       POST encounter.                         1
+P5-I5C   Services  optimistic locking.
+         API       PATCH encounter.
+         Tests     stale ETag.                             3
+P5-I5D   API       cancel encounter.                       1
+ukupno                                                     6   (bez preklapanja)
+```
+
+- **Pravilo je prospektivno i važi isključivo za `P5-I5`.** **Precedent `P5-I2`, `P5-I3` i `P5-I4` se
+  NE mijenja retroaktivno** — posebno pravilo „pod-gate `P5-I4A` / `P5-I4B` / `P5-I4C` ne prevodi
+  nijedan roditeljski red" ostaje historijski tačno i mjerodavno za `P5-I4`.
+- **Mapiranje redova ostaje ono iz D-082**; D-084 ga ne mijenja, ne proširuje i ne sužava.
+- Dijeljeni / kasniji Faza-5 redovi (`Services → outbox base`, `Tests → cross-tenant FK`,
+  `Tests → no text in logs`) i redovi `P5-I6` / `P5-I7` **ne dobijaju nikakav novi put zatvaranja**.
+
+**Closure-owned red `P5-I5A` je tačno jedan:** `Services → state machine`. D-084 pravi **tačno jednu**
+tranziciju:
+
+```text
+[ ] Services -> state machine   ->   [x] Services -> state machine
+
+                         prije (kanonski)    poslije (D-084 kandidat)
+UKUPNO REDOVA (S6)       49                  49
+OZNACENO                 31                  32
+NEOZNACENO               18                  17
+FORMALNA ZAVRSENOST      31 / 49 ~= 63.3 %   32 / 49 ~= 65.3 %
+
+UNCHECKED_TO_CHECKED     = 1
+CHECKED_TO_UNCHECKED     = 0
+NEW_ROWS                 = 0
+DELETED_ROWS             = 0
+```
+
+**Preostalih pet `P5-I5` redova ostaje NEOZNAČENO:** `Services → optimistic locking`,
+`API → POST encounter`, `API → PATCH encounter`, `API → cancel encounter`, `Tests → stale ETag`.
+
+### `RULING B` — `OD-D084-2`: formalno zatvaranje `P5-I5A`
+
+Kanonska implementacija `38976047ccb73736d964d693f377fc4aa047051e` je već
+**IMPLEMENTED / INDEPENDENTLY REVIEWED / OWNER-ACCEPTED / PUBLISHED / MERGED / CANONICAL /
+POST-PUBLICATION VERIFIED / FUNCTIONALLY COMPLETE**. **D-084 formalno zatvara `P5-I5A`.**
+
+**Formalno zatvaranje nije odmah efektivno.** `P5-I5A` postaje
+**COMPLETE / VERIFIED / FORMALLY CLOSED / EFFECTIVE** tek nakon što D-084 sam prođe:
+
+```text
+autorstvo
+-> nezavisan pregled
+-> vlasnicko prihvatanje
+-> publikacijska autorizacija
+-> publikacija / merge
+-> post-publikaciona kanonska verifikacija
+```
+
+**Do tada je D-084 isključivo lokalni governance kandidat**, a kućica `Services → state machine` je
+označena **isključivo u tom kandidatu**.
+
+### `RULING C` — `OD-D084-3`: broj odluke
+
+`D-084` je dodijeljen **isključivo** post-publikacionom pomirenju i formalnom zatvaranju `P5-I5A`.
+
+```text
+prije uspjesnog lokalnog commita   D-084 = OWNER-ASSIGNED / AUTHORING AUTHORIZED / NOT CONSUMED
+nakon uspjesnog lokalnog commita   D-084 = CONSUMED BY LOCAL GOVERNANCE AUTHORSHIP /
+                                           NOT OWNER-ACCEPTED / NOT PUBLISHED /
+                                           NOT CANONICAL / NOT EFFECTIVE
+D-085                              UNCONSUMED / NOT RESERVED / NOT ASSIGNED
+```
+
+### `RULING D` — `OD-D084-4`: aditivno pomirenje
+
+Obuhvat zatvaranja je tačno: `03`, `04`, `05`, `06`, `08`, `09` i `MANIFEST.md`. Dozvoljene izmjene su
+**isključivo**: dodavanje ovog D-084 zapisa; aditivno pomirenje tekućeg statusa; dokaz formalnog
+zatvaranja `P5-I5A`; **tačno jedna** tranzicija kućice; ažuriranje veličine i SHA-256 u `MANIFEST.md`.
+**Tijela odluka D-001 … D-083 ostaju nepromijenjena** — uključujući aritmetiku D-082, authoring-time
+oznake D-083 i raniji jezik zatvaranja pod-gateova. D-084 **aditivno supersedira tekući status**.
+
+### `RULING E` — `OD-D084-5`: prenesene granice
+
+**D-084 NE razrješava i NE mijenja** sljedeće; one su ovdje **isključivo navedene kao prenesene**,
+**bez ijedne nove supstantivne odluke**:
+
+```text
+P5-I5B perzistencijska implementacija (repozitorijski/perzistencijski primitivi)
+EncounterStatus <-> Prisma compile-time vezivanje
+RI-naspram-RLS smjernica runtime timinga za P5-I5B
+mapiranje 422 odgovornog ljekara
+idempotencija kreiranja
+ENCOUNTER_CREATED audit
+P5-I5C
+P5-I5D
+L-4 ugovor razloga otkazivanja
+globalno odstupanje formattera
+sirovi NUL u permission-matrix
+request-hash vektor exports-retry
+D-OPEN-004a / D-OPEN-007 / D-OPEN-009
+```
+
+### `RULING F` — `OD-D084-6`: firewall podobnosti `P5-I5B`
+
+Nakon pune publikacije i post-publikacione verifikacije D-084:
+
+```text
+P5-I5A   FORMALLY CLOSED / EFFECTIVE
+P5-I5B   ELIGIBLE FOR FRESH AUTHORIZATION / PRE-EXECUTION CHECKPOINT
+P5-I5B   NOT AUTHORIZED / NOT STARTED
+```
+
+**Podobnost nije autorizacija.** `P5-I5B` traži svjež autorizacijski / pre-execution checkpoint nad
+kanonskom osnovom koja nosi efektivan D-084, pa tek onda **zaseban izričit vlasnički akt
+implementacijske autorizacije**. **`P5-I5C` i `P5-I5D` ostaju NOT AUTHORIZED / NOT STARTED**;
+`P5-I5D` dodatno ostaje pod L-4 firewallom (D-083, `OD-D083-3`).
+
+## Razmotrene i odbijene alternative
+
+- **Primijeniti `P5-I4` pravilo (pod-gate ne prevodi redove; sve prevodi roditelj)** — **odbijeno
+  vlasničkom odlukom `OD-D084-1`.** Šest `P5-I5` redova ima jednoznačno mapiranje bez preklapanja po
+  pod-gateovima, pa se zatvaranje veže za pod-gate koji red stvarno isporučuje.
+- **Retroaktivno primijeniti novo pravilo na `P5-I2` / `P5-I3` / `P5-I4`** — **odbijeno.** Precedent
+  ostaje historijski mjerodavan.
+- **Prepisati stare statusne blokove (`P5-I5A = NOT AUTHORIZED / NOT STARTED`, `D-083 = LOCALLY
+  AUTHORED`)** — **odbijeno.** Historijski su tačni; pomirenje je aditivno.
+- **Označiti kućicu bez formalnog zatvaranja** — **odbijeno.** Kućica prati formalno zatvaranje.
+
+## Posljedice — dokumentaciono pomirenje
+
+| Lokacija | Zahvat |
+|---|---|
+| `06` | dodat ovaj D-084 zapis nakon D-083; **D-001 … D-083 bajt-identični** |
+| `05` §6 | aditivna **D-084 closure anotacija** nakon D-083 anotacije; **tačno jedna** kućica `Services → state machine` `[ ]` → `[x]` |
+| `03` §4 | aditivna D-084 statusna anotacija nakon D-082 statusne anotacije; **nijedna API semantika se ne mijenja** |
+| `04` §7.5a | aditivna D-084 statusna anotacija nakon D-083 anotacije |
+| `08` §12.13 | aditivna D-084 anotacija dokaza zatvaranja `P5-I5A` |
+| `09` §12.2 | aditivna D-084 statusna anotacija; **tačke 1–11 i L-4 anotacija bajt-očuvane** |
+| `MANIFEST.md` | ponovo izračunati bajtovi i SHA-256 za izmijenjene dokumente; **19 redova ostaje 19** |
+
+Ranije formulacije `P5-I5A = NOT AUTHORIZED / NOT STARTED`, `D-083 = LOCALLY AUTHORED …`,
+`D-083 = UNCONSUMED / NOT RESERVED`, `CURRENT_CHECKLIST = 49 / 31` i `CHECKBOX TRANSITIONS = 0` u `03`,
+`04`, `05`, `08` i `09` opisuju **pred-D-084 stanje**, **historijski su tačne** i **ne prepisuju se**.
+
+**Nijedan drugi dokument se ne mijenja.** Sav izvorni kod, testovi, migracije, Prisma, SQL, grantovi,
+RLS politike, paketi, lockfile, CI i `.env.example` ostaju netaknuti.
+
+## Security/privacy uticaj
+
+- **Nijedan sigurnosni zahtjev se ne mijenja, ne slabi i ne uklanja.**
+- **`★` RI-naspram-RLS ostaje trajna regresija i HARD preduslov** preostalih `P5-I5` pod-gateova.
+- **Nijedan grant, nijedna RLS politika i nijedan predikat izolacije se ne dira.**
+
+## Migration/rollout
+
+**Nema.**
+
+```text
+PRISMA_SCHEMA_MUTATION_REQUIRED    = NO
+MIGRATION_REQUIRED                 = NO
+RLS_POLICY_MUTATION_REQUIRED       = NO
+GRANT_MUTATION_REQUIRED            = NO
+NEW_RUNTIME_DEPENDENCY_REQUIRED    = NO
+PUBLIC_API_ROUTE_MUTATION_REQUIRED = NO
+DATABASE_WRITER_REQUIRED           = NO
+HISTORICAL_RECORDS_REWRITTEN       = 0
+```
+
+## Test dokaz
+
+**Nijedan test se ovim zapisom ne piše, ne mijenja i ne izvršava.**
+
+```text
+TESTS WRITTEN IN THIS GATE   0
+TESTS RERUN IN THIS GATE     0
+```
+
+Dokaz `P5-I5A` (`08` §12.13) je dio kanonske implementacije `ce219281…` / `38976047…`: table-driven
+unit testovi nad cijelom mašinom stanja — 15 kanonskih ivica, inicijalizacija *(kreiranje)* → `DRAFT`
+van grafa, **3** dosežne ivice prolaze, **preostalih 12 od 15** → `INVALID_STATE_TRANSITION`. Njegova
+verifikacija je dio vlasnički utvrđenog lifecyclea `OD-D084-2`, ne ovog gatea.
+
+## Šta D-084 ne mijenja
+
+- **Ne mijenja kanonski graf od 15 tranzicija, aritmetiku D-083 ni segmentaciju D-082.**
+- **Ne mijenja nijednu rutu, metodu, payload, header, permisiju, statusni ni error kod.**
+- **Ne mijenja vlasništvo redova checklista** i **ne označava nijedan red osim `Services → state
+  machine`.**
+- **Ne autorizuje i ne započinje `P5-I5B`, `P5-I5C`, `P5-I5D`, `P5-I6` ni `P5-I7`.**
+- **Ne razrješava nijednu prenesenu granicu iz `RULING E`.**
+- **Ne prepisuje nijedan historijski zapis.** **`HISTORICAL_RECORDS_REWRITTEN = 0`.**
+
+## Otvorena pitanja koja D-084 ne zatvara
+
+- sve stavke `RULING E` — **prenesene, nepromijenjene**;
+- **L-4** — mora biti adjudicirano prije `P5-I5D` implementacijske autorizacije;
+- **`D-OPEN-004a`**, **`D-OPEN-007`**, **`D-OPEN-009`** — nepromijenjeni.
+
+## Zavisnosti
+
+- **D-082** — segmentacija `P5-I5A`–`P5-I5D` i mapiranje šest closure-owned redova.
+- **D-083** — aritmetika tranzicija `P5-I5A` i L-4 firewall.
+- **D-076 … D-081** — precedent `P5-I4` vremena zatvaranja, ovdje **neizmijenjen**.
+
+## Naredni obavezni gate
+
+**Nezavisan pregled lokalnog D-084 commita**, pa — tek nakon izričitog vlasničkog prihvatanja —
+zaseban publikacioni gate i post-publikaciona verifikacija.
+
+```text
+D-084 LOCALLY AUTHORED                   = YES
+D-084 OWNER RULINGS INCORPORATED         = YES
+D-084 INDEPENDENTLY REVIEWED             = NO
+D-084 OWNER-ACCEPTED AS COMMIT           = NO
+D-084 PUBLISHED / MERGED                 = NO
+D-084 CANONICAL                          = NO
+D-084 EFFECTIVE                          = NO
+
+P5-I5A    CANONICAL IMPLEMENTATION COMPLETE /
+          D-084 FORMAL CLOSURE CANDIDATE AUTHORED /
+          NOT YET FORMALLY CLOSED / NOT YET EFFECTIVE
+P5-I5     IN_PROGRESS
+P5-I5B    NOT AUTHORIZED / NOT STARTED   (podoban za svjez checkpoint tek nakon efektivnog D-084)
+P5-I5C    NOT AUTHORIZED / NOT STARTED
+P5-I5D    NOT AUTHORIZED / NOT STARTED
+D-085     UNCONSUMED / NOT RESERVED / NOT ASSIGNED
+
+CANONICAL CHECKLIST                      = 31 / 49
+D-084 LOCAL CANDIDATE CHECKLIST          = 32 / 49
+```
+
+---
+
 # Otvorene odluke
 
 ## D-OPEN-001 — Produkcijski OIDC provider

@@ -990,6 +990,22 @@ D-082    LOCALLY AUTHORED / NOT CANONICAL / NOT EFFECTIVE
 **`DEPENDENCY-SATISFIED != IMPLEMENTATION AUTHORIZED`.** Vidi D-082 u `06`, `04` §7.5a, `05` §6,
 `03` §4 i §4.1, i `08` §12.13.
 
+**STATUSNA ANOTACIJA (D-084, 2026-10-03) — sekcija, tačke 1–11 i L-4 anotacija iznad se NE
+prepisuju.** D-084 formalno zatvara pod-gate `P5-I5A` (encounter domen / state machine; kanonski kroz
+**PR #65**, `38976047…`). `P5-I5A` ne piše audit, ne perzistira `reason` i ne dodiruje sanitizer;
+**nijedan sigurnosni zahtjev ove sekcije se ne mijenja ni ne slabi**, a **L-4 ostaje `DEFERRED —
+MUST BE ADJUDICATED BEFORE P5-I5D IMPLEMENTATION AUTHORIZATION`**. Blok statusa iznad opisuje
+**pred-D-084 stanje** i **ne prepisuje se**.
+
+```text
+P5-I5A   CANONICAL IMPLEMENTATION COMPLETE / FORMALLY CLOSING UNDER D-084 /
+         NOT YET EFFECTIVE (tek po publikaciji i verifikaciji D-084)
+P5-I5    IN_PROGRESS
+P5-I5B / P5-I5C / P5-I5D   NOT AUTHORIZED / NOT STARTED
+```
+
+Vidi D-084 u `06`.
+
 ---
 
 

@@ -3061,6 +3061,34 @@ P5-I5 / P5-I5A / P5-I5B / P5-I5C / P5-I5D   NOT AUTHORIZED / NOT STARTED
 
 **D-083 NIJE implementacijska autorizacija** nijednog `P5-I5` pod-gatea. Vidi D-083 u `06`.
 
+#### Statusna anotacija (D-084) — blokovi iznad se NE prepisuju
+
+**D-084 je post-publikaciono pomirenje i formalno zatvaranje pod-gatea `P5-I5A`.** Kanonska
+implementacija (`ce219281…`, merged kroz **PR #65** kao **`38976047…`**) je funkcionalno završena i
+post-publikaciono verifikovana (`OD-D084-2`). Za `P5-I5` **prospektivno** važi (`OD-D084-1`): svaki
+pod-gate zatvara **tačno redove iz mapiranja iznad**, ali **tek nakon** kanonske /
+post-publikacione verifikacije i formalnog zatvaranja; **precedent `P5-I2` / `P5-I3` / `P5-I4` se ne
+mijenja**. Za `P5-I5A` to je **jedan** red: `Services → state machine`. Formulacije
+`P5-I5A … NOT AUTHORIZED / NOT STARTED` i `D-083 = LOCALLY AUTHORED …` iznad opisuju **pred-D-084
+stanje** i **ne prepisuju se**.
+
+```text
+D-084    LOCALLY AUTHORED / NOT CANONICAL / NOT EFFECTIVE
+P5-I5A   CANONICAL IMPLEMENTATION COMPLETE / FORMALLY CLOSING UNDER D-084 /
+         NOT YET EFFECTIVE (tek po publikaciji i verifikaciji D-084)
+P5-I5    IN_PROGRESS
+P5-I5B / P5-I5C / P5-I5D   NOT AUTHORIZED / NOT STARTED
+
+CANONICAL CHECKLIST              = 49 / 31
+D-084 LOCAL CANDIDATE CHECKLIST  = 49 / 32
+```
+
+**Repozitorijski/perzistencijski primitivi** iz reda `P5-I5A` tabele iznad nisu dio kanonske
+implementacije `P5-I5A` (domen isključivo) i **prenose se kao granica `P5-I5B`** (`OD-D084-5`) — bez
+ijedne nove supstantivne odluke o njihovom obliku. Nakon efektivnog D-084 `P5-I5B` postaje
+**isključivo podoban za svjež autorizacijski / pre-execution checkpoint** — **ne autorizovan**. Vidi
+D-084 u `06`.
+
 
 ### Segmentacija `P5-I2` na četiri pod-gatea (D-064)
 

@@ -754,6 +754,24 @@ izvesti svjež `P5-I5` autorizacijski / pre-execution checkpoint**; tek nakon nj
 zaseban izričit vlasnički akt implementacijske autorizacije. Vidi D-082 u `06`, `04` §7.5a, `05` §6,
 `08` §12.13 i `09` §12.2.
 
+**STATUSNA ANOTACIJA (D-084, 2026-10-03) — sekcija i anotacije iznad se NE prepisuju.** D-084 je
+post-publikaciono pomirenje i formalno zatvaranje pod-gatea `P5-I5A` (encounter domen / state
+machine, kanonski kroz **PR #65**, `38976047…`). **Nijedna ruta, metoda, payload, header, permisija,
+statusni ni error kod se ne mijenja**; zamrznuti katalog §8 ostaje nepromijenjen. Formulacije
+`P5-I5A … NOT AUTHORIZED / NOT STARTED`, `D-082 = LOCALLY AUTHORED …` i `D-083 = UNCONSUMED / NOT
+RESERVED` iznad opisuju **pred-D-084 stanje**, **historijski su tačne** i **ne prepisuju se**.
+
+```text
+P5-I5A   CANONICAL IMPLEMENTATION COMPLETE / FORMALLY CLOSING UNDER D-084 /
+         NOT YET EFFECTIVE (tek po publikaciji i verifikaciji D-084)
+P5-I5    IN_PROGRESS
+P5-I5B / P5-I5C / P5-I5D   NOT AUTHORIZED / NOT STARTED
+API SEMANTIC MUTATION      = 0
+```
+
+Nakon efektivnog D-084 `P5-I5B` (`POST /api/v1/encounters`) postaje **isključivo podoban za svjež
+autorizacijski / pre-execution checkpoint** — **ne autorizovan**. Vidi D-084 u `06`.
+
 
 ---
 

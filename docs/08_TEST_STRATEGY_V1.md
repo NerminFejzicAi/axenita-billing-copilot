@@ -2100,6 +2100,30 @@ tačne** i **ne prepisuju se**. **Tekuće kanonsko stanje je `49 / 31` (31 ozna�
 **Ovo je ugovor dokaza, ne izvršenje dokaza.** Vidi D-082 u `06`, `04` §7.5a, `05` §6, `03` §4 i
 §4.1, i `09` §12.2.
 
+### Anotacija zatvaranja `P5-I5A` (D-084, 2026-10-03) — sekcija iznad se NE prepisuje
+
+Dokaz mašine stanja `P5-I5A` je dio kanonske implementacije (`ce219281…`, merged kroz **PR #65** kao
+**`38976047…`**): table-driven unit testovi u
+`apps/api/src/encounter/domain/encounter-state-machine.spec.ts` — 15 kanonskih ivica predstavljeno,
+inicijalizacija *(kreiranje)* → `DRAFT` van grafa, **3** dosežne ivice prolaze, **preostalih 12 od
+15** → `INVALID_STATE_TRANSITION`. Njegova verifikacija pripada vlasnički utvrđenom lifecycleu
+(`OD-D084-2`); **D-084 ne piše, ne mijenja i ne izvršava nijedan test.** Dokazne obaveze `P5-I5B` …
+`P5-I5D` iznad ostaju **neizvršene i nepromijenjene**; repozitorijski/perzistencijski primitivi iz
+stavke `P5-I5A` iznad **prenose se kao granica `P5-I5B`** (`OD-D084-5`). Formulacije
+`P5-I5A … NOT AUTHORIZED / NOT STARTED` i `CHECKBOX TRANSITIONS = 0` iznad opisuju **pred-D-084
+stanje** i **ne prepisuju se**.
+
+```text
+TESTS WRITTEN IN THIS GATE   0
+TESTS RERUN IN THIS GATE     0
+P5-I5A   CANONICAL IMPLEMENTATION COMPLETE / FORMALLY CLOSING UNDER D-084 / NOT YET EFFECTIVE
+P5-I5    IN_PROGRESS
+P5-I5B / P5-I5C / P5-I5D   NOT AUTHORIZED / NOT STARTED
+CHECKBOX TRANSITIONS (D-084 kandidat) = 1   (Services -> state machine)
+```
+
+Vidi D-084 u `06`.
+
 ---
 
 
