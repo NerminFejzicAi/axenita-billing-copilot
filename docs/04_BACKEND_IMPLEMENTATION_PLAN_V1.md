@@ -1292,7 +1292,7 @@ autorizaciju daje zaseban gate `P5-I0`, i on autorizuje **isključivo `P5-I1`**.
 | `P5-I2` | **Faza-5 slice paketa `011`** (`idempotency_keys`, `audit_events`) — **odgođen iz `P5-I1` odlukom D-063** i vezan uz sigurnosnu granicu; Faza-5 slice paketa `013` i `014`; trajna negative-privilege regresija; **`★` dokaz iz §7.6a** | `P5-I1` |
 | `P5-I3` | Kripto/HMAC/normalizacijski primitivi — **bez baze, paralelizabilno** | — |
 | `P5-I4` | Servis i rute `patient_references` | `P5-I2`, `P5-I3` |
-| `P5-I5` | **Encounter jezgro** — table-driven state machine nad svih 15 tranzicija, 4 dosežne | `P5-I2` **uključujući `★`**, `P5-I3`, `P5-I4` |
+| `P5-I5` | **Encounter jezgro** — table-driven state machine nad svih 15 tranzicija; kreiranje + 3 od 15 dosežne, 12 zabranjeno (D-083) | `P5-I2` **uključujući `★`**, `P5-I3`, `P5-I4` |
 | `P5-I6` | Ručni unos dokumenta i redakcija | `P5-I3`, `P5-I5` |
 | `P5-I7` | Čitanje, lista, filteri, arhiva | `P5-I5`, `P5-I6` |
 | `P5-I8` | Integracijsko i sigurnosno zatvaranje Faze 5 | sve |
@@ -2970,7 +2970,7 @@ greška**; **zamjenski sadržaj se ne proizvodi**. Puni ugovor je u `09` §12.2.
 
 | Pod-gate | Obuhvat | Zavisi od |
 |---|---|---|
-| **`P5-I5A`** | **Encounter domen / state machine** — table-driven mašina stanja; **svih 15 kanonskih tranzicija** predstavljeno; **četiri dosežne** tranzicije Faze 5; **zabranjene tranzicije eksplicitno enforce-ovane**; repozitorijski/perzistencijski primitivi za kasnije encounter komande; **bez implementacije endpointa** izvan strogo nužnog za izolovan dokaz | efektivan `P5-I4` |
+| **`P5-I5A`** | **Encounter domen / state machine** — table-driven mašina stanja; **svih 15 kanonskih tranzicija** predstavljeno; inicijalizacija *(kreiranje)* → `DRAFT` plus **tri dosežne** kanonske tranzicije Faze 5; **preostalih 12 od 15 zabranjenih** tranzicija eksplicitno enforce-ovano (D-083); repozitorijski/perzistencijski primitivi za kasnije encounter komande; **bez implementacije endpointa** izvan strogo nužnog za izolovan dokaz | efektivan `P5-I4` |
 | **`P5-I5B`** | **Encounter create** — `POST /api/v1/encounters`; composite-FK ponašanje odgovornog ljekara; internal-error granica za cross-tenant/nepostojeći `patientReferenceId`; konzumacija `P5-I4` idempotencije; `ENCOUNTER_CREATED` audit; create-specifičan negativni/sigurnosni dokaz | `P5-I5A` |
 | **`P5-I5C`** | **Encounter PATCH / optimistička konkurencija** — `PATCH /api/v1/encounters/{encounterId}`; tačan patch allowlist; atomičan optimistički `UPDATE`; `If-Match`; nula redova → `409 VERSION_CONFLICT` **bez diskriminirajućeg pre-reada**; revalidacija odgovornog ljekara; `ENCOUNTER_UPDATED` audit; dokaz zastarjelog `ETag`-a | `P5-I5B` |
 | **`P5-I5D`** | **Encounter cancel** — `POST /api/v1/encounters/{encounterId}/cancel`; race-free `409` naspram `404`; **obavezan `Idempotency-Key`**; minimalno unazad-kompatibilno proširenje idempotency servisa **ako se pokaže nužnim**; sanitizacija razloga otkazivanja; `ENCOUNTER_CANCELLED` audit; **bez opšteg existence oraclea** | `P5-I5C` |
@@ -3034,6 +3034,32 @@ NEXT LIFECYCLE GATE = INDEPENDENT REVIEW OF LOCAL D-082 COMMIT
 ```
 
 Vidi D-082 u `06`, `05` §6, `03` §4 i §4.1, `08` §12.13 i `09` §12.2.
+
+#### Statusna anotacija (D-083) — blok iznad se NE prepisuje
+
+**D-083 je isključivo aritmetičko/kategorijsko pojašnjenje `P5-I5A` i zapis L-4 firewalla.**
+*(kreiranje)* → `DRAFT` je **inicijalizacija encountera, nije ivica** kanonskog grafa od 15 tranzicija.
+U Fazi 5 je dosežno **kreiranje + 3 od 15** kanonskih ivica, a **preostalih 12 od 15** je zabranjeno
+(`OD-D083-1`; `03` §29.1a). **Graf, dosežne ivice, ponašanje, segmentacija i redoslijed
+`P5-I5A` → `P5-I5B` → `P5-I5C` → `P5-I5D` ostaju nepromijenjeni.**
+
+**L-4 (`OD-D083-3`):** konkretan required/optional i max-length ugovor za `reason` encounter cancel
+komande **nije zamrznut**. To **ne blokira `P5-I5A`**, a ni `P5-I5B` / `P5-I5C` osim ako kasniji dokaz
+pokaže direktnu zavisnost; **`P5-I5D` ne smije dobiti implementacijsku autorizaciju dok taj ugovor
+zasebno ne adjudicira vlasnik.** D-083 taj ugovor **ne definiše**.
+
+```text
+D-082    PUBLISHED / MERGED / CANONICAL / POST-PUBLICATION VERIFIED / EFFECTIVE
+D-083    LOCALLY AUTHORED / NOT INDEPENDENTLY REVIEWED / NOT OWNER-ACCEPTED AS COMMIT /
+         NOT PUBLISHED / NOT CANONICAL / NOT EFFECTIVE
+
+P5-I5A   kreiranje + 3 od 15 dosezne / preostalih 12 od 15 zabranjeno   (3 + 12 = 15)
+L-4      DEFERRED - MUST BE ADJUDICATED BEFORE P5-I5D IMPLEMENTATION AUTHORIZATION
+
+P5-I5 / P5-I5A / P5-I5B / P5-I5C / P5-I5D   NOT AUTHORIZED / NOT STARTED
+```
+
+**D-083 NIJE implementacijska autorizacija** nijednog `P5-I5` pod-gatea. Vidi D-083 u `06`.
 
 
 ### Segmentacija `P5-I2` na četiri pod-gatea (D-064)
@@ -3218,8 +3244,8 @@ steady-state dokazi `phase5-schema-catalogue.security.ts`,
   (već `READY_FOR_ANALYSIS` je **no-op, ne greška**), **bez `version` inkrementa**, uz vlastiti
   audit događaj `ENCOUNTER_READY_FOR_ANALYSIS`; unos dokumenta se **odbija pri `CANCELLED`** →
   `409 INVALID_STATE_TRANSITION`;
-- **svih 15 kanonskih tranzicija je pokriveno table-driven testom**: 4 dosežne prolaze, preostalih
-  **11 daje `409 INVALID_STATE_TRANSITION`** — eksplicitno zabranjene, ne prećutno odsutne;
+- **svih 15 kanonskih tranzicija je pokriveno table-driven testom**: inicijalizacija → `DRAFT` i
+  3 dosežne prolaze, preostalih **12 od 15 daje `409 INVALID_STATE_TRANSITION`** (D-083) — eksplicitno zabranjene, ne prećutno odsutne;
 - **cross-practice dodjela odgovornog ljekara daje `422`, i neuspjeh nastaje u bazi**, ne u
   aplikacijskoj validaciji;
 - **`★` RI-naspram-RLS dokaz iz §7.6a prolazi prije `P5-I5`**;

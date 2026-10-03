@@ -474,10 +474,11 @@ stateDiagram-v2
     CLOSED --> [*]
 ```
 
-## 12.0 Dosežni podskup Faze 5 (D-062, Dio F; `03` §29.1a)
+## 12.0 Dosežni podskup Faze 5 (D-062, Dio F; D-083; `03` §29.1a)
 
-Dijagram iznad je **kompletan kanonski graf** i **ne mijenja se**. U **Fazi 5** dosežne su
-**tačno četiri** tranzicije, jer Faza 5 nema analizu, approval ni export rute:
+Dijagram iznad je **kompletan kanonski graf** i **ne mijenja se**. U **Fazi 5** dosežni su
+inicijalizacija *(kreiranje)* → `DRAFT` — **koja nije ivica grafa** — i **tačno 3 od 15** kanonskih
+tranzicija (D-083), jer Faza 5 nema analizu, approval ni export rute:
 
 ```mermaid
 stateDiagram-v2
@@ -489,8 +490,8 @@ stateDiagram-v2
 ```
 
 **Nedosežno u Fazi 5:** `ANALYSIS_IN_PROGRESS`, `REVIEW_REQUIRED`, `APPROVED`, `EXPORT_PENDING`,
-`EXPORTED`, `CLOSED`. **Preostalih 11 tranzicija mora biti implementirano kao eksplicitno
-zabranjeno** → `409 INVALID_STATE_TRANSITION`, a ne prećutno odsutno.
+`EXPORTED`, `CLOSED`. **Preostalih 12 od 15 kanonskih tranzicija mora biti implementirano kao
+eksplicitno zabranjeno** → `409 INVALID_STATE_TRANSITION`, a ne prećutno odsutno.
 
 **Kaskada iz §12.1 nije dosežna u Fazi 5** — zahtijeva `analysis_runs` (paket `005`, Faza 7).
 
