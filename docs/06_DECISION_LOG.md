@@ -17442,22 +17442,44 @@ odluka izričito promijeni. Ovo je **doslovno očuvanje** D-064 stava da značen
 **`Services → redaction` i redovi document API/audita ostaju izvan `P5-I5`** prema postojećem
 governanceu; `Services → redaction` ostaje u vlasništvu **`P5-I6`**.
 
-**Pomirenje modela vlasništva nad osamnaest neoznačenih redova — bez ijedne promjene kućice:**
+**Model vlasništva nad osamnaest neoznačenih redova — bez ijedne promjene kućice (sužen
+korekcijom nakon nezavisnog pregleda, `OD-D082-REVIEW-2` / `OD-D082-REVIEW-3`):**
 
 ```text
-P5-I5                              6   state machine / optimistic locking /
-                                       POST encounter / PATCH encounter /
-                                       cancel encounter / stale ETag
-P5-I6                              6   redaction / POST text document /
-                                       read redacted / read original permission /
-                                       archive / document read audit
-P5-I7                              3   GET encounter list / GET encounter detail /
-                                       list documents
-dijeljeni / kasniji Faza-5 obuhvat  3   outbox base / cross-tenant FK / no text in logs
-ukupno                            18
+P5-I5 — definitivno (OD-D082-4)              6   state machine / optimistic locking /
+                                                 POST encounter / PATCH encounter /
+                                                 cancel encounter / stale ETag
+P5-I7 — definitivno (OD-D082-4)                  GET encounter list / GET encounter detail
+P5-I6 — definitivno (postojeći governance)       redaction
+dijeljeni / kasniji Faza-5 obuhvat               outbox base / cross-tenant FK / no text in logs
+P5-I6 / P5-I7 — NOT ADJUDICATED BY D-082         POST text document / list documents /
+                                                 read redacted / read original permission /
+                                                 archive / document read audit
+ukupno                                      18
 
-CHECKBOX_TRANSITIONS               = 0
+CHECKBOX_TRANSITIONS                        = 0
 ```
+
+**D-082 NE adjudicira raspodjelu šest document redova između `P5-I6` i `P5-I7`.** D-082 zamrzava
+isključivo vlasništvo koje je ili izričito vlasnički ratifikovano kroz `OD-D082`, ili je bilo
+definitivno kanonsko prije D-082. Status redova `API → POST text document`, `API → list documents`,
+`API → read redacted`, `API → read original permission`, `API → archive` i
+`Tests → document read audit` je **`P5-I6 / P5-I7 — NOT ADJUDICATED BY D-082`**; tačna raspodjela
+pripada odgovarajućem budućem authorization/governance gateu.
+
+**D-082 ne dodjeljuje `archive` → `P5-I6`.** Postojeći kanonski tematski obim `04` §7.5 stavlja
+„Čitanje, lista, filteri, arhiva" pod `P5-I7`; D-082 tome ne protivreči, ali ga **ne** koristi da
+nove document redove adjudicira u `P5-I7`. D-082 **ne uvodi** zamjenske agregatne brojeve za `P5-I6`
+/ `P5-I7` kao normativni ugovor. Historijski D-081 agregat (`P5-I5` 6, `P5-I6` 6, `P5-I7` 3,
+dijeljeni 3) ostaje kvalifikovan kao očekivana pripadnost iz preflighta, bez adjudikacije, i D-082 ga
+**ne** pretvara u definitivnu raspodjelu po redovima.
+
+**Korekcija nakon nezavisnog pregleda (`OD-D082-REVIEW-1` … `OD-D082-REVIEW-4`, vlasnički
+ratifikovano).** Ovaj model vlasništva je sužen drugim lokalnim commitom istog D-082 kandidata, bez
+amendmenta originalnog commita `6772f2a6f1c02589ca9e2197b4bf22e85d297576`. Korekcija mijenja
+isključivo formulaciju vlasništva budućih slice-ova (`L-1`, `L-2`); supstanca `OD-D082-1`, `-2`,
+`-3`, `-5`, `-6`, `-7` i `-8`, šest closure-owned redova `P5-I5` i segmentacija `P5-I5A` → `P5-I5B`
+→ `P5-I5C` → `P5-I5D` ostaju nepromijenjeni. Ne troši se novi D-broj; `D-083` ostaje netaknut.
 
 **Svih šest redova `P5-I5` ostaje NEOZNAČENO.** Dokumentovanje vlasništva **nije** dokaz izvršenja.
 

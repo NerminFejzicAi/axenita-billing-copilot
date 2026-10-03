@@ -4718,20 +4718,29 @@ njihovim kućicama ostaje izvan šestočlanog closure skupa `P5-I5`**, osim ako 
 odluka izričito promijeni — doslovno očuvanje D-064 stava za `Tests → cross-tenant FK`.
 **`Services → redaction` ostaje neoznačen i u vlasništvu `P5-I6`.**
 
-**Model vlasništva nad osamnaest neoznačenih redova — pomiren, bez ijedne promjene kućice:**
+**Model vlasništva nad osamnaest neoznačenih redova — bez ijedne promjene kućice (sužen
+korekcijom nakon nezavisnog pregleda, `OD-D082-REVIEW-2` / `OD-D082-REVIEW-3`):**
 
 ```text
-P5-I5                              6   state machine / optimistic locking /
-                                       POST encounter / PATCH encounter /
-                                       cancel encounter / stale ETag
-P5-I6                              6   redaction / POST text document /
-                                       read redacted / read original permission /
-                                       archive / document read audit
-P5-I7                              3   GET encounter list / GET encounter detail /
-                                       list documents
-dijeljeni / kasniji Faza-5 obuhvat  3   outbox base / cross-tenant FK / no text in logs
-ukupno                            18
+P5-I5 — definitivno (OD-D082-4)              6   state machine / optimistic locking /
+                                                 POST encounter / PATCH encounter /
+                                                 cancel encounter / stale ETag
+P5-I7 — definitivno (OD-D082-4)                  GET encounter list / GET encounter detail
+P5-I6 — definitivno (postojeći governance)       redaction
+dijeljeni / kasniji Faza-5 obuhvat               outbox base / cross-tenant FK / no text in logs
+P5-I6 / P5-I7 — NOT ADJUDICATED BY D-082         POST text document / list documents /
+                                                 read redacted / read original permission /
+                                                 archive / document read audit
+ukupno                                      18
 ```
+
+**D-082 NE adjudicira raspodjelu šest document redova između `P5-I6` i `P5-I7`.** Njihov status je
+**`P5-I6 / P5-I7 — NOT ADJUDICATED BY D-082`**; tačna raspodjela pripada odgovarajućem budućem
+authorization/governance gateu. **D-082 ne dodjeljuje `archive` → `P5-I6`** i ne protivreči
+postojećem tematskom obimu `04` §7.5 („Čitanje, lista, filteri, arhiva" pod `P5-I7`), ali ga ni ne
+pretvara u row-level adjudikaciju. D-082 ne uvodi zamjenske agregatne brojeve za `P5-I6` / `P5-I7`.
+Historijski D-081 agregat (`6 / 6 / 3 / 3`) ostaje kvalifikovan kao očekivana pripadnost iz
+preflighta, bez adjudikacije, i D-082 ga **ne** pretvara u definitivnu raspodjelu po redovima.
 
 **Segmentacija `P5-I5` (`OD-D082-7`) i mapiranje na ovih šest redova:**
 
