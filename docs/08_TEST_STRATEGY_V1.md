@@ -2193,6 +2193,37 @@ TESTS RERUN IN THIS GATE     0
 CHECKBOX TRANSITIONS         0
 ```
 
+### Anotacija zatvaranja `P5-I5B` (D-086, 2026-10-04) — sekcije iznad se NE prepisuju
+
+Dokaz `P5-I5B` je dio kanonske implementacije (`59299b0a…`, merged kroz **PR #68** kao
+**`8c465c32…`**, tree `84b3b64c…`) — između ostalog `apps/api/test/phase5-encounter-create.security.ts`,
+`apps/api/test/encounter-create.e2e-spec.ts` i unit testovi pod `apps/api/src/encounter/**`, uz
+**neizmijenjen** trajni `apps/api/test/phase5-responsible-physician-ri.security.ts`. **Tačan kanonski
+tree već nosi dovoljan test / sigurnosni dokaz** za dokazne obaveze `P5-I5B` iznad (D-082 stavka +
+D-085 anotacija i korektivni dodatak); njegova verifikacija pripada vlasnički utvrđenom lifecycleu
+(`OD-D086-1`). **D-086 ne piše, ne mijenja i ne izvršava nijedan test** i **ne dodaje nijednu novu
+testnu obavezu koja bi ponovo otvorila `P5-I5B`**. Nalazi prihvaćeni AS-IS (`OD-D086-5`) — uključujući
+empirijski `500` kada su oba FK-a nevaljana — ne stvaraju novi runtime ugovor.
+
+**Buduća obaveza `P5-I5C` (`OD-D086-4`) ostaje očuvana:** stavka replaya iznad („replay nakon kasnije
+promjene stanja … dokazivo kada `P5-I5C`/`P5-I5D` postoje") se ne mijenja; ako `P5-I5C` dozvoli
+`PATCH` polja `201` projekcije (posebno `occurredAt`, `treatmentDate`), checkpoint `P5-I5C` mora
+izričito adjudicirati semantiku rekonstrukcije replaya za ta polja, a njegovi testovi je dokazati —
+`DEFERRED TO P5-I5C / NON-BLOCKING FOR P5-I5B / NOT AUTHORIZED BY D-086`. Formulacije
+`P5-I5B … NOT AUTHORIZED FOR MUTATION / NOT STARTED` i `CHECKBOX TRANSITIONS 0` iznad opisuju
+**pred-D-086 stanje** i **ne prepisuju se**.
+
+```text
+TESTS WRITTEN IN THIS GATE   0
+TESTS RERUN IN THIS GATE     0
+P5-I5B   CANONICAL / POST-PUBLICATION VERIFIED / FORMALLY CLOSING UNDER D-086 / NOT YET EFFECTIVE
+P5-I5C   NOT AUTHORIZED / NOT STARTED
+P5-I5D   NOT AUTHORIZED / NOT STARTED / BEHIND L-4
+CHECKBOX TRANSITIONS (D-086 kandidat) = 1   (API -> POST encounter)
+```
+
+Vidi D-086 u `06`.
+
 ---
 
 
