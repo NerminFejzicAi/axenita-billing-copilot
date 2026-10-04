@@ -1072,6 +1072,30 @@ P5-I5D   NOT AUTHORIZED / NOT STARTED / BEHIND L-4
 
 Vidi D-087 u `06`.
 
+**STATUSNA ANOTACIJA (D-088, 2026-10-04) — sekcija, tačke 1–11 i anotacije iznad se NE prepisuju.**
+D-088 formalno zatvara pod-gate `P5-I5C` (PATCH Encounter / optimistička konkurencija; kanonski kroz
+**PR #71**, `ce9e644c…`). **Sigurnosni dokaz `P5-I5C` je prihvaćen** (bez existence / state oraclea —
+isti `409 VERSION_CONFLICT` za nepostojeći / nevidljiv / zastario encounter; minimizovan
+`ENCOUNTER_UPDATED` audit; malformiran `encounterId` bez pristupa bazi i bez echo-a; usko
+`encounters_responsible_physician_membership_fk` → `422`; negativan dokaz privilegije zabranjene
+kolone; `★` RI-naspram-RLS neizmijenjen); **nema preostalog sigurnosnog blokatora `P5-I5C`**. Audit
+`previous_value` se veže **posljednji**, pa raniji pozivaoci ostaju ponašajno nepromijenjeni i i dalje
+upisuju SQL `NULL` (`F-1`, `FIXED`). `F-3` (Problem Details `instance` / `requestId` po D-075; sadržaj
+rute ne echo-uje malformiranu vrijednost) i `F-4` (serverska poruka nije vidljiva klijentu) su
+prihvaćeni AS-IS bez sigurnosnog uticaja. **Nijedan sigurnosni zahtjev ove sekcije se ne mijenja ni ne
+slabi**, a **L-4 ostaje `DEFERRED — MUST BE ADJUDICATED BEFORE P5-I5D IMPLEMENTATION AUTHORIZATION`**;
+D-088 ne definiše semantiku razloga otkazivanja i ne autorizuje cancel. Blok statusa D-087 iznad
+opisuje **pred-D-088 stanje** i **ne prepisuje se**.
+
+```text
+D-088    LOCALLY AUTHORED / NOT CANONICAL / NOT EFFECTIVE
+P5-I5C   CANONICAL / POST-PUBLICATION VERIFIED / FORMALLY CLOSING UNDER D-088 / NOT YET EFFECTIVE
+P5-I5D   NOT AUTHORIZED / NOT STARTED / BEHIND L-4
+NEXT REQUIRED GATE (P5-I5D)   L-4 OWNER ADJUDICATION
+```
+
+Vidi D-088 u `06`.
+
 ---
 
 

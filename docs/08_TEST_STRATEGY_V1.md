@@ -2271,6 +2271,38 @@ CHECKBOX TRANSITIONS (D-087 kandidat) = 0
 Formulacija `P5-I5C … NOT AUTHORIZED / NOT STARTED` iznad opisuje **pred-D-087 stanje** i **ne
 prepisuje se**. Vidi D-087 u `06`.
 
+### Anotacija zatvaranja `P5-I5C` (D-088, 2026-10-04) — sekcije iznad se NE prepisuju
+
+Dokaz `P5-I5C` je dio kanonske implementacije (`cf7b07a9…`, merged kroz **PR #71** kao
+**`ce9e644c…`**, tree `1b96877b…`) — između ostalog `apps/api/test/phase5-encounter-patch.security.ts`,
+`apps/api/test/encounter-patch.e2e-spec.ts`, pomireni `apps/api/test/phase5-encounter-create.security.ts`
+i `apps/api/test/encounter-create.e2e-spec.ts` (`N-1`: dokaz odsutnosti `PATCH` rute pomiren; dokaz
+odsutnosti `GET` list/detail i cancel očuvan) te unit testovi pod `apps/api/src/encounter/**` i
+`apps/api/src/audit/**`, uz **neizmijenjen** trajni
+`apps/api/test/phase5-responsible-physician-ri.security.ts`. **Tačan kanonski tree već nosi dovoljan
+test / sigurnosni dokaz** za dokazne obaveze `P5-I5C` iznad (D-082 stavka + D-087 anotacija; D-087
+`RULING J`); njegova verifikacija pripada vlasnički utvrđenom lifecycleu. **D-088 ne piše, ne mijenja
+i ne izvršava nijedan test** i **ne dodaje nijednu novu testnu obavezu koja bi ponovo otvorila
+`P5-I5C`**.
+
+**Replay carry-forward `OD-D086-4` (stavka iznad u D-086 anotaciji) je `DISCHARGED / RESOLVED`:**
+kanonski test dokazuje da replay `POST`-a nakon `PATCH`-a vraća tekuću reprezentaciju encountera
+(`OD-P5-I5C-1`). Nalazi prihvaćeni AS-IS (`F-2` clock skew, `F-3` no-echo, `I-3` sub-milisekundni
+`occurredAt` i dr.; D-088 `RULING C`) ne stvaraju novi runtime ugovor ni novu testnu obavezu.
+Formulacije `P5-I5C … NOT AUTHORIZED FOR MUTATION / NOT STARTED` i `CHECKBOX TRANSITIONS (D-087
+kandidat) = 0` iznad opisuju **pred-D-088 stanje** i **ne prepisuju se**.
+
+```text
+TESTS WRITTEN IN THIS GATE   0
+TESTS RERUN IN THIS GATE     0
+P5-I5C   CANONICAL / POST-PUBLICATION VERIFIED / FORMALLY CLOSING UNDER D-088 / NOT YET EFFECTIVE
+P5-I5D   NOT AUTHORIZED / NOT STARTED / BEHIND L-4
+CHECKBOX TRANSITIONS (D-088 kandidat) = 3   (Services -> optimistic locking; API -> PATCH encounter;
+                                             Tests -> stale ETag)
+```
+
+Vidi D-088 u `06`.
+
 ---
 
 
