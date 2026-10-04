@@ -2303,6 +2303,57 @@ CHECKBOX TRANSITIONS (D-088 kandidat) = 3   (Services -> optimistic locking; API
 
 Vidi D-088 u `06`.
 
+### Testne obaveze `P5-I5D` — zamrznute (D-089, 2026-10-05) — sekcije iznad se NE prepisuju
+
+D-088 je efektivan (PR #72, `be01969…`); `P5-I5C` je `FORMALLY CLOSED / EFFECTIVE`. D-089 zamrzava
+ugovor `P5-I5D` (`03` §12; `09` §12.2) i **dopunjuje** stavku „**`P5-I5D` — cancel.**" iznad (koja
+ostaje važeća i bajt-očuvana). Kasnija implementacija mora dokazati najmanje (D-089 `RULING I`):
+
+- **uspjeh:** `DRAFT → CANCELLED` i `READY_FOR_ANALYSIS → CANCELLED`; `200`; tačna sedmočlana
+  projekcija (`id`, `status`, `version`, `patient{id, pseudonym}`, `occurredAt`, `treatmentDate`,
+  `createdAt`); `status = CANCELLED`; `version + 1`; `body.version == ETag`; `reason` odsutan;
+- **validacija / L-4 (`422 VALIDATION_ERROR`):** `reason` odsutan / `null` / broj / boolean / objekt /
+  niz; `{}`; odsutno tijelo; nepoznat član; prazan string; samo razmaci; TAB / LF / CR; NUL; C0; C1;
+  usamljeni surogat; sirova granica 255 (prihvaćeno) / 256 (odbijeno) bajtova; višebajtne granice;
+  konačni normalizovani rezultat > 255 bajtova; sanitizovan rezultat prazan;
+- **sanitizer (prihvaćeno, tačan pohranjen rezultat):** ugrađena `Cc` zamjena; sažimanje
+  whitespacea; trim; NFC nepromijenjen; dekomponovan ulaz NFC-normalizovan; validan surogatni par;
+- **privatnost:** sirov `reason` odsutan iz reda encountera, perzistiranog audit sadržaja, odgovora i
+  logova; sanitizovan `reason` postoji **isključivo** u `audit_events.metadata.reason` i učestvuje u
+  kanonskom audit hashu; `previous_value = {status, version}`, `new_value = {status: CANCELLED,
+  version}`, `metadata = {reason}` bez dodatnih članova;
+- **idempotencija:** nedostajući ključ → `400 IDEMPOTENCY_KEY_REQUIRED`; prvi uspjeh; isti ključ / isti
+  hash replay bez druge mutacije i drugog audita, isti odgovor / tekući `ETag`; isti ključ / drugo
+  tijelo → `409 IDEMPOTENCY_CONFLICT`; in-progress → `409 REQUEST_ALREADY_IN_PROGRESS`; isti ključ /
+  isti `reason` nad **drugim** encounterom → `409 IDEMPOTENCY_CONFLICT`; novi ključ nad već `CANCELLED`
+  → `409 INVALID_STATE_TRANSITION`;
+- **sigurnost / trka:** nevidljiv / cross-tenant / nepostojeći → ekvivalentan `404 RESOURCE_NOT_FOUND`;
+  vidljiv pogrešno stanje → `409`; negativan dokaz opšteg pre-read oraclea; stvarna trka dvije
+  konekcije sa različitim ključevima → tačno jedan `200` i jedan `409 INVALID_STATE_TRANSITION`;
+  rollback audita i transakcije; malformiran `encounterId` → `400` bez echo-a; trajne `★`
+  RI-naspram-RLS regresije zelene;
+- **parser:** raw-byte e2e test koji **pina stvarno** ponašanje parsera nad malformiranim UTF-8 na
+  žici; **ne tvrditi** aplikacijski `422` ako je parser već pretvorio bajtove u `U+FFFD`.
+
+**Napomena o tranziciji testova odsutnosti rute (buduća; D-089 `RULING J`):**
+`apps/api/test/encounter-create.e2e-spec.ts` — ukloniti isključivo cancel tuple iz `404` petlje
+odsutnosti rute i dodati neautentifikovano cancel očekivanje `401 AUTHENTICATION_REQUIRED`;
+`apps/api/test/phase5-encounter-create.security.ts` — zamijeniti isključivo admitovano cancel `404`
+očekivanje sa `400 IDEMPOTENCY_KEY_REQUIRED` (nosilac `encounter.cancel`, bez ključa). Nepovezane
+`GET` list/detail / `PATCH` tvrdnje ostaju; `★` `phase5-responsible-physician-ri.security.ts` se ne
+dira.
+
+```text
+TESTS WRITTEN IN THIS GATE   0
+TESTS RERUN IN THIS GATE     0
+P5-I5C   COMPLETE / VERIFIED / FORMALLY CLOSED / EFFECTIVE
+P5-I5D   CONTRACT FROZEN LOCALLY UNDER D-089 / NOT YET IMPLEMENTATION-AUTHORIZED / NOT STARTED
+CHECKBOX TRANSITIONS (D-089 kandidat) = 0
+```
+
+Formulacije `P5-I5D … BEHIND L-4` i `P5-I5C … NOT YET EFFECTIVE` iznad opisuju **pred-D-089 stanje** i
+**ne prepisuju se**. Vidi D-089 u `06`.
+
 ---
 
 

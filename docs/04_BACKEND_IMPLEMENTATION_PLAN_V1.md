@@ -3220,6 +3220,41 @@ D-088 LOCAL CANDIDATE CHECKLIST  = 49 / 36
 gate je **`L-4 OWNER ADJUDICATION`**. Ovom anotacijom se ne uvodi nijedan implementacijski detalj
 izvan postojećeg kanonskog obuhvata. Vidi D-088 u `06`.
 
+#### Statusna anotacija (D-089) — blokovi iznad se NE prepisuju
+
+**D-088 je objavljen kroz PR #72 (`be01969…`) i efektivan; `P5-I5C` je `COMPLETE / VERIFIED / FORMALLY
+CLOSED / EFFECTIVE`, kanonski checklist `49 / 36`.** D-089 kanonizuje L-4 (L4-A obavezan `reason`;
+L4-B sirovo ≤ 255 UTF-8 bajtova i konačno 1 code point … 255 bajtova; L4-C `ACCEPT_AND_SANITIZE`) i
+zamrzava kompletan ugovor `P5-I5D` (`OD-P5-I5D-1` … `OD-P5-I5D-5`; `03` §12; `09` §12.2). Za red
+`P5-I5D` iz tabele segmentacije iznad, „minimalno unazad-kompatibilno proširenje idempotency servisa
+**ako se pokaže nužnim**" je sada **adjudicirano kao nužno i ograničeno** na: (1) uspješan status po
+pozivu / endpointu (create zadržava `201`, cancel `200`) i (2) verifikaciju vezivanja keširanog
+`resourceId` (neslaganje → `409 IDEMPOTENCY_CONFLICT`, bez čitanja encountera). **Nema drugog
+idempotencijskog podsistema; semantika create pozivaoca je nepromijenjena.** Implementacijski oblik:
+jedna admitovana transakcija; jedan ograničen atomičan iskaz / CTE ishoda cancel-a (bez opšteg
+pre-reada); `ENCOUNTER_CANCELLED` audit u istoj transakciji; transakcijski ne-blokirajući advisory
+lock ostaje kanonski. Formulacije `P5-I5D … BEHIND L-4`, `D-088 … NOT EFFECTIVE` i `CANONICAL CHECKLIST
+= 49 / 33` iznad opisuju **pred-D-089 stanje** i **ne prepisuju se**.
+
+```text
+D-089    LOCALLY AUTHORED / NOT CANONICAL / NOT EFFECTIVE
+D-088    PUBLISHED / MERGED (PR #72) / CANONICAL / POST-PUBLICATION VERIFIED / EFFECTIVE
+P5-I5    IN_PROGRESS
+P5-I5C   COMPLETE / VERIFIED / FORMALLY CLOSED / EFFECTIVE
+P5-I5D   CONTRACT FROZEN LOCALLY UNDER D-089 / NOT YET IMPLEMENTATION-AUTHORIZED / NOT STARTED
+
+SCHEMA / MIGRATION / RLS / GRANT / STATE-GRAPH CHANGE REQUIRED = NO
+
+CANONICAL CHECKLIST              = 49 / 36
+D-089 LOCAL CANDIDATE CHECKLIST  = 49 / 36   (nula tranzicija)
+```
+
+**Nakon efektivnog D-089:** `P5-I5D = IMPLEMENTATION AUTHORIZED / NOT STARTED`, isključivo unutar
+D-089; svjež implementacijski preflight smije nastaviti bez nove vlasničke autorizacije osim ako
+pronađe kanonski drift, kontradikciju, novi blocker, potrebnu izmjenu scheme / migraciju / RLS /
+grant / grafa stanja, rad izvan obuhvata ili drugu materijalno invalidirajuću činjenicu. Efektivnost
+D-089 sama po sebi ne započinje implementaciju. Vidi D-089 u `06`.
+
 
 ### Segmentacija `P5-I2` na četiri pod-gatea (D-064)
 

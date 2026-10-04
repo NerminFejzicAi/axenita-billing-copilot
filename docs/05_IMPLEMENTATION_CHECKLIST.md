@@ -5021,6 +5021,47 @@ D-089    UNCONSUMED / NOT RESERVED / NOT ASSIGNED
 kanonski `origin/main` do tada nosi **`49 / 33`**. **D-088 ne čini `P5-I5D` podobnim** za
 autorizacijski checkpoint: **naredni obavezni gate je `L-4 OWNER ADJUDICATION`**. Vidi D-088 u `06`.
 
+## P5-I5D CONTRACT-FREEZE STATUS ANNOTATION — D-089 (2026-10-05)
+
+**Nijedan pasus, blok ni anotacija iznad se ne prepisuje.** Ova anotacija ne dodaje i ne briše
+nijedan red i **ne mijenja nijednu kućicu**.
+
+- **D-088 je objavljen kroz PR #72 (`be01969…`) i efektivan;** `P5-I5C` je `COMPLETE / VERIFIED /
+  FORMALLY CLOSED / EFFECTIVE`. **`36 / 49` je kanonsko stanje.** Formulacije D-088 anotacije iznad
+  (`D-088 … NOT EFFECTIVE`, `P5-I5C … NOT YET EFFECTIVE`, kanonski `49 / 33`, `P5-I5D … BEHIND L-4`,
+  `D-089 UNCONSUMED …`) opisuju **pred-D-089 stanje** i **ne prepisuju se**.
+- **D-089 kanonizuje L-4 i zamrzava ugovor `P5-I5D`** (Encounter Cancel). **Dokumentacija isključivo.**
+- **`P5-I5D` posjeduje tačno jedan red:** `API → cancel encounter` — **ostaje neoznačen.** Označava se
+  isključivo kroz budući formalni zatvarajući gate `P5-I5D` nakon implementacije i publikacije
+  (D-084, `OD-D084-1`).
+
+```text
+                        kanonski   D-089 kandidat   potencijalno nakon zatvaranja P5-I5D
+ukupno redova (S6)      49         49               49
+oznaceno                36         36               37
+neoznaceno              13         13               12   (~75.5 %)
+
+UNCHECKED_TO_CHECKED    = 0
+CHECKED_TO_UNCHECKED    = 0
+NEW_ROWS                = 0
+DELETED_ROWS            = 0
+```
+
+```text
+D-089    LOCALLY AUTHORED / NOT INDEPENDENTLY REVIEWED / NOT OWNER-ACCEPTED /
+         NOT PUBLISHED / NOT CANONICAL / NOT EFFECTIVE
+D-088    PUBLISHED / MERGED (PR #72) / CANONICAL / POST-PUBLICATION VERIFIED / EFFECTIVE
+P5-I5A   COMPLETE / VERIFIED / FORMALLY CLOSED / EFFECTIVE
+P5-I5B   COMPLETE / VERIFIED / FORMALLY CLOSED / EFFECTIVE
+P5-I5C   COMPLETE / VERIFIED / FORMALLY CLOSED / EFFECTIVE
+P5-I5    IN_PROGRESS
+P5-I5D   CONTRACT FROZEN LOCALLY UNDER D-089 / NOT YET IMPLEMENTATION-AUTHORIZED / NOT STARTED
+D-090    UNCONSUMED / NOT RESERVED / NOT ASSIGNED
+```
+
+Nakon efektivnog D-089 `P5-I5D` postaje **`IMPLEMENTATION AUTHORIZED / NOT STARTED`**, isključivo
+unutar D-089. Roditeljski `P5-I5` ostaje zaseban kasniji gate zatvaranja. Vidi D-089 u `06`.
+
 
 ## Schema
 
