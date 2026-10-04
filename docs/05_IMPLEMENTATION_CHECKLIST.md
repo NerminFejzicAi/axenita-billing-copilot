@@ -4975,6 +4975,52 @@ D-088    UNCONSUMED / NOT RESERVED / NOT ASSIGNED
 Nakon efektivnog D-087 `P5-I5C` postaje **`IMPLEMENTATION AUTHORIZED / NOT STARTED`**, isključivo
 unutar `OD-P5-I5C-1` … `OD-P5-I5C-8`. Vidi D-087 u `06`.
 
+## P5-I5C FORMAL CLOSURE ANNOTATION — D-088 (2026-10-04)
+
+**Nijedan pasus, blok ni anotacija iznad se ne prepisuje.** Ova anotacija ne dodaje i ne briše
+nijedan red; prati **tačno tri** tranzicije kućica ispod.
+
+- **D-088 je post-publikaciono pomirenje i formalno zatvaranje pod-gatea `P5-I5C`.** Kanonska
+  implementacija (`cf7b07a9…`, merged kroz **PR #71** kao **`ce9e644c…`**) je implementirana,
+  nezavisno pregledana, vlasnički prihvaćena, objavljena, kanonska i post-publikaciono verifikovana.
+  **Dokumentacija isključivo.**
+- **Closure-owned redovi `P5-I5C`** (D-087, `RULING L`; D-082, `RULING G`) — označeni ispod:
+  `Services → optimistic locking`, `API → PATCH encounter`, `Tests → stale ETag`. **Nijedan četvrti
+  red se ne mijenja;** `API → cancel encounter` (`P5-I5D`) **ostaje neoznačen**.
+- **`33 / 49` je pred-D-088 kanonsko stanje; `36 / 49` je D-088 kandidat zatvaranja i stanje nakon
+  efektivnosti.** Anotacija D-087 iznad (`33 / 49`, nula tranzicija, `D-087 LOCALLY AUTHORED …`,
+  `P5-I5C … NOT AUTHORIZED FOR MUTATION / NOT STARTED`, `D-088 UNCONSUMED …`) opisuje **pred-D-088
+  stanje** i **ne prepisuje se**.
+
+```text
+                        kanonski (prije)   D-088 kandidat
+ukupno redova (S6)      49                 49
+oznaceno                33                 36
+neoznaceno              16                 13
+
+UNCHECKED_TO_CHECKED    = 3   (Services -> optimistic locking; API -> PATCH encounter;
+                               Tests -> stale ETag)
+CHECKED_TO_UNCHECKED    = 0
+NEW_ROWS                = 0
+DELETED_ROWS            = 0
+```
+
+```text
+D-088    LOCALLY AUTHORED / NOT INDEPENDENTLY REVIEWED / NOT OWNER-ACCEPTED /
+         NOT PUBLISHED / NOT CANONICAL / NOT EFFECTIVE
+P5-I5A   COMPLETE / VERIFIED / FORMALLY CLOSED / EFFECTIVE
+P5-I5B   COMPLETE / VERIFIED / FORMALLY CLOSED / EFFECTIVE
+P5-I5    IN_PROGRESS
+P5-I5C   PUBLISHED / MERGED / CANONICAL / POST-PUBLICATION VERIFIED /
+         FORMALLY CLOSING UNDER D-088 / NOT YET EFFECTIVE
+P5-I5D   NOT AUTHORIZED / NOT STARTED / BEHIND L-4
+D-089    UNCONSUMED / NOT RESERVED / NOT ASSIGNED
+```
+
+**`49 / 36` je isključivo lokalno kandidatsko stanje** dok D-088 ne bude objavljen i verifikovan;
+kanonski `origin/main` do tada nosi **`49 / 33`**. **D-088 ne čini `P5-I5D` podobnim** za
+autorizacijski checkpoint: **naredni obavezni gate je `L-4 OWNER ADJUDICATION`**. Vidi D-088 u `06`.
+
 
 ## Schema
 
@@ -4998,7 +5044,7 @@ unutar `OD-P5-I5C-1` … `OD-P5-I5C-8`. Vidi D-087 u `06`.
 - [ ] redaction.
 - [x] state machine.
 - [x] idempotency service.
-- [ ] optimistic locking.
+- [x] optimistic locking.
 - [x] audit.
 - [ ] outbox base.
 
@@ -5009,7 +5055,7 @@ unutar `OD-P5-I5C-1` … `OD-P5-I5C-8`. Vidi D-087 u `06`.
 - [x] POST encounter.
 - [ ] GET encounter list.
 - [ ] GET encounter detail.
-- [ ] PATCH encounter.
+- [x] PATCH encounter.
 - [ ] cancel encounter.
 - [ ] POST text document.
 - [ ] list documents.
@@ -5022,7 +5068,7 @@ unutar `OD-P5-I5C-1` … `OD-P5-I5C-8`. Vidi D-087 u `06`.
 - [x] unknown field rejected.
 - [x] duplicate idempotency.
 - [x] idempotency conflict.
-- [ ] stale ETag.
+- [x] stale ETag.
 - [x] cross-tenant GET.
 - [ ] cross-tenant FK.
 - [ ] document read audit.

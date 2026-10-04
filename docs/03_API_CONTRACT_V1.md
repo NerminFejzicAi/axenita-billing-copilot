@@ -841,6 +841,32 @@ prihvatanje → publikacija / merge → kanonska post-publikaciona verifikacija)
 unutar `OD-P5-I5C-1` … `OD-P5-I5C-8`**. Efektivnost D-087 sama po sebi ne započinje implementaciju.
 Vidi D-087 u `06`.
 
+**STATUSNA ANOTACIJA (D-088, 2026-10-04) — sekcija i anotacije iznad se NE prepisuju.** D-088 je
+post-publikaciono pomirenje i formalno zatvaranje pod-gatea `P5-I5C` (`PATCH
+/api/v1/encounters/{encounterId}`). Implementacija `P5-I5C` je **kanonska** (`cf7b07a9…`, merged kroz
+**PR #71** kao **`ce9e644c…`**). **Nijedna ruta, metoda, payload, header, permisija, statusni ni error
+kod se ne mijenja**; tekući ugovor `P5-I5C` u §12 (D-087) i aditivno pomirenje kataloga §8.1 ostaju
+nepromijenjeni, a **D-087 ostaje kanonska / efektivna odluka ugovora**. Replay carry-forward
+`OD-D086-4` je **`DISCHARGED / RESOLVED`** (adjudiciran u `OD-P5-I5C-1`, implementiran i dokazan u
+kanonskoj implementaciji). Formulacije D-087 anotacije iznad (`D-087 … NOT EFFECTIVE`, `P5-I5C …
+NOT AUTHORIZED FOR MUTATION / NOT STARTED`) opisuju **pred-D-088 stanje**, **historijski su tačne** i
+**ne prepisuju se**.
+
+```text
+D-088    LOCALLY AUTHORED / NOT INDEPENDENTLY REVIEWED / NOT OWNER-ACCEPTED /
+         NOT PUBLISHED / NOT CANONICAL / NOT EFFECTIVE
+P5-I5C   PUBLISHED / MERGED / CANONICAL / POST-PUBLICATION VERIFIED /
+         FORMALLY CLOSING UNDER D-088 / NOT YET EFFECTIVE
+P5-I5D   NOT AUTHORIZED / NOT STARTED / BEHIND L-4
+API SEMANTIC MUTATION      = 0
+```
+
+Zatvaranje postaje efektivno **tek nakon punog lifecyclea D-088** (nezavisan pregled → vlasničko
+prihvatanje → publikacioni preflight → publikacijska autorizacija → publikacija → kanonska
+post-verifikacija). **D-088 ne razrješava L-4, ne definiše semantiku razloga otkazivanja i ne
+autorizuje cancel**; naredni obavezni gate za `P5-I5D` je **`L-4 OWNER ADJUDICATION`**. Vidi D-088 u
+`06`.
+
 
 ---
 

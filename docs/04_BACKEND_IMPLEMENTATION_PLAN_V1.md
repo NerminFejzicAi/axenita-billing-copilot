@@ -3191,6 +3191,35 @@ izvan D-087, potrebnu izmjenu scheme/RLS-a/granta/grafa stanja ili drugu materij
 činjenicu. Efektivnost D-087 sama po sebi ne započinje implementaciju. Formulacije `P5-I5C … NOT
 AUTHORIZED / NOT STARTED` iznad opisuju **pred-D-087 stanje** i **ne prepisuju se**. Vidi D-087 u `06`.
 
+#### Statusna anotacija (D-088) — blokovi iznad se NE prepisuju
+
+**D-088 je post-publikaciono pomirenje i formalno zatvaranje pod-gatea `P5-I5C` (PATCH Encounter /
+optimistička konkurencija).** Kanonska implementacija (`cf7b07a9…`, merged kroz **PR #71** kao
+**`ce9e644c…`**, tree `1b96877b…`; 22 fajla isključivo pod `apps/api/**`) je izvedena unutar D-087
+(`RULING I` / `RULING J`), nezavisno pregledana, vlasnički prihvaćena, objavljena i post-publikaciono
+verifikovana. Po `OD-D084-1` / D-087 `RULING L` zatvara **tačno tri** reda: `Services → optimistic
+locking`, `API → PATCH encounter`, `Tests → stale ETag`. Implementacijske adjudikacije `N-1` … `N-4`
+su **`RESOLVED BY IMPLEMENTATION`** (pomiren dokaz odsutnosti `PATCH` rute uz očuvan dokaz odsutnosti
+`GET` list/detail i cancel; pet validator/decorator fabrika izvezeno isključivo radi tačne
+reupotrebe; `updated_at` iz `clock_timestamp()` baze; audit `occurred_at` čuva semantiku
+aplikacijskog trenutka / hasha). Formulacije D-087 anotacije iznad (`P5-I5C … NOT AUTHORIZED FOR
+MUTATION / NOT STARTED`, `D-087 … NOT EFFECTIVE`) opisuju **pred-D-088 stanje** i **ne prepisuju se**.
+
+```text
+D-088    LOCALLY AUTHORED / NOT CANONICAL / NOT EFFECTIVE
+P5-I5C   PUBLISHED / MERGED / CANONICAL / POST-PUBLICATION VERIFIED /
+         FORMALLY CLOSING UNDER D-088 / NOT YET EFFECTIVE (tek po lifecycleu D-088)
+P5-I5    IN_PROGRESS
+P5-I5D   NOT AUTHORIZED / NOT STARTED / BEHIND L-4
+
+CANONICAL CHECKLIST              = 49 / 33
+D-088 LOCAL CANDIDATE CHECKLIST  = 49 / 36
+```
+
+**`P5-I5D` ostaje iza L-4**; D-088 ga ne čini podobnim za autorizacijski checkpoint — naredni obavezni
+gate je **`L-4 OWNER ADJUDICATION`**. Ovom anotacijom se ne uvodi nijedan implementacijski detalj
+izvan postojećeg kanonskog obuhvata. Vidi D-088 u `06`.
+
 
 ### Segmentacija `P5-I2` na četiri pod-gatea (D-064)
 
