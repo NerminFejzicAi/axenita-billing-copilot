@@ -4934,6 +4934,47 @@ kanonski `origin/main` do tada nosi **`49 / 32`**. Nakon efektivnog D-086 `P5-I5
 **isključivo podoban za svjež autorizacijski / pre-execution checkpoint** — **ne autorizovan**. Vidi
 D-086 u `06`.
 
+## P5-I5C CONTRACT FREEZE ANNOTATION — D-087 (2026-10-04)
+
+**Nijedan pasus, blok ni anotacija iznad se ne prepisuje.** Ova anotacija **ne mijenja nijednu
+kućicu**, ne dodaje i ne briše nijedan red.
+
+- **D-087 zamrzava ugovor `P5-I5C` (PATCH Encounter / optimistička konkurencija)** kroz vlasničke
+  odluke `OD-P5-I5C-1` … `OD-P5-I5C-8` i bilježi **odgođenu** implementacijsku autorizaciju.
+  **Dokumentacija isključivo.**
+- **Closure-owned redovi `P5-I5C` = tačno tri** (D-082, `RULING G`): `Services → optimistic locking`,
+  `API → PATCH encounter`, `Tests → stale ETag`. **Ne označavaju se ni u D-087 ni u implementaciji**;
+  zatvaraju se isključivo kroz formalno zatvaranje `P5-I5C` nakon punog lifecyclea (D-084,
+  `OD-D084-1`). Potencijalno stanje nakon efektivnog zatvaranja `P5-I5C`: **`36 / 49`**.
+- **Anotacija D-086 iznad** (`D-086 LOCALLY AUTHORED …`, `P5-I5C NOT AUTHORIZED / NOT STARTED`)
+  opisuje **pred-D-087 stanje** i **ne prepisuje se**.
+
+```text
+                        kanonski (prije)   D-087 kandidat
+ukupno redova (S6)      49                 49
+oznaceno                33                 33
+neoznaceno              16                 16
+
+UNCHECKED_TO_CHECKED    = 0
+CHECKED_TO_UNCHECKED    = 0
+NEW_ROWS                = 0
+DELETED_ROWS            = 0
+```
+
+```text
+D-087    LOCALLY AUTHORED / NOT INDEPENDENTLY REVIEWED / NOT OWNER-ACCEPTED /
+         NOT PUBLISHED / NOT CANONICAL / NOT EFFECTIVE
+P5-I5A   COMPLETE / VERIFIED / FORMALLY CLOSED / EFFECTIVE
+P5-I5B   COMPLETE / VERIFIED / FORMALLY CLOSED / EFFECTIVE
+P5-I5    IN_PROGRESS
+P5-I5C   CONTRACT FROZEN IN LOCAL D-087 CANDIDATE / NOT AUTHORIZED FOR MUTATION / NOT STARTED
+P5-I5D   NOT AUTHORIZED / NOT STARTED / BEHIND L-4
+D-088    UNCONSUMED / NOT RESERVED / NOT ASSIGNED
+```
+
+Nakon efektivnog D-087 `P5-I5C` postaje **`IMPLEMENTATION AUTHORIZED / NOT STARTED`**, isključivo
+unutar `OD-P5-I5C-1` … `OD-P5-I5C-8`. Vidi D-087 u `06`.
+
 
 ## Schema
 

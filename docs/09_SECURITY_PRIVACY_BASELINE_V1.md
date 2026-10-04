@@ -1047,6 +1047,31 @@ P5-I5D   NOT AUTHORIZED / NOT STARTED / BEHIND L-4
 
 Vidi D-086 u `06`.
 
+**STATUSNA ANOTACIJA (D-087, 2026-10-04) — sekcija, tačke 1–11 i anotacije iznad se NE prepisuju.**
+D-087 zamrzava ugovor `P5-I5C` (PATCH Encounter / optimistička konkurencija). **Nijedan sigurnosni
+zahtjev se ne slabi**; za `P5-I5C` se dodatno fiksira:
+
+- **fizičko mapiranje `ENCOUNTER_UPDATED`** (ranije odgođeno): `previous_value` / `new_value` sadrže
+  **isključivo** stvarno promijenjena (`IS DISTINCT FROM`) `PATCH`-mutabilna poslovna polja, pod API
+  camelCase imenima; `occurredAt` UTC ms `Z`; **bez `version`**; `metadata = {}`; value-no-op →
+  `{}` / `{}`; stara/nova vrijednost se hvata u istom SQL iskazu kao update — **minimizacija iznad se
+  primjenjuje, ne slabi**;
+- **nema existence / state oraclea**: nepostojeći, tenant-nevidljiv, zastario i zastario +
+  nedozvoljen status → isti `409 VERSION_CONFLICT`; `INVALID_STATE_TRANSITION` isključivo kada isti
+  atomičan iskaz potvrdi vidljiv red sa tačnom verzijom; nema `404` ni diskriminirajućeg pre-reada;
+- **malformiran `encounterId`** → `400` bez pristupa bazi i bez echo-a vrijednosti;
+- **higijena stringova** `P5-I5B` reupotrijebljena za `P5-I5C` — **nije nova globalna politika**;
+  usko `encounters_responsible_physician_membership_fk` → `422`; globalno `23503 → 422` zabranjeno;
+- **`★` RI-naspram-RLS** ostaje trajna regresija; pad → `HARD HOLD`. **L-4 ostaje `DEFERRED`.**
+
+```text
+D-087    LOCALLY AUTHORED / NOT CANONICAL / NOT EFFECTIVE
+P5-I5C   CONTRACT FROZEN IN LOCAL D-087 CANDIDATE / NOT AUTHORIZED FOR MUTATION / NOT STARTED
+P5-I5D   NOT AUTHORIZED / NOT STARTED / BEHIND L-4
+```
+
+Vidi D-087 u `06`.
+
 ---
 
 
