@@ -22,6 +22,10 @@
  * `null` for `P5-I4`, and a parameter for either would be the PHI-bearing convenience snapshot
  * D-079 forbids. They are written as `NULL` by the statement, so "the audit row carries no
  * patient data" is a property of the code shape and not of the caller's discipline.
+ *
+ * (Historical paragraph above, kept: `new_value` became a closed-shape parameter in `P5-I5B`, and
+ * `previous_value` became an OPTIONAL one in `P5-I5C` — see {@link AuditEventInsert.previousValue}.
+ * An existing caller that does not supply it still persists SQL `NULL`.)
  */
 
 import { type JsonObject } from '../../crypto/json-canonicalizer.js';
@@ -80,6 +84,15 @@ export interface AuditEventInsert {
    * shape so no caller can widen it.
    */
   readonly newValue: JsonObject | null;
+  /**
+   * `audit_events.previous_value` — `jsonb`, nullable. OPTIONAL, and ABSENT for every caller
+   * before `P5-I5C`: `undefined` (and `null`) persist SQL `NULL`, exactly as before.
+   *
+   * Supplied only for `ENCOUNTER_UPDATED` (D-087 `OD-P5-I5C-3`): the stored values of the
+   * `PATCH`-mutable members that ACTUALLY changed, and nothing else — `{}` for a value-no-op.
+   * Built by the audit writer from the minimised diff, never from a row snapshot (D-082).
+   */
+  readonly previousValue?: JsonObject | null;
   /**
    * `SHA-256( UTF8( JCS( AUDIT_EVENT_HASH_PAYLOAD_V1 ) ) )` — 64 lowercase hex characters.
    *

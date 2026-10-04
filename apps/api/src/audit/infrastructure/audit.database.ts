@@ -28,6 +28,12 @@
  * governance decision. The same five are fixed at `null` inside the hash payload formatter, so the
  * hashed representation and the stored row agree by construction.
  *
+ * `previous_value` IS an OPTIONAL parameter since `P5-I5C` (D-087 `OD-P5-I5C-3`): absent for
+ * every earlier caller, which therefore still writes SQL `NULL`, and for `ENCOUNTER_UPDATED` only
+ * the minimised diff of the members that actually changed — never a row snapshot. It is bound
+ * LAST, so the first twelve bound values are exactly what they were before `P5-I5C`. The
+ * paragraph above describes the state before `P5-I5C` and is kept as written.
+ *
  * `new_value` IS a parameter since `P5-I5B`, and only because D-085 `OD-D085-8` fixes its
  * content: `null` for `PATIENT_REFERENCE_CREATED` (unchanged) and exactly `{status, version}` for
  * `ENCOUNTER_CREATED`. The audit writer builds it from a closed shape, so it still cannot carry a
@@ -84,11 +90,12 @@ export class AuditDatabase {
           "session_id_hash",
           "ip_address",
           "user_agent_hash",
-          "previous_value",
           "new_value",
           "metadata",
           "event_sha256",
-          "previous_event_sha256"
+          "previous_event_sha256",
+          -- LAST, so the twelve values every pre-P5-I5C caller binds keep their positions.
+          "previous_value"
         )
         values (
           ${event.id}::uuid,
@@ -104,11 +111,15 @@ export class AuditDatabase {
           null,
           null,
           null,
-          null,
           ${event.newValue === null ? null : JSON.stringify(event.newValue)}::jsonb,
           ${JSON.stringify(event.metadata)}::jsonb,
           ${event.eventSha256},
-          null
+          null,
+          ${
+            event.previousValue === undefined || event.previousValue === null
+              ? null
+              : JSON.stringify(event.previousValue)
+          }::jsonb
         )
         returning "id"
       `,

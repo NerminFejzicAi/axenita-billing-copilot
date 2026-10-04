@@ -47,3 +47,10 @@ export const AUDIT_RESOURCE_TYPE_ENCOUNTER = 'ENCOUNTER' as const;
  * transaction.
  */
 export const AUDIT_ACTION_ENCOUNTER_CREATED = 'ENCOUNTER_CREATED' as const;
+
+/**
+ * `audit_events.action` — the ONE action `P5-I5C` writes, for a genuinely successful encounter
+ * `PATCH` only, value-no-op included (D-087 `OD-P5-I5C-3`). Not for a refused, conflicting or
+ * rolled-back request.
+ */
+export const AUDIT_ACTION_ENCOUNTER_UPDATED = 'ENCOUNTER_UPDATED' as const;

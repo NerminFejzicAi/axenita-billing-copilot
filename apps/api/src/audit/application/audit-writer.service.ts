@@ -45,6 +45,7 @@ import { eventSha256 } from '../../crypto/event-sha256.js';
 import { type JsonObject } from '../../crypto/json-canonicalizer.js';
 import {
   AUDIT_ACTION_ENCOUNTER_CREATED,
+  AUDIT_ACTION_ENCOUNTER_UPDATED,
   AUDIT_ACTION_PATIENT_REFERENCE_CREATED,
   AUDIT_ACTOR_TYPE_USER,
   AUDIT_RESOURCE_TYPE_ENCOUNTER,
@@ -66,6 +67,9 @@ const PATIENT_REFERENCE_CREATED_METADATA: JsonObject = Object.freeze({ sourceSys
  * the patient-reference metadata is.
  */
 const ENCOUNTER_CREATED_METADATA: JsonObject = Object.freeze({});
+
+/** `ENCOUNTER_UPDATED` carries no metadata (D-087 `OD-P5-I5C-3`). */
+const ENCOUNTER_UPDATED_METADATA: JsonObject = Object.freeze({});
 
 /** Everything ONE successful patient-reference creation contributes to the audit trail. */
 export interface PatientReferenceCreatedEvent {
@@ -104,6 +108,26 @@ export interface EncounterCreatedEvent {
   readonly status: string;
   /** The persisted initial version — `1`. */
   readonly version: number;
+}
+
+/**
+ * One successful encounter `PATCH` (D-087 `OD-P5-I5C-3`).
+ *
+ * `previousValue` and `newValue` are the MINIMISED diff: exactly the `PATCH`-mutable members whose
+ * stored value changed (`IS DISTINCT FROM`, decided in the update statement), API camelCase keys,
+ * `occurredAt` as UTC `.sssZ`, never `version`, and `{}` / `{}` for a value-no-op. The writer
+ * persists them as given; building them is the encounter feature's job.
+ */
+export interface EncounterUpdatedEvent {
+  readonly id: string;
+  readonly practiceId: string;
+  readonly actorUserId: string;
+  readonly resourceId: string;
+  /** The application instant (owner adjudication N-4) — not the encounter's `updated_at`. */
+  readonly occurredAt: Date;
+  readonly requestId: string | null;
+  readonly previousValue: JsonObject;
+  readonly newValue: JsonObject;
 }
 
 @Injectable()
@@ -208,6 +232,48 @@ export class AuditWriterService {
       requestId: event.requestId,
       newValue,
       metadata: ENCOUNTER_CREATED_METADATA,
+      eventSha256: eventSha256(hashInput),
+    });
+  }
+
+  /**
+   * `USER / ENCOUNTER / ENCOUNTER_UPDATED` with the minimised `previous_value` / `new_value` and
+   * `metadata = {}` (D-087 `OD-P5-I5C-3`), in the caller's admitted transaction: a failure here
+   * propagates and rolls the encounter update back with it.
+   */
+  public async recordEncounterUpdated(
+    tenant: AdmittedTenantSession,
+    event: EncounterUpdatedEvent,
+  ): Promise<void> {
+    const hashInput = {
+      id: event.id,
+      practiceId: event.practiceId,
+      occurredAt: event.occurredAt,
+      actorType: AUDIT_ACTOR_TYPE_USER,
+      actorUserId: event.actorUserId,
+      actorService: null,
+      action: AUDIT_ACTION_ENCOUNTER_UPDATED,
+      resourceType: AUDIT_RESOURCE_TYPE_ENCOUNTER,
+      resourceId: event.resourceId,
+      requestId: event.requestId,
+      previousValue: event.previousValue,
+      newValue: event.newValue,
+      metadata: ENCOUNTER_UPDATED_METADATA,
+    };
+
+    await this.auditEvents.append(tenant, {
+      id: event.id,
+      practiceId: event.practiceId,
+      occurredAt: event.occurredAt,
+      actorType: AUDIT_ACTOR_TYPE_USER,
+      actorUserId: event.actorUserId,
+      action: AUDIT_ACTION_ENCOUNTER_UPDATED,
+      resourceType: AUDIT_RESOURCE_TYPE_ENCOUNTER,
+      resourceId: event.resourceId,
+      requestId: event.requestId,
+      previousValue: event.previousValue,
+      newValue: event.newValue,
+      metadata: ENCOUNTER_UPDATED_METADATA,
       eventSha256: eventSha256(hashInput),
     });
   }

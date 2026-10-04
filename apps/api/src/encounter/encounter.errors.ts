@@ -1,5 +1,5 @@
 /**
- * The failures `POST /api/v1/encounters` is allowed to produce of its own.
+ * The failures the encounter routes (`POST`, `P5-I5B`; `PATCH`, `P5-I5C`) produce of their own.
  *
  * Normative sources: `03` §8 (the frozen error-code catalogue), §9, §12 (D-069 `RULING 2`, the
  * D-085 current contract); `09` §11 and §18.1 threat `T1`; D-062 part D.5; D-085 `OD-D085-3`,
@@ -101,6 +101,39 @@ export function responsiblePhysicianNotAssignable(): ApiException {
  * nonexistent `patientReferenceId` receives (D-069 `RULING 2`).
  */
 export function encounterCreationFailed(): ApiException {
+  return new ApiException({
+    code: 'INTERNAL_ERROR',
+    status: HttpStatus.INTERNAL_SERVER_ERROR,
+    detail: detailForStatus(HttpStatus.INTERNAL_SERVER_ERROR),
+  });
+}
+
+/**
+ * The `{encounterId}` path segment of `PATCH /api/v1/encounters/{encounterId}` is not a
+ * syntactically valid identifier — `400 VALIDATION_ERROR` (D-087 `OD-P5-I5C-6`).
+ *
+ * Decided AFTER authentication and tenant admission and BEFORE `If-Match`, the body and every
+ * encounter statement. A malformed identifier is knowable without asking the database, so the
+ * refusal discloses nothing about any row. The detail is static and the identifier is never
+ * reflected, not whole and not in part; no `errors[]` member, because this is a path-format
+ * refusal and not the `422` body-schema document — the patient-reference precedent (D-073).
+ */
+export function encounterIdentifierInvalid(): ApiException {
+  return new ApiException({
+    code: 'VALIDATION_ERROR',
+    status: HttpStatus.BAD_REQUEST,
+    detail: 'The requested resource identifier is not valid.',
+  });
+}
+
+/**
+ * The update could not be completed — the shared static `500 INTERNAL_ERROR`.
+ *
+ * Used only for states that are unreachable when the code is correct (the validation gates
+ * disagreeing, or the atomic `PATCH` statement reporting a visible, matching, patchable row that
+ * it nevertheless did not update). Byte-identical to any unhandled failure.
+ */
+export function encounterUpdateFailed(): ApiException {
   return new ApiException({
     code: 'INTERNAL_ERROR',
     status: HttpStatus.INTERNAL_SERVER_ERROR,

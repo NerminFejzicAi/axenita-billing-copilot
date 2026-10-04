@@ -949,7 +949,7 @@ describe('POST /api/v1/encounters (P5-I5B)', () => {
       expect(readProblemDetails(refused).requestId).toBe(requestId);
     });
 
-    it('registers no GET, PATCH or cancel encounter route in P5-I5B', async () => {
+    it('registers no GET or cancel encounter route; PATCH exists since P5-I5C', async () => {
       const headers = {
         Authorization: developmentBearer(CALLER),
         [PRACTICE_HEADER]: ADMITTED_PRACTICE,
@@ -962,9 +962,15 @@ describe('POST /api/v1/encounters (P5-I5B)', () => {
       expect(
         (await request(app.getHttpServer()).get(`/api/v1/encounters/${id}`).set(headers)).status,
       ).toBe(404);
-      expect(
-        (await request(app.getHttpServer()).patch(`/api/v1/encounters/${id}`).set(headers)).status,
-      ).toBe(404);
+      // N-1 (owner-approved P5-I5C reconciliation): PATCH is registered now. Without `If-Match` an
+      // admitted caller gets 428 PRECONDITION_REQUIRED — explicitly not the router's 404.
+      const patched = await request(app.getHttpServer())
+        .patch(`/api/v1/encounters/${id}`)
+        .set(headers);
+      expect([patched.status, (patched.body as Record<string, unknown>)['code']]).toStrictEqual([
+        428,
+        'PRECONDITION_REQUIRED',
+      ]);
       expect(
         (await request(app.getHttpServer()).post(`/api/v1/encounters/${id}/cancel`).set(headers))
           .status,

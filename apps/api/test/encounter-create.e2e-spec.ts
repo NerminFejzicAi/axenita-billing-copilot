@@ -51,18 +51,27 @@ describe('POST /api/v1/encounters (e2e envelope)', () => {
     expect(JSON.stringify(problem)).not.toContain('unknown member');
   });
 
-  it('does not register the later P5-I5C/D encounter routes', async () => {
+  it('does not register the later GET and P5-I5D encounter routes', async () => {
     const id = '9b2f1e43-6a0f-4c1d-8f3e-5d6c7b8a9e01';
 
     for (const [method, path] of [
       ['get', '/api/v1/encounters'],
       ['get', `/api/v1/encounters/${id}`],
-      ['patch', `/api/v1/encounters/${id}`],
       ['post', `/api/v1/encounters/${id}/cancel`],
     ] as const) {
       const response = await request(app.getHttpServer())[method](path);
 
       expect([method, path, response.status]).toStrictEqual([method, path, 404]);
     }
+  });
+
+  // N-1 (owner-approved P5-I5C reconciliation): PATCH is no longer absent. It is registered behind
+  // the same authentication guard, so an unauthenticated caller gets 401 — not the router's 404.
+  it('registers PATCH /api/v1/encounters/{encounterId} behind the authentication guard (P5-I5C)', async () => {
+    const id = '9b2f1e43-6a0f-4c1d-8f3e-5d6c7b8a9e01';
+    const response = await request(app.getHttpServer()).patch(`/api/v1/encounters/${id}`);
+
+    expect(response.status).toBe(401);
+    expect(readProblemDetails(response).code).toBe('AUTHENTICATION_REQUIRED');
   });
 });

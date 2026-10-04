@@ -127,7 +127,7 @@ export function isHygienicEncounterString(value: unknown): boolean {
   );
 }
 
-function IsHygienicEncounterString(options?: ValidationOptions): PropertyDecorator {
+export function IsHygienicEncounterString(options?: ValidationOptions): PropertyDecorator {
   return ValidateBy(
     {
       name: 'isHygienicEncounterString',
@@ -141,7 +141,7 @@ function IsHygienicEncounterString(options?: ValidationOptions): PropertyDecorat
   );
 }
 
-function MaxCodePoints(maximum: number, options?: ValidationOptions): PropertyDecorator {
+export function MaxCodePoints(maximum: number, options?: ValidationOptions): PropertyDecorator {
   return ValidateBy(
     {
       // `maxLength` on purpose: it IS a maximum-length rule, so it reports the existing stable
@@ -159,7 +159,7 @@ function MaxCodePoints(maximum: number, options?: ValidationOptions): PropertyDe
 }
 
 /** The ACCEPTED repository UUID shape, reused unchanged (`practice-context.ts`, D-073). */
-function IsRepositoryUuid(options?: ValidationOptions): PropertyDecorator {
+export function IsRepositoryUuid(options?: ValidationOptions): PropertyDecorator {
   return ValidateBy(
     {
       // `isUuid` on purpose: it IS a UUID rule, so it reports the existing `INVALID_UUID` code.
@@ -281,7 +281,7 @@ export function isRfc3339DateTimeWithZone(value: unknown): boolean {
   return instant >= EARLIEST_RENDERABLE_INSTANT && instant <= LATEST_RENDERABLE_INSTANT;
 }
 
-function IsStrictCalendarDate(options?: ValidationOptions): PropertyDecorator {
+export function IsStrictCalendarDate(options?: ValidationOptions): PropertyDecorator {
   return ValidateBy(
     {
       name: 'isStrictCalendarDate',
@@ -294,7 +294,7 @@ function IsStrictCalendarDate(options?: ValidationOptions): PropertyDecorator {
   );
 }
 
-function IsRfc3339DateTimeWithZone(options?: ValidationOptions): PropertyDecorator {
+export function IsRfc3339DateTimeWithZone(options?: ValidationOptions): PropertyDecorator {
   return ValidateBy(
     {
       name: 'isRfc3339DateTimeWithZone',
