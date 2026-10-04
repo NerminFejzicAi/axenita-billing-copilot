@@ -818,6 +818,29 @@ dozvoli `PATCH` polja prisutnih u `201` projekciji (posebno `occurredAt`, `treat
 `DEFERRED TO P5-I5C / NON-BLOCKING FOR P5-I5B / NOT AUTHORIZED BY D-086`; `OD-D085-7` se ne mijenja.
 Vidi D-086 u `06`.
 
+**STATUSNA ANOTACIJA (D-087, 2026-10-04) — sekcija i anotacije iznad se NE prepisuju.** D-087
+zamrzava ugovor `P5-I5C` (`PATCH /api/v1/encounters/{encounterId}`; vlasničke odluke `OD-P5-I5C-1` …
+`OD-P5-I5C-8`, tekući ugovor u §12) i bilježi **odgođenu** implementacijsku autorizaciju. Replay
+carry-forward `OD-D086-4` je adjudiciran (`OD-P5-I5C-1`, Opcija A: replay kreiranja vraća **tekuće**
+`occurredAt`, `treatmentDate`, `status`, `version` i `ETag`; `OD-D085-7` ostaje važeći). **Nijedna
+druga ruta se ne mijenja**; katalog §8 ne dobija nijedan novi kod (aditivno pomirenje §8.1 za `PATCH`
+encounter); `request_sha256` ugovor §4.1 i D-055 `If-Match` gramatika (§10) ostaju nepromijenjeni.
+Formulacije `P5-I5C … NOT AUTHORIZED / NOT STARTED` i `D-086 … NOT EFFECTIVE` iznad opisuju
+**pred-D-087 stanje** i **ne prepisuju se**.
+
+```text
+D-087    LOCALLY AUTHORED / NOT INDEPENDENTLY REVIEWED / NOT OWNER-ACCEPTED /
+         NOT PUBLISHED / NOT CANONICAL / NOT EFFECTIVE
+P5-I5B   COMPLETE / VERIFIED / FORMALLY CLOSED / EFFECTIVE
+P5-I5C   CONTRACT FROZEN IN LOCAL D-087 CANDIDATE / NOT AUTHORIZED FOR MUTATION / NOT STARTED
+P5-I5D   NOT AUTHORIZED / NOT STARTED / BEHIND L-4
+```
+
+**Mutacija `P5-I5C` postaje autorizovana tek nakon efektivnog D-087** (nezavisan pregled → vlasničko
+prihvatanje → publikacija / merge → kanonska post-publikaciona verifikacija), i to **isključivo
+unutar `OD-P5-I5C-1` … `OD-P5-I5C-8`**. Efektivnost D-087 sama po sebi ne započinje implementaciju.
+Vidi D-087 u `06`.
+
 
 ---
 
@@ -1086,6 +1109,13 @@ Normativno mapiranje koda na status:
 | `APPROVAL_REVOKED` | 409 | `POST /analyses/{id}/exports`, `POST /exports/{id}/retry` | D-037 |
 | `INTEGRATION_CONNECTION_NOT_CONFIGURED` | 409 | `POST /analyses/{id}/exports` | D-032 |
 | `INTEGRATION_CONNECTION_REQUIRED` | **422** | `POST /analyses/{id}/exports` | D-032 |
+
+**Aditivno pomirenje za `PATCH /encounters/{encounterId}` (D-087, `OD-P5-I5C-2`; lokalni kandidat —
+`NOT CANONICAL` / `NOT EFFECTIVE`) — tabela iznad se NE prepisuje.** Nijedan novi error kod se ne
+uvodi. Za tu rutu `INVALID_STATE_TRANSITION` (`409`) se koristi **isključivo** kada **isti atomičan
+SQL iskaz** utvrdi da je red tenant-vidljiv, da verzija odgovara poslanom `If-Match` i da status nije
+`DRAFT` / `READY_FOR_ANALYSIS`. Nepostojeći, tenant-nevidljiv, zastario i zastario + nedozvoljen status
+→ `409 VERSION_CONFLICT`; `404` se na toj ruti ne vraća. Vidi §12 i D-087 u `06`.
 
 ### Značenje `REVISION_CONFLICT`
 
@@ -2383,6 +2413,81 @@ optimističkog update-a*):
 **Write putanja ta tri uzroka NE razlikuje**, i **`404 RESOURCE_NOT_FOUND` se na `PATCH`-u ne
 vraća.** Asimetrija prema `cancel` ruti je **namjerna**: `PATCH` čuva jednoiskaznu atomičnu
 optimističku konkurentnost i **ne uvodi race-prone read-before-write diskriminator**.
+
+### Tekući ugovor `P5-I5C` (D-087, `OD-P5-I5C-1` … `OD-P5-I5C-8`) — sekcije iznad se NE prepisuju
+
+**Status: lokalni D-087 kandidat — `NOT CANONICAL` / `NOT EFFECTIVE`.** Kada D-087 postane efektivan,
+ova sekcija je **mjerodavna za `PATCH /encounters/{encounterId}` u `P5-I5C`**; gdje je tekst iznad
+širi (npr. „Iz `CANCELLED` → `409 INVALID_STATE_TRANSITION`" bez granice prema anti-oracle pravilu),
+važi ovo sužavanje. Puni zapis: D-087 u `06`.
+
+```text
+REDOSLIJED              auth / admisija -> validacija encounterId -> If-Match -> tijelo -> perzistencija
+
+encounterId             malformiran -> 400 VALIDATION_ERROR; bez pristupa bazi; vrijednost se ne echo-uje
+
+If-Match                jedini precondition; "<N>"; D-055 parser / gramatika AS-IS (ne premjesta se,
+                        ne refaktorise); nema verzije u tijelu
+  nedostaje             428 PRECONDITION_REQUIRED
+  malformiran           400 VALIDATION_ERROR
+  validan, zastario     409 VERSION_CONFLICT
+  domen                 int4-kompatibilan; kanonska verzija >= 1; "0" je sintaksno validan -> 409
+
+Idempotency-Key         PATCH ga NE koristi; zalutali header se ignorise
+
+MUTABILNI CLANOVI       tacno: occurredAt, treatmentDate, responsiblePhysicianId, guarantorType,
+                        insuranceContext, specialtyCode, patientAgeAtEncounter, patientSexAtEncounter
+ZABRANJENI              status, patientReferenceId, sourceSystem, version, ID-evi, sistemski
+                        timestampovi / sistemski upravljana polja, diagnoses, cancel polja / semantika
+  nepoznat / zabranjen  422 VALIDATION_ERROR
+  prazno tijelo {}      400 VALIDATION_ERROR; nema UPDATE-a; nema inkrementa verzije
+  occurredAt /
+  treatmentDate         odsutan -> nepromijenjeno; null -> 422
+  sest opcionih         odsutan -> nepromijenjeno; null -> SQL NULL
+
+stringovi               higijena P5-I5B tacno (OD-D085-4, OD-D085-16): validan Unicode; bez NUL, C0/C1,
+                        CR/LF/TAB; bez rubnog whitespacea; bez trima; duzina >= 1; postojeci
+                        autoritativni max limiti  (nije globalna cross-modul politika)
+occurredAt              RFC 3339 sa eksplicitnom zonom
+treatmentDate           strogo YYYY-MM-DD
+patientAgeAtEncounter   cijeli broj 0..130
+responsiblePhysicianId  OD-D085-10 tacno (samo encounters_responsible_physician_membership_fk -> genericki
+                        422; globalno 23503 -> 422 zabranjeno; bez membership pre-reada)
+
+STATUSNI GUARD          PATCH je data-only; ne mijenja status
+  dozvoljen             DRAFT, READY_FOR_ANALYSIS
+  nedozvoljen           CANCELLED, CLOSED
+  409 VERSION_CONFLICT  nepostojeci; cross-tenant / nevidljiv; zastario If-Match;
+                        zastario If-Match + nedozvoljen status
+  409 INVALID_STATE_    ISKLJUCIVO kada ISTI atomican SQL iskaz utvrdi: red tenant-vidljiv I verzija
+  TRANSITION            odgovara If-Match I status nije DRAFT / READY_FOR_ANALYSIS
+  404                   nikada na PATCH-u; nema diskriminirajuceg pre-reada
+
+USPJEH                  200 OK; ETag "<novaVerzija>"; tijelo tacno zatvorena sedmoclana projekcija kao
+                        POST 201: id, status, version, patient{id, pseudonym}, occurredAt,
+                        treatmentDate, createdAt; nijedan dodatni clan; version u tijelu == ETag;
+                        projekcija iz iste atomicne SQL operacije, bez drugog citanja nakon update-a
+updated_by / updated_at admitovani autentifikovani korisnik / tekuce vrijeme baze iz write operacije
+                        (svaki uspjesan PATCH, ukljucujuci value-no-op)
+
+AUDIT                   USER / ENCOUNTER / ENCOUNTER_UPDATED / resource_id = id encountera;
+                        previous_value / new_value = iskljucivo stvarno promijenjena (IS DISTINCT FROM)
+                        PATCH-mutabilna poslovna polja; API camelCase imena; occurredAt = UTC ms Z;
+                        bez version; metadata = {}; stara/nova vrijednost hvatana u ISTOM SQL iskazu
+                        kao optimisticki update
+  value-no-op           neprazan PATCH, sve poslane vrijednosti jednake pohranjenim: uspijeva,
+                        inkrementira version, azurira updated_*, pise audit sa {} / {}
+
+TRANSAKCIJA             jedna admitovana interaktivna transakcija (postojeci tenant pipeline /
+                        TenantDatabaseService facade): atomicna optimisticka operacija ->
+                        ENCOUNTER_UPDATED audit -> commit; bez opsteg pre-reada, ugnijezdene /
+                        paralelne transakcije, SAVEPOINT-a i drugog citanja projekcije;
+                        neuspjeh audita -> puni rollback; dijagnoze IZVAN obuhvata
+
+REPLAY POST-a           replay POST /encounters nakon PATCH-a rekonstruise iz TEKUCEG resursa:
+(OD-P5-I5C-1)           tekuci occurredAt, treatmentDate, status, version, ETag; bez historijskog
+                        snapshota; bez izmjene scheme / idempotencijske pohrane; OD-D085-7 vazi
+```
 
 ## POST `/encounters/{encounterId}/cancel`
 

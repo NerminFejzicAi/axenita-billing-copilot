@@ -19452,6 +19452,554 @@ D-086 LOCAL CANDIDATE CHECKLIST          = 33 / 49
 
 ---
 
+# D-087 — `P5-I5C` PATCH Encounter / optimistička konkurencija: zamrzavanje ugovora i odgođena implementacijska autorizacija
+
+- **Status:** vlasničke odluke `OD-P5-I5C-1` … `OD-P5-I5C-8` OWNER-RATIFIED — **LOCALLY AUTHORED /
+  NOT INDEPENDENTLY REVIEWED / NOT OWNER-ACCEPTED / NOT PUBLISHED / NOT CANONICAL / NOT EFFECTIVE**
+- **Datum:** 2026-10-04
+- **Tip:** vlasnički ratifikovan **governance zapis zamrzavanja ugovora `P5-I5C` (PATCH Encounter /
+  optimistička konkurencija)** i **odgođene implementacijske autorizacije**. **Dokumentacija
+  isključivo.**
+- **Amandman na:** **isključivo tekući ugovor `PATCH /api/v1/encounters/{encounterId}`** (`03` §12),
+  **aditivno pomirenje kataloga grešaka** za tu rutu (`03` §8.1) i tekuće statusne metapodatke
+  `P5-I5C`. **Nijedan zapis D-001 … D-086 se ne prepisuje, ne prenumeriše i ne briše — svi ostaju
+  bajt-identični.**
+- **Ova odluka NE implementira ništa.** Ne uvodi nijednu liniju izvornog koda, nijedan test, nijednu
+  migraciju, schemu, Prisma model, API rutu, grant, rolu ni politiku. **Nijedna baza nije
+  kontaktirana** i **nijedan test se ovom odlukom ne izvršava.**
+- **Ova odluka NE mijenja nijednu kućicu checklista.** Checklist Faze 5 ostaje **`33 / 49`** i u
+  kanonskom `origin/main` i u ovom lokalnom kandidatu. **`CHECKBOX_TRANSITIONS = 0`.**
+- **Ova odluka NE autorizuje mutaciju `P5-I5C` prije vlastite efektivnosti** (`RULING K`), **ne
+  autorizuje `P5-I5D`** i **ne adjudicira L-4**.
+- **Ova odluka troši ISKLJUČIVO `D-087`.** `D-088` se ne troši, ne rezerviše i ne dodjeljuje.
+
+## Kontekst/problem — trigger
+
+D-086 je formalno zatvorio `P5-I5B` i `P5-I5C` učinio **podobnim za svjež autorizacijski /
+pre-execution checkpoint** (`OD-D086-3`), uz izričito pravilo da **podobnost nije autorizacija**, i
+prenio **replay carry-forward obavezu** (`OD-D086-4`): ako `P5-I5C` dozvoli `PATCH` polja prisutnih u
+`201` projekciji kreiranja (posebno `occurredAt`, `treatmentDate`), checkpoint `P5-I5C` mora izričito
+adjudicirati semantiku rekonstrukcije replaya kreiranja za ta polja.
+
+`P5-I5C` pre-execution checkpoint nad kanonskom osnovom koja nosi efektivan D-086 završio je kao
+**`P5_I5C_PREEXECUTION_PASS_READY_FOR_OWNER_ADJUDICATION`**. Kanonski ugovor `PATCH
+/encounters/{encounterId}` (`03` §12; D-062, Dio H.2; D-069, `RULING 2`; D-082, `RULING G`) fiksira
+patch allowlist, obavezan `If-Match` i jednoiskaznu optimističku write putanju bez diskriminirajućeg
+pre-reada, ali **ostavlja otvorenim** supstantivne odluke bez kojih implementacija ne smije početi
+(`AGENTS.md` §13): replay kreiranja nakon `PATCH`-a, tačnu granicu statusnog guarda naspram
+anti-oracle pravila, audit i no-op semantiku, tačan oblik odgovora, odsutno/`null` semantiku i
+validaciju, malformiran `encounterId`, tačan `If-Match` domen i ažuriranje `updated_*` kolona.
+**Vlasnik je te odluke izričito ratifikovao** kroz `OD-P5-I5C-1` … `OD-P5-I5C-8` i dodijelio
+`D-087` isključivo ovom zamrzavanju ugovora i odgođenoj implementacijskoj autorizaciji `P5-I5C`.
+
+## Kanonsko stanje ulaza ovog gatea
+
+```text
+repozitorij                  D:\AI\Arztpraxis
+kanonski main                6965d31ee84f242f1eb7cb71402b479761a9c14e
+zivi remote refs/heads/main  6965d31ee84f242f1eb7cb71402b479761a9c14e
+worktree                     CLEAN
+stash                        EMPTY
+
+MANIFEST                     19 / 19 MATCH
+checklist Faze 5             49 ukupno / 33 oznaceno / 16 neoznaceno   (~67.3 %)
+najnovija kanonska odluka    D-086
+D-086                        PUBLISHED / MERGED (PR #69) / CANONICAL / EFFECTIVE
+D-087 prije ovog zapisa      OWNER-ASSIGNED / AUTHORING AUTHORIZED / UNCONSUMED / 0 heading pojavljivanja
+D-088                        UNCONSUMED / NOT RESERVED / NOT ASSIGNED / 0 heading pojavljivanja
+
+P5-I5                        IN_PROGRESS
+P5-I5A                       COMPLETE / VERIFIED / FORMALLY CLOSED / EFFECTIVE
+P5-I5B                       COMPLETE / VERIFIED / FORMALLY CLOSED / EFFECTIVE
+P5-I5C                       ELIGIBLE / PRE-EXECUTION PASS / NOT AUTHORIZED / NOT STARTED
+P5-I5D                       NOT AUTHORIZED / NOT STARTED / BEHIND L-4
+L-4                          DEFERRED - MUST BE ADJUDICATED BEFORE P5-I5D IMPLEMENTATION AUTHORIZATION
+```
+
+## Odluka
+
+**Pravila ispod su normativni ugovor `P5-I5C`.** Gdje postojeći tekst `03` §12 (sekcija `PATCH
+/encounters/{encounterId}`) ili `03` §8.1 ostavlja izbor otvorenim ili je širi (npr. „Iz `CANCELLED` →
+`409 INVALID_STATE_TRANSITION`" bez granice prema anti-oracle pravilu), **za `PATCH
+/api/v1/encounters/{encounterId}` u `P5-I5C` mjerodavan je ovaj zapis**; historijski tekst se ne
+prepisuje.
+
+### `RULING A` — `OD-P5-I5C-1`: replay `POST`-a nakon `PATCH`-a (Opcija A)
+
+`PATCH` **smije** mijenjati `occurredAt` i `treatmentDate` (oba su u zatvorenoj `201` projekciji,
+`OD-D085-17`).
+
+**Idempotentni replay originalnog `POST /api/v1/encounters` rekonstruiše se iz TEKUĆEG kanonskog
+encounter resursa.** Nakon `PATCH`-a replay vraća **tekuće**:
+
+```text
+occurredAt
+treatmentDate
+status
+version
+ETag
+```
+
+- **Nema historijskog snapshota `POST` odgovora.**
+- **Nema izmjene scheme ni idempotencijske pohrane.**
+- **`OD-D085-7` ostaje važeći** — ovo je njegova izričita primjena na `PATCH`-mutabilna projektovana
+  polja; time je **carry-forward `OD-D086-4` adjudiciran**.
+
+### `RULING B` — `OD-P5-I5C-2`: statusni guard / anti-oracle granica
+
+**`PATCH` je isključivo podatkovni (data-only) i NE MOŽE mijenjati status.**
+
+```text
+dozvoljen status       DRAFT, READY_FOR_ANALYSIS
+nedozvoljen status     CANCELLED, CLOSED
+```
+
+**`409 VERSION_CONFLICT`** za:
+
+```text
+nepostojeci encounter
+cross-tenant / tenant-nevidljiv encounter
+zastarjeli If-Match
+zastarjeli If-Match + nedozvoljen status
+```
+
+**`409 INVALID_STATE_TRANSITION` ISKLJUČIVO kada ISTI atomičan SQL iskaz utvrdi sve troje:**
+
+```text
+1  red je tenant-vidljiv
+2  verzija odgovara poslanom If-Match
+3  status NIJE DRAFT / READY_FOR_ANALYSIS
+```
+
+- **Nema `PATCH` `404`.** `404 RESOURCE_NOT_FOUND` se na `PATCH`-u ne vraća (D-069, `RULING 2`).
+- **Nema diskriminirajućeg pre-reada.**
+- **Historijska tijela odluka se ne prepisuju.** Katalog grešaka API-ja se za `PATCH` encounter
+  **aditivno** pomiruje (`03` §8.1, aditivna anotacija); red `INVALID_STATE_TRANSITION` tabele §8.1 se
+  ne prepisuje.
+
+### `RULING C` — `OD-P5-I5C-3`: audit / no-op `PATCH`
+
+```text
+actor_type      USER
+resource_type   ENCOUNTER
+action          ENCOUNTER_UPDATED
+resource_id     id encountera
+previous_value  iskljucivo stvarno promijenjena PATCH-mutabilna poslovna polja, stara vrijednost
+new_value       ista ta polja, nova vrijednost
+metadata        {}
+```
+
+- **„Promijenjeno" = `IS DISTINCT FROM`** (stara naspram nove pohranjene vrijednosti).
+- **Imena članova = API camelCase** (npr. `occurredAt`, `treatmentDate`, `responsiblePhysicianId`).
+- **Audit reprezentacija `occurredAt` = UTC, milisekundna preciznost, sufiks `Z`.**
+- **`version` se NE uključuje** ni u `previous_value` ni u `new_value`.
+- **Hvatanje stare/nove vrijednosti mora se desiti u ISTOM SQL iskazu kao optimistički update.**
+  **Nema zasebnog diskriminirajućeg pre-reada.**
+
+**Validan neprazan `PATCH` čije su sve poslane poslovne vrijednosti jednake pohranjenim:**
+
+```text
+uspijeva
+inkrementira version
+azurira updated_by / updated_at
+pise ENCOUNTER_UPDATED audit
+previous_value = {}
+new_value      = {}
+```
+
+**`{}` (prazno tijelo) ostaje validacijska greška** (`RULING E`).
+
+Ovim se za `ENCOUNTER_UPDATED` **fiksira fizičko mapiranje članova** koje je D-082 (`RULING E`;
+`09` §12.2) izričito odgodio u kasniji autorizovani gate; **pravilo minimizacije D-082 se ne slabi**
+(nepromijenjena polja i snapshot reda ostaju zabranjeni).
+
+### `RULING D` — `OD-P5-I5C-4`: odgovor
+
+```text
+status    200 OK
+ETag      "<novaVerzija>"
+tijelo    TACNO ista zatvorena sedmoclana projekcija kao POST 201 (OD-D085-17):
+          id, status, version, patient, occurredAt, treatmentDate, createdAt
+patient   tacno: id, pseudonym
+```
+
+- **Nema dodatnih članova.**
+- **`version` u tijelu i `ETag` moraju se podudarati.**
+- **Projekcija dolazi iz iste atomične SQL operacije.** **Nema drugog čitanja nakon update-a.**
+
+### `RULING E` — `OD-P5-I5C-5`: površina `PATCH`-a / validacija
+
+**Mutabilni članovi — tačno:**
+
+```text
+occurredAt
+treatmentDate
+responsiblePhysicianId
+guarantorType
+insuranceContext
+specialtyCode
+patientAgeAtEncounter
+patientSexAtEncounter
+```
+
+**Zabranjeni:** `status`, `patientReferenceId`, `sourceSystem`, `version`, ID-evi / sistemski
+timestampovi / sistemski upravljana polja, `diagnoses`, polja i semantika otkazivanja.
+
+```text
+nepoznat / zabranjen clan                    422 VALIDATION_ERROR
+prazno tijelo {}                             400 VALIDATION_ERROR; nema UPDATE-a; nema inkrementa verzije
+
+occurredAt / treatmentDate    odsutan        nepromijenjeno
+                              null           422 VALIDATION_ERROR
+
+sest opcionih mutabilnih      odsutan        nepromijenjeno
+clanova                       null           SQL NULL
+```
+
+Šest opcionih mutabilnih članova: `responsiblePhysicianId`, `guarantorType`, `insuranceContext`,
+`specialtyCode`, `patientAgeAtEncounter`, `patientSexAtEncounter`.
+
+**Za prisutne non-null stringove reupotrebljava se higijena `P5-I5B` TAČNO, za `P5-I5C`**
+(`OD-D085-4`, `OD-D085-16`):
+
+```text
+validan Unicode
+bez NUL
+bez C0/C1
+bez CR / LF / TAB
+bez vodeceg / prateceg whitespacea
+bez trima
+duzina >= 1
+postojeci autoritativni maksimalni limiti duzine
+```
+
+**Reupotrebljava se:** `occurredAt` RFC 3339 sa eksplicitnom zonom; `treatmentDate` strogo
+`YYYY-MM-DD`; starost cijeli broj `0..130` (`OD-D085-5` / `OD-D085-6`).
+
+**Odgovorni ljekar reupotrebljava `OD-D085-10` TAČNO** (jedini `422`-mapiran FK je
+`encounters_responsible_physician_membership_fk`; generički `422`; globalno `23503 → 422` zabranjeno;
+nema membership pre-read oraclea).
+
+- **`PATCH` NE koristi `Idempotency-Key`.** Zalutali `Idempotency-Key` header se **ignoriše**.
+- **Redoslijed validacije nakon admisije / validacije putanje: `If-Match` PRIJE tijela `PATCH`-a.**
+- Pravila higijene ostaju **specifična za `P5-I5B` / `P5-I5C`** — **NE nova globalna cross-modul
+  politika**.
+
+### `RULING F` — `OD-P5-I5C-6`: malformiran `encounterId`
+
+**Malformiran `encounterId` u putanji → `400 VALIDATION_ERROR`.** **Nema pristupa bazi.** **Vrijednost
+se ne ponavlja (ne echo-uje).**
+
+```text
+auth / admisija
+-> validacija id-a putanje
+-> If-Match
+-> tijelo
+-> perzistencija
+```
+
+### `RULING G` — `OD-P5-I5C-7`: `If-Match`
+
+**Jedini precondition konkurentnosti je `If-Match: "<N>"`.** **Nema verzije u tijelu zahtjeva.**
+
+**Postojeći D-055 parser / gramatika se reupotrebljava AS-IS** (`03` §10, D-055, klauzule 11–13).
+**Parser se ne premješta i ne refaktoriše.**
+
+```text
+nedostaje                       428 PRECONDITION_REQUIRED
+malformiran                     400 VALIDATION_ERROR
+validan, ali zastario           409 VERSION_CONFLICT
+```
+
+- **Verzija je `int4`-kompatibilna; kanonska verzija je `>= 1`.**
+- **`If-Match: "0"` je sintaksno validan i daje `409 VERSION_CONFLICT`.**
+
+### `RULING H` — `OD-P5-I5C-8`: ažurirane kolone
+
+Svaki uspješan `PATCH`:
+
+```text
+updated_by   = id admitovanog autentifikovanog korisnika
+updated_at   = tekuce vrijeme baze iz write operacije
+```
+
+**Važi i za uspješan neprazan value-no-op `PATCH`** (`RULING C`).
+
+### `RULING I` — transakcijska / implementacijska granica
+
+**Jedna admitovana interaktivna transakcija** kroz postojeći tenant pipeline / `TenantDatabaseService`
+facade (D-054; D-056). Unutar nje:
+
+```text
+1  jedna atomicna optimisticka PATCH perzistencijska operacija
+2  ENCOUNTER_UPDATED audit
+3  commit
+```
+
+- **Određivanje ishoda encountera + hvatanje stare/nove vrijednosti moraju biti u JEDNOM atomičnom
+  SQL iskazu.** Neuspjeh audita → puni rollback (D-082; `09` §12.2).
+- **Zabranjeno:** opšti diskriminirajući pre-read; ugniježdena transakcija; paralelni transakcioni
+  rad; `SAVEPOINT`; drugo čitanje projekcije.
+- **Dijagnoze su izričito IZVAN OBUHVATA.**
+- **Nisu autorizovane nikakve izmjene scheme / migracije / RLS-a / granta / enuma / tabele / indeksa /
+  constrainta.** Postojeći kolonski `UPDATE` grant nad `encounters` (`02` §29.5; paket `013`) već
+  pokriva svih osam mutabilnih kolona te `version`, `updated_by`, `updated_at`; audit `action` je
+  postojeća `varchar` kolona.
+
+### `RULING J` — minimalne dokazne obaveze `P5-I5C`
+
+Kasnija implementacija `P5-I5C` mora dokazati najmanje:
+
+```text
+ 1  happy PATCH
+ 2  inkrement version + ETag
+ 3  zastario / nepostojeci / cross-tenant -> zasticeno 409 VERSION_CONFLICT ponasanje
+ 4  If-Match matrica 428 / 400
+ 5  malformiran encounterId
+ 6  prazno tijelo bez inkrementa verzije
+ 7  nepoznata / zabranjena polja
+ 8  odsutno / null semantika
+ 9  validacija stringova / datuma / starosti
+10  CANCELLED / CLOSED guard
+11  zastario + nedozvoljen status -> VERSION_CONFLICT
+12  mapiranje odgovornog ljekara
+13  patient-reference FK NIJE globalno preveden
+14  audit semantika promijenjenih polja
+15  no-op PATCH: inkrement verzije + {} / {} audit
+16  rollback audita
+17  stvarna trka dvije konekcije (real two-connection race)
+18  replay POST-a nakon PATCH-a koristi tekuce occurredAt / treatmentDate
+19  negativan dokaz privilegije zabranjene kolone
+```
+
+**Postojeći trajni regresijski / sigurnosni testovi koje je pre-execution identifikovao ostaju
+nepromijenjeni osim ako se to zasebno autorizuje** — uključujući trajni
+`apps/api/test/phase5-responsible-physician-ri.security.ts` (`★`; pad → `HARD HOLD`). Vidi `08` §12.13.
+
+### `RULING K` — odgođena implementacijska autorizacija
+
+**Tek nakon što D-087 dovrši puni governance lifecycle i postane:**
+
+```text
+PUBLISHED
+MERGED
+CANONICAL
+POST-PUBLICATION VERIFIED
+EFFECTIVE
+```
+
+**`P5-I5C` postaje:**
+
+```text
+IMPLEMENTATION AUTHORIZED / NOT STARTED
+(iskljucivo unutar OD-P5-I5C-1 ... OD-P5-I5C-8 i RULING I / RULING J)
+```
+
+**Svjež implementacijski preflight tada smije nastaviti bez nove vlasničke autorizacije**, osim ako
+pronađe:
+
+```text
+kanonski drift
+novi blocker
+nerijesenu kontradikciju
+potreban obuhvat izvan D-087
+potrebnu izmjenu scheme / RLS-a / granta / grafa stanja
+drugu materijalno invalidirajucu cinjenicu
+```
+
+**Efektivnost D-087 sama po sebi NE započinje implementaciju.**
+
+```text
+prije efektivnosti D-087    P5-I5C = NOT AUTHORIZED FOR MUTATION / NOT STARTED
+nakon efektivnosti D-087    P5-I5C = IMPLEMENTATION AUTHORIZED / NOT STARTED
+```
+
+### `RULING L` — vlasništvo zatvaranja
+
+`P5-I5C` posjeduje **tačno tri** closure reda (D-082, `RULING G`):
+
+```text
+Services   optimistic locking.
+API        PATCH encounter.
+Tests      stale ETag.
+```
+
+```text
+kanonski tekuci                              33 / 49
+potencijalno nakon efektivnog zatvaranja
+P5-I5C (zasebna buduca odluka)               36 / 49
+
+tokom autorstva D-087
+UNCHECKED_TO_CHECKED   = 0
+CHECKED_TO_UNCHECKED   = 0
+NEW_ROWS               = 0
+DELETED_ROWS           = 0
+```
+
+**Nijedan closure red se sada ne označava.** Redovi se zatvaraju **isključivo kroz formalno
+zatvaranje `P5-I5C`** nakon punog lifecyclea (D-084, `OD-D084-1`).
+
+### `RULING M` — `P5-I5D` / L-4 firewall
+
+```text
+P5-I5D   NOT AUTHORIZED / NOT STARTED / BEHIND L-4
+L-4      DEFERRED - MUST BE ADJUDICATED BEFORE P5-I5D IMPLEMENTATION AUTHORIZATION
+```
+
+D-087 **ne razrješava L-4**, **ne autorizuje cancel**, **ne definiše semantiku razloga otkazivanja** i
+**ne uvodi nikakav cancel runtime rad**.
+
+### `RULING N` — historijsko očuvanje i broj odluke
+
+**Tijela odluka D-001 … D-086 ostaju bajt-identična.** D-087 je **aditivan**. Ranije formulacije
+`P5-I5C … NOT AUTHORIZED / NOT STARTED`, `D-086 … NOT EFFECTIVE` i „Iz `CANCELLED` → `409
+INVALID_STATE_TRANSITION`" su **historijski tačne** za svoj izvorni trenutak i **ne prepisuju se**.
+
+```text
+prije uspjesnog lokalnog commita   D-087 = OWNER-ASSIGNED / AUTHORING AUTHORIZED / NOT CONSUMED
+nakon uspjesnog lokalnog commita   D-087 = CONSUMED BY LOCAL GOVERNANCE AUTHORSHIP /
+                                           LOCALLY AUTHORED / COMMITTED /
+                                           NOT INDEPENDENTLY REVIEWED / NOT OWNER-ACCEPTED /
+                                           NOT PUBLISHED / NOT CANONICAL / NOT EFFECTIVE
+D-088                              UNCONSUMED / NOT RESERVED / NOT ASSIGNED
+```
+
+**Governance autorstvo D-087 ne sadrži nikakvu runtime / kod / test / schema implementaciju.**
+
+## Razmotrene i odbijene alternative
+
+- **Historijski snapshot `POST` odgovora za replay** — **odbijeno (`OD-P5-I5C-1`, Opcija A).** Traži
+  izmjenu idempotencijske pohrane; `OD-D085-7` već rekonstruiše iz tekućeg stanja.
+- **`404` za nepostojeći / nevidljiv encounter na `PATCH`-u, ili diskriminirajući pre-read** —
+  **odbijeno (`OD-P5-I5C-2`; D-069, `RULING 2`).**
+- **`INVALID_STATE_TRANSITION` za zastario + nedozvoljen status** — **odbijeno (`OD-P5-I5C-2`)**; to
+  bi bio oracle stanja za pozivaoca bez tekuće verzije.
+- **No-op `PATCH` bez inkrementa verzije i bez audita** — **odbijeno (`OD-P5-I5C-3`).**
+- **Verzija u tijelu zahtjeva ili novi `If-Match` parser** — **odbijeno (`OD-P5-I5C-7`).**
+- **Drugo čitanje nakon update-a za projekciju** — **odbijeno (`OD-P5-I5C-4`).**
+- **Odmah operativna autorizacija lokalnim commitom** — **odbijeno (`RULING K`).**
+- **Uključiti `14`** — **odbijeno**; nijedan kanonski dijagram ne opisuje `PATCH` tok koji bi bez
+  napomene postao netačan.
+
+## Posljedice — dokumentaciono pomirenje
+
+| Lokacija | Zahvat |
+|---|---|
+| `06` | dodat ovaj D-087 zapis nakon D-086; **D-001 … D-086 bajt-identični** |
+| `03` §4 | aditivna D-087 statusna anotacija nakon D-086 anotacije |
+| `03` §8.1 | aditivna anotacija pomirenja kataloga za `PATCH` encounter; **tabela se ne prepisuje; nijedan novi error kod** |
+| `03` §12 | aditivna sekcija tekućeg ugovora `PATCH /encounters/{encounterId}` (D-087) nakon postojeće `PATCH` sekcije |
+| `04` §7.5a | aditivna D-087 statusna / implementacijska anotacija nakon D-086 anotacije |
+| `05` §6 | aditivna D-087 anotacija vlasništva; **nula tranzicija kućica** |
+| `08` §12.13 | aditivna D-087 anotacija dokaznih obaveza `P5-I5C` |
+| `09` §12.2 | aditivna D-087 statusna / sigurnosna anotacija |
+| `MANIFEST.md` | ponovo izračunati bajtovi i SHA-256 za izmijenjene dokumente; **19 redova ostaje 19** |
+
+**Nijedan drugi dokument se ne mijenja** (uključujući `14`). Sav izvorni kod, testovi, migracije,
+Prisma, SQL, grantovi, RLS politike, paketi, lockfile, CI i `.env.example` ostaju netaknuti.
+
+## Security/privacy uticaj
+
+- **Nijedan sigurnosni zahtjev se ne mijenja, ne slabi i ne uklanja.**
+- **Nema existence oraclea:** nepostojeći, nevidljiv i zastario encounter daju isti `409
+  VERSION_CONFLICT`; `INVALID_STATE_TRANSITION` je dostupan **isključivo** pozivaocu koji je dokazao
+  tekuću verziju vidljivog reda u istom atomičnom iskazu.
+- **Audit minimizacija D-082 se primjenjuje i pooštrava:** samo stvarno promijenjena polja, bez
+  `version`, bez snapshota reda, `metadata = {}`.
+- **Malformiran `encounterId` se ne echo-uje i ne dodiruje bazu.**
+- **`★` RI-naspram-RLS ostaje trajna regresija i HARD preduslov.**
+- **Nijedan grant, nijedna RLS politika i nijedan predikat izolacije se ne dira.**
+
+## Migration/rollout
+
+**Nema.**
+
+```text
+PRISMA_SCHEMA_MUTATION_REQUIRED    = NO
+MIGRATION_REQUIRED                 = NO
+RLS_POLICY_MUTATION_REQUIRED       = NO
+GRANT_MUTATION_REQUIRED            = NO
+NEW_RUNTIME_DEPENDENCY_REQUIRED    = NO
+PUBLIC_API_ROUTE_MUTATION_REQUIRED = NO   (u ovom gateu; ruta je obuhvat kasnije implementacije)
+DATABASE_WRITER_REQUIRED           = NO
+HISTORICAL_RECORDS_REWRITTEN       = 0
+```
+
+## Test dokaz
+
+**Nijedan test se ovim zapisom ne piše, ne mijenja i ne izvršava.**
+
+```text
+TESTS WRITTEN IN THIS GATE   0
+TESTS RERUN IN THIS GATE     0
+```
+
+Dokazne obaveze kasnije implementacije `P5-I5C` su u `08` §12.13 (D-082 stavka `P5-I5C` plus D-087
+anotacija) i u `RULING J`.
+
+## Šta D-087 ne mijenja
+
+- **Ne mijenja kanonski graf od 15 tranzicija, aritmetiku D-083, segmentaciju D-082, pravilo vremena
+  zatvaranja D-084 ni zamrznuti ugovor D-085.**
+- **Ne mijenja nijednu drugu rutu**, ne dodaje nijedan error kod u katalog §8 i ne mijenja
+  `request_sha256` ugovor `P5-I4`.
+- **Ne mijenja D-055 `If-Match` parser ni gramatiku.**
+- **Ne mijenja vlasništvo redova checklista** i **ne označava nijedan red.**
+- **Ne autorizuje `P5-I5D`, `P5-I6` ni `P5-I7`.**
+- **Ne zatvara `D-OPEN-009`** ni L-4.
+- **Ne prepisuje nijedan historijski zapis.** **`HISTORICAL_RECORDS_REWRITTEN = 0`.**
+
+## Otvorena pitanja koja D-087 ne zatvara
+
+- **L-4** — mora biti adjudicirano prije `P5-I5D` implementacijske autorizacije;
+- `P5-I5D` granice prenesene iz D-084 `RULING E`;
+- globalno odstupanje formattera, sirovi NUL u permission-matrix, request-hash vektor exports-retry
+  — preneseni, nepromijenjeni;
+- **`D-OPEN-004a`**, **`D-OPEN-007`**, **`D-OPEN-009`** — nepromijenjeni.
+
+## Zavisnosti
+
+- **D-055** — `If-Match` gramatika i `428` / `400` / `409` razdvajanje; presedan jednoiskazne
+  optimističke write putanje; prazno tijelo → `400`.
+- **D-062** (Dio D, Dio H.2) — composite FK odgovornog ljekara; patchable skup.
+- **D-069** (`RULING 2`) — `PATCH` nula redova → `409 VERSION_CONFLICT`, bez `404`, bez pre-reada.
+- **D-082** — segmentacija `P5-I5`, audit katalog i minimizacija, closure-owned redovi.
+- **D-083** — aritmetika tranzicija i L-4 firewall.
+- **D-084** — pravilo vremena zatvaranja checklista.
+- **D-085** — higijena stringova, datumi, starost, FK ponašanje, replay (`OD-D085-7`), zatvoren `201`
+  odgovor (`OD-D085-17`).
+- **D-086** — formalno zatvaranje `P5-I5B`, podobnost `P5-I5C`, replay carry-forward (`OD-D086-4`).
+
+## Naredni obavezni gate
+
+**Svjež nezavisan pregled tačnog lokalnog D-087 governance commita**, pa — tek nakon izričitog
+vlasničkog prihvatanja — publikacioni preflight, publikacijska autorizacija, publikacija i kanonska
+post-verifikacija.
+
+```text
+D-087 LOCALLY AUTHORED                   = YES
+D-087 OWNER RULINGS INCORPORATED         = YES (OD-P5-I5C-1 ... OD-P5-I5C-8)
+D-087 INDEPENDENTLY REVIEWED             = NO
+D-087 OWNER-ACCEPTED                     = NO
+D-087 PUBLISHED / MERGED                 = NO
+D-087 CANONICAL                          = NO
+D-087 EFFECTIVE                          = NO
+
+P5-I5     IN_PROGRESS
+P5-I5A    COMPLETE / VERIFIED / FORMALLY CLOSED / EFFECTIVE
+P5-I5B    COMPLETE / VERIFIED / FORMALLY CLOSED / EFFECTIVE
+P5-I5C    CONTRACT FROZEN IN LOCAL D-087 CANDIDATE /
+          DELAYED IMPLEMENTATION AUTHORIZATION RECORDED /
+          NOT AUTHORIZED FOR MUTATION / NOT STARTED
+P5-I5D    NOT AUTHORIZED / NOT STARTED / BEHIND L-4
+D-088     UNCONSUMED / NOT RESERVED / NOT ASSIGNED
+
+CANONICAL CHECKLIST                      = 33 / 49
+D-087 LOCAL CANDIDATE CHECKLIST          = 33 / 49
+```
+
+---
+
 # Otvorene odluke
 
 ## D-OPEN-001 — Produkcijski OIDC provider

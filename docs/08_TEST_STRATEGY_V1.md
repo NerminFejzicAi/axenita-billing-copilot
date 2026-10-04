@@ -2224,6 +2224,53 @@ CHECKBOX TRANSITIONS (D-086 kandidat) = 1   (API -> POST encounter)
 
 Vidi D-086 u `06`.
 
+### Anotacija dokaznih obaveza `P5-I5C` (D-087, 2026-10-04) — sekcije iznad se NE prepisuju
+
+D-087 zamrzava ugovor `P5-I5C` (`03` §12, tekući ugovor `PATCH`). Stavka **`P5-I5C`** iznad (D-082)
+ostaje na snazi; kasnija implementacija `P5-I5C` je **dodatno** obavezna dokazati najmanje
+(`OD-P5-I5C-1` … `OD-P5-I5C-8`; D-087, `RULING J`):
+
+- **happy `PATCH`**: `200`, zatvorena sedmočlana projekcija, `version` u tijelu == `ETag`;
+- **inkrement `version` + `ETag`**;
+- **zastario / nepostojeći / cross-tenant** → isti zaštićeni `409 VERSION_CONFLICT`, bez `404` i bez
+  dodatnog čitanja;
+- **`If-Match` matrica**: nedostaje → `428`; malformiran (uključujući izvan `int4`) → `400`;
+  `"0"` → `409`;
+- **malformiran `encounterId`** → `400`, bez pristupa bazi, vrijednost se ne echo-uje;
+- **prazno tijelo `{}`** → `400`, bez inkrementa verzije;
+- **nepoznata / zabranjena polja** → `422`;
+- **odsutno / `null` semantika**: `occurredAt` / `treatmentDate` `null` → `422`; šest opcionih
+  `null` → SQL `NULL`; odsutno → nepromijenjeno;
+- **validacija stringova / datuma / starosti** (higijena `P5-I5B`, RFC 3339 sa zonom,
+  `YYYY-MM-DD`, `0..130`);
+- **`CANCELLED` / `CLOSED` guard** → `409 INVALID_STATE_TRANSITION` uz tačan `If-Match`;
+- **zastario + nedozvoljen status** → `409 VERSION_CONFLICT`;
+- **mapiranje odgovornog ljekara** (`OD-D085-10`; isti generički `422`);
+- **patient-reference FK NIJE globalno preveden** (globalno `23503 → 422` odsutno);
+- **audit semantika promijenjenih polja** iz stvarnog pohranjenog reda (`IS DISTINCT FROM`, camelCase,
+  `occurredAt` UTC ms `Z`, bez `version`, `metadata = {}`);
+- **no-op `PATCH`**: inkrement verzije, ažuriran `updated_by` / `updated_at`, audit `{}` / `{}`;
+- **rollback audita**: neuspjeh audita → nijedna izmjena encountera;
+- **stvarna trka dvije konekcije**: tačno jedan uspjeh, drugi `409 VERSION_CONFLICT`;
+- **replay `POST`-a nakon `PATCH`-a** vraća tekuće `occurredAt` / `treatmentDate` (i `status`,
+  `version`, `ETag`);
+- **negativan dokaz privilegije zabranjene kolone** (`patient_reference_id`, `source_system`).
+
+**Postojeći trajni regresijski / sigurnosni testovi** koje je pre-execution identifikovao — uključujući
+`apps/api/test/phase5-responsible-physician-ri.security.ts` (`★`; pad → `HARD HOLD`) — **ostaju
+nepromijenjeni** osim ako se to zasebno autorizuje.
+
+```text
+TESTS WRITTEN IN THIS GATE   0
+TESTS RERUN IN THIS GATE     0
+D-087    LOCALLY AUTHORED / NOT CANONICAL / NOT EFFECTIVE
+P5-I5C   CONTRACT FROZEN IN LOCAL D-087 CANDIDATE / NOT AUTHORIZED FOR MUTATION / NOT STARTED
+CHECKBOX TRANSITIONS (D-087 kandidat) = 0
+```
+
+Formulacija `P5-I5C … NOT AUTHORIZED / NOT STARTED` iznad opisuje **pred-D-087 stanje** i **ne
+prepisuje se**. Vidi D-087 u `06`.
+
 ---
 
 

@@ -3151,6 +3151,46 @@ carry-forwarda** (`OD-D086-4`) za `PATCH`-mutabilna polja `201` projekcije. **`P
 L-4** (`OD-D086-6`). Ovom anotacijom se ne uvodi nijedan implementacijski detalj izvan postojećeg
 kanonskog obuhvata. Vidi D-086 u `06`.
 
+#### Statusna anotacija (D-087) — blokovi iznad se NE prepisuju
+
+**D-087 zamrzava ugovor `P5-I5C` (PATCH Encounter / optimistička konkurencija)** — vlasničke odluke
+`OD-P5-I5C-1` … `OD-P5-I5C-8`; tekući ugovor je u `03` §12 — i bilježi **odgođenu** implementacijsku
+autorizaciju. Replay carry-forward `OD-D086-4` je adjudiciran (`OD-P5-I5C-1`, Opcija A).
+
+**Implementacijska granica (D-087, `RULING I`).** Kasnija implementacija **smije**: `PATCH
+/api/v1/encounters/{encounterId}` pod postojećom `encounter.update` permisijom; validaciju putanje,
+`If-Match`-a (postojeći D-055 parser **AS-IS**, bez premještanja i refaktorisanja) i tijela; update
+aplikacijski servis i perzistencijski port; **jednu** admitovanu interaktivnu transakciju kroz
+postojeći tenant pipeline / `TenantDatabaseService` facade, unutar koje **jedan atomičan SQL iskaz**
+određuje ishod (`200` / `409 VERSION_CONFLICT` / `409 INVALID_STATE_TRANSITION`), hvata staru/novu
+vrijednost i daje projekciju, pa `ENCOUNTER_UPDATED` audit, pa commit; reupotrebu `P5-I5B` higijene,
+formata i `OD-D085-10` mapiranja; Nest ožičenje, contract export i C-specifične testove. **Ne smije:**
+opšti diskriminirajući pre-read, ugniježdenu/paralelnu transakciju, `SAVEPOINT`, drugo čitanje
+projekcije, `Idempotency-Key` na `PATCH`-u, promjenu statusa, dijagnoze, cancel / razlog otkazivanja,
+`GET` list/detail, izmjene scheme/migracije/RLS-a/granta/enuma/tabele/indeksa/constrainta, izmjenu
+`P5-I5A` grafa, izmjenu trajnih regresijskih/sigurnosnih testova (uključujući `★`) bez zasebne
+autorizacije, nadogradnje zavisnosti ni nepovezano čišćenje.
+
+```text
+D-087    LOCALLY AUTHORED / NOT INDEPENDENTLY REVIEWED / NOT OWNER-ACCEPTED /
+         NOT PUBLISHED / NOT CANONICAL / NOT EFFECTIVE
+P5-I5B   COMPLETE / VERIFIED / FORMALLY CLOSED / EFFECTIVE
+P5-I5C   CONTRACT FROZEN IN LOCAL D-087 CANDIDATE /
+         DELAYED IMPLEMENTATION AUTHORIZATION RECORDED /
+         NOT AUTHORIZED FOR MUTATION / NOT STARTED
+P5-I5D   NOT AUTHORIZED / NOT STARTED / BEHIND L-4
+
+CANONICAL CHECKLIST              = 49 / 33
+D-087 LOCAL CANDIDATE CHECKLIST  = 49 / 33
+```
+
+**Nakon efektivnog D-087:** `P5-I5C = IMPLEMENTATION AUTHORIZED / NOT STARTED`, isključivo unutar
+`OD-P5-I5C-1` … `OD-P5-I5C-8`; svjež implementacijski preflight smije nastaviti bez nove vlasničke
+autorizacije osim ako pronađe kanonski drift, novi blocker, neriješenu kontradikciju, potreban obuhvat
+izvan D-087, potrebnu izmjenu scheme/RLS-a/granta/grafa stanja ili drugu materijalno invalidirajuću
+činjenicu. Efektivnost D-087 sama po sebi ne započinje implementaciju. Formulacije `P5-I5C … NOT
+AUTHORIZED / NOT STARTED` iznad opisuju **pred-D-087 stanje** i **ne prepisuju se**. Vidi D-087 u `06`.
+
 
 ### Segmentacija `P5-I2` na četiri pod-gatea (D-064)
 
