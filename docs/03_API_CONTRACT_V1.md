@@ -867,6 +867,29 @@ post-verifikacija). **D-088 ne razrješava L-4, ne definiše semantiku razloga o
 autorizuje cancel**; naredni obavezni gate za `P5-I5D` je **`L-4 OWNER ADJUDICATION`**. Vidi D-088 u
 `06`.
 
+**STATUSNA ANOTACIJA (D-089, 2026-10-05) — sekcija i anotacije iznad se NE prepisuju.** D-088 je
+objavljen kroz **PR #72** (`be01969…`) i **efektivan**; `P5-I5C` je **`COMPLETE / VERIFIED / FORMALLY
+CLOSED / EFFECTIVE`**. D-089 kanonizuje vlasničku adjudikaciju **L-4** (L4-A / L4-B / L4-C) i zamrzava
+kompletan ugovor `P5-I5D` (`POST /api/v1/encounters/{encounterId}/cancel`; `OD-P5-I5D-1` …
+`OD-P5-I5D-5`; tekući ugovor u §12, podsekcija „Zamrznut ugovor `P5-I5D` (D-089)"). Za cancel se
+koristi interni idempotency endpoint literal **`POST /encounters/{encounterId}/cancel`** (šablon, bez
+konkretnog UUID-a); **`request_sha256` ugovor §4.1 se ne mijenja** (putanja nije dio hasha), a
+keširani `resourceId` koji se ne podudara sa `encounterId` putanje daje **`409 IDEMPOTENCY_CONFLICT`**.
+Katalog §8 ne dobija nijedan novi kod. Formulacije `D-088 … NOT EFFECTIVE`, `P5-I5C … FORMALLY CLOSING
+UNDER D-088 / NOT YET EFFECTIVE` i `P5-I5D … BEHIND L-4` iznad opisuju **pred-D-089 stanje** i **ne
+prepisuju se**.
+
+```text
+D-089    LOCALLY AUTHORED / NOT INDEPENDENTLY REVIEWED / NOT OWNER-ACCEPTED /
+         NOT PUBLISHED / NOT CANONICAL / NOT EFFECTIVE
+D-088    PUBLISHED / MERGED (PR #72) / CANONICAL / POST-PUBLICATION VERIFIED / EFFECTIVE
+P5-I5C   COMPLETE / VERIFIED / FORMALLY CLOSED / EFFECTIVE
+P5-I5D   CONTRACT FROZEN LOCALLY UNDER D-089 / NOT YET IMPLEMENTATION-AUTHORIZED / NOT STARTED
+```
+
+**Implementacija `P5-I5D` postaje autorizovana tek nakon efektivnog D-089**, isključivo unutar
+D-089; efektivnost D-089 sama po sebi ne započinje implementaciju. Vidi D-089 u `06`.
+
 
 ---
 
@@ -2595,6 +2618,76 @@ Podobne role (D-042; matrica u `15`): `encounter.cancel` — `PHYSICIAN` **ALLOW
 uvodi dodatnu provjeru permisije (§28.4, §3.7.4).
 
 `CANCELLED` je terminalno. `CANCELLED → CLOSED` ne postoji.
+
+### Zamrznut ugovor `P5-I5D` (D-089, 2026-10-05) — tekst iznad se NE prepisuje
+
+**Status:** zamrznuto u lokalnom D-089 kandidatu; obavezujuće tek s efektivnošću D-089. Ova podsekcija
+**specijalizuje** cancel rutu za Fazu 5 i **ne mijenja** semantiku iznad (dozvoljena stanja §29.1,
+D-069 razlikovanje `404` / `409`, D-062 Dio F.3, kaskada D-035 za Fazu 7+).
+
+**Izvorna stanja Faze 5:** isključivo trenutno dosežna `DRAFT` i `READY_FOR_ANALYSIS` → `CANCELLED`.
+Nijedna semantika grafa stanja se ne mijenja.
+
+**Zahtjev — zatvoreno tijelo (L4-A, L4-B):**
+
+```json
+{
+  "reason": "<string>"
+}
+```
+
+- `reason` je **obavezan** ne-null JSON string; nema default ni zamjenskog razloga; slobodan tekst.
+- nepoznat član, ne-objekt, odsutno tijelo, `{}`, odsutan / `null` / ne-string `reason` →
+  `422 VALIDATION_ERROR`;
+- sirov parsiran string > 255 UTF-8 bajtova → `422 VALIDATION_ERROR`;
+- usamljeni surogat → `422 VALIDATION_ERROR` (provjera prije JCS hashiranja);
+- konačan sanitizovan / NFC rezultat prazan ili > 255 UTF-8 bajtova → `422 VALIDATION_ERROR`.
+
+**Sanitizacija — `ACCEPT_AND_SANITIZE` (L4-C, `OD-P5-I5D-5`):** ulaz je parsiran JSON string;
+well-formedness → sirova dužina (≤ 255 B) → NFC (nikada NFKC) → svaki `Cc` (U+0000–U+001F, U+007F,
+U+0080–U+009F) pojedinačno → U+0020 → sažimanje nizova Unicode `White_Space` u jedan U+0020 → trim →
+konačna validacija (min 1 code point, max 255 B). `Cf` se ne uklanja; `U+FFFD` se ne odbija; nema
+custom raw-body UTF-8 parsera. Tačan profil: `09` §12.2, D-089 `RULING G`.
+
+**Redoslijed validacije (`OD-P5-I5D-3`):** autentifikacija → admisija / `encounter.cancel` →
+`encounterId` UUID → `Idempotency-Key` → zatvoreno tijelo → prisutnost / tip `reason` → Unicode
+well-formedness → sirova dužina → sanitizer → konačna validacija → request hash → idempotency
+`runOnce` → atomičan iskaz ishoda cancel-a → audit → idempotency kompletiranje + commit. Malformiran
+`encounterId` → `400 VALIDATION_ERROR` bez echo-a (D-075 `instance` / `requestId` dozvoljeni) i bez
+encounter / idempotency poslovno-perzistencijskog iskaza. Nedostajući ključ → `400
+IDEMPOTENCY_KEY_REQUIRED`.
+
+**Odgovor (`OD-P5-I5D-1`):**
+
+```text
+status      200 OK
+ETag        "<novaVerzija>"   (body.version == ETag verzija)
+tijelo      id, status, version, patient, occurredAt, treatmentDate, createdAt
+patient     id, pseudonym
+status      CANCELLED
+reason      ODSUTAN
+```
+
+**Idempotencija (`OD-P5-I5D-1`, `OD-P5-I5D-2`):** interni endpoint literal `POST
+/encounters/{encounterId}/cancel`; hash = SHA-256 JCS validiranog parsiranog tijela (§4.1, bez
+putanje); kompletiranje `response_status = 200`, `{"resourceId": "<encounterId>"}`, TTL 48h. Replay
+istog ključa + hasha: bez mutacije / inkrementa / drugog audita; `200` sa **tekućom** projekcijom i
+`ETag`-om. Keširani `resourceId` ≠ `encounterId` putanje → `409 IDEMPOTENCY_CONFLICT` (isključivo iz
+keširanog stanja, bez čitanja encountera). Isti ključ + drugi hash → `409 IDEMPOTENCY_CONFLICT`;
+in-progress → `409 REQUEST_ALREADY_IN_PROGRESS`.
+
+| Slučaj | Status | Code |
+|---|---:|---|
+| uspjeh (`DRAFT` / `READY_FOR_ANALYSIS`) | `200` | — |
+| nevidljiv / cross-tenant / nepostojeći | `404` | `RESOURCE_NOT_FOUND` |
+| vidljiv, nije moguće otkazati (uključujući već `CANCELLED` uz novi ključ) | `409` | `INVALID_STATE_TRANSITION` |
+
+**Bez `If-Match`; `VERSION_CONFLICT` se ne koristi.** Mutacija: `version + 1`, `updated_by` =
+admitovani korisnik, `updated_at` = `clock_timestamp()` baze, u jednom ograničenom atomičnom iskazu /
+CTE bez opšteg pre-reada. Audit `ENCOUNTER_CANCELLED` u istoj transakciji (neuspjeh → rollback svega):
+`previous_value = {"status", "version"}`, `new_value = {"status": "CANCELLED", "version"}`, `metadata =
+{"reason": "<sanitizovanReason>"}`. Sirov `reason` se nikada ne perzistira, ne vraća i ne logira. Bez
+izmjene scheme / migracije / RLS-a / granta. Vidi D-089 u `06`.
 
 ## POST `/encounters/{encounterId}/close`
 

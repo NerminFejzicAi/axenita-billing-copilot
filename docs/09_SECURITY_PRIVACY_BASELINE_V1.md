@@ -1096,6 +1096,56 @@ NEXT REQUIRED GATE (P5-I5D)   L-4 OWNER ADJUDICATION
 
 Vidi D-088 u `06`.
 
+**STATUSNA / L-4 ANOTACIJA (D-089, 2026-10-05) — sekcija, tačke 1–11, L-4 anotacija i anotacije iznad
+se NE prepisuju.** D-088 je objavljen kroz **PR #72** (`be01969…`) i efektivan; `P5-I5C` je `FORMALLY
+CLOSED / EFFECTIVE`. **D-089 kanonizuje L-4** i time popunjava tačku 2 (kanonski ugovor `reason` za
+encounter cancel); **nijedno pravilo sanitizacije iznad se ne slabi**:
+
+- **L4-A:** `reason` je **obavezan** ne-null JSON string; nema default / zamjenskog razloga;
+- **L4-B:** sirov parsiran string ≤ **255 UTF-8 bajtova**; konačan sanitizovan / NFC rezultat
+  ≥ **1 code point** i ≤ **255 UTF-8 bajtova**; inače `422 VALIDATION_ERROR`;
+- **L4-C — `ACCEPT_AND_SANITIZE`:** reject-higijena `P5-I5B` / `P5-I5C` se **ne primjenjuje globalno**;
+  nema semantičke klasifikacije, AI-ja, NFKC ni zamjenskog teksta.
+
+**Tačan profil sanitizera (`OD-P5-I5D-5`)** — ulaz je parsiran JSON string (ne transportni bajtovi,
+ne JSON escape izvor, ne dužina HTTP tijela):
+
+```text
+1  Unicode well-formedness      usamljeni surogat -> 422; validan surogatni par dozvoljen
+2  sirova duzina                <= 255 UTF-8 bajtova prije NFC / sanitizacije; inace 422
+3  NFC                          nikada NFKC
+4  Cc -> U+0020                 U+0000-U+001F, U+007F, U+0080-U+009F, pojedinacno, prije sazimanja
+5  sazimanje                    nizovi Unicode White_Space -> jedan U+0020
+6  trim                         vodeci / prateci whitespace
+7  konacna validacija           min 1 code point; max 255 UTF-8 bajtova; inace 422
+```
+
+- `Cf` (uključujući bidi formatiranje) se u `P5-I5D` ne uklanja i ne klasifikuje; `U+FFFD` se ne
+  odbija; parser može nevalidan UTF-8 sa žice zamijeniti sa `U+FFFD` prije aplikacijske validacije —
+  ugovor ne rekonstruiše originalne bajtove; **nema custom raw-body UTF-8 parsera**.
+- **Privatnost:** sirov `reason` se **nikada** ne perzistira, ne vraća i ne logira; sanitizovan rezultat
+  postoji **isključivo** u `audit_events.metadata.reason` (fizički ključ `reason`, bez dodatnih
+  članova) i ulazi u SELF-HASH audit hash; `previous_value` / `new_value` nose isključivo `status` i
+  `version`.
+- **Anti-oracle:** jedan ograničen atomičan iskaz / CTE razlikuje nevidljiv / cross-tenant /
+  nepostojeći (`404 RESOURCE_NOT_FOUND`) od vidljivog neotkazivog (`409 INVALID_STATE_TRANSITION`);
+  **nema opšteg pre-reada** (§18.1, `T1`). Malformiran `encounterId` → `400` bez echo-a. Replay
+  istog ključa nad drugim encounterom → `409 IDEMPOTENCY_CONFLICT` isključivo iz keširanog stanja.
+- **Nema izmjene scheme / migracije / RLS-a / granta / grafa stanja.** `★` RI-naspram-RLS ostaje
+  trajna regresija; pad → `HARD HOLD`.
+
+Formulacije `L-4 … DEFERRED — MUST BE ADJUDICATED BEFORE P5-I5D IMPLEMENTATION AUTHORIZATION`, `P5-I5D
+… BEHIND L-4` i `D-088 … NOT EFFECTIVE` iznad opisuju **pred-D-089 stanje** i **ne prepisuju se**.
+
+```text
+D-089    LOCALLY AUTHORED / NOT CANONICAL / NOT EFFECTIVE
+L-4      OWNER-ADJUDICATED / CANONICALIZED IN LOCAL D-089 CANDIDATE
+P5-I5C   COMPLETE / VERIFIED / FORMALLY CLOSED / EFFECTIVE
+P5-I5D   CONTRACT FROZEN LOCALLY UNDER D-089 / NOT YET IMPLEMENTATION-AUTHORIZED / NOT STARTED
+```
+
+Vidi D-089 u `06`.
+
 ---
 
 
