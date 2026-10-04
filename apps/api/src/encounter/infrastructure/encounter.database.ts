@@ -1,6 +1,6 @@
 /**
- * The encounter feature adapter (create `P5-I5B`, patch `P5-I5C`) — the only file of the
- * encounter slice holding SQL.
+ * The encounter feature adapter (create `P5-I5B`, patch `P5-I5C`, cancel `P5-I5D`) — the only
+ * file of the encounter slice holding SQL.
  *
  * Normative sources: `02` §7, §29.2; `03` §12; `09` §4, §18.1 threat `T1`;
  * `013_rls_policies_phase5` (`encounters_insert`, `encounters_select`,
@@ -32,6 +32,9 @@ import {
 import { type AdmittedTenantSession } from '../../database/tenant-statement.js';
 import { type EncounterStatus } from '../domain/encounter-state-machine.js';
 import {
+  ENCOUNTER_CANCEL_STATEMENT,
+  ENCOUNTER_CANCELLABLE_STATUSES,
+  ENCOUNTER_CANCELLED_STATUS,
   ENCOUNTER_DIAGNOSIS_INSERT_STATEMENT,
   ENCOUNTER_INSERT_STATEMENT,
   ENCOUNTER_PATCH_STATEMENT,
@@ -41,6 +44,8 @@ import {
   INITIAL_DIAGNOSIS_SOURCE,
   RESPONSIBLE_PHYSICIAN_MEMBERSHIP_FK,
   ResponsiblePhysicianNotAssignableError,
+  type EncounterCancelResult,
+  type EncounterCancelUpdate,
   type EncounterDiagnosisInsert,
   type EncounterInsert,
   type EncounterPatchResult,
@@ -252,6 +257,67 @@ function toPatchResult(rows: readonly EncounterPatchStatementRow[]): EncounterPa
         patientAgeAtEncounter: requireValue(row.patientAgeAtEncounterChanged),
         patientSexAtEncounter: requireValue(row.patientSexAtEncounterChanged),
       },
+    },
+  };
+}
+
+/**
+ * The single row of the atomic cancel statement. Every member but `outcome` is `null` unless the
+ * statement cancelled (`previousStatus` / `previousVersion` are also present for a locked row that
+ * was not updated, and are ignored then).
+ */
+interface EncounterCancelStatementRow {
+  readonly outcome: string;
+  readonly id: string | null;
+  readonly status: string | null;
+  readonly version: number | null;
+  readonly patientId: string | null;
+  readonly patientPseudonym: string | null;
+  readonly occurredAt: Date | null;
+  readonly treatmentDate: string | null;
+  readonly createdAt: Date | null;
+  readonly previousStatus: string | null;
+  readonly previousVersion: number | null;
+}
+
+/**
+ * Narrows the cancel statement row into the port result, failing closed on anything impossible —
+ * with the SAME invariant error as the `PATCH` statement, so the caller's answer is the shared
+ * static `500`.
+ */
+function toCancelResult(rows: readonly EncounterCancelStatementRow[]): EncounterCancelResult {
+  const [row, ...rest] = rows;
+
+  if (row === undefined || rest.length > 0) {
+    throw new EncounterPatchInvariantError();
+  }
+
+  switch (row.outcome) {
+    case 'NOT_FOUND':
+    case 'INVALID_STATE_TRANSITION':
+    case 'INCONSISTENT':
+      return { outcome: row.outcome };
+    case 'CANCELLED':
+      break;
+    default:
+      throw new EncounterPatchInvariantError();
+  }
+
+  return {
+    outcome: 'CANCELLED',
+    applied: {
+      projection: {
+        id: requireValue(row.id),
+        status: requireValue(row.status),
+        version: requireValue(row.version),
+        patientId: requireValue(row.patientId),
+        patientPseudonym: requireValue(row.patientPseudonym),
+        occurredAt: requireValue(row.occurredAt),
+        treatmentDate: requireValue(row.treatmentDate),
+        createdAt: requireValue(row.createdAt),
+      },
+      previousStatus: requireValue(row.previousStatus),
+      previousVersion: requireValue(row.previousVersion),
     },
   };
 }
@@ -550,6 +616,108 @@ export class EncounterDatabase {
     }
 
     return toPatchResult(rows);
+  }
+
+  /**
+   * THE ONE ATOMIC CANCEL STATEMENT (D-089 `RULING F`; D-069; `09` §18.1 threat `T1`; the D-087
+   * `PATCH` statement is the precedent).
+   *
+   * One SQL statement, three parts, one snapshot and one lock:
+   *
+   *   `target`   the tenant-visible row, `FOR UPDATE`. Under READ COMMITTED a row changed by a
+   *              transaction that committed meanwhile is re-fetched at its LATEST committed
+   *              version before it is locked — so the loser of two concurrent cancels sees
+   *              `CANCELLED` here. An invisible (cross-tenant) and a nonexistent row are the same
+   *              empty set.
+   *   `updated`  the `UPDATE`, joined to `target` and guarded on
+   *              `status IN (DRAFT, READY_FOR_ANALYSIS)`. It writes `CANCELLED`, `version + 1`, the
+   *              admitted user and the database clock (`clock_timestamp()`), and nothing else.
+   *   outer      the outcome, decided from the LOCKED row and the `UPDATE` result together:
+   *                no row                          -> NOT_FOUND
+   *                updated                         -> CANCELLED
+   *                visible, status not cancellable -> INVALID_STATE_TRANSITION
+   *                anything else                   -> INCONSISTENT (fails closed)
+   *              plus the previous status and version and the closed projection material.
+   *
+   * There is NO existence pre-read and NO post-update read, and no `If-Match`: the version is not
+   * a precondition of a cancel. The reason is not a parameter — it is never persisted here.
+   */
+  public async cancelEncounter(
+    tenant: AdmittedTenantSession,
+    update: EncounterCancelUpdate,
+  ): Promise<EncounterCancelResult> {
+    const [firstCancellable, secondCancellable] = ENCOUNTER_CANCELLABLE_STATUSES;
+
+    const rows = await tenant.run<EncounterCancelStatementRow>({
+      label: ENCOUNTER_CANCEL_STATEMENT,
+      sql: Prisma.sql`
+        with "target" as materialized (
+          select
+            e."id",
+            e."status",
+            e."version"
+          from "encounters" e
+          where e."practice_id" = ${tenant.practiceId}::uuid
+            and e."id"          = ${update.encounterId}::uuid
+          for update
+        ),
+        "updated" as (
+          update "encounters" e
+          set
+            "status"     = ${ENCOUNTER_CANCELLED_STATUS}::encounter_status,
+            "version"    = e."version" + 1,
+            "updated_by" = ${update.updatedBy}::uuid,
+            "updated_at" = clock_timestamp()
+          from "target" t
+          where e."practice_id" = ${tenant.practiceId}::uuid
+            and e."id"          = t."id"
+            and e."status" in (
+              ${firstCancellable}::encounter_status,
+              ${secondCancellable}::encounter_status
+            )
+          returning
+            e."id",
+            e."patient_reference_id",
+            e."status",
+            e."version",
+            e."occurred_at",
+            e."treatment_date",
+            e."created_at"
+        )
+        select
+          case
+            when t."id" is null     then 'NOT_FOUND'
+            when u."id" is not null then 'CANCELLED'
+            when t."status" not in (
+              ${firstCancellable}::encounter_status,
+              ${secondCancellable}::encounter_status
+            )                       then 'INVALID_STATE_TRANSITION'
+            else 'INCONSISTENT'
+          end                                         as "outcome",
+
+          u."id"                                      as "id",
+          u."status"::text                            as "status",
+          u."version"                                 as "version",
+          p."id"                                      as "patientId",
+          p."pseudonym"                               as "patientPseudonym",
+          u."occurred_at"                             as "occurredAt",
+          to_char(u."treatment_date", 'YYYY-MM-DD')   as "treatmentDate",
+          u."created_at"                              as "createdAt",
+
+          t."status"::text                            as "previousStatus",
+          t."version"                                 as "previousVersion"
+        from (select 1) as "anchor"
+        left join "target" t
+          on true
+        left join "updated" u
+          on u."id" = t."id"
+        left join "patient_references" p
+          on  p."practice_id" = ${tenant.practiceId}::uuid
+          and p."id"          = u."patient_reference_id"
+      `,
+    });
+
+    return toCancelResult(rows);
   }
 
   /**

@@ -1,11 +1,13 @@
 /**
- * The failures the encounter routes (`POST`, `P5-I5B`; `PATCH`, `P5-I5C`) produce of their own.
+ * The failures the encounter routes (`POST`, `P5-I5B`; `PATCH`, `P5-I5C`; `cancel`, `P5-I5D`)
+ * produce of their own.
  *
  * Normative sources: `03` §8 (the frozen error-code catalogue), §9, §12 (D-069 `RULING 2`, the
  * D-085 current contract); `09` §11 and §18.1 threat `T1`; D-062 part D.5; D-085 `OD-D085-3`,
  * `OD-D085-10`.
  *
- * NO NEW ERROR CODE IS INTRODUCED. `VALIDATION_ERROR` and `INTERNAL_ERROR` already exist. Every
+ * NO NEW ERROR CODE IS INTRODUCED. `VALIDATION_ERROR`, `RESOURCE_NOT_FOUND` and `INTERNAL_ERROR`
+ * already exist. Every
  * other refusal of this route is produced elsewhere and is unchanged: `401` by the authentication
  * guard, `403` and the `400 PRACTICE_CONTEXT_*` refusals by the shared tenant admission chain,
  * the `400` `Idempotency-Key` refusals and the `409` idempotency refusals by the idempotency
@@ -138,5 +140,40 @@ export function encounterUpdateFailed(): ApiException {
     code: 'INTERNAL_ERROR',
     status: HttpStatus.INTERNAL_SERVER_ERROR,
     detail: detailForStatus(HttpStatus.INTERNAL_SERVER_ERROR),
+  });
+}
+
+/**
+ * The cancel `reason` is not acceptable — `422 VALIDATION_ERROR` (D-089 `RULING B`, `RULING G`).
+ *
+ * ONE ANSWER FOR EVERY CAUSE the canonical sanitizer decides: a lone surrogate, a parsed string
+ * above 255 UTF-8 bytes, a sanitised result that is empty, and a sanitised (NFC) result above 255
+ * UTF-8 bytes. The field list names the member and nothing else. No raw value, no length, no
+ * fragment of the sanitised value and no indication of WHICH rule failed: the reason is free text
+ * that may carry personal data, and a refusal must not become a mirror for it (`09` §11, §12.2).
+ */
+export function cancelReasonInvalid(): ApiException {
+  return new ApiException({
+    code: 'VALIDATION_ERROR',
+    status: HttpStatus.UNPROCESSABLE_ENTITY,
+    detail: INVALID_FIELDS_DETAIL,
+    errors: [{ field: 'reason', code: 'INVALID_VALUE', message: 'reason is not valid' }],
+  });
+}
+
+/**
+ * The encounter named by a cancel request is not visible in the admitted practice —
+ * `404 RESOURCE_NOT_FOUND` (D-089 `RULING F`; D-069; `09` §18.1 threat `T1`).
+ *
+ * ONE FACTORY, TWO CAUSES. A nonexistent identifier and an identifier of ANOTHER practice are the
+ * same empty set to the one tenant-scoped atomic cancel statement, so they are not merely answered
+ * alike — there is no second question that could tell them apart. The detail is static and the
+ * identifier is never reflected; the body is the patient-reference `404` document, byte for byte.
+ */
+export function encounterNotFound(): ApiException {
+  return new ApiException({
+    code: 'RESOURCE_NOT_FOUND',
+    status: HttpStatus.NOT_FOUND,
+    detail: 'The requested resource was not found.',
   });
 }

@@ -170,3 +170,68 @@ describe('AuditWriterService.recordEncounterUpdated (P5-I5C, D-087 OD-P5-I5C-3)'
     }
   });
 });
+
+describe('AuditWriterService.recordEncounterCancelled (P5-I5D, D-089 RULING F)', () => {
+  const CANCEL = {
+    ...BASE,
+    previousStatus: 'READY_FOR_ANALYSIS',
+    previousVersion: 4,
+    newStatus: 'CANCELLED' as const,
+    newVersion: 5,
+    reason: 'Termin abgesagt',
+  };
+
+  it('writes USER / ENCOUNTER / ENCOUNTER_CANCELLED with EXACTLY the three canonical documents', async () => {
+    const { writer, appended } = recordingWriter();
+
+    await writer.recordEncounterCancelled(TENANT, CANCEL);
+
+    expect(appended).toHaveLength(1);
+    expect(appended[0]).toStrictEqual({
+      ...BASE,
+      actorType: 'USER',
+      action: 'ENCOUNTER_CANCELLED',
+      resourceType: 'ENCOUNTER',
+      previousValue: { status: 'READY_FOR_ANALYSIS', version: 4 },
+      newValue: { status: 'CANCELLED', version: 5 },
+      metadata: { reason: 'Termin abgesagt' },
+      eventSha256: expect.stringMatching(/^[0-9a-f]{64}$/) as unknown,
+    });
+  });
+
+  it('hashes exactly the values it writes - the sanitised reason included', async () => {
+    const { writer, appended } = recordingWriter();
+
+    await writer.recordEncounterCancelled(TENANT, CANCEL);
+
+    const expected = eventSha256({
+      ...BASE,
+      actorType: 'USER',
+      actorService: null,
+      action: 'ENCOUNTER_CANCELLED',
+      resourceType: 'ENCOUNTER',
+      previousValue: { status: 'READY_FOR_ANALYSIS', version: 4 },
+      newValue: { status: 'CANCELLED', version: 5 },
+      metadata: { reason: 'Termin abgesagt' },
+    });
+
+    expect(appended[0]?.eventSha256).toBe(expected);
+
+    // A different reason is a different hashed fact.
+    await writer.recordEncounterCancelled(TENANT, { ...CANCEL, reason: 'Termin verschoben' });
+    expect(appended[1]?.eventSha256).not.toBe(expected);
+  });
+
+  it('builds the documents itself: no event member beyond the closed set reaches the row', async () => {
+    const { writer, appended } = recordingWriter();
+    const widened = { ...CANCEL, rawReason: '  raw  ', patientId: 'p-1' };
+
+    await writer.recordEncounterCancelled(TENANT, widened);
+
+    const rendered = JSON.stringify(appended[0]);
+    expect(rendered).not.toContain('rawReason');
+    expect(rendered).not.toContain('  raw  ');
+    expect(rendered).not.toContain('p-1');
+    expect(Object.keys(appended[0]?.metadata ?? {})).toStrictEqual(['reason']);
+  });
+});

@@ -39,16 +39,49 @@ export const IDEMPOTENCY_ENDPOINT_POST_PATIENT_REFERENCES = 'POST /patient-refer
 export const IDEMPOTENCY_ENDPOINT_POST_ENCOUNTERS = 'POST /encounters' as const;
 
 /**
+ * `POST /encounters/{encounterId}/cancel`, the canonical `03` §4 spelling, byte for byte
+ * (`P5-I5D`; D-089 `OD-P5-I5D-2`).
+ *
+ * A TEMPLATE, NOT A CONCRETE PATH. `{encounterId}` is part of the literal and is never replaced by
+ * the requested identifier: the scope is "this user's cancel command under this key", and which
+ * encounter a completed claim belongs to is the cached `resourceId`, checked against the request
+ * path by the resource binding of `IdempotencyService` rather than folded into the scope.
+ */
+export const IDEMPOTENCY_ENDPOINT_POST_ENCOUNTER_CANCEL =
+  'POST /encounters/{encounterId}/cancel' as const;
+
+/**
  * Every endpoint literal that currently has an implemented `Idempotency-Key` surface.
  *
- * `03` §4 lists nine mandatory surfaces; exactly two of them are implemented so far
- * (`P5-I4C`, `P5-I5B`), so exactly two literals exist here. The others are NOT pre-declared: a
- * literal in this union would advertise an idempotency scope for a route that does not exist,
- * and the persisted `endpoint` value of a future route is that route's slice to ratify, not this
- * one's to guess.
+ * `03` §4 lists nine mandatory surfaces; exactly three of them are implemented so far
+ * (`P5-I4C`, `P5-I5B`, `P5-I5D`), so exactly three literals exist here. The others are NOT
+ * pre-declared: a literal in this union would advertise an idempotency scope for a route that does
+ * not exist, and the persisted `endpoint` value of a future route is that route's slice to ratify,
+ * not this one's to guess.
  */
 export type IdempotencyEndpoint =
-  typeof IDEMPOTENCY_ENDPOINT_POST_PATIENT_REFERENCES | typeof IDEMPOTENCY_ENDPOINT_POST_ENCOUNTERS;
+  | typeof IDEMPOTENCY_ENDPOINT_POST_PATIENT_REFERENCES
+  | typeof IDEMPOTENCY_ENDPOINT_POST_ENCOUNTERS
+  | typeof IDEMPOTENCY_ENDPOINT_POST_ENCOUNTER_CANCEL;
+
+/** The success statuses an idempotent command may complete with (`03` §4.2; D-089 `RULING D`). */
+export type IdempotencySuccessStatus = 200 | 201;
+
+/**
+ * The success status each endpoint's completion cache records — a CLOSED map, keyed by the
+ * endpoint identity (D-089 `RULING D`, extension 1).
+ *
+ * NOT A CALLER PARAMETER. The status a replay is answered with is a property of the endpoint, so
+ * it is looked up here from the canonical scope and no route can choose it per request: a caller
+ * able to pick the cached status could record a replayable `204` or `200` for a command whose
+ * contract is `201`. `satisfies Record<...>` makes the map EXHAUSTIVE — a literal added to
+ * {@link IdempotencyEndpoint} without a status here fails `tsc` and the build.
+ */
+export const IDEMPOTENCY_SUCCESS_STATUS = Object.freeze({
+  [IDEMPOTENCY_ENDPOINT_POST_PATIENT_REFERENCES]: 201,
+  [IDEMPOTENCY_ENDPOINT_POST_ENCOUNTERS]: 201,
+  [IDEMPOTENCY_ENDPOINT_POST_ENCOUNTER_CANCEL]: 200,
+} as const satisfies Record<IdempotencyEndpoint, IdempotencySuccessStatus>);
 
 /**
  * The canonical uniqueness scope of one idempotent command (`03` §4; `02` §15.2).

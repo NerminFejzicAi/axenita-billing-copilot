@@ -54,3 +54,10 @@ export const AUDIT_ACTION_ENCOUNTER_CREATED = 'ENCOUNTER_CREATED' as const;
  * rolled-back request.
  */
 export const AUDIT_ACTION_ENCOUNTER_UPDATED = 'ENCOUNTER_UPDATED' as const;
+
+/**
+ * `audit_events.action` — the ONE action `P5-I5D` writes, for a genuinely successful encounter
+ * cancel only (D-089 `RULING F`). Not for a replay, a refused, conflicting or rolled-back request.
+ * `audit_events.action` is `varchar`, so no enum or migration is involved.
+ */
+export const AUDIT_ACTION_ENCOUNTER_CANCELLED = 'ENCOUNTER_CANCELLED' as const;

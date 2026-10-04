@@ -1,6 +1,6 @@
 /**
- * The database port of the encounter feature — create (`P5-I5B`) and patch (`P5-I5C`): row
- * shapes, statement labels and the one translated constraint.
+ * The database port of the encounter feature — create (`P5-I5B`), patch (`P5-I5C`) and cancel
+ * (`P5-I5D`): row shapes, statement labels and the one translated constraint.
  *
  * Normative sources: `02` §7 (`encounters`, `encounter_diagnoses`), §29.2; `03` §12; D-062 part D
  * and part H.3; D-073 (feature SQL stays in the feature adapter); D-085 `OD-D085-3`,
@@ -185,6 +185,66 @@ export interface EncounterPatchApplied {
 export type EncounterPatchResult =
   | { readonly outcome: 'UPDATED'; readonly applied: EncounterPatchApplied }
   | { readonly outcome: Exclude<EncounterPatchOutcome, 'UPDATED'> };
+
+/**
+ * The ONE atomic cancel statement (`P5-I5D`; D-089 `RULING F`).
+ *
+ * It acquires the tenant-visible row under a row lock, evaluates the source-status guard, writes
+ * `CANCELLED` and returns the previous status and version together with the projection material —
+ * all in one SQL statement. Apart from the idempotency mechanism, no statement precedes it on the
+ * business path and none follows it except the audit insert.
+ */
+export const ENCOUNTER_CANCEL_STATEMENT = 'update encounter cancel';
+
+/**
+ * The phase 5 source statuses of a cancel (D-089 `RULING F`, `RULING H`) — the two currently
+ * reachable sources of the canonical `-> CANCELLED` edges. `ANALYSIS_IN_PROGRESS` and
+ * `REVIEW_REQUIRED` (and the D-035 cascade they require) stay out of scope until phase 7.
+ *
+ * A guard over the `P5-I5A` graph, not a change to it: every member is a canonical
+ * `-> CANCELLED` edge reachable in phase 5, which the adapter spec proves against the unchanged
+ * transition table.
+ */
+export const ENCOUNTER_CANCELLABLE_STATUSES = [
+  'DRAFT',
+  'READY_FOR_ANALYSIS',
+] as const satisfies readonly EncounterStatus[];
+
+/** The target status of a cancel. */
+export const ENCOUNTER_CANCELLED_STATUS = 'CANCELLED' satisfies EncounterStatus;
+
+/** Everything the ONE atomic cancel statement is given. */
+export interface EncounterCancelUpdate {
+  /** The validated, LOWERCASE-normalised path identifier. */
+  readonly encounterId: string;
+  /** The ADMITTED user — never a caller-supplied identity. Written to `updated_by`. */
+  readonly updatedBy: string;
+}
+
+/** The single outcome the atomic cancel statement decided. */
+export type EncounterCancelOutcome =
+  | 'CANCELLED'
+  /** Nonexistent and tenant-invisible — the same empty set to the statement. */
+  | 'NOT_FOUND'
+  /** Visible, but in a status that is not a phase 5 cancel source. */
+  | 'INVALID_STATE_TRANSITION'
+  /** Visible and cancellable, yet not updated — a broken invariant; fails closed. */
+  | 'INCONSISTENT';
+
+/** Everything a SUCCESSFUL cancel statement returns, from the same statement. */
+export interface EncounterCancelApplied {
+  /** The closed `200` projection material, built from the row the `UPDATE` returned. */
+  readonly projection: EncounterProjectionRow;
+  /** The status of the locked row BEFORE the update. */
+  readonly previousStatus: string;
+  /** The version of the locked row BEFORE the update. */
+  readonly previousVersion: number;
+}
+
+/** The result of the ONE atomic cancel statement. */
+export type EncounterCancelResult =
+  | { readonly outcome: 'CANCELLED'; readonly applied: EncounterCancelApplied }
+  | { readonly outcome: Exclude<EncounterCancelOutcome, 'CANCELLED'> };
 
 /**
  * The INSERT violated `encounters_responsible_physician_membership_fk`.

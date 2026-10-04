@@ -44,6 +44,7 @@ import { type AdmittedTenantSession } from '../../database/tenant-statement.js';
 import { eventSha256 } from '../../crypto/event-sha256.js';
 import { type JsonObject } from '../../crypto/json-canonicalizer.js';
 import {
+  AUDIT_ACTION_ENCOUNTER_CANCELLED,
   AUDIT_ACTION_ENCOUNTER_CREATED,
   AUDIT_ACTION_ENCOUNTER_UPDATED,
   AUDIT_ACTION_PATIENT_REFERENCE_CREATED,
@@ -128,6 +129,35 @@ export interface EncounterUpdatedEvent {
   readonly requestId: string | null;
   readonly previousValue: JsonObject;
   readonly newValue: JsonObject;
+}
+
+/**
+ * One successful encounter cancel (D-089 `RULING F`).
+ *
+ * CLOSED. The previous status and version, the new version and the SANITISED reason are the only
+ * business values. `previous_value`, `new_value` and `metadata` are built from them by the writer,
+ * member by member, so none of the three documents can be widened by the caller.
+ *
+ * `reason` MUST be the output of the canonical cancel sanitizer — never the raw request value
+ * (D-089 `RULING B` L4-C; `09` §12.2). It is the ONLY place the reason is persisted.
+ */
+export interface EncounterCancelledEvent {
+  readonly id: string;
+  readonly practiceId: string;
+  readonly actorUserId: string;
+  /** The encounter that was just cancelled. */
+  readonly resourceId: string;
+  /** The single application instant of this request. */
+  readonly occurredAt: Date;
+  readonly requestId: string | null;
+  /** The status of the locked row before the cancel — `DRAFT` or `READY_FOR_ANALYSIS`. */
+  readonly previousStatus: string;
+  readonly previousVersion: number;
+  /** The persisted status after the cancel. */
+  readonly newStatus: 'CANCELLED';
+  readonly newVersion: number;
+  /** The SANITISED reason. */
+  readonly reason: string;
 }
 
 @Injectable()
@@ -274,6 +304,62 @@ export class AuditWriterService {
       previousValue: event.previousValue,
       newValue: event.newValue,
       metadata: ENCOUNTER_UPDATED_METADATA,
+      eventSha256: eventSha256(hashInput),
+    });
+  }
+
+  /**
+   * `USER / ENCOUNTER / ENCOUNTER_CANCELLED` (D-089 `RULING F`), in the caller's admitted
+   * transaction: a failure here propagates and rolls the cancel and the idempotency claim back
+   * with it.
+   *
+   *     previous_value  {"status": <previousStatus>, "version": <previousVersion>}
+   *     new_value       {"status": "CANCELLED",      "version": <newVersion>}
+   *     metadata        {"reason": <sanitised reason>}
+   *
+   * The three documents are built HERE, member by member, and the SAME objects are hashed and
+   * persisted, so the sanitised reason takes part in the canonical self-hash exactly as stored.
+   */
+  public async recordEncounterCancelled(
+    tenant: AdmittedTenantSession,
+    event: EncounterCancelledEvent,
+  ): Promise<void> {
+    const previousValue: JsonObject = {
+      status: event.previousStatus,
+      version: event.previousVersion,
+    };
+    const newValue: JsonObject = { status: event.newStatus, version: event.newVersion };
+    const metadata: JsonObject = { reason: event.reason };
+
+    const hashInput = {
+      id: event.id,
+      practiceId: event.practiceId,
+      occurredAt: event.occurredAt,
+      actorType: AUDIT_ACTOR_TYPE_USER,
+      actorUserId: event.actorUserId,
+      actorService: null,
+      action: AUDIT_ACTION_ENCOUNTER_CANCELLED,
+      resourceType: AUDIT_RESOURCE_TYPE_ENCOUNTER,
+      resourceId: event.resourceId,
+      requestId: event.requestId,
+      previousValue,
+      newValue,
+      metadata,
+    };
+
+    await this.auditEvents.append(tenant, {
+      id: event.id,
+      practiceId: event.practiceId,
+      occurredAt: event.occurredAt,
+      actorType: AUDIT_ACTOR_TYPE_USER,
+      actorUserId: event.actorUserId,
+      action: AUDIT_ACTION_ENCOUNTER_CANCELLED,
+      resourceType: AUDIT_RESOURCE_TYPE_ENCOUNTER,
+      resourceId: event.resourceId,
+      requestId: event.requestId,
+      previousValue,
+      newValue,
+      metadata,
       eventSha256: eventSha256(hashInput),
     });
   }
