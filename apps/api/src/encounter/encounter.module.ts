@@ -4,13 +4,16 @@ import { AuditModule } from '../audit/audit.module.js';
 import { IdempotencyModule } from '../idempotency/idempotency.module.js';
 import { IdentityModule } from '../identity/identity.module.js';
 import { EncounterCreateService } from './application/encounter-create.service.js';
+import { EncounterUpdateService } from './application/encounter-update.service.js';
 import { EncountersController } from './controllers/encounters.controller.js';
 import { EncounterDatabase } from './infrastructure/encounter.database.js';
 
 /**
- * Encounter domain — `P5-I5B`, encounter create only (D-085 `OD-D085-13`).
+ * Encounter domain — `P5-I5B` encounter create (D-085 `OD-D085-13`) and `P5-I5C` encounter patch
+ * (D-087).
  *
- * Registers EXACTLY ONE route, `POST /api/v1/encounters`. It imports the shared identity,
+ * Registers EXACTLY TWO routes, `POST /api/v1/encounters` and
+ * `PATCH /api/v1/encounters/{encounterId}`. It imports the shared identity,
  * idempotency and audit modules rather than re-providing anything, so there is still exactly one
  * authenticated bootstrap chain, one tenant admission pipeline, one idempotency mechanism and one
  * audit writer. `TenantDatabaseService` arrives from the global `DatabaseModule`.
@@ -22,6 +25,6 @@ import { EncounterDatabase } from './infrastructure/encounter.database.js';
 @Module({
   imports: [IdentityModule, IdempotencyModule, AuditModule],
   controllers: [EncountersController],
-  providers: [EncounterCreateService, EncounterDatabase],
+  providers: [EncounterCreateService, EncounterUpdateService, EncounterDatabase],
 })
 export class EncounterModule {}

@@ -1,6 +1,6 @@
 /**
- * The database port of the encounter-create feature — row shapes, statement labels and the one
- * translated constraint.
+ * The database port of the encounter feature — create (`P5-I5B`) and patch (`P5-I5C`): row
+ * shapes, statement labels and the one translated constraint.
  *
  * Normative sources: `02` §7 (`encounters`, `encounter_diagnoses`), §29.2; `03` §12; D-062 part D
  * and part H.3; D-073 (feature SQL stays in the feature adapter); D-085 `OD-D085-3`,
@@ -91,6 +91,100 @@ export interface EncounterProjectionRow {
   readonly treatmentDate: string;
   readonly createdAt: Date;
 }
+
+/**
+ * The ONE atomic optimistic `PATCH` statement (`P5-I5C`; D-087 `OD-P5-I5C-2`, `RULING I`).
+ *
+ * It acquires the tenant-visible row under a row lock, evaluates the expected version and the
+ * status guard, updates, compares old and new values and returns the projection material — all in
+ * one SQL statement. No statement precedes it on the business path and none follows it except the
+ * audit insert.
+ */
+export const ENCOUNTER_PATCH_STATEMENT = 'update encounter';
+
+/**
+ * The statuses a `PATCH` may write in (D-087 `OD-P5-I5C-2`). Every other status — `CANCELLED` and
+ * `CLOSED` in phase 5 — is refused with `INVALID_STATE_TRANSITION`, but ONLY when the same atomic
+ * statement has also seen a tenant-visible row whose version matches `If-Match`.
+ *
+ * `PATCH` is data-only: it never writes `status`, so this is a guard, not a graph edge, and the
+ * `P5-I5A` transition graph is neither consulted nor changed by it.
+ */
+export const ENCOUNTER_PATCHABLE_STATUSES = [
+  'DRAFT',
+  'READY_FOR_ANALYSIS',
+] as const satisfies readonly EncounterStatus[];
+
+/**
+ * The eight `PATCH`-mutable members (D-087 `OD-P5-I5C-5`), each `undefined` when ABSENT —
+ * "leave the stored value unchanged". `null` on one of the six nullable members is a submitted
+ * request for SQL `NULL`; `occurredAt` and `treatmentDate` are never `null` here.
+ */
+export interface EncounterPatchAssignments {
+  /** The validated ORIGINAL RFC 3339 string; PostgreSQL resolves the offset. */
+  readonly occurredAt: string | undefined;
+  /** The validated `YYYY-MM-DD` string. */
+  readonly treatmentDate: string | undefined;
+  readonly responsiblePhysicianId: string | null | undefined;
+  readonly guarantorType: string | null | undefined;
+  readonly insuranceContext: string | null | undefined;
+  readonly specialtyCode: string | null | undefined;
+  readonly patientAgeAtEncounter: number | null | undefined;
+  readonly patientSexAtEncounter: string | null | undefined;
+}
+
+/** Everything the ONE atomic `PATCH` statement is given. */
+export interface EncounterPatchUpdate {
+  readonly encounterId: string;
+  /** The version carried by `If-Match` — the ONLY concurrency precondition. */
+  readonly expectedVersion: number;
+  /** The ADMITTED user — never a caller-supplied identity. Written to `updated_by`. */
+  readonly updatedBy: string;
+  readonly assignments: EncounterPatchAssignments;
+}
+
+/** The single outcome the atomic statement decided. */
+export type EncounterPatchOutcome =
+  | 'UPDATED'
+  | 'VERSION_CONFLICT'
+  | 'INVALID_STATE_TRANSITION'
+  /** Visible, matching and patchable, yet not updated — a broken invariant; fails closed. */
+  | 'INCONSISTENT';
+
+/**
+ * The stored value of every `PATCH`-mutable member, in its AUDIT representation: `occurredAt` as
+ * an instant (rendered UTC `.sssZ` by the application), `treatmentDate` already `YYYY-MM-DD`.
+ */
+export interface EncounterMutableValues {
+  readonly occurredAt: Date;
+  readonly treatmentDate: string;
+  readonly responsiblePhysicianId: string | null;
+  readonly guarantorType: string | null;
+  readonly insuranceContext: string | null;
+  readonly specialtyCode: string | null;
+  readonly patientAgeAtEncounter: number | null;
+  readonly patientSexAtEncounter: string | null;
+}
+
+/** The names of the eight `PATCH`-mutable members — the API camelCase spelling. */
+export type EncounterMutableField = keyof EncounterMutableValues;
+
+/** Everything a SUCCESSFUL `PATCH` statement returns, from the same statement. */
+export interface EncounterPatchApplied {
+  /** The closed `200` projection material, built from the row the `UPDATE` returned. */
+  readonly projection: EncounterProjectionRow;
+  /** The values of the locked row BEFORE the update. */
+  readonly previous: EncounterMutableValues;
+  /** The values the `UPDATE` wrote. */
+  readonly next: EncounterMutableValues;
+  /** `old IS DISTINCT FROM new`, per member, decided by PostgreSQL in the same statement. */
+  readonly changed: Readonly<Record<EncounterMutableField, boolean>>;
+}
+
+/** The result of the ONE atomic statement: either the applied update, or why there was none. */
+export type EncounterPatchResult =
+  | { readonly outcome: 'UPDATED'; readonly applied: EncounterPatchApplied }
+  | { readonly outcome: Exclude<EncounterPatchOutcome, 'UPDATED'> };
 
 /**
  * The INSERT violated `encounters_responsible_physician_membership_fk`.

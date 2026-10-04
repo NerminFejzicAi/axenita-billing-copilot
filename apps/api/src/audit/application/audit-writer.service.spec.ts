@@ -100,3 +100,73 @@ describe('AuditWriterService.recordPatientReferenceCreated (unchanged)', () => {
     });
   });
 });
+
+describe('AuditWriterService.recordEncounterUpdated (P5-I5C, D-087 OD-P5-I5C-3)', () => {
+  const PREVIOUS = { occurredAt: '2026-07-17T06:30:00.000Z', guarantorType: 'KVG' };
+  const NEXT = { occurredAt: '2026-07-18T06:30:00.000Z', guarantorType: null };
+
+  it('writes USER / ENCOUNTER / ENCOUNTER_UPDATED with the given diff and metadata {}', async () => {
+    const { writer, appended } = recordingWriter();
+
+    await writer.recordEncounterUpdated(TENANT, {
+      ...BASE,
+      previousValue: PREVIOUS,
+      newValue: NEXT,
+    });
+
+    expect(appended).toHaveLength(1);
+    expect(appended[0]).toStrictEqual({
+      ...BASE,
+      actorType: 'USER',
+      action: 'ENCOUNTER_UPDATED',
+      resourceType: 'ENCOUNTER',
+      previousValue: PREVIOUS,
+      newValue: NEXT,
+      metadata: {},
+      eventSha256: expect.stringMatching(/^[0-9a-f]{64}$/) as unknown,
+    });
+  });
+
+  it('hashes exactly the values it writes, previous_value included', async () => {
+    const { writer, appended } = recordingWriter();
+
+    await writer.recordEncounterUpdated(TENANT, { ...BASE, previousValue: {}, newValue: {} });
+
+    expect(appended[0]?.eventSha256).toBe(
+      eventSha256({
+        ...BASE,
+        actorType: 'USER',
+        actorService: null,
+        action: 'ENCOUNTER_UPDATED',
+        resourceType: 'ENCOUNTER',
+        previousValue: {},
+        newValue: {},
+        metadata: {},
+      }),
+    );
+    // `{}` and `null` are different hashed facts: a value-no-op is NOT a missing diff.
+    expect(appended[0]?.eventSha256).not.toBe(
+      eventSha256({
+        ...BASE,
+        actorType: 'USER',
+        actorService: null,
+        action: 'ENCOUNTER_UPDATED',
+        resourceType: 'ENCOUNTER',
+        previousValue: null,
+        newValue: null,
+        metadata: {},
+      }),
+    );
+  });
+
+  it('leaves the earlier callers WITHOUT a previousValue key (persisted as NULL)', async () => {
+    const { writer, appended } = recordingWriter();
+
+    await writer.recordPatientReferenceCreated(TENANT, BASE);
+    await writer.recordEncounterCreated(TENANT, { ...BASE, status: 'DRAFT', version: 1 });
+
+    for (const row of appended) {
+      expect(Object.hasOwn(row, 'previousValue')).toBe(false);
+    }
+  });
+});
