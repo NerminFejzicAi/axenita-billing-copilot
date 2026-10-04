@@ -4,6 +4,7 @@ import { CommonModule } from './common/common.module.js';
 import { AppConfigModule } from './config/app-config.module.js';
 import { CryptoModule } from './crypto/crypto.module.js';
 import { DatabaseModule } from './database/database.module.js';
+import { EncounterModule } from './encounter/encounter.module.js';
 import { HealthModule } from './health/health.module.js';
 import { IdentityModule } from './identity/identity.module.js';
 import { PatientReferenceModule } from './patient-reference/patient-reference.module.js';
@@ -38,6 +39,7 @@ export class AppModule {
         HealthModule,
         IdentityModule,
         PatientReferenceModule,
+        EncounterModule,
       ],
     };
   }

@@ -964,6 +964,7 @@ function runPhase5Statement<TRow>(
         resourceType,
         resourceId,
         requestId,
+        newValue,
         metadata,
         eventSha256,
       ] = values;
@@ -972,10 +973,11 @@ function runPhase5Statement<TRow>(
         throw new Error('audit_events_insert refused the row (no matching tenant context).');
       }
 
-      // ALL SEVENTEEN columns are stored, with the six the statement writes as SQL `NULL` held as
-      // `null` here. `metadata` is stored as the PARSED value, because the column is `jsonb` and
-      // the statement casts the bound string with `::jsonb` — so a spec reproducing the hash
-      // payload from this row works with a JSON value, exactly as `04` §7.5a.3 requires.
+      // ALL SEVENTEEN columns are stored, with the five the statement writes as SQL `NULL` held as
+      // `null` here. `new_value` (bound since `P5-I5B`, D-085 `OD-D085-8`) and `metadata` are
+      // stored as PARSED values, because both columns are `jsonb` and the statement casts the
+      // bound string with `::jsonb` — so a spec reproducing the hash payload from this row works
+      // with a JSON value, exactly as `04` §7.5a.3 requires. A bound `null` stays SQL `NULL`.
       world.auditEvents.push({
         id: String(id),
         practiceId: String(practiceId),
@@ -991,7 +993,7 @@ function runPhase5Statement<TRow>(
         ipAddress: null,
         userAgentHash: null,
         previousValue: null,
-        newValue: null,
+        newValue: typeof newValue === 'string' ? (JSON.parse(newValue) as unknown) : null,
         metadata: JSON.parse(String(metadata)) as unknown,
         eventSha256: String(eventSha256),
         previousEventSha256: null,

@@ -19,15 +19,19 @@
  *     user_agent_hash        phase 5 does not collect it
  *     previous_event_sha256  phase 5 audit is SELF-HASH ONLY (D-069 `RULING 5`)
  *
- * Two more are written as SQL `NULL` for a stronger reason still:
+ * One more is written as SQL `NULL` for a stronger reason still:
  *
  *     previous_value         audit minimisation — no PHI snapshot (`04` §7.5a.3)
- *     new_value              audit minimisation — no PHI snapshot
  *
- * None of the six has a parameter, so none can be set by mistake, and `previous_event_sha256` in
+ * None of the five has a parameter, so none can be set by mistake, and `previous_event_sha256` in
  * particular cannot quietly begin the event chain that D-069 `RULING 5` reserves for a later
- * governance decision. The same six are fixed at `null` inside the hash payload formatter, so the
+ * governance decision. The same five are fixed at `null` inside the hash payload formatter, so the
  * hashed representation and the stored row agree by construction.
+ *
+ * `new_value` IS a parameter since `P5-I5B`, and only because D-085 `OD-D085-8` fixes its
+ * content: `null` for `PATIENT_REFERENCE_CREATED` (unchanged) and exactly `{status, version}` for
+ * `ENCOUNTER_CREATED`. The audit writer builds it from a closed shape, so it still cannot carry a
+ * PHI snapshot; the hash payload receives the same value, so row and digest still agree.
  *
  * NO `UPDATE` AND NO `DELETE` EXISTS HERE, because none exists in the grant. The class has one
  * method.
@@ -101,7 +105,7 @@ export class AuditDatabase {
           null,
           null,
           null,
-          null,
+          ${event.newValue === null ? null : JSON.stringify(event.newValue)}::jsonb,
           ${JSON.stringify(event.metadata)}::jsonb,
           ${event.eventSha256},
           null

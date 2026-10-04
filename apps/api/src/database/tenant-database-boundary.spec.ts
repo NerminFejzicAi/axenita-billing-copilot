@@ -78,6 +78,10 @@ const AUTHORISED_DATABASE_LAYER = [
   'idempotency/infrastructure/idempotency.database.ts',
   // The `P5-I4C` append-only audit adapter.
   'audit/infrastructure/audit.database.ts',
+  // The `P5-I5B` encounter-create FEATURE ADAPTER — the only file in the encounter slice holding
+  // SQL, and the persistence boundary that carries the `EncounterStatus` binding (D-085
+  // `OD-D085-9`).
+  'encounter/infrastructure/encounter.database.ts',
 ];
 
 /**
@@ -179,6 +183,9 @@ describe('static import/source boundary (D-072 OD-P5-I4-12, 08 §12.10 point 1)'
     expect(FILES).toContain('patient-reference/application/patient-reference-create.service.ts');
     expect(FILES).toContain('idempotency/application/idempotency.service.ts');
     expect(FILES).toContain('audit/application/audit-writer.service.ts');
+    // The `P5-I5B` sentinels.
+    expect(FILES).toContain('encounter/application/encounter-create.service.ts');
+    expect(FILES).toContain('encounter/controllers/encounters.controller.ts');
   });
 
   it('lets NO file outside the authorised layer import a raw database primitive', () => {
@@ -246,6 +253,22 @@ describe('static import/source boundary (D-072 OD-P5-I4-12, 08 §12.10 point 1)'
     );
 
     expect(businessFiles.length).toBeGreaterThan(0);
+
+    for (const file of businessFiles) {
+      expect([file, importsRawDatabase(file)]).toEqual([file, false]);
+    }
+  });
+
+  it('keeps the whole P5-I5B encounter application surface free of database primitives', () => {
+    // D-085 `OD-D085-11`: the create service, the controller, the DTO and the pure `P5-I5A`
+    // domain hold no client and import no Prisma — in particular the domain `EncounterStatus`
+    // stays persistence-free (`OD-D085-9`). Asserted against a NON-EMPTY set.
+    const businessFiles = FILES.filter(
+      (file) => file.startsWith('encounter/') && !file.includes('/infrastructure/'),
+    );
+
+    expect(businessFiles).toContain('encounter/application/encounter-create.service.ts');
+    expect(businessFiles).toContain('encounter/domain/encounter-state-machine.ts');
 
     for (const file of businessFiles) {
       expect([file, importsRawDatabase(file)]).toEqual([file, false]);
