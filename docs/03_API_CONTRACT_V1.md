@@ -791,6 +791,33 @@ P5-I5C / P5-I5D   NOT AUTHORIZED / NOT STARTED
 prihvatanje → publikacija / merge → kanonska post-publikaciona verifikacija), i to **isključivo
 unutar `OD-D085-1` … `OD-D085-14`**. Vidi D-085 u `06`.
 
+**STATUSNA ANOTACIJA (D-086, 2026-10-04) — sekcija i anotacije iznad se NE prepisuju.** D-086 je
+post-publikaciono pomirenje i formalno zatvaranje pod-gatea `P5-I5B` (`POST /api/v1/encounters`).
+Implementacija `P5-I5B` je **kanonska** (`59299b0a…`, merged kroz **PR #68** kao **`8c465c32…`**).
+**Nijedna ruta, metoda, payload, header, permisija, statusni ni error kod se ne mijenja**; zamrznuti
+ugovor `P5-I5B` u §12 (D-085, uključujući korektivni dodatak) i katalog §8 ostaju nepromijenjeni.
+Formulacije D-085 anotacije iznad (`D-085 … NOT EFFECTIVE`, `P5-I5B … NOT AUTHORIZED FOR MUTATION /
+NOT STARTED`) opisuju **pred-D-086 stanje**, **historijski su tačne** i **ne prepisuju se**.
+
+```text
+D-086    LOCALLY AUTHORED / NOT INDEPENDENTLY REVIEWED / NOT OWNER-ACCEPTED /
+         NOT PUBLISHED / NOT CANONICAL / NOT EFFECTIVE
+P5-I5B   PUBLISHED / MERGED / CANONICAL / POST-PUBLICATION VERIFIED /
+         FORMALLY CLOSING UNDER D-086 / NOT YET EFFECTIVE
+P5-I5C   NOT AUTHORIZED / NOT STARTED
+P5-I5D   NOT AUTHORIZED / NOT STARTED / BEHIND L-4
+API SEMANTIC MUTATION      = 0
+```
+
+Zatvaranje postaje efektivno **tek nakon punog lifecyclea D-086** (nezavisan pregled → vlasničko
+prihvatanje → publikacioni preflight → publikacijska autorizacija → publikacija → kanonska
+post-verifikacija). Tek tada `P5-I5C` postaje **isključivo podoban za svjež autorizacijski /
+pre-execution checkpoint** — **ne autorizovan**. **Replay carry-forward (`OD-D086-4`):** ako `P5-I5C`
+dozvoli `PATCH` polja prisutnih u `201` projekciji (posebno `occurredAt`, `treatmentDate`), checkpoint
+`P5-I5C` mora izričito adjudicirati semantiku rekonstrukcije replaya kreiranja za ta polja —
+`DEFERRED TO P5-I5C / NON-BLOCKING FOR P5-I5B / NOT AUTHORIZED BY D-086`; `OD-D085-7` se ne mijenja.
+Vidi D-086 u `06`.
+
 
 ---
 

@@ -4890,6 +4890,50 @@ D-086    UNCONSUMED / NOT RESERVED / NOT ASSIGNED
 Nakon efektivnog D-085 `P5-I5B` postaje **`IMPLEMENTATION AUTHORIZED / NOT STARTED`**, isključivo
 unutar `OD-D085-1` … `OD-D085-14`. Vidi D-085 u `06`.
 
+## P5-I5B FORMAL CLOSURE ANNOTATION — D-086 (2026-10-04)
+
+**Nijedan pasus, blok ni anotacija iznad se ne prepisuje.** Ova anotacija ne dodaje i ne briše
+nijedan red; prati **tačno jednu** tranziciju kućice ispod.
+
+- **D-086 je post-publikaciono pomirenje i formalno zatvaranje pod-gatea `P5-I5B`.** Kanonska
+  implementacija (`59299b0a…`, merged kroz **PR #68** kao **`8c465c32…`**) je implementirana,
+  nezavisno pregledana, vlasnički prihvaćena, objavljena, kanonska i post-publikaciono verifikovana
+  (`OD-D086-1`). **Dokumentacija isključivo.**
+- **Closure-owned red `P5-I5B` = `API → POST encounter`** (`OD-D085-14`, `OD-D084-1`) — označen
+  ispod. **Preostala četiri `P5-I5` reda ostaju neoznačena.**
+- **`32 / 49` je pred-D-086 kanonsko stanje; `33 / 49` je D-086 kandidat zatvaranja i stanje nakon
+  efektivnosti.** Anotacija D-085 iznad (`32 / 49`, nula tranzicija, `D-085 LOCALLY AUTHORED …`,
+  `P5-I5B … NOT AUTHORIZED FOR MUTATION / NOT STARTED`) opisuje **pred-D-086 stanje** i **ne
+  prepisuje se**.
+
+```text
+                        kanonski (prije)   D-086 kandidat
+ukupno redova (S6)      49                 49
+oznaceno                32                 33
+neoznaceno              17                 16
+
+UNCHECKED_TO_CHECKED    = 1   (API -> POST encounter)
+CHECKED_TO_UNCHECKED    = 0
+NEW_ROWS                = 0
+DELETED_ROWS            = 0
+```
+
+```text
+D-086    LOCALLY AUTHORED / NOT INDEPENDENTLY REVIEWED / NOT OWNER-ACCEPTED AS COMMIT /
+         NOT PUBLISHED / NOT CANONICAL / NOT EFFECTIVE
+P5-I5A   COMPLETE / VERIFIED / FORMALLY CLOSED / EFFECTIVE
+P5-I5B   PUBLISHED / MERGED / CANONICAL / POST-PUBLICATION VERIFIED /
+         FORMALLY CLOSING UNDER D-086 / NOT YET EFFECTIVE
+P5-I5    IN_PROGRESS
+P5-I5C   NOT AUTHORIZED / NOT STARTED
+P5-I5D   NOT AUTHORIZED / NOT STARTED / BEHIND L-4
+```
+
+**`49 / 33` je isključivo lokalno kandidatsko stanje** dok D-086 ne bude objavljen i verifikovan;
+kanonski `origin/main` do tada nosi **`49 / 32`**. Nakon efektivnog D-086 `P5-I5C` postaje
+**isključivo podoban za svjež autorizacijski / pre-execution checkpoint** — **ne autorizovan**. Vidi
+D-086 u `06`.
+
 
 ## Schema
 
@@ -4921,7 +4965,7 @@ unutar `OD-D085-1` … `OD-D085-14`. Vidi D-085 u `06`.
 
 - [x] POST patient reference.
 - [x] GET patient reference.
-- [ ] POST encounter.
+- [x] POST encounter.
 - [ ] GET encounter list.
 - [ ] GET encounter detail.
 - [ ] PATCH encounter.

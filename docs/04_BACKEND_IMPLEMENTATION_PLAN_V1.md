@@ -3125,6 +3125,32 @@ D-085 LOCAL CANDIDATE CHECKLIST  = 49 / 32
 `OD-D085-1` … `OD-D085-14`. Formulacije `P5-I5B … NOT AUTHORIZED / NOT STARTED` iznad opisuju
 **pred-D-085 stanje** i **ne prepisuju se**. Vidi D-085 u `06`.
 
+#### Statusna anotacija (D-086) — blokovi iznad se NE prepisuju
+
+**D-086 je post-publikaciono pomirenje i formalno zatvaranje pod-gatea `P5-I5B` (Encounter Create).**
+Kanonska implementacija (`59299b0a…`, merged kroz **PR #68** kao **`8c465c32…`**) je izvedena unutar
+`OD-D085-13`, nezavisno pregledana, vlasnički prihvaćena, objavljena i post-publikaciono verifikovana
+(`OD-D086-1`). Po `OD-D084-1` / `OD-D085-14` zatvara **tačno jedan** red: `API → POST encounter`.
+Formulacije D-085 anotacije iznad (`P5-I5B … NOT AUTHORIZED FOR MUTATION / NOT STARTED`, `D-085 …
+NOT EFFECTIVE`) opisuju **pred-D-086 stanje** i **ne prepisuju se**.
+
+```text
+D-086    LOCALLY AUTHORED / NOT CANONICAL / NOT EFFECTIVE
+P5-I5B   PUBLISHED / MERGED / CANONICAL / POST-PUBLICATION VERIFIED /
+         FORMALLY CLOSING UNDER D-086 / NOT YET EFFECTIVE (tek po lifecycleu D-086)
+P5-I5    IN_PROGRESS
+P5-I5C   NOT AUTHORIZED / NOT STARTED   (podoban za svjez checkpoint tek nakon efektivnog D-086)
+P5-I5D   NOT AUTHORIZED / NOT STARTED / BEHIND L-4
+
+CANONICAL CHECKLIST              = 49 / 32
+D-086 LOCAL CANDIDATE CHECKLIST  = 49 / 33
+```
+
+**Podobnost `P5-I5C` nije autorizacija** (`OD-D086-3`). Checkpoint `P5-I5C` nosi **obavezu replay
+carry-forwarda** (`OD-D086-4`) za `PATCH`-mutabilna polja `201` projekcije. **`P5-I5D` ostaje iza
+L-4** (`OD-D086-6`). Ovom anotacijom se ne uvodi nijedan implementacijski detalj izvan postojećeg
+kanonskog obuhvata. Vidi D-086 u `06`.
+
 
 ### Segmentacija `P5-I2` na četiri pod-gatea (D-064)
 

@@ -1029,6 +1029,24 @@ P5-I5C / P5-I5D   NOT AUTHORIZED / NOT STARTED   (L-4 nepromijenjen)
 
 Vidi D-085 u `06`.
 
+**STATUSNA ANOTACIJA (D-086, 2026-10-04) — sekcija, tačke 1–11 i anotacije iznad se NE prepisuju.**
+D-086 formalno zatvara pod-gate `P5-I5B` (Encounter Create; kanonski kroz **PR #68**, `8c465c32…`).
+**Sigurnosni dokaz `P5-I5B` je prihvaćen** (audit minimizacija, bez existence oraclea, usko
+`encounters_responsible_physician_membership_fk` → generički `422`, statični `500` za patient FK,
+higijena stringova, `★` RI-naspram-RLS neizmijenjen); **nema preostalog sigurnosnog blokatora
+`P5-I5B`**. **Nijedan sigurnosni zahtjev ove sekcije se ne mijenja ni ne slabi**, a **L-4 ostaje
+`DEFERRED — MUST BE ADJUDICATED BEFORE P5-I5D IMPLEMENTATION AUTHORIZATION`**. Blok statusa D-085 iznad
+opisuje **pred-D-086 stanje** i **ne prepisuje se**.
+
+```text
+D-086    LOCALLY AUTHORED / NOT CANONICAL / NOT EFFECTIVE
+P5-I5B   CANONICAL / POST-PUBLICATION VERIFIED / FORMALLY CLOSING UNDER D-086 / NOT YET EFFECTIVE
+P5-I5C   NOT AUTHORIZED / NOT STARTED
+P5-I5D   NOT AUTHORIZED / NOT STARTED / BEHIND L-4
+```
+
+Vidi D-086 u `06`.
+
 ---
 
 
