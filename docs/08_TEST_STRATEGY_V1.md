@@ -2354,6 +2354,50 @@ CHECKBOX TRANSITIONS (D-089 kandidat) = 0
 Formulacije `P5-I5D … BEHIND L-4` i `P5-I5C … NOT YET EFFECTIVE` iznad opisuju **pred-D-089 stanje** i
 **ne prepisuju se**. Vidi D-089 u `06`.
 
+### Anotacija zatvaranja `P5-I5D` (D-090, 2026-10-06) — sekcije iznad se NE prepisuju
+
+D-089 je efektivan (PR #73, `fab7df0f…`). Dokaz `P5-I5D` je dio kanonske implementacije (`29b69985…`,
+merged kroz **PR #74** kao **`aa3220e5…`**, tree `e9674a3b…`) — između ostalog
+`apps/api/test/phase5-encounter-cancel.security.ts`, pomireni `apps/api/test/encounter-create.e2e-spec.ts`
+i `apps/api/test/phase5-encounter-create.security.ts` (D-089 `RULING J`) te unit testovi pod
+`apps/api/src/encounter/**`, `apps/api/src/audit/**` i `apps/api/src/idempotency/**`, uz
+**neizmijenjen** trajni `apps/api/test/phase5-responsible-physician-ri.security.ts`. Kanonski dokaz,
+ranije verifikovan i vlasnički utvrđen:
+
+```text
+unit                       1663 passed
+e2e                        49 passed
+integration                46 passed
+security                   1007 passed
+ciljani P5-I5D             46 / 46
+cancel unit specs          101 passed
+★ RI-naspram-RLS           13 / 13
+lint / typecheck / build   PASS / PASS / PASS
+db:validate                PASS
+git diff --check           PASS
+```
+
+- zahtjev trke (stvarna trka dvije konekcije) **verifikovan**;
+- rollback audita **verifikovan**;
+- privatnost sirovog `reason` **verifikovana**;
+- matrica testnih obaveza D-089 `RULING I` **ispunjena**;
+- tranzicija testova odsutnosti rute D-089 `RULING J` **ispunjena**.
+
+**D-090 ne piše, ne mijenja i ne izvršava nijedan test** (governance isključivo; tačan kanonski dokaz
+je već verifikovan) i **ne dodaje nijednu novu testnu obavezu.** Formulacije `P5-I5D … CONTRACT FROZEN
+LOCALLY UNDER D-089 / NOT YET IMPLEMENTATION-AUTHORIZED / NOT STARTED` i `CHECKBOX TRANSITIONS (D-089
+kandidat) = 0` iznad opisuju **pred-D-090 stanje** i **ne prepisuju se**.
+
+```text
+TESTS WRITTEN IN THIS GATE   0
+TESTS RERUN IN THIS GATE     0
+P5-I5D   CANONICAL / POST-PUBLICATION VERIFIED / FORMALLY CLOSING UNDER D-090 / NOT YET EFFECTIVE
+P5-I5    IN_PROGRESS
+CHECKBOX TRANSITIONS (D-090 kandidat) = 1   (API -> cancel encounter)
+```
+
+Vidi D-090 u `06`.
+
 ---
 
 

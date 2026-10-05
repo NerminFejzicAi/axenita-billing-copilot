@@ -3255,6 +3255,38 @@ pronađe kanonski drift, kontradikciju, novi blocker, potrebnu izmjenu scheme / 
 grant / grafa stanja, rad izvan obuhvata ili drugu materijalno invalidirajuću činjenicu. Efektivnost
 D-089 sama po sebi ne započinje implementaciju. Vidi D-089 u `06`.
 
+#### Statusna anotacija (D-090) — blokovi iznad se NE prepisuju
+
+**D-089 je objavljen kroz PR #73 (`fab7df0f…`) i efektivan;** posljedica efektivnosti bila je
+`P5-I5D = IMPLEMENTATION AUTHORIZED / NOT STARTED` (historijska međufaza, aditivno zabilježena u
+D-090 `RULING A`). **D-090 je post-publikaciono pomirenje i formalno zatvaranje pod-gatea `P5-I5D`
+(Encounter Cancel).** Kanonska implementacija (`29b69985…`, merged kroz **PR #74** kao **`aa3220e5…`**,
+tree `e9674a3b…`; 22 fajla isključivo pod `apps/api/**`; publication drift `ZERO`) je izvedena unutar
+D-089, verifikovana, vlasnički prihvaćena, objavljena i post-publikaciono verifikovana. **Ograničeno
+zajedničko idempotencijsko proširenje** iz D-089 anotacije iznad je isporučeno tačno u adjudiciranom
+obimu (uspješan status po pozivu / endpointu; verifikacija vezivanja keširanog `resourceId`); nema
+drugog idempotencijskog podsistema. Po `OD-D084-1` / D-089 `RULING M` zatvara **tačno jedan** red:
+`API → cancel encounter`. Formulacije D-089 anotacije iznad (`D-089 … NOT CANONICAL / NOT EFFECTIVE`,
+`P5-I5D … CONTRACT FROZEN LOCALLY UNDER D-089 / NOT YET IMPLEMENTATION-AUTHORIZED / NOT STARTED`)
+opisuju **pred-D-090 stanje** i **ne prepisuju se**.
+
+```text
+D-090    LOCALLY AUTHORED / NOT CANONICAL / NOT EFFECTIVE
+D-089    PUBLISHED / MERGED (PR #73) / CANONICAL / POST-PUBLICATION VERIFIED / EFFECTIVE
+P5-I5D   PUBLISHED / MERGED / CANONICAL / POST-PUBLICATION VERIFIED /
+         FORMALLY CLOSING UNDER D-090 / NOT YET EFFECTIVE (tek po lifecycleu D-090)
+P5-I5    IN_PROGRESS
+P5-I6    NOT AUTHORIZED / NOT STARTED
+
+CANONICAL CHECKLIST              = 49 / 36
+D-090 LOCAL CANDIDATE CHECKLIST  = 49 / 37
+```
+
+**Roditeljski `P5-I5` ostaje `IN_PROGRESS`;** njegovo formalno zatvaranje je naredni zaseban
+governance gate nakon efektivnog D-090. `P5-I6` (ručni unos dokumenta i redakcija) slijedi tek
+kasnije i ovom anotacijom se ne autorizuje. Ovom anotacijom se ne uvodi nijedan implementacijski
+detalj izvan postojećeg kanonskog obuhvata. Vidi D-090 u `06`.
+
 
 ### Segmentacija `P5-I2` na četiri pod-gatea (D-064)
 

@@ -1146,6 +1146,36 @@ P5-I5D   CONTRACT FROZEN LOCALLY UNDER D-089 / NOT YET IMPLEMENTATION-AUTHORIZED
 
 Vidi D-089 u `06`.
 
+**STATUSNA ANOTACIJA (D-090, 2026-10-06) — sekcija, tačke 1–11, L-4 anotacija i anotacije iznad se NE
+prepisuju.** D-089 je objavljen kroz **PR #73** (`fab7df0f…`) i efektivan; **L-4 je kanonski i
+implementiran** (kanonska implementacija `P5-I5D` kroz **PR #74**, `aa3220e5…`). D-090 formalno
+zatvara pod-gate `P5-I5D`. **Sigurnosni dokaz `P5-I5D` je prihvaćen:**
+
+- autorizacija prije obrade tijela — verifikovano;
+- ekvivalentan `404` za nevidljiv / nepostojeći encounter — **bez existence oraclea**;
+- idempotencijsko vezivanje resursa (keširani `resourceId` ≠ `encounterId` → `409
+  IDEMPOTENCY_CONFLICT`);
+- sirov `reason` se **nikada** ne pohranjuje, ne vraća i ne logira; sanitizovan `reason` **isključivo**
+  u audit metadata (`audit_events.metadata.reason`);
+- otkazivanje sigurno pri trci; atomičnost rollbacka (audit i transakcija).
+
+**`D-OPEN-007` ostaje otvoren** — sanitizovan razlog otkazivanja može sadržavati PHI kao audit
+metadata; pitanje retencije audita D-090 ne razrješava. **D-090 ne mijenja nijedan sigurnosni
+zahtjev.** Formulacije D-089 anotacije iznad (`D-089 … NOT CANONICAL / NOT EFFECTIVE`, `L-4 …
+CANONICALIZED IN LOCAL D-089 CANDIDATE`, `P5-I5D … NOT STARTED`) opisuju **pred-D-090 stanje** i **ne
+prepisuju se**.
+
+```text
+D-090    LOCALLY AUTHORED / NOT CANONICAL / NOT EFFECTIVE
+D-089    PUBLISHED / MERGED (PR #73) / CANONICAL / POST-PUBLICATION VERIFIED / EFFECTIVE
+L-4      CANONICAL / IMPLEMENTED
+P5-I5D   CANONICAL / POST-PUBLICATION VERIFIED / FORMALLY CLOSING UNDER D-090 / NOT YET EFFECTIVE
+D-OPEN-007   OPEN
+SECURITY REQUIREMENT MUTATION = 0
+```
+
+Vidi D-090 u `06`.
+
 ---
 
 
