@@ -21,6 +21,7 @@ import {
   type AuthenticatedRequest,
 } from '../../identity/authentication/development-auth.guard.js';
 import { authenticationRequired } from '../../identity/identity.errors.js';
+import { EncounterCancelService } from '../application/encounter-cancel.service.js';
 import { EncounterCreateService } from '../application/encounter-create.service.js';
 import { encounterEntityTag } from '../application/encounter-projection.js';
 import { EncounterUpdateService } from '../application/encounter-update.service.js';
@@ -30,11 +31,12 @@ const ETAG_HEADER_NAME = 'ETag';
 const IF_MATCH_HEADER_NAME = 'If-Match';
 
 /**
- * `POST /api/v1/encounters` (`03` §12; D-085, `P5-I5B`) and
- * `PATCH /api/v1/encounters/{encounterId}` (`03` §12; D-087, `P5-I5C`) — and nothing else.
+ * `POST /api/v1/encounters` (`03` §12; D-085, `P5-I5B`),
+ * `PATCH /api/v1/encounters/{encounterId}` (`03` §12; D-087, `P5-I5C`) and
+ * `POST /api/v1/encounters/{encounterId}/cancel` (`03` §12; D-089, `P5-I5D`) — and nothing else.
  *
- * `GET` list/detail and `cancel` belong to later slices and are not registered, stubbed or
- * anticipated here, so every such path stays `404` at the router.
+ * `GET` list/detail belong to a later slice and are not registered, stubbed or anticipated here,
+ * so both paths stay `404` at the router.
  *
  * Route class "tenant", `HEADER_ONLY`: `X-Practice-ID` is the only source of the practice identity.
  * Authentication is the same `DevelopmentAuthGuard` every tenant route uses.
@@ -51,6 +53,7 @@ export class EncountersController {
   public constructor(
     private readonly encounterCreate: EncounterCreateService,
     private readonly encounterUpdate: EncounterUpdateService,
+    private readonly encounterCancel: EncounterCancelService,
   ) {}
 
   /**
@@ -114,6 +117,43 @@ export class EncountersController {
       // RAW, and NOT normalised — absent (`428`) and empty (`400`) stay different (D-055).
       ifMatchHeader: request.header(IF_MATCH_HEADER_NAME),
       // The parsed body, untouched.
+      body: request.body,
+    });
+
+    response.setHeader(ETAG_HEADER_NAME, encounterEntityTag(representation));
+
+    return representation;
+  }
+
+  /**
+   * `200` with the closed seven-member document and the NEW strong `ETag` — `"<newVersion>"` for
+   * an original cancel, the CURRENT version for a replay (D-089 `RULING C`). The reason is never
+   * part of the answer. A refused request never reaches the header line and carries no entity
+   * tag.
+   *
+   * `If-Match` is deliberately not read: a cancel has no version precondition (D-089 `RULING H`).
+   */
+  @Post(':encounterId/cancel')
+  @HttpCode(HttpStatus.OK)
+  public async cancelEncounter(
+    @Req() request: AuthenticatedRequest,
+    @Res({ passthrough: true }) response: Response,
+    @Param('encounterId') encounterId: string,
+  ): Promise<EncounterCreatedResponseDto> {
+    const verifiedAuthSubject = readVerifiedAuthSubject(request);
+
+    if (verifiedAuthSubject === undefined) {
+      // Unreachable while the guard is attached; fail closed if it is ever removed.
+      throw authenticationRequired();
+    }
+
+    const representation = await this.encounterCancel.cancelEncounter({
+      verifiedAuthSubject,
+      practiceContextHeader: request.header(PRACTICE_CONTEXT_HEADER_NAME),
+      // Raw: validated after admission, never reflected.
+      encounterId,
+      idempotencyKeyHeader: request.header(IDEMPOTENCY_KEY_HEADER_NAME),
+      // The parsed body, untouched — judged only after admission, and hashed as it is.
       body: request.body,
     });
 

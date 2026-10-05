@@ -52,7 +52,11 @@
 import { Injectable } from '@nestjs/common';
 
 import { type AdmittedTenantSession } from '../../database/tenant-statement.js';
-import { IDEMPOTENCY_TTL_MILLISECONDS, type IdempotencyScope } from '../idempotency.constants.js';
+import {
+  IDEMPOTENCY_SUCCESS_STATUS,
+  IDEMPOTENCY_TTL_MILLISECONDS,
+  type IdempotencyScope,
+} from '../idempotency.constants.js';
 import {
   idempotencyCacheUnresolvable,
   idempotencyConflict,
@@ -61,15 +65,6 @@ import {
 import { advisoryLockKey } from '../domain/advisory-lock-key.js';
 import { IdempotencyDatabase } from '../infrastructure/idempotency.database.js';
 import { type IdempotencyClaimRow } from '../infrastructure/idempotency-database.port.js';
-
-/**
- * The `201` status the completion cache records (`03` §4.2).
- *
- * A constant rather than a parameter: this service serves one canonical create shape, and a
- * caller able to choose the cached status could record a replayable `204` or `200` for a command
- * whose contract is `201`.
- */
-const CREATED_STATUS = 201;
 
 /** The one member of the minimal completion cache (`03` §4.2). */
 const RESOURCE_ID_MEMBER = 'resourceId';
@@ -85,7 +80,8 @@ export interface IdempotentOperation<TResult> {
    * Steps 10 and 11 — the business mutation AND the success audit event, in that order, inside
    * the claim and inside the caller's one transaction.
    *
-   * @returns the created resource's identifier — the ONLY value that is cached — together with
+   * @returns the created (or, for a command on an existing resource, the affected) resource's
+   *   identifier — the ONLY value that is cached — together with
    *   the canonical response document built from the row that was just written.
    */
   execute(): Promise<{ readonly resourceId: string; readonly result: TResult }>;
@@ -116,6 +112,31 @@ export interface IdempotentRequest {
    * several that happen to be close together. Never a database `now()` substitute.
    */
   readonly instant: Date;
+  /**
+   * The resource a command ON AN EXISTING RESOURCE is bound to — the normalised identifier from
+   * the request path (D-089 `RULING D`, extension 2). ABSENT for every create command, whose
+   * behaviour is then exactly what it was before.
+   *
+   * When present, a completed claim whose cached `resourceId` differs from it is
+   * `409 IDEMPOTENCY_CONFLICT`, decided from the CACHED STATE ALONE: the replay callback is never
+   * reached, so the other resource is not read merely to refuse. The caller normalises it to the
+   * rendering PostgreSQL returns (lowercase for a UUID); the comparison here is exact.
+   */
+  readonly boundResourceId?: string;
+}
+
+/**
+ * The business half returned a resource other than the one the command is bound to.
+ *
+ * Unreachable when the code is correct — the bound statement filters by that very identifier — so
+ * it is an invariant failure: the static message is server-side only, and the caller receives
+ * the shared `500` while the transaction rolls the claim back. Never a silent mismatch.
+ */
+export class IdempotencyResourceBindingError extends Error {
+  public constructor() {
+    super('The idempotent operation returned a resource other than the bound resource.');
+    this.name = 'IdempotencyResourceBindingError';
+  }
 }
 
 @Injectable()
@@ -155,7 +176,7 @@ export class IdempotencyService {
       // it: an unfinished claim is `409 REQUEST_ALREADY_IN_PROGRESS` whatever its hash, because
       // a command still in flight is not something to conflict with — it is something to
       // decline.
-      return this.resolveExistingClaim(claim, request.requestSha256, operation);
+      return this.resolveExistingClaim(claim, request, operation);
     }
 
     // Step 9 — the claim. `expires_at` derives from the SAME single instant as `locked_at`, so
@@ -173,12 +194,19 @@ export class IdempotencyService {
     // propagates and rolls back the claim written one line above along with everything else.
     const { resourceId, result } = await operation.execute();
 
+    // A bound command must have acted on its bound resource; anything else fails closed BEFORE a
+    // completion could cache a pointer that a later replay would refuse.
+    if (request.boundResourceId !== undefined && resourceId !== request.boundResourceId) {
+      throw new IdempotencyResourceBindingError();
+    }
+
     // Step 12 — the minimal completion cache. `resourceId` is the only value it carries; the
     // document itself is built inside the statement, so no richer object can be passed in.
     await this.claims.completeClaim(tenant, {
       id: request.claimId,
       practiceId: request.scope.practiceId,
-      responseStatus: CREATED_STATUS,
+      // The endpoint's own status from the closed map — never a caller's choice.
+      responseStatus: IDEMPOTENCY_SUCCESS_STATUS[request.scope.endpoint],
       resourceId,
       completedAt: request.instant,
     });
@@ -190,13 +218,14 @@ export class IdempotencyService {
   /**
    * Steps 6 to 8 — what an existing claim in this scope means.
    *
-   * The three outcomes are decided from TWO stored facts and nothing else: whether the claim is
-   * completed, and whether its `request_sha256` equals this request's. No second read
-   * discriminates them, and none of the three responses renders either digest.
+   * The outcomes are decided from the STORED CLAIM and nothing else: whether it is completed,
+   * whether its `request_sha256` equals this request's and — for a bound command — whether its
+   * cached `resourceId` is the bound resource. No second read discriminates them, and none of the
+   * responses renders either digest or either identifier.
    */
   private async resolveExistingClaim<TResult>(
     claim: IdempotencyClaimRow,
-    requestSha256: string,
+    request: IdempotentRequest,
     operation: IdempotentOperation<TResult>,
   ): Promise<TResult> {
     // Step 8, taken first because completeness is the outer discriminator. `completed_at` is the
@@ -208,14 +237,22 @@ export class IdempotencyService {
 
     // Step 7 — the same key for a DIFFERENT body. `!==` over two 64-character lowercase hex
     // strings; there is no normalisation, no case folding and no prefix comparison.
-    if (claim.requestSha256 !== requestSha256) {
+    if (claim.requestSha256 !== request.requestSha256) {
+      throw idempotencyConflict();
+    }
+
+    const cachedResourceId = readCachedResourceId(claim.responseBody);
+
+    // The same key and the same body for a DIFFERENT resource (D-089 `RULING D`). Decided from
+    // the cache alone, before the replay callback, so the other resource is never read.
+    if (request.boundResourceId !== undefined && cachedResourceId !== request.boundResourceId) {
       throw idempotencyConflict();
     }
 
     // Step 6 — the replay. The cache is a POINTER: the resource is re-read under the tenant
     // policy and the document is rebuilt through the same canonical projection the original
     // `201` used, so the two bodies cannot drift apart.
-    const replayed = await operation.replay(readCachedResourceId(claim.responseBody));
+    const replayed = await operation.replay(cachedResourceId);
 
     if (replayed === undefined) {
       // `03` §4.2 — an unresolvable pointer is `500`, never a `404` and never an invented body.

@@ -949,7 +949,7 @@ describe('POST /api/v1/encounters (P5-I5B)', () => {
       expect(readProblemDetails(refused).requestId).toBe(requestId);
     });
 
-    it('registers no GET or cancel encounter route; PATCH exists since P5-I5C', async () => {
+    it('registers no GET encounter route; PATCH exists since P5-I5C, cancel since P5-I5D', async () => {
       const headers = {
         Authorization: developmentBearer(CALLER),
         [PRACTICE_HEADER]: ADMITTED_PRACTICE,
@@ -971,10 +971,15 @@ describe('POST /api/v1/encounters (P5-I5B)', () => {
         428,
         'PRECONDITION_REQUIRED',
       ]);
-      expect(
-        (await request(app.getHttpServer()).post(`/api/v1/encounters/${id}/cancel`).set(headers))
-          .status,
-      ).toBe(404);
+      // D-089 RULING J: cancel is registered now. The admitted caller holds `encounter.cancel`
+      // (PHYSICIAN in demo); without `Idempotency-Key` the answer is 400 IDEMPOTENCY_KEY_REQUIRED
+      // — explicitly not the router's 404.
+      const cancelled = await request(app.getHttpServer())
+        .post(`/api/v1/encounters/${id}/cancel`)
+        .set(headers);
+      expect([cancelled.status, (cancelled.body as Record<string, unknown>)['code']]).toStrictEqual(
+        [400, 'IDEMPOTENCY_KEY_REQUIRED'],
+      );
     });
   });
 });

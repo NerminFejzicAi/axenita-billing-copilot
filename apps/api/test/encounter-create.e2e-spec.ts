@@ -51,13 +51,12 @@ describe('POST /api/v1/encounters (e2e envelope)', () => {
     expect(JSON.stringify(problem)).not.toContain('unknown member');
   });
 
-  it('does not register the later GET and P5-I5D encounter routes', async () => {
+  it('does not register the later GET encounter routes', async () => {
     const id = '9b2f1e43-6a0f-4c1d-8f3e-5d6c7b8a9e01';
 
     for (const [method, path] of [
       ['get', '/api/v1/encounters'],
       ['get', `/api/v1/encounters/${id}`],
-      ['post', `/api/v1/encounters/${id}/cancel`],
     ] as const) {
       const response = await request(app.getHttpServer())[method](path);
 
@@ -73,5 +72,26 @@ describe('POST /api/v1/encounters (e2e envelope)', () => {
 
     expect(response.status).toBe(401);
     expect(readProblemDetails(response).code).toBe('AUTHENTICATION_REQUIRED');
+  });
+
+  // D-089 RULING J: cancel is no longer absent. It is registered behind the same authentication
+  // guard, so an unauthenticated caller gets 401 — not the router's 404 — and the body is not
+  // judged.
+  it('registers POST /api/v1/encounters/{encounterId}/cancel behind the authentication guard (P5-I5D)', async () => {
+    const id = '9b2f1e43-6a0f-4c1d-8f3e-5d6c7b8a9e01';
+    const response = await request(app.getHttpServer())
+      .post(`/api/v1/encounters/${id}/cancel`)
+      .set('X-Request-ID', CLIENT_REQUEST_ID)
+      .send({ reason: null, unknown: 'member that must not be judged' });
+
+    expect(response.status).toBe(401);
+    expect(response.headers['content-type']).toContain('application/problem+json');
+
+    const problem = readProblemDetails(response);
+
+    expect(problem.code).toBe('AUTHENTICATION_REQUIRED');
+    expect(problem.requestId).toBe(CLIENT_REQUEST_ID);
+    expect(problem.errors).toBeUndefined();
+    expect(JSON.stringify(problem)).not.toContain('must not be judged');
   });
 });
