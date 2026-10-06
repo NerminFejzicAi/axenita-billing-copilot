@@ -568,7 +568,12 @@ implementaciju `P5-I6A`, `P5-I6B` ni `P5-I6C`.**
    manuelni tekstualni zahtjev ne nosi polje eksterne reference, nijedno se ne uvodi radi aktivacije
    klase, i nijedan status (uključujući `redaction_status = COMPLETED`), odgovor, log, test ni
    dokument ne smije tvrditi da je ta klasa redigovana dok ne postoji stvarni, kanonski definisan
-   ulazni izvor. Formulacije §8.3 koje klasu nabrajaju se ne prepisuju; ovo ih aditivno kvalifikuje.
+   ulazni izvor. **Kvalifikacija §10:** tvrdnja §10 da ruleset uklanja „eksternu referenciju
+   pacijenta iz tekućeg zahtjeva" se ne prepisuje, ali je **izričito kvalifikovana D-092** i ova
+   stavka ima prednost: za `P5-I6` v1, dok ne postoji kanonski definisan ulazni izvor, klasa je
+   **inertna**, §10 se **ne smije** čitati kao zahtjev za aktivnu redakciju te klase, i
+   implementacija **NE SMIJE** tvrditi njenu uspješnu redakciju. Ulazni izvor se **ne smije**
+   fabrikovati heurističkim, AI ni semantičkim izvođenjem. (§8.3 ovu klasu ne nabraja.)
 3. **Redakcija nije potpuna granica uklanjanja PHI-a i nije sigurnosna granica** (§8.3, D-060,
    klauzula 41). **Autorizacija i kontrole pristupa originalnom dokumentu ostaju nezavisno
    obavezne**: `view=original` i dalje traži `encounter.document.read_original` (D-043), i nijedna

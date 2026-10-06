@@ -22046,7 +22046,7 @@ Za `phase5-basic-v1` klasa eksterne / tekuće-intake reference pacijenta je:
 EXTERNAL_REFERENCE_CLASS_V1 = INERT WITHOUT INPUT SOURCE
 ```
 
-- klasa **ostaje dio taksonomije ruleseta** (D-060; `03` §13.1; `08` §12.5; `09` §8.3);
+- klasa **ostaje dio taksonomije ruleseta** (D-060; `03` §13.1; `08` §12.5; `09` §10);
 - manuelni tekstualni zahtjev **ne uvodi zasebno polje eksterne reference**;
 - **nijedno polje se ne dodaje isključivo radi aktivacije ove klase**;
 - implementacija **NE SMIJE tvrditi** da je klasa redigovana **osim ako postoji stvarni, definisani
@@ -22057,9 +22057,13 @@ EXTERNAL_REFERENCE_CLASS_V1 = INERT WITHOUT INPUT SOURCE
 
 **Obavezna klauzula iskrenosti u budućem izvršnom ugovoru `P5-I6A`: DA.** Taj ugovor mora izričito
 navesti da je klasa u v1 inertna bez ulaznog izvora i da nijedan izlaz, status, test ni dokument ne
-predstavlja tu klasu kao uspješno redigovanu. Ranije formulacije D-060 / D-070 / `03` §13.1 / `08`
-§12.5 / `09` §8.3 koje klasu nabrajaju kao pokrivenu **ne prepisuju se**; D-092 ih **aditivno i
-prospektivno kvalifikuje**.
+predstavlja tu klasu kao uspješno redigovanu. Ranije formulacije D-060 / `03` §13.1 / `08` §12.5 /
+`09` §10 koje klasu nabrajaju kao pokrivenu **ne prepisuju se**; D-092 ih **aditivno i prospektivno
+kvalifikuje**. Posebno: sadašnja tvrdnja `09` §10 da ruleset **uklanja** „eksternu referenciju
+pacijenta iz tekućeg zahtjeva" je **kvalifikovana ovim `RULING E`** — dok ne postoji kanonski
+definisan ulazni izvor, klasa je inertna i ta tvrdnja **ne znači** aktivnu redakciju (`09` §8.5,
+stavka 2). `09` §8.3 i D-070 ovu klasu **ne nabrajaju**; D-070 se u `09` §10 citira samo za
+telefonsku sintaksu i isključenje identifikatora osiguranja/kartice.
 
 ### `RULING F` — smjer politike `FAILED` redakcije (`OD-P5-I6-4`)
 
