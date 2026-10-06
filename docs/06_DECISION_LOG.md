@@ -21440,20 +21440,65 @@ verifikovani i vlasnički utvrđeni**; **ovaj gate ih ne ponavlja izvršavanjem 
 ## Vlasničke dispozicije
 
 ```text
-OD-PARENT-CLOSE-1   aditivno zabiljeziti efektivnost D-090                    (RULING A)
-OD-PARENT-CLOSE-2   aditivno zabiljeziti efektivno zatvaranje P5-I5D          (RULING A)
-OD-PARENT-CLOSE-3   zabiljeziti matricu kompletnosti cetiri pod-gatea;
-                    ALL_P5_I5_CHILDREN_EFFECTIVE = YES                        (RULING B)
-OD-PARENT-CLOSE-4   P5_I5_OWNED_ROWS_TOTAL / CHECKED / UNCHECKED = 6 / 6 / 0  (RULING C)
-OD-PARENT-CLOSE-5   PARENT_CHECKBOX_TRANSITIONS = 0                           (RULING D)
-OD-PARENT-CLOSE-6   uslovno formalno zatvaranje roditelja P5-I5, efektivno
-                    tek nakon vlastite publikacije i kanonske
-                    post-verifikacije D-091                                    (RULING E)
-OD-PARENT-CLOSE-7   P5-I6 postaje dependency-satisfied / eligible tek nakon
-                    efektivnog D-091, ali ostaje NOT AUTHORIZED / NOT STARTED   (RULING F)
-OD-PARENT-CLOSE-8   carry-forward otvorenih / neblokirajucih stavki bez
-                    adjudikacije                                               (RULING G)
-OD-PARENT-CLOSE-9   D-092 ostaje netaknut                                      (RULING J)
+OD-PARENT-CLOSE-1   dodjela D-091: vlasnik dodjeljuje D-091 iskljucivo zapisu
+                    "P5-I5 Encounter Core — parent post-completion reconciliation
+                    and formal closure"
+                    D-091 = ASSIGNED / RESERVED FOR P5-I5 PARENT CLOSURE
+                    D-092 = UNCONSUMED / NOT RESERVED / NOT ASSIGNED           (kontekst; RULING J)
+OD-PARENT-CLOSE-2   obuhvat zatvaranja roditelja:
+                    (1) pomiriti efektivnost D-090                             (RULING A)
+                    (2) pomiriti efektivno zatvaranje P5-I5D                   (RULING A)
+                    (3) zabiljeziti matricu cetiri pod-gatea                   (RULING B)
+                    (4) ALL_P5_I5_CHILDREN_EFFECTIVE = YES                     (RULING B)
+                    (5) P5_I5_OWNED_ROWS_TOTAL / CHECKED / UNCHECKED
+                        = 6 / 6 / 0                                            (RULING C)
+                    (6) formalno zatvoriti P5-I5 tek nakon vlastite
+                        publikacije i kanonske post-verifikacije D-091         (RULING E)
+                    (7) zatvaranje roditelja bez implementacijske mutacije     (RULING I)
+                    (8) uspostaviti buducu P5-I6 dependency-satisfaction /
+                        eligibility bez autorizacije i bez pocetka             (RULING F)
+                    (9) D-092 ostaje netaknut                                  (RULING J)
+OD-PARENT-CLOSE-3   nula tranzicija kucica:
+                    EXPECTED_PARENT_CHECKBOX_TRANSITIONS = 0;
+                    D-091 ne mijenja nijednu kucicu; Faza 5 ostaje
+                    37 / 49, 12 preostalo (~75.5 %)                            (RULING D)
+OD-PARENT-CLOSE-4   tacan skup governance dokumenata (sest putanja):
+                    docs/03_API_CONTRACT_V1.md
+                    docs/04_BACKEND_IMPLEMENTATION_PLAN_V1.md
+                    docs/05_IMPLEMENTATION_CHECKLIST.md
+                    docs/06_DECISION_LOG.md
+                    docs/08_TEST_STRATEGY_V1.md
+                    MANIFEST.md
+                    izricito iskljuceno: docs/09_SECURITY_PRIVACY_BASELINE_V1.md;
+                    docs/05 §0 Project metadata          (Posljedice — dokumentaciono pomirenje)
+OD-PARENT-CLOSE-5   historijska nepromjenjivost:
+                    HISTORICAL_REWRITE_ALLOWED = NO;
+                    D-001 … D-090 ostaju bajt-identicni;
+                    historijski D-090 lifecycle snapshoti se ne prepisuju      (RULING H)
+OD-PARENT-CLOSE-6   carry-forward dispozicija: bez adjudikacije D-OPEN-004a /
+                    D-OPEN-007 / D-OPEN-009; preneseno: NB-2, PF-F1, odstupanje
+                    formattera Faze 4, sirovi NUL u permission-matrix.ts,
+                    exports-retry request-hash vektor, Faza 7+ kaskada cancel-a;
+                    PF-F2 / PF-F3 ostaju prihvaceni AS-IS; NB-1 ostaje
+                    razrijesen; I-1 … I-5 iz review sesije se ne promovisu u
+                    kanonske D-091 nalaze                                      (RULING G)
+OD-PARENT-CLOSE-7   infrastrukturni firewall:
+                    RUNTIME / TEST / SCHEMA / MIGRATION / RLS / GRANT /
+                    STATE_GRAPH / PERMISSION_MATRIX / PACKAGES_CONTRACT
+                    _CHANGE = NO                                               (RULING I)
+OD-PARENT-CLOSE-8   P5-I6 firewall:
+                    prije efektivnog D-091: NOT AUTHORIZED / NOT STARTED;
+                    nakon efektivnog D-091: NEXT / DEPENDENCY-SATISFIED /
+                    ELIGIBLE FOR SEPARATE AUTHORIZATION / NOT AUTHORIZED /
+                    NOT STARTED; eligibility nije autorizacija                 (RULING F)
+OD-PARENT-CLOSE-9   ocekivani zavrsni lifecycle: tek nakon autorstvo ->
+                    nezavisan pregled -> vlasnicko prihvatanje -> publikacioni
+                    preflight -> publikacijska autorizacija -> push + PR ->
+                    merge autorizacija -> merge -> kanonska post-verifikacija
+                    D-091 = PUBLISHED / MERGED / CANONICAL / POST-PUBLICATION
+                    VERIFIED / EFFECTIVE i P5-I5 = COMPLETE / VERIFIED /
+                    FORMALLY CLOSED / EFFECTIVE; do tada P5-I5 = IN_PROGRESS
+                                                     (RULING E; Lifecycle odluke)
 
 HISTORICAL_REWRITE_ALLOWED = NO                                                (RULING H)
 ```
@@ -21559,7 +21604,7 @@ NEW_ROWS                     = 0
 DELETED_ROWS                 = 0
 ```
 
-**D-091 ne mijenja nijednu kućicu.** Ovo je tvrdo vlasničko ograničenje (`OD-PARENT-CLOSE-5`).
+**D-091 ne mijenja nijednu kućicu.** Ovo je tvrdo vlasničko ograničenje (`OD-PARENT-CLOSE-3`).
 
 ### `RULING E` — formalno zatvaranje roditeljskog `P5-I5`
 
