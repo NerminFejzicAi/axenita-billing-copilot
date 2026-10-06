@@ -2398,6 +2398,29 @@ CHECKBOX TRANSITIONS (D-090 kandidat) = 1   (API -> cancel encounter)
 
 Vidi D-090 u `06`.
 
+### Anotacija zatvaranja roditeljskog `P5-I5` (D-091, 2026-10-06) — sekcije iznad se NE prepisuju
+
+D-090 je efektivan (PR #75, `f9aa276f…`). Implementacijski dokaz svih pod-gateova `P5-I5A` … `P5-I5D`
+je **već kanonski** i ranije verifikovan i vlasnički utvrđen u njihovim formalnim zatvaranjima
+(D-084, D-086, D-088, D-090). **Sve implementacijske testne obaveze `P5-I5` su ispunjene.** Zatvaranje
+roditelja se oslanja **isključivo** na kanonski dokaz pod-gateova i governance identitet (D-091
+`RULING B`), **ne na novo runtime izvršavanje**; ovaj gate **ne tvrdi novu runtime verifikaciju**.
+
+**D-091 ne mijenja nijedan runtime ni testni zahtjev** i iz zatvaranja roditelja **ne proizlazi
+nijedna nova testna obaveza.** Formulacije `P5-I5D … FORMALLY CLOSING UNDER D-090 / NOT YET EFFECTIVE`
+i `P5-I5 IN_PROGRESS` iznad opisuju **pred-D-091 stanje** i **ne prepisuju se**.
+
+```text
+TEST_REQUIREMENT_MUTATION    = 0
+TESTS_WRITTEN_D091           = 0
+TESTS_RERUN_D091_AUTHORING   = 0
+P5-I5D   COMPLETE / VERIFIED / FORMALLY CLOSED / EFFECTIVE
+P5-I5    IN_PROGRESS / FORMALLY CLOSING UNDER D-091 / NOT YET EFFECTIVE
+CHECKBOX TRANSITIONS (D-091 kandidat) = 0
+```
+
+Vidi D-091 u `06`.
+
 ---
 
 

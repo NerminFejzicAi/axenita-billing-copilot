@@ -915,6 +915,29 @@ API SEMANTIC MUTATION      = 0
 Zatvaranje postaje efektivno **tek nakon punog lifecyclea D-090**. **D-090 ne zatvara roditeljski
 `P5-I5` i ne autorizuje `P5-I6`.** Vidi D-090 u `06`.
 
+**STATUSNA ANOTACIJA (D-091, 2026-10-06) — sekcija i anotacije iznad se NE prepisuju.** D-090 je
+objavljen kroz **PR #75** (`f9aa276f…`, publication drift `ZERO`) i **efektivan**; `P5-I5D` je
+**COMPLETE / VERIFIED / FORMALLY CLOSED / EFFECTIVE**. Sva četiri pod-gatea `P5-I5A` … `P5-I5D` su
+kompletna i efektivna. Formalno zatvaranje roditeljskog `P5-I5` je predmet **D-091** i **tokom
+autorstva još nije efektivno**. **D-091 ne mijenja nijednu API semantiku**: nijedna ruta, metoda,
+payload, header, permisija, statusni ni error kod; §8 i §12 ostaju nepromijenjeni. Formulacije D-090
+anotacije iznad (`D-090 … NOT CANONICAL / NOT EFFECTIVE`, `P5-I5D … FORMALLY CLOSING UNDER D-090 / NOT
+YET EFFECTIVE`, `P5-I5 IN_PROGRESS`) su **pred-D-091 snapshot**, **historijski su tačne** i **ne
+prepisuju se**.
+
+```text
+D-091    LOCALLY AUTHORED / NOT INDEPENDENTLY REVIEWED / NOT OWNER-ACCEPTED /
+         NOT PUBLISHED / NOT CANONICAL / NOT EFFECTIVE
+D-090    PUBLISHED / MERGED (PR #75) / CANONICAL / POST-PUBLICATION VERIFIED / EFFECTIVE
+P5-I5D   COMPLETE / VERIFIED / FORMALLY CLOSED / EFFECTIVE
+P5-I5    IN_PROGRESS / FORMALLY CLOSING UNDER D-091 / NOT YET EFFECTIVE
+P5-I6    NOT AUTHORIZED / NOT STARTED
+API SEMANTIC MUTATION      = 0
+```
+
+Zatvaranje roditelja postaje efektivno **tek nakon punog lifecyclea D-091**. **D-091 ne autorizuje
+`P5-I6`.** Vidi D-091 u `06`.
+
 
 ---
 
