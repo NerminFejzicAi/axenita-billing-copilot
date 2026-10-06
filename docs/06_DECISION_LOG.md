@@ -20952,6 +20952,425 @@ D-089 LOCAL CANDIDATE CHECKLIST          = 36 / 49
 
 ---
 
+# D-090 — `P5-I5D` Encounter Cancel — post-publikaciono pomirenje i formalno zatvaranje pod-gatea
+
+- **Status:** vlasničke dispozicije zatvaranja `P5-I5D` OWNER-RATIFIED — **LOCALLY AUTHORED /
+  NOT INDEPENDENTLY REVIEWED / NOT OWNER-ACCEPTED / NOT PUBLISHED / NOT CANONICAL / NOT EFFECTIVE**
+- **Datum:** 2026-10-06
+- **Tip:** vlasnički ratifikovan **governance zapis post-publikacionog pomirenja i formalnog
+  zatvaranja pod-gatea `P5-I5D` (Encounter Cancel)**. **Dokumentacija isključivo.**
+- **Amandman na:** **isključivo tekuće statusne metapodatke** D-089 / `P5-I5D` i **tačno jednu
+  kućicu** checklista Faze 5 (`API → cancel encounter`). **Nijedan zapis D-001 … D-089 se ne
+  prepisuje, ne prenumeriše i ne briše — svi ostaju bajt-identični.**
+- **Ovo je isključivo governance pomirenje i zatvaranje.** Implementacija `P5-I5D` je bila **kanonska
+  prije ove odluke** (merge **PR #74**, `aa3220e5…`). D-090 **ne mijenja runtime ponašanje**: ne
+  uvodi nijednu liniju izvornog koda, nijedan test, nijednu migraciju, schemu, Prisma model, API rutu,
+  grant, rolu, politiku, graf stanja, permisionu matricu ni `packages/contracts`. **Nijedna baza nije
+  kontaktirana** i **nijedan test se ovom odlukom ne izvršava.** D-090 formalizuje lifecycle stanje i
+  kompletnost checklista.
+- **Ova odluka mijenja TAČNO JEDNU kućicu** (closure-owned red `P5-I5D`, D-089 `RULING M`). Checklist
+  Faze 5 prelazi iz **`36 / 49`** u **`37 / 49`** — **isključivo u ovom lokalnom kandidatu**; kanonski
+  `origin/main` nosi **`36 / 49`** dok D-090 ne prođe vlastiti lifecycle.
+- **Ova odluka NE zatvara roditeljski `P5-I5`** i **ne autorizuje ni ne započinje `P5-I6`**.
+- **Ova odluka troši ISKLJUČIVO `D-090`.** `D-091` se ne troši, ne rezerviše i ne dodjeljuje.
+- **Lokalni authoring commit ove odluke NIJE kanonski ni efektivan.** Formalno zatvaranje `P5-I5D`
+  postaje efektivno tek nakon vlastitog lifecyclea D-090 (vidi `RULING C`).
+
+## Kontekst/problem — trigger
+
+D-089 je kanonizovao L-4 i zamrznuo kompletan ugovor `P5-I5D` (`OD-P5-I5D-1` … `OD-P5-I5D-5`) uz
+odgođenu implementacijsku autorizaciju (`RULING L`). D-089 je objavljen kroz **PR #73** i merged kao
+`fab7df0f…`; time je `P5-I5D` postao `IMPLEMENTATION AUTHORIZED / NOT STARTED`. Implementacija je zatim
+izvedena unutar D-089 (`RULING B` … `RULING K`), verifikovana, vlasnički prihvaćena, objavljena kroz
+**PR #74** i merged na `origin/main` kao **`aa3220e53de0b92da88d1841b95608d5a3bd7ce0`**. Kanonski
+checklist Faze 5 i dalje nosi closure-owned red `API → cancel encounter` kao neoznačen, a tekući
+statusni blokovi u `03`, `04`, `05`, `08` i `09` i dalje opisuju D-089 kao `LOCALLY AUTHORED / NOT
+CANONICAL / NOT EFFECTIVE`, a `P5-I5D` kao `CONTRACT FROZEN LOCALLY UNDER D-089 / NOT YET
+IMPLEMENTATION-AUTHORIZED / NOT STARTED` (pred-D-090 stanje). Po pravilu vremena zatvaranja D-084
+(`OD-D084-1`) i vlasništvu reda D-089 (`RULING M`), red se zatvara **isključivo kroz formalno
+zatvaranje `P5-I5D`**. Vlasnik je dodijelio `D-090` isključivo post-publikacionom pomirenju i
+formalnom zatvaranju `P5-I5D`.
+
+## Kanonsko stanje ulaza ovog gatea
+
+```text
+repozitorij                  D:\AI\Arztpraxis
+kanonski main                aa3220e53de0b92da88d1841b95608d5a3bd7ce0
+HEAD tree                    e9674a3b32f21f60c558db2796d324dd1780b59d
+zivi remote refs/heads/main  aa3220e53de0b92da88d1841b95608d5a3bd7ce0
+worktree                     CLEAN
+stash                        EMPTY
+
+MANIFEST                     19 / 19 MATCH
+checklist Faze 5             49 ukupno / 36 oznaceno / 13 neoznaceno   (~73.5 %)
+P5-I5D closure red           1 / 1 NEOZNACEN   (API -> cancel encounter)
+najnovija kanonska odluka    D-089
+D-089                        PUBLISHED / MERGED (PR #73, fab7df0f80835d27d23deaa36ec6e9247deec114) /
+                             CANONICAL / POST-PUBLICATION VERIFIED / EFFECTIVE
+D-090 prije ovog zapisa      ASSIGNED BY OWNER TO P5-I5D FORMAL CLOSURE / 0 heading pojavljivanja
+D-091                        UNCONSUMED / NOT RESERVED / NOT ASSIGNED / 0 heading pojavljivanja
+
+P5-I5                        IN_PROGRESS
+P5-I5A                       COMPLETE / VERIFIED / FORMALLY CLOSED / EFFECTIVE
+P5-I5B                       COMPLETE / VERIFIED / FORMALLY CLOSED / EFFECTIVE
+P5-I5C                       COMPLETE / VERIFIED / FORMALLY CLOSED / EFFECTIVE
+P5-I5D                       PUBLISHED / MERGED / CANONICAL / POST-PUBLICATION VERIFIED /
+                             NOT FORMALLY CLOSED
+P5-I6                        NOT AUTHORIZED / NOT STARTED
+```
+
+**Kanonska implementacija `P5-I5D`:**
+
+```text
+implementacijski commit      29b69985be81f805df3587ef78e2e36d9b558d6a   feat: implement encounter cancel
+roditelj                     fab7df0f80835d27d23deaa36ec6e9247deec114   (merge PR #73, D-089)
+merge commit (PR #74)        aa3220e53de0b92da88d1841b95608d5a3bd7ce0
+roditelji merge commita      fab7df0f80835d27d23deaa36ec6e9247deec114 / 29b69985be81f805df3587ef78e2e36d9b558d6a
+tree implementacije          e9674a3b32f21f60c558db2796d324dd1780b59d
+tree merge commita           e9674a3b32f21f60c558db2796d324dd1780b59d   (identican)
+PUBLICATION_DRIFT            ZERO
+obuhvat                      22 fajla; iskljucivo apps/api/**; nula neautorizovanih putanja;
+                             bez scheme, migracije, RLS-a, granta, grafa stanja, permisione
+                             matrice, packages/contracts, docs-a i checklista
+
+lifecycle   IMPLEMENTED / VERIFIED / OWNER-ACCEPTED / PUBLISHED / MERGED /
+            CANONICAL / POST-PUBLICATION VERIFIED
+```
+
+Lifecycle činjenice i implementacijski / sigurnosni / publikacioni dokaz iznad su **ranije
+verifikovani i vlasnički utvrđeni**; **ovaj gate ih ne ponavlja izvršavanjem testova.**
+
+## Odluka
+
+### `RULING A` — pomirenje efektivnosti D-089
+
+D-089 je objavljen kroz **PR #73** i merged na `origin/main` kao:
+
+```text
+merge commit     fab7df0f80835d27d23deaa36ec6e9247deec114
+
+D-089            PUBLISHED / MERGED / CANONICAL / POST-PUBLICATION VERIFIED / EFFECTIVE
+```
+
+**Historijska međufaza (aditivno zabilježena):** posljedica efektivnog D-089 (`RULING L`) bila je
+
+```text
+P5-I5D = IMPLEMENTATION AUTHORIZED / NOT STARTED
+```
+
+To je **kasnija izjava pomirenja**, ne izmjena D-089. Tijelo D-089 i njegove anotacije iz trenutka
+autorstva — `LOCALLY AUTHORED / … / NOT CANONICAL / NOT EFFECTIVE`, `CONTRACT FROZEN LOCALLY UNDER
+D-089 / NOT YET IMPLEMENTATION-AUTHORIZED / NOT STARTED`, „zamrznuto u lokalnom D-089 kandidatu",
+`D-090 UNCONSUMED / NOT RESERVED / NOT ASSIGNED` — **historijski su tačne** za svoj izvorni trenutak i
+**ne prepisuju se**. **D-089 ostaje kanonska / efektivna odluka ugovora `P5-I5D`.**
+
+### `RULING B` — kanonska publikacija implementacije
+
+```text
+commit               29b69985be81f805df3587ef78e2e36d9b558d6a
+PR                   #74
+merge                aa3220e53de0b92da88d1841b95608d5a3bd7ce0
+tree                 e9674a3b32f21f60c558db2796d324dd1780b59d
+PUBLICATION_DRIFT    ZERO
+putanje              22 implementacijske putanje; 0 neautorizovanih
+
+implementacija P5-I5D   IMPLEMENTED / VERIFIED / OWNER-ACCEPTED / PUBLISHED / MERGED /
+                        CANONICAL / POST-PUBLICATION VERIFIED
+```
+
+Implementacija isporučuje i **ograničeno zajedničko idempotencijsko proširenje** adjudicirano u D-089
+(`04` §7.5a D-089 anotacija): (1) uspješan status po pozivu / endpointu (create zadržava `201`, cancel
+`200`) i (2) verifikaciju vezivanja keširanog `resourceId` (neslaganje → `409 IDEMPOTENCY_CONFLICT`,
+bez čitanja encountera). Nema drugog idempotencijskog podsistema. **D-090 sam ne pravi nijednu
+runtime izmjenu.**
+
+### `RULING C` — formalno zatvaranje `P5-I5D`
+
+Formalno zatvaranje `P5-I5D` zasniva se na kanonskoj implementacijskoj osnovi **`aa3220e5…`** (merge
+**PR #74**) sa prihvaćenim implementacijskim commitom **`29b69985…`** i na ranije verifikovanom
+implementacijskom, sigurnosnom i publikacionom dokazu. **D-090 isključivo formalizuje zatvaranje.**
+**Lokalno autorstvo D-090 samo po sebi NE čini zatvaranje efektivnim** (presedan D-088 `RULING A`).
+Do završetka vlastitog lifecyclea D-090 `P5-I5D` se smije opisati **isključivo** kao:
+
+```text
+PUBLISHED / MERGED / CANONICAL / POST-PUBLICATION VERIFIED /
+FORMALLY CLOSING UNDER D-090 / NOT YET EFFECTIVE
+```
+
+`P5-I5D` postaje **COMPLETE / VERIFIED / FORMALLY CLOSED / EFFECTIVE** tek nakon što D-090 sam prođe:
+
+```text
+autorstvo
+-> nezavisan pregled
+-> vlasnicko prihvatanje
+-> publikacioni preflight
+-> publikacijska autorizacija
+-> publikacija
+-> kanonska post-verifikacija
+```
+
+Do tada kanonsko stanje `P5-I5D` ostaje `PUBLISHED / MERGED / CANONICAL / POST-PUBLICATION VERIFIED /
+NOT FORMALLY CLOSED`.
+
+### `RULING D` — tačna tranzicija checklista
+
+D-090 pravi **tačno jednu** tranziciju (closure-owned red `P5-I5D`, D-089 `RULING M`; D-082,
+`RULING G`):
+
+```text
+[ ] API -> cancel encounter   ->   [x] API -> cancel encounter
+
+                         prije (kanonski, pred-D-090)   D-090 kandidat / post-efektivnost
+UKUPNO REDOVA (S6)       49                             49
+OZNACENO                 36                             37
+NEOZNACENO               13                             12
+FORMALNA ZAVRSENOST      36 / 49 ~= 73.5 %              37 / 49 ~= 75.5 %
+
+UNCHECKED_TO_CHECKED     = 1
+CHECKED_TO_UNCHECKED     = 0
+NEW_ROWS                 = 0
+DELETED_ROWS             = 0
+OTHER_ROW_TRANSITIONS    = 0
+```
+
+**Kućica odražava formalno zatvaranje pod D-090.** **`36 / 49` je pred-D-090 kanonsko stanje**;
+**`37 / 49` je D-090 kandidat zatvaranja i stanje nakon efektivnosti**. Historijske pred-D-090
+vrijednosti (`36 / 49`, `CHECKBOX TRANSITIONS = 0`) u ranijim zapisima i anotacijama **se ne
+prepisuju**. **Nijedan drugi red se ne mijenja.**
+
+### `RULING E` — dispozicija nalaza
+
+```text
+PF-F1   lokalna dev baza bez 003 / 011 / 013 / 014   NON-BLOCKING / LOCAL ENVIRONMENT HYGIENE /
+                                                     ACCEPTED AS-IS
+PF-F2   odrzavanje formulacija naslova testova       INFORMATIONAL / ACCEPTED AS-IS
+PF-F3   reupotreba EncounterPatchInvariantError      INFORMATIONAL / ACCEPTED AS-IS
+        sa internom PATCH formulacijom
+NB-1    zastarjeli lifecycle snapshoti D-089         NON-BLOCKING / RESOLVED BY ADDITIVE
+                                                     D-090 RECONCILIATION
+NB-2    zastarjeli docs/05 §0 Project metadata       NON-BLOCKING / OUTSIDE D-090 CLOSURE SCOPE /
+                                                     LEAVE AS-IS
+```
+
+- **`PF-F1`** — lokalna razvojna baza nema primijenjene migracije `003`, `011`, `013`, `014`. Higijena
+  lokalnog okruženja; **nije potrebna nikakva mutacija baze**; ne utiče na kanonski dokaz.
+- **`PF-F2`** — održavanje formulacija naslova testova je informativno. **Nema izmjene testova.**
+- **`PF-F3`** — `EncounterPatchInvariantError` se reupotrebljava sa internom `PATCH` formulacijom;
+  poruka nije dio klijentskog ugovora. **Nije potreban korektivni runtime commit.**
+- **`NB-1`** — zastarjeli lifecycle snapshoti D-089 su **razriješeni isključivo aditivnim D-090
+  pomirenjem**; **nema historijskog prepisivanja.**
+- **`NB-2`** — `docs/05` §0 Project metadata je zastario još od ranijeg governance-a Faze 5; **izvan
+  obuhvata D-090, ostaje kakav jeste.**
+
+**Nijedan korektivni implementacijski commit nije potreban.** **Nalazi ne otvaraju ponovo `P5-I5D`**
+i **ne stvaraju nikakav novi runtime ugovor.**
+
+### `RULING F` — carry-forward (nepromijenjen, neadjudiciran)
+
+D-090 **ne adjudicira** nepovezana postojeća pitanja; njihovo kanonsko stanje se **čuva bez izmjene**:
+
+- **`D-OPEN-004a`**;
+- **`D-OPEN-007`** — sanitizovan razlog otkazivanja **može sadržavati PHI** kao audit metadata
+  (`audit_events.metadata.reason`); **pitanje retencije audita ostaje OTVORENO**; **D-090 ga ne
+  razrješava**;
+- **`D-OPEN-009`**;
+- odstupanje formattera Faze 4;
+- sirovi NUL u `apps/api/src/identity/domain/permission-matrix.ts`;
+- request-hash vektor `POST /exports/{exportJobId}/retry`;
+- kaskada cancel-a iz `ANALYSIS_IN_PROGRESS` / `REVIEW_REQUIRED` — Faza 7+ (D-035).
+
+**Ništa od navedenog D-090 ne razrješava.** `PF-F1` pripada dispoziciji nalaza (`RULING E`), ne
+kanonskoj carry-forward listi.
+
+### `RULING G` — roditelj / firewall narednog gatea
+
+```text
+P5-I5    IN_PROGRESS
+P5-I6    NOT AUTHORIZED / NOT STARTED
+D-091    UNCONSUMED / NOT RESERVED / NOT ASSIGNED
+```
+
+- **D-090 NE zatvara formalno roditeljski `P5-I5`.** Zatvaranje `P5-I5` je **zaseban kasniji
+  governance gate** — čak i ako su nakon ovog kandidata označeni svi redovi u vlasništvu `P5-I5`. Nijedan red vezan za roditelja se ne mijenja.
+- **Naredni governance gate nakon efektivnog D-090:** formalno zatvaranje roditeljskog `P5-I5`.
+  Taj gate se **ne vezuje ni za jedan broj odluke**.
+- **Naredni implementacijski slice nakon zatvaranja roditelja:** `P5-I6` — ručni unos dokumenta i
+  redakcija. D-090 **ne autorizuje i ne započinje** `P5-I6`.
+- **D-090 ne dodjeljuje `D-091` nikakvu ulogu** i **ništa ne rezerviše**.
+
+## Razmotrene i odbijene alternative
+
+- **Korektivni implementacijski commit za `PF-F2` ili `PF-F3`** — **odbijeno vlasničkom
+  dispozicijom**; nalazi prihvaćeni AS-IS.
+- **Mutacija lokalne dev baze radi `PF-F1`** — **odbijeno**; higijena lokalnog okruženja, izvan
+  obuhvata.
+- **Prepisati statusne blokove D-089 / `03` §12 „Zamrznut ugovor `P5-I5D`" status liniju** —
+  **odbijeno**; pomirenje je aditivno.
+- **Očistiti `docs/05` §0 Project metadata** — **odbijeno** (`NB-2`, izvan obuhvata).
+- **Zatvoriti roditeljski `P5-I5` u istom zapisu** — **odbijeno**; zaseban gate.
+- **Autorizovati `P5-I6` ili rezervisati `D-091`** — **odbijeno**.
+- **Označiti bilo koji drugi red** — **odbijeno** (D-082 `RULING G`; D-084 `OD-D084-1`).
+
+## Posljedice — dokumentaciono pomirenje
+
+| Lokacija | Zahvat |
+|---|---|
+| `06` | dodat ovaj D-090 zapis nakon D-089; **D-001 … D-089 bajt-identični** |
+| `05` §6 | aditivna **D-090 closure anotacija** nakon D-089 anotacije; **tačno jedna** kućica `[ ]` → `[x]` (`API → cancel encounter`); **§0 Project metadata se ne mijenja** |
+| `03` §4 | aditivna D-090 statusna anotacija nakon D-089 anotacije; **§12 (uključujući status liniju zamrznutog ugovora `P5-I5D`) se ne mijenja; nijedna API semantika se ne mijenja** |
+| `04` §7.5a | aditivna D-090 statusna / implementacijska anotacija zatvaranja nakon D-089 anotacije |
+| `08` §12.13 | aditivna D-090 anotacija dokaza zatvaranja `P5-I5D` |
+| `09` §12.2 | aditivna D-090 statusna / sigurnosna anotacija; **tačke 1–11, L-4 i ranije anotacije bajt-očuvane** |
+| `MANIFEST.md` | ponovo izračunati bajtovi i SHA-256 za šest izmijenjenih dokumenata; **19 redova ostaje 19** |
+
+**Nijedan drugi dokument se ne mijenja.** Sav izvorni kod, testovi, migracije, Prisma, SQL, grantovi,
+RLS politike, graf stanja, permisiona matrica, `packages/contracts`, paketi, lockfile i CI ostaju
+netaknuti.
+
+## Security/privacy uticaj
+
+- **Nijedan sigurnosni zahtjev se ne mijenja, ne slabi i ne uklanja.**
+- Sigurnosni dokaz `P5-I5D` je **prihvaćen**: L-4 kanonski i implementiran; autorizacija prije
+  obrade tijela verifikovana; ekvivalentan `404` za nevidljiv / nepostojeći encounter, **bez
+  existence oraclea**; idempotencijsko vezivanje resursa; sirov `reason` se **nikada** ne pohranjuje,
+  ne vraća i ne logira; sanitizovan `reason` isključivo u audit metadata; otkazivanje sigurno pri
+  trci; atomičnost rollbacka.
+- **`D-OPEN-007` ostaje otvoren** (sanitizovan `reason` može nositi PHI u audit metadata).
+- **`★` RI-naspram-RLS ostaje trajna regresija**; pad → `HARD HOLD`.
+- **Nijedan grant, nijedna RLS politika i nijedan predikat izolacije se ne dira.**
+
+## Migration/rollout
+
+**Nema.**
+
+```text
+RUNTIME_CHANGE                     = NO
+TEST_CHANGE                        = NO
+SCHEMA_CHANGE                      = NO
+MIGRATION_CHANGE                   = NO
+RLS_CHANGE                         = NO
+GRANT_CHANGE                       = NO
+STATE_GRAPH_CHANGE                 = NO
+PERMISSION_MATRIX_CHANGE           = NO
+PACKAGES_CONTRACT_CHANGE           = NO
+DATABASE_WRITER_REQUIRED           = NO
+HISTORICAL_RECORDS_REWRITTEN       = 0
+```
+
+## Test dokaz
+
+**Nijedan test se ovim zapisom ne piše, ne mijenja i ne izvršava.** Kanonski dokaz implementacije
+`29b69985…` / `aa3220e5…` (tree `e9674a3b…`), ranije verifikovan i vlasnički utvrđen:
+
+```text
+unit                       1663 passed
+e2e                        49 passed
+integration                46 passed
+security                   1007 passed
+ciljani P5-I5D             46 / 46
+cancel unit specs          101 passed
+★ RI-naspram-RLS           13 / 13
+lint                       PASS
+typecheck                  PASS
+build                      PASS
+db:validate                PASS
+git diff --check           PASS
+
+zahtjev trke               VERIFIED
+rollback audita            VERIFIED
+privatnost sirovog reason  VERIFIED
+D-089 RULING I matrica     FULFILLED
+D-089 RULING J tranzicija  FULFILLED
+
+TESTS WRITTEN IN THIS GATE   0
+TESTS RERUN IN THIS GATE     0
+```
+
+Ovaj governance gate **ne tvrdi novu runtime verifikaciju**. **D-090 ne dodaje nijednu novu testnu
+obavezu.**
+
+## Historijsko očuvanje
+
+**Tijela odluka D-001 … D-089 ostaju bajt-identična.** D-090 je **isključivo dodat** nakon D-089.
+Formulacije D-089 iz trenutka autorstva i postojeće D-089 anotacije u `03` / `04` / `05` / `08` / `09`
+(uključujući status liniju „Zamrznut ugovor `P5-I5D` (D-089)" u `03` §12) se **ne prepisuju**.
+
+```text
+prije uspjesnog lokalnog commita   D-090 = ASSIGNED BY OWNER TO P5-I5D FORMAL CLOSURE / NOT CONSUMED
+nakon uspjesnog lokalnog commita   D-090 = CONSUMED BY LOCAL GOVERNANCE AUTHORSHIP /
+                                           LOCALLY AUTHORED / COMMITTED /
+                                           NOT INDEPENDENTLY REVIEWED / NOT OWNER-ACCEPTED /
+                                           NOT PUBLISHED / NOT CANONICAL / NOT EFFECTIVE
+D-091                              UNCONSUMED / NOT RESERVED / NOT ASSIGNED
+HISTORICAL_RECORDS_REWRITTEN       = 0
+```
+
+## Šta D-090 ne mijenja
+
+- **Ne mijenja zamrznuti ugovor D-089** ni ugovore D-085 / D-087; kanonski graf od 15 tranzicija,
+  kaskadu D-035, aritmetiku D-083, segmentaciju D-082 ni pravilo vremena zatvaranja D-084.
+- **Ne mijenja nijednu rutu, metodu, payload, header, permisiju, statusni ni error kod**; `03` §8 i
+  §12 ostaju nepromijenjeni.
+- **Ne mijenja vlasništvo redova checklista** i **ne označava nijedan red osim closure-owned reda
+  `P5-I5D`.**
+- **Ne zatvara `P5-I5`; ne autorizuje i ne započinje `P5-I6` ni `P5-I7`.**
+- **Ne adjudicira `D-OPEN-004a`, `D-OPEN-007`, `D-OPEN-009`.**
+- **Ne mijenja `docs/05` §0 Project metadata.**
+- **Ne prepisuje nijedan historijski zapis.**
+
+## Otvorena pitanja koja D-090 ne zatvara
+
+- **`D-OPEN-004a`**, **`D-OPEN-007`** (PHI u sanitizovanom razlogu / retencija audita), **`D-OPEN-009`**
+  — nepromijenjeni;
+- globalno odstupanje formattera Faze 4, sirovi NUL u `permission-matrix.ts`, request-hash vektor
+  exports-retry — preneseni, nepromijenjeni;
+- kaskada cancel-a iz `ANALYSIS_IN_PROGRESS` / `REVIEW_REQUIRED` — Faza 7+;
+- formalno zatvaranje roditeljskog `P5-I5` — zaseban kasniji gate.
+
+## Zavisnosti
+
+- **D-035** — kaskada encounter cancel-a (Faza 7+, nepromijenjena).
+- **D-082** — segmentacija `P5-I5A`–`P5-I5D`, mapiranje closure-owned redova.
+- **D-084** — pravilo vremena zatvaranja checklista za `P5-I5` (`OD-D084-1`).
+- **D-088** — presedan formalnog zatvaranja pod-gatea i lifecycle razlikovanja.
+- **D-089** — zamrznuti ugovor `P5-I5D`, testne obaveze (`RULING I` / `RULING J`), odgođena
+  autorizacija (`RULING L`), vlasništvo reda (`RULING M`); ovdje pomirena efektivnost.
+
+## Naredni obavezni gate
+
+**Svjež nezavisan pregled tačnog lokalnog D-090 governance commita**, pa — tek nakon izričitog
+vlasničkog prihvatanja — publikacioni preflight, publikacijska autorizacija, publikacija i kanonska
+post-verifikacija. **Nakon efektivnog D-090 naredni governance gate je formalno zatvaranje
+roditeljskog `P5-I5`.**
+
+## Lifecycle odluke
+
+```text
+D-090 LOCALLY AUTHORED                   = YES
+D-090 OWNER DISPOSITIONS INCORPORATED    = YES
+D-090 INDEPENDENTLY REVIEWED             = NO
+D-090 OWNER-ACCEPTED                     = NO
+D-090 PUBLISHED / MERGED                 = NO
+D-090 CANONICAL                          = NO
+D-090 EFFECTIVE                          = NO
+
+D-089     PUBLISHED / MERGED (PR #73) / CANONICAL / POST-PUBLICATION VERIFIED / EFFECTIVE
+P5-I5     IN_PROGRESS
+P5-I5A    COMPLETE / VERIFIED / FORMALLY CLOSED / EFFECTIVE
+P5-I5B    COMPLETE / VERIFIED / FORMALLY CLOSED / EFFECTIVE
+P5-I5C    COMPLETE / VERIFIED / FORMALLY CLOSED / EFFECTIVE
+P5-I5D    kanonski:   PUBLISHED / MERGED / CANONICAL / POST-PUBLICATION VERIFIED /
+                      NOT FORMALLY CLOSED
+          kandidat:   FORMALLY CLOSING UNDER D-090 / NOT YET EFFECTIVE
+P5-I6     NOT AUTHORIZED / NOT STARTED
+D-091     UNCONSUMED / NOT RESERVED / NOT ASSIGNED
+
+CANONICAL CHECKLIST                      = 36 / 49
+D-090 LOCAL CANDIDATE CHECKLIST          = 37 / 49
+```
+
+---
+
 # Otvorene odluke
 
 ## D-OPEN-001 — Produkcijski OIDC provider

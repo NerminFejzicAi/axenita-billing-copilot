@@ -5062,6 +5062,57 @@ D-090    UNCONSUMED / NOT RESERVED / NOT ASSIGNED
 Nakon efektivnog D-089 `P5-I5D` postaje **`IMPLEMENTATION AUTHORIZED / NOT STARTED`**, isključivo
 unutar D-089. Roditeljski `P5-I5` ostaje zaseban kasniji gate zatvaranja. Vidi D-089 u `06`.
 
+## P5-I5D FORMAL CLOSURE ANNOTATION — D-090 (2026-10-06)
+
+**Nijedan pasus, blok ni anotacija iznad se ne prepisuje.** Ova anotacija ne dodaje i ne briše
+nijedan red; prati **tačno jednu** tranziciju kućice ispod. **§0 Project metadata se ne mijenja**
+(izvan obuhvata D-090, `NB-2`).
+
+- **D-089 je objavljen kroz PR #73 (`fab7df0f…`) i efektivan.** Implementacija `P5-I5D`
+  (`29b69985…`, merged kroz **PR #74** kao **`aa3220e5…`**) je kanonska i post-publikaciono
+  verifikovana. Formulacije D-089 anotacije iznad (`D-089 … NOT CANONICAL / NOT EFFECTIVE`, `P5-I5D …
+  CONTRACT FROZEN LOCALLY UNDER D-089 …`, `D-090 UNCONSUMED …`) opisuju **pred-D-090 stanje** i **ne
+  prepisuju se**.
+- **D-090 je post-publikaciono pomirenje i formalno zatvaranje pod-gatea `P5-I5D`.** **Dokumentacija
+  isključivo.**
+- **Closure-owned red `P5-I5D`** (D-089, `RULING M`; D-082, `RULING G`) — označen ispod:
+  `API → cancel encounter`. **Kućica odražava formalno zatvaranje pod D-090.** **Nijedan drugi red se
+  ne mijenja.**
+- **`36 / 49` je pred-D-090 kanonsko stanje; `37 / 49` je D-090 kandidat zatvaranja i stanje nakon
+  efektivnosti.**
+
+```text
+                        kanonski (prije)   D-090 kandidat
+ukupno redova (S6)      49                 49
+oznaceno                36                 37
+neoznaceno              13                 12   (~75.5 %)
+
+CHECKBOX TRANSITIONS    = 1   (API -> cancel encounter)
+UNCHECKED_TO_CHECKED    = 1
+CHECKED_TO_UNCHECKED    = 0
+OTHER ROW TRANSITIONS   = 0
+NEW_ROWS                = 0
+DELETED_ROWS            = 0
+```
+
+```text
+D-090    LOCALLY AUTHORED / NOT INDEPENDENTLY REVIEWED / NOT OWNER-ACCEPTED /
+         NOT PUBLISHED / NOT CANONICAL / NOT EFFECTIVE
+D-089    PUBLISHED / MERGED (PR #73) / CANONICAL / POST-PUBLICATION VERIFIED / EFFECTIVE
+P5-I5A   COMPLETE / VERIFIED / FORMALLY CLOSED / EFFECTIVE
+P5-I5B   COMPLETE / VERIFIED / FORMALLY CLOSED / EFFECTIVE
+P5-I5C   COMPLETE / VERIFIED / FORMALLY CLOSED / EFFECTIVE
+P5-I5    IN_PROGRESS
+P5-I5D   PUBLISHED / MERGED / CANONICAL / POST-PUBLICATION VERIFIED /
+         FORMALLY CLOSING UNDER D-090 / NOT YET EFFECTIVE
+P5-I6    NOT AUTHORIZED / NOT STARTED
+D-091    UNCONSUMED / NOT RESERVED / NOT ASSIGNED
+```
+
+**`49 / 37` je isključivo lokalno kandidatsko stanje** dok D-090 ne bude objavljen i verifikovan;
+kanonski `origin/main` do tada nosi **`49 / 36`**. **Roditeljski `P5-I5` ostaje `IN_PROGRESS`**; njegovo
+formalno zatvaranje je zaseban kasniji governance gate. Vidi D-090 u `06`.
+
 
 ## Schema
 
@@ -5097,7 +5148,7 @@ unutar D-089. Roditeljski `P5-I5` ostaje zaseban kasniji gate zatvaranja. Vidi D
 - [ ] GET encounter list.
 - [ ] GET encounter detail.
 - [x] PATCH encounter.
-- [ ] cancel encounter.
+- [x] cancel encounter.
 - [ ] POST text document.
 - [ ] list documents.
 - [ ] read redacted.

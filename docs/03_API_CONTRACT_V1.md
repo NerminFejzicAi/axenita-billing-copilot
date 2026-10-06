@@ -890,6 +890,31 @@ P5-I5D   CONTRACT FROZEN LOCALLY UNDER D-089 / NOT YET IMPLEMENTATION-AUTHORIZED
 **Implementacija `P5-I5D` postaje autorizovana tek nakon efektivnog D-089**, isključivo unutar
 D-089; efektivnost D-089 sama po sebi ne započinje implementaciju. Vidi D-089 u `06`.
 
+**STATUSNA ANOTACIJA (D-090, 2026-10-06) — sekcija i anotacije iznad se NE prepisuju.** D-089 je
+objavljen kroz **PR #73** (`fab7df0f…`) i **efektivan**; **D-089 je efektivan kanonski autoritet
+ugovora `P5-I5D`** (`POST /api/v1/encounters/{encounterId}/cancel`). Implementacija `P5-I5D` je
+**kanonska i post-publikaciono verifikovana** (`29b69985…`, merged kroz **PR #74** kao
+**`aa3220e5…`**, tree `e9674a3b…`, publication drift `ZERO`). **Ugovor je implementiran bez semantičke
+izmjene**: nijedna ruta, metoda, payload, header, permisija, statusni ni error kod se ne mijenja; §8 i
+§12 ostaju nepromijenjeni. Formalno zatvaranje `P5-I5D` je predmet **D-090**. Formulacije D-089
+anotacije iznad (`D-089 … NOT CANONICAL / NOT EFFECTIVE`, `P5-I5D … CONTRACT FROZEN LOCALLY UNDER
+D-089 / NOT YET IMPLEMENTATION-AUTHORIZED / NOT STARTED`) i status linija podsekcije „Zamrznut ugovor
+`P5-I5D` (D-089)" u §12 („zamrznuto u lokalnom D-089 kandidatu …") su **pred-D-090 snapshot**,
+**historijski su tačne** i **ne prepisuju se**.
+
+```text
+D-090    LOCALLY AUTHORED / NOT INDEPENDENTLY REVIEWED / NOT OWNER-ACCEPTED /
+         NOT PUBLISHED / NOT CANONICAL / NOT EFFECTIVE
+D-089    PUBLISHED / MERGED (PR #73) / CANONICAL / POST-PUBLICATION VERIFIED / EFFECTIVE
+P5-I5D   PUBLISHED / MERGED / CANONICAL / POST-PUBLICATION VERIFIED /
+         FORMALLY CLOSING UNDER D-090 / NOT YET EFFECTIVE
+P5-I5    IN_PROGRESS
+API SEMANTIC MUTATION      = 0
+```
+
+Zatvaranje postaje efektivno **tek nakon punog lifecyclea D-090**. **D-090 ne zatvara roditeljski
+`P5-I5` i ne autorizuje `P5-I6`.** Vidi D-090 u `06`.
+
 
 ---
 
