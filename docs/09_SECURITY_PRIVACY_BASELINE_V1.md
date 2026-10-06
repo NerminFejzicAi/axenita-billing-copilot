@@ -552,6 +552,72 @@ pregledani i merged**. Kanonski su:
 smije** čitati kao završenost perzistencije, API površine, redakcije, produkcijskog upravljanja
 ključevima ni poslovne konzumacije. Vidi D-071 u `06`.
 
+## 8.5 Sigurnosne posljedice `P5-I6` governancea (D-092, 2026-10-07)
+
+**Nijedna tvrdnja iz §7, §8, §8.1–§8.4, §11 ni §12 se ne slabi i ne prepisuje.** Ova sekcija aditivno
+bilježi sigurnosne / privatnosne posljedice vlasničkih odluka `OD-P5-I6-3` … `OD-P5-I6-5` i čuva
+otvorene granice. Postaje kanonska tek nakon punog lifecyclea D-092. **D-092 ne autorizuje
+implementaciju `P5-I6A`, `P5-I6B` ni `P5-I6C`.**
+
+**Iskrenost redakcije.**
+
+1. Redakcija `phase5-basic-v1` je **deterministička i rule-based**. **Nije AI semantički
+   klasifikator** i ne koristi AI, heurističko ni semantičko izvođenje.
+2. **Nepodržana ili inertna klasa se ne smije predstaviti kao uspješno redigovana.** Klasa eksterne /
+   tekuće-intake reference pacijenta je u v1 **`INERT WITHOUT INPUT SOURCE`** (`OD-P5-I6-3`):
+   manuelni tekstualni zahtjev ne nosi polje eksterne reference, nijedno se ne uvodi radi aktivacije
+   klase, i nijedan status (uključujući `redaction_status = COMPLETED`), odgovor, log, test ni
+   dokument ne smije tvrditi da je ta klasa redigovana dok ne postoji stvarni, kanonski definisan
+   ulazni izvor. Formulacije §8.3 koje klasu nabrajaju se ne prepisuju; ovo ih aditivno kvalifikuje.
+3. **Redakcija nije potpuna granica uklanjanja PHI-a i nije sigurnosna granica** (§8.3, D-060,
+   klauzula 41). **Autorizacija i kontrole pristupa originalnom dokumentu ostaju nezavisno
+   obavezne**: `view=original` i dalje traži `encounter.document.read_original` (D-043), i nijedna
+   kontrola se ne smije oslabiti pozivom na to da je tekst redigovan.
+
+**Prvi kanonski pisač ciphertexta i AAD literali (`OD-P5-I6-5`).**
+
+4. **`P5-I6B` je prvi kanonski pisač ciphertexta** u Fazi 5 (envelope kolone `patient_references`
+   ostaju nezapisane u Fazi 5). Kanonski D-025 AAD (`02` §2.7.4) uključuje `column=<column name>`,
+   pa su **AAD literali kolona nepovratni ulazi interoperabilnosti pohrane**: red enkriptovan pod
+   jednim literalom ne može se dekriptovati pod drugim.
+5. Tačan AAD literal za ciphertext originalnog / normalizovanog teksta, tačan AAD literal za
+   ciphertext redigovanog teksta i tačna vrijednost / format `encryption_key_ref` **MORAJU biti
+   zamrznuti prije prvog perzistiranog `P5-I6B` reda**. **Nijedna implementacija ih ne smije
+   pogađati.** Kasnija promjena tih literala za perzistirane redove je **nekompatibilna kriptografska
+   / storage promjena**.
+6. **Deterministički encrypt/decrypt test vektori** za upravo te vrijednosti su **obavezni prije
+   implementacijske autorizacije `P5-I6B`**.
+
+```text
+AAD_ORIGINAL_LITERAL              = OPEN
+AAD_REDACTED_LITERAL              = OPEN
+ENCRYPTION_KEY_REF_VALUE_FORMAT   = OPEN
+```
+
+D-025 se **ne mijenja**; enkripcijska shema se **ne redizajnira**; `D-OPEN-004a` ostaje
+neadjudiciran.
+
+**Otvorene granice — izričito očuvane.**
+
+7. **`request_sha256` nad PHI-nosivim tijelom** zahtijeva **izričitu potvrdu izvršnog ugovora**
+   (`OD-P5-I6-7`, OPEN). D-092 ga **ne zabranjuje i ne odobrava**; §12.1 i D-069 ostaju nepromijenjeni.
+8. **Minimizacija audit payloada:** **nijedan tekst dokumenta** — izvorni, normalizovani ni
+   redigovani — ne ulazi u audit payload. Tačan create / read audit ugovor ostaje **OPEN**
+   (`OD-P5-I6-9`).
+9. Smjer `FAILED` politike je **`CLOSED / EXPLICIT FAILURE SET`** (`OD-P5-I6-4`); tačan skup ostaje
+   za izvršni ugovor `P5-I6A`. Zabrana fallbacka `view=redacted` na normalizovani ili originalni
+   tekst (§8.3) ostaje nepromijenjena.
+10. **`D-OPEN-007` (retencija) ostaje OTVOREN** i ovom sekcijom se ne razrješava.
+
+```text
+SECURITY_REQUIREMENT_UNAUTHORIZED_MUTATION = 0
+D_OPEN_004A   UNCHANGED / UNADJUDICATED
+D_OPEN_007    OPEN / DEFERRED
+D_OPEN_009    UNCHANGED / UNADJUDICATED
+```
+
+Vidi D-092 u `06`.
+
 ---
 
 # 9. Secrets

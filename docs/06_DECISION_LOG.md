@@ -21830,6 +21830,526 @@ PARENT_CHECKBOX_TRANSITIONS              = 0
 
 ---
 
+# D-092 — P5-I6 governance, ownership, segmentation and pre-contract rulings
+
+- **Status:** vlasničke odluke `OD-P5-I6-1` … `OD-P5-I6-5` OWNER-RATIFIED — **LOCALLY AUTHORED /
+  NOT INDEPENDENTLY REVIEWED / NOT OWNER-ACCEPTED / NOT PUBLISHED / NOT CANONICAL / NOT EFFECTIVE**
+- **Datum:** 2026-10-07
+- **Tip:** vlasnički ratifikovan **governance zapis za `P5-I6`**: vlasništvo redova checklista,
+  segmentacija i presjecna pred-ugovorna pravila. **Dokumentacija isključivo.**
+- **Amandman na:** **isključivo tekuće statusne metapodatke** D-091 / `P5-I5` / `P5-I6`, aditivno.
+  **Nijedan zapis D-001 … D-091 se ne prepisuje, ne prenumeriše i ne briše — svi ostaju
+  bajt-identični.**
+- **D-092 NE autorizuje implementaciju** `P5-I6A`, `P5-I6B` ni `P5-I6C`, i **ne zamrzava nijedan
+  izvršni ugovor**. D-092 ne uvodi nijednu liniju izvornog koda, nijedan test, nijednu migraciju,
+  schemu, Prisma model, API rutu, DTO, grant, rolu, politiku, permisiju, graf stanja ni
+  `packages/contracts`. **Nijedna baza nije kontaktirana** i **nijedan test se ovom odlukom ne piše ni
+  ne izvršava.**
+- **Ova odluka mijenja NULA kućica** (`CHECKBOX_TRANSITIONS = 0`). Checklist Faze 5 ostaje
+  **`37 / 49`** i u kanonskom stanju i u ovom lokalnom kandidatu.
+- **Ova odluka troši ISKLJUČIVO `D-092`.** Broj odluke narednog gatea (`P5-I6A` zamrzavanje izvršnog
+  ugovora) se **ne dodjeljuje, ne rezerviše i ne izvodi**.
+- **Lokalni authoring commit ove odluke NIJE kanonski ni efektivan.** Pravila D-092 postaju
+  efektivna tek nakon vlastitog lifecyclea D-092 (vidi `RULING M`).
+
+## Kontekst/problem — trigger
+
+D-091 je formalno zatvorio roditeljski `P5-I5`, objavljen je kroz **PR #76** i merged na
+`origin/main` kao **`0e14902343ece08ad9c781d7512e9452d25aba78`**, i time je postao efektivan.
+Po D-091 `RULING F`, `P5-I6` je od tog trenutka `NEXT / DEPENDENCY-SATISFIED / ELIGIBLE FOR SEPARATE
+AUTHORIZATION / NOT AUTHORIZED / NOT STARTED`. Tekući statusni blokovi D-091 u `03`, `04`, `05`, `06`
+i `08` i dalje opisuju D-091 kao `LOCALLY AUTHORED / NOT CANONICAL / NOT EFFECTIVE`, a `P5-I5` kao
+`FORMALLY CLOSING UNDER D-091 / NOT YET EFFECTIVE` (pred-D-092 stanje).
+
+Prije bilo kakvog zamrzavanja izvršnog ugovora `P5-I6` ostala su otvorena presjecna governance
+pitanja: D-082 je izričito ostavio **šest document redova** kao `P5-I6 / P5-I7 — NOT ADJUDICATED BY
+D-082`; `P5-I6` nije bio segmentiran; a klasa eksterne reference pacijenta, politika `FAILED`
+redakcije i AAD literali prvog kanonskog pisača ciphertexta nisu imali vlasničku smjernicu. Vlasnik
+je izričito dodijelio `D-092` isključivo governanceu, vlasništvu redova, segmentaciji i
+presjecnim pred-ugovornim pravilima `P5-I6`, i ratifikovao `OD-P5-I6-1` … `OD-P5-I6-5`.
+
+## Kanonsko stanje ulaza ovog gatea
+
+```text
+repozitorij                  D:\AI\Arztpraxis
+kanonski main                0e14902343ece08ad9c781d7512e9452d25aba78
+HEAD tree                    12471bebd660358b03c06995f57bae1a05cfa949
+zivi remote refs/heads/main  0e14902343ece08ad9c781d7512e9452d25aba78
+worktree                     CLEAN
+stash                        EMPTY
+
+MANIFEST                     19 / 19 MATCH
+checklist Faze 5             49 ukupno / 37 oznaceno / 12 neoznaceno   (~75.5 %)
+najnovija kanonska odluka    D-091
+D-091                        PUBLISHED / MERGED (PR #76, 0e14902343ece08ad9c781d7512e9452d25aba78) /
+                             CANONICAL / POST-PUBLICATION VERIFIED / EFFECTIVE
+D-092 prije ovog zapisa      ASSIGNED BY OWNER TO P5-I6 GOVERNANCE / SEGMENTATION /
+                             0 heading pojavljivanja (ranija pominjanja iskljucivo firewall/referenca)
+
+P5-I5                        COMPLETE / VERIFIED / FORMALLY CLOSED / EFFECTIVE
+P5-I6                        NEXT / DEPENDENCY-SATISFIED / ELIGIBLE FOR SEPARATE AUTHORIZATION /
+                             NOT AUTHORIZED / NOT STARTED
+P5-I7                        NOT AUTHORIZED / NOT STARTED
+```
+
+## Vlasničke odluke — atribucija
+
+```text
+OD-P5-I6-1   vlasnistvo document redova checklista                         (RULING B)
+OD-P5-I6-2   segmentacija P5-I6 (P5-I6A -> P5-I6B -> P5-I6C)                (RULING D)
+OD-P5-I6-3   klasa eksterne reference INERTNA bez ulaznog izvora
+             + klauzula iskrenosti                                         (RULING E)
+OD-P5-I6-4   zatvoren / eksplicitan smjer FAILED politike;
+             tacan skup odgodjen                                           (RULING F)
+OD-P5-I6-5   AAD literali / key-ref moraju biti zamrznuti prije P5-I6B;
+             vrijednosti NISU odabrane u D-092                             (RULING G)
+
+OD-P5-I6-6   OPEN   P5-I6B ugovor create zahtjeva                          (RULING H)
+OD-P5-I6-7   OPEN   idempotencija                                          (RULING H)
+OD-P5-I6-8   OPEN   konkurencija / DRAFT -> READY_FOR_ANALYSIS             (RULING H)
+OD-P5-I6-9   OPEN   audit ugovor                                           (RULING H)
+OD-P5-I6-10  OPEN   ugovor detaljnog GET-a                                 (RULING H)
+
+OWNER_DECISION_ATTRIBUTION_DRIFT_COUNT = 0
+HISTORICAL_REWRITE_ALLOWED             = NO                                (RULING K)
+```
+
+Identifikatori `OD-P5-I6-1` … `OD-P5-I6-10` se **ne prenumerišu i ne prenamjenjuju**.
+
+## Odluka
+
+### `RULING A` — pomirenje efektivnosti D-091 i konačno stanje `P5-I5`
+
+D-091 je objavljen kroz **PR #76** i merged na `origin/main` kao:
+
+```text
+kandidat         3d55fc780c3a3722141f2636ec7aa02b60759e8d   docs: correct D-091 owner decision attribution
+merge commit     0e14902343ece08ad9c781d7512e9452d25aba78
+roditelji        f9aa276fcd67afcb34486edebaabf6c61bb45dfb / 3d55fc780c3a3722141f2636ec7aa02b60759e8d
+tree kandidata   12471bebd660358b03c06995f57bae1a05cfa949
+tree merge-a     12471bebd660358b03c06995f57bae1a05cfa949   (identican)
+PUBLICATION_DRIFT  ZERO
+
+D-091            PUBLISHED / MERGED / CANONICAL / POST-PUBLICATION VERIFIED / EFFECTIVE
+P5-I5            COMPLETE / VERIFIED / FORMALLY CLOSED / EFFECTIVE
+P5_I5_PARENT_CLOSURE_COMPLETE = YES
+```
+
+**Nijedan dodatni roditeljski gate `P5-I5` ne preostaje.** To je **kasnija izjava pomirenja**, ne
+izmjena D-091. Tijelo D-091 i njegove anotacije iz trenutka autorstva — `LOCALLY AUTHORED / … / NOT
+CANONICAL / NOT EFFECTIVE`, `P5-I5 … FORMALLY CLOSING UNDER D-091 / NOT YET EFFECTIVE`, `D-092
+UNCONSUMED / NOT RESERVED / NOT ASSIGNED` — **historijski su tačne** za svoj izvorni trenutak i **ne
+prepisuju se**. **Vlasnička dodjela `D-092` u ovom gateu nadjačava raniju firewall izjavu D-091
+(`RULING J`) o nedodijeljenom `D-092` isključivo prospektivno.**
+
+### `RULING B` — vlasništvo redova (`OD-P5-I6-1`)
+
+Vlasnik ratifikuje tačnu raspodjelu svih **dvanaest** neoznačenih redova Faze 5. Šest document redova
+koje je D-082 ostavio `NOT ADJUDICATED BY D-082` ovim je adjudicirano.
+
+```text
+#   sekcija    red                        vlasnik         osnov                      stanje
+1   Services   redaction.                 P5-I6 (P5-I6A)  potvrdjeno (D-070, D-082)  [ ]
+2   API        POST text document.        P5-I6 (P5-I6B)  dodijeljeno D-092          [ ]
+3   API        read redacted.             P5-I6 (P5-I6C)  dodijeljeno D-092          [ ]
+4   API        read original permission.  P5-I6 (P5-I6C)  dodijeljeno D-092          [ ]
+5   Tests      document read audit.       P5-I6 (P5-I6C)  dodijeljeno D-092          [ ]
+6   API        GET encounter list.        P5-I7           potvrdjeno (D-082)         [ ]
+7   API        GET encounter detail.      P5-I7           potvrdjeno (D-082)         [ ]
+8   API        list documents.            P5-I7           dodijeljeno D-092          [ ]
+9   API        archive.                   P5-I7           dodijeljeno D-092          [ ]
+10  Services   outbox base.               SHARED / LATER  ocuvano (D-082)            [ ]
+11  Tests      cross-tenant FK.           SHARED / LATER  ocuvano (D-064, D-082)     [ ]
+12  Tests      no text in logs.           SHARED / LATER  ocuvano (D-082)            [ ]
+
+P5_I6_OWNED_ROWS_TOTAL                 = 5
+P5_I7_CONFIRMED_OR_ASSIGNED_ROWS       = 4
+SHARED_LATER_ROWS                      = 3
+UNASSIGNED_AMONG_THESE_12              = 0
+```
+
+- **Dodijeljeno vlasništvo nije zatvaranje kućice.** Svaki red se zatvara isključivo kroz formalno
+  zatvaranje (pod-)gatea koji ga posjeduje, po precedentu D-084 `OD-D084-1`.
+- **Tri dijeljena / kasnija reda se NE dodjeljuju `P5-I6`.** `P5-I6` smije proizvesti dokaz relevantan
+  za te invarijante, ali njihove kućice ostaju izvan petočlanog skupa `P5-I6`, osim ako kasnija
+  kanonska odluka to izričito promijeni.
+- Historijski D-081 agregat iz preflighta (`P5-I6 6 / P5-I7 3`) je bio kvalifikovan kao očekivana
+  pripadnost bez adjudikacije; D-092 ga **ne prepisuje**, nego ga prospektivno zamjenjuje
+  ratifikovanom raspodjelom `5 / 4 / 3` (`archive` pripada `P5-I7`, u skladu sa tematskim obimom
+  `04` §7.5).
+
+### `RULING C` — nula tranzicija kućica
+
+```text
+                         kanonski (prije)   D-092 kandidat
+UKUPNO REDOVA (S6)       49                 49
+OZNACENO                 37                 37
+NEOZNACENO               12                 12
+FORMALNA ZAVRSENOST      37 / 49 ~= 75.5 %  37 / 49 ~= 75.5 %
+
+CHECKBOX_TRANSITIONS     = 0
+UNCHECKED_TO_CHECKED     = 0
+CHECKED_TO_UNCHECKED     = 0
+NEW_ROWS                 = 0
+DELETED_ROWS             = 0
+DUPLICATED_ROWS          = 0
+```
+
+Anotacija vlasništva u `05` §6 je **isključivo governance metapodatak**.
+
+### `RULING D` — segmentacija `P5-I6` (`OD-P5-I6-2`)
+
+`P5-I6` se **ne izvršava kao jedan potez**. Ratifikovana su tri pod-gatea:
+
+```text
+P5-I6A   phase5-basic-v1 deterministicki redakcioni ruleset
+  obuhvat      cist deterministicki redakcioni engine; bez baze; puna pozitivna /
+               negativna matrica ruleseta; hashevi samo gdje su potrebni za
+               deterministicki dokaz; BEZ API / controller / perzistencije
+  red          Services -> redaction
+  zavisi od    P5-I3C primitivi (kanonski, D-071)
+  stanje       NOT AUTHORIZED / NOT STARTED
+
+P5-I6B   kreiranje manuelnog tekstualnog dokumenta
+  obuhvat      validacija / normalizacija; source hash; enkripcija;
+               deterministicka redakcija; redacted hash; enkripcija redigovanog
+               teksta; jedan transakcioni INSERT; idempotencija; create audit;
+               uslovno rukovanje DRAFT -> READY_FOR_ANALYSIS;
+               ENCOUNTER_READY_FOR_ANALYSIS audit; odbijanje nad CANCELLED
+  red          API -> POST text document
+  zavisi od    P5-I6A EFFECTIVE
+  stanje       NOT AUTHORIZED / NOT STARTED
+
+P5-I6C   citanje detalja dokumenta
+  obuhvat      view=redacted; view=original; podjela permisija; ponasanje bez
+               fallbacka; DOCUMENT_VIEWED; ponasanje read-audita
+  redovi       API -> read redacted
+               API -> read original permission
+               Tests -> document read audit
+  zavisi od    P5-I6B EFFECTIVE
+  stanje       NOT AUTHORIZED / NOT STARTED
+
+lanac zavisnosti    P5-I6A -> P5-I6B -> P5-I6C
+                    (P5-I6B traži EFEKTIVAN P5-I6A; P5-I6C traži EFEKTIVAN P5-I6B)
+```
+
+**Izričita isključenja iz `P5-I6`:** listanje dokumenata, arhiva, upload, filteri i svako ponašanje
+`P5-I7`. **Lanac zavisnosti nije implementacijska autorizacija** — svaki pod-gate traži vlastito
+zamrzavanje izvršnog ugovora i vlastitu implementacijsku autorizaciju. Navedeni obuhvati su
+**granice**, ne izvršni ugovori: tačne semantike ostaju u `RULING F`, `RULING G` i `RULING H`.
+
+### `RULING E` — klasa eksterne reference (`OD-P5-I6-3`)
+
+Za `phase5-basic-v1` klasa eksterne / tekuće-intake reference pacijenta je:
+
+```text
+EXTERNAL_REFERENCE_CLASS_V1 = INERT WITHOUT INPUT SOURCE
+```
+
+- klasa **ostaje dio taksonomije ruleseta** (D-060; `03` §13.1; `08` §12.5; `09` §8.3);
+- manuelni tekstualni zahtjev **ne uvodi zasebno polje eksterne reference**;
+- **nijedno polje se ne dodaje isključivo radi aktivacije ove klase**;
+- implementacija **NE SMIJE tvrditi** da je klasa redigovana **osim ako postoji stvarni, definisani
+  ulazni izvor**; postojanje takvog izvora mora biti definisano kanonskim ugovorom, a **D-092 nijedan
+  takav izvor ne definiše**;
+- **bez tihog heurističkog izvođenja iz teksta**, **bez AI izvođenja**, **bez semantičkog
+  izvođenja**.
+
+**Obavezna klauzula iskrenosti u budućem izvršnom ugovoru `P5-I6A`: DA.** Taj ugovor mora izričito
+navesti da je klasa u v1 inertna bez ulaznog izvora i da nijedan izlaz, status, test ni dokument ne
+predstavlja tu klasu kao uspješno redigovanu. Ranije formulacije D-060 / D-070 / `03` §13.1 / `08`
+§12.5 / `09` §8.3 koje klasu nabrajaju kao pokrivenu **ne prepisuju se**; D-092 ih **aditivno i
+prospektivno kvalifikuje**.
+
+### `RULING F` — smjer politike `FAILED` redakcije (`OD-P5-I6-4`)
+
+```text
+REDACTION_FAILED_POLICY_DIRECTION = CLOSED / EXPLICIT FAILURE SET
+```
+
+D-092 **ne izmišlja konačni skup grešaka**. On zamrzava governance smjer da budući izvršni ugovor
+`P5-I6A` **MORA** izričito definisati:
+
+1. tačne, konačne uslove koji proizvode `redaction_status = FAILED`;
+2. da li se takav red perzistira;
+3. da li takav perzistiran neuspjeh vraća `201`;
+4. tačnu maksimalnu veličinu redigovanog izlaza;
+5. determinističko ponašanje ekspanzije zamjenskog tokena;
+6. razliku između **očekivanog, reprezentabilnog `FAILED` stanja** i **neočekivane / interne
+   greške** koja zahtijeva neuspjeh transakcije / rollback.
+
+**D-092 NE bira:** tačnu listu `FAILED` okidača, tačan broj bajtova redigovanog izlaza, tačne
+`201` / rollback uslove ni konkretne implementacijske klase izuzetaka. Sve to pripada
+zamrzavanju izvršnog ugovora `P5-I6A`.
+
+```text
+P5_I6A_IMPLEMENTATION_AUTHORIZED = NO   (dok taj ugovor nije zamrznut i zasebno autorizovan)
+```
+
+### `RULING G` — AAD literali i key-ref (`OD-P5-I6-5`)
+
+**D-092 NE bira tačne, nepovratne AAD literale kolona.** `P5-I6B` je **prvi kanonski pisač
+ciphertexta** (envelope kolone `patient_references` ostaju nezapisane u Fazi 5). Kanonski D-025 AAD
+(`02` §2.7.4) nosi `column=<column name>`, pa su ti literali **nepovratni ulazi interoperabilnosti
+pohrane**. Prije implementacijske autorizacije `P5-I6B` njegovo zamrzavanje izvršnog ugovora
+**MORA**:
+
+1. odabrati **jedan tačan** AAD literal kolone za ciphertext originalnog / normalizovanog teksta;
+2. odabrati **jedan tačan** AAD literal kolone za ciphertext redigovanog teksta;
+3. zamrznuti tačnu vrijednost / format `encryption_key_ref`;
+4. dodati **determinističke encrypt/decrypt test vektore** za upravo te vrijednosti;
+5. izričito navesti da je kasnija promjena AAD literala perzistiranih redova **nekompatibilna
+   kriptografska / storage promjena**.
+
+```text
+AAD_ORIGINAL_LITERAL              = OPEN
+AAD_REDACTED_LITERAL              = OPEN
+ENCRYPTION_KEY_REF_VALUE_FORMAT   = OPEN
+P5_I6B_IMPLEMENTATION_AUTHORIZED  = NO
+```
+
+**Nijedna implementacija ne smije pogađati te vrijednosti.** D-025 se ne mijenja; enkripcijska shema
+se ne redizajnira.
+
+### `RULING H` — `OD-P5-I6-6` … `OD-P5-I6-10` ostaju OTVORENI
+
+D-092 ih **namjerno ne adjudicira**. Svako ostaje **`OPEN / MUST BE FROZEN BEFORE THE RESPECTIVE
+IMPLEMENTATION AUTHORIZATION`**:
+
+```text
+OD-P5-I6-6   P5-I6B ugovor create zahtjeva — dozvoljeni podskup documentType;
+             zahtjevi / gramatika languageCode; ponasanje nad malformisanim
+             Unicodeom; nepostojeci encounter; cross-tenant encounter;
+             nevalidan UUID; preostala oracle / error semantika create rute
+OD-P5-I6-7   idempotencija — tacan literal endpoint-templatea; oblik pokazivaca
+             na document resurs; pravilo vezivanja putanje; replay iz
+             nepromjenjivog reda; potvrda PHI-nosivog request_sha256;
+             vezivanje kad se encounterId iz putanje razlikuje od kesiranog
+             resourceId = documentId
+OD-P5-I6-8   konkurencija / DRAFT -> READY_FOR_ANALYSIS — mehanizam create-vs-
+             cancel; row-lock naspram uslovnog UPDATE-a; tacna mehanika
+             DRAFT -> READY_FOR_ANALYSIS; ponasanje updated_at / updated_by;
+             payload audita ENCOUNTER_READY_FOR_ANALYSIS
+OD-P5-I6-9   audit ugovor — create: ime audit akcije, tip resursa, payload,
+             ukljucenje / iskljucenje hasheva, fail-closed mehanika (ako vec
+             nije zamrznuta drugdje); read: da li redigovano citanje emituje
+             audit, payload audita originalnog citanja, oznaka original-naspram-
+             redigovano, vrijeme read-audita, ponasanje pri neuspjehu read-audita
+OD-P5-I6-10  ugovor detaljnog GET-a — obavezan / podrazumijevani view; response
+             DTO; status / kod odbijanja FAILED-redigovanog; ponasanje
+             neuskladjenog encounter / document para; preostala detail error /
+             oracle semantika
+```
+
+Postojeći kanonski tekst (`03` §13.1, §13.3; D-043; D-060; D-062) ostaje mjerodavan za ono što već
+utvrđuje; D-092 ga ne sužava ni ne proširuje.
+
+### `RULING I` — D-OPEN firewall i carry-forward
+
+```text
+D_OPEN_004A   UNCHANGED / UNADJUDICATED
+D_OPEN_007    OPEN / DEFERRED            (retencija audita ostaje neriješena)
+D_OPEN_009    UNCHANGED / UNADJUDICATED
+D_OPEN_ADJUDICATIONS_D092 = 0
+```
+
+Preneseno bez neovlaštenog razrješenja: **`NB-2`** (zastarjeli `docs/05` §0 — LEAVE AS-IS),
+**`PF-F1`**, odstupanje formattera Faze 4, sirovi NUL u
+`apps/api/src/identity/domain/permission-matrix.ts`, request-hash vektor
+`POST /exports/{exportJobId}/retry`, kaskada cancel-a Faze 7+ (D-035). `PF-F2` / `PF-F3` ostaju
+prihvaćeni AS-IS; `NB-1` ostaje razriješen. Ranije informativni nalazi iz pregleda se **ne
+promovišu**. **Nijedna nova permisija nije potrebna** (vlasnički ratifikovano); `15` se ne mijenja.
+
+### `RULING J` — firewall `P5-I7`
+
+D-092 dodjeljuje `P5-I7` vlasništvo nad `GET encounter list`, `GET encounter detail`, `list
+documents` i `archive` (`RULING B`), ali **ne autorizuje `P5-I7`**, ne započinje ga, ne zamrzava
+nijedan njegov izvršni ugovor i ne mijenja nijednu njegovu kućicu.
+
+```text
+P5_I7_IMPLEMENTATION_AUTHORIZED = NO
+```
+
+### `RULING K` — historijsko očuvanje
+
+```text
+HISTORICAL_REWRITE_ALLOWED  = NO
+HISTORICAL_REWRITE_COUNT    = 0
+```
+
+**Tijela odluka D-001 … D-091 ostaju bajt-identična**, uključujući lifecycle snapshote iz trenutka
+autorstva D-091 i sve ranije historijske izjave `P5-I6 NOT AUTHORIZED / NOT STARTED`. Tekuće stanje se
+pomiruje **isključivo dodavanjem** D-092 anotacija.
+
+### `RULING L` — infrastrukturni i implementacijski firewall
+
+```text
+RUNTIME_CHANGE                           = NO
+TEST_CHANGE                              = NO
+SCHEMA_CHANGE                            = NO
+MIGRATION_CHANGE                         = NO
+RLS_CHANGE                               = NO
+GRANT_CHANGE                             = NO
+PERMISSION_MATRIX_CHANGE                 = NO
+PACKAGES_CONTRACT_IMPLEMENTATION_CHANGE  = NO
+OUTBOX_CHANGE                            = NO
+SECURITY_REQUIREMENT_UNAUTHORIZED_MUTATION = 0
+```
+
+D-092 ne implementira ruleset, controller, servis, DTO, database port, audit event, idempotencijski
+endpoint ni komandu tranzicije encountera.
+
+### `RULING M` — lifecycle, efektivnost i naredni gate
+
+Pravila D-092 postaju efektivna **tek** nakon:
+
+```text
+autorstvo
+-> nezavisan pregled
+-> vlasnicko prihvatanje
+-> publikacioni preflight
+-> vlasnicka publikacijska autorizacija
+-> push + PR
+-> vlasnicka merge autorizacija
+-> merge
+-> kanonska post-verifikacija
+```
+
+**I nakon efektivnog D-092 implementacija `P5-I6A` ostaje `NOT AUTHORIZED`** dok se ne izvrše zasebno
+zamrzavanje izvršnog ugovora i implementacijska autorizacija.
+
+```text
+naredni obavezni gate nakon efektivnog D-092 = P5-I6A EXECUTABLE CONTRACT FREEZE
+NEXT_DECISION_ID_PREASSIGNED                 = NO
+D-093                                        UNASSIGNED / UNRESERVED
+```
+
+## Razmotrene i odbijene alternative
+
+- **Dodijeliti `outbox base`, `cross-tenant FK` ili `no text in logs` `P5-I6`** — **odbijeno**
+  (`RULING B`).
+- **`archive` pod `P5-I6`** — **odbijeno**; pripada `P5-I7` (`RULING B`).
+- **Dodati polje eksterne reference u manuelni tekstualni zahtjev da bi se klasa aktivirala** —
+  **odbijeno** (`RULING E`).
+- **Heurističko / AI / semantičko otkrivanje eksterne reference iz teksta** — **odbijeno**
+  (`RULING E`).
+- **Utvrditi konkretan `FAILED` skup, veličinu izlaza ili `201`/rollback pravila već u D-092** —
+  **odbijeno**; pripada izvršnom ugovoru `P5-I6A` (`RULING F`).
+- **Odabrati AAD literale / `encryption_key_ref` u D-092** — **odbijeno**; pripada izvršnom ugovoru
+  `P5-I6B` (`RULING G`).
+- **Riješiti `OD-P5-I6-6` … `OD-P5-I6-10`** — **odbijeno**; budući ugovorni gateovi (`RULING H`).
+- **Prepisati D-091 statusne blokove** — **odbijeno**; pomirenje je aditivno (`RULING K`).
+- **Unaprijed dodijeliti broj odluke narednom gateu** — **odbijeno** (`RULING M`).
+
+## Posljedice — dokumentaciono pomirenje
+
+| Lokacija | Zahvat |
+|---|---|
+| `06` | dodat ovaj D-092 zapis nakon D-091; **D-001 … D-091 bajt-identični** |
+| `05` §6 | aditivna **D-092 anotacija vlasništva i segmentacije** nakon D-091 anotacije; **nula kućica se mijenja**; **§0 Project metadata se ne mijenja** |
+| `03` §4 / §13 | aditivna D-092 statusna anotacija nakon D-091 anotacije; aditivna §13.4 governance granica `P5-I6`; **nijedna API semantika se ne mijenja** |
+| `04` §7.5a | aditivna D-092 sekcija segmentacije `P5-I6`; **tabela zavisnosti §7.5 se ne mijenja** |
+| `08` §12.14 | aditivno razdvajanje budućeg dokaza `P5-I6A` / `P5-I6B` / `P5-I6C`; **nijedan konkretan test za `OD-P5-I6-6` … `10`** |
+| `09` §8.5 | aditivne sigurnosne posljedice vlasničkih odluka; **nijedan zahtjev se ne slabi** |
+| `MANIFEST.md` | ponovo izračunati bajtovi i SHA-256 za šest izmijenjenih dokumenata; **19 redova ostaje 19** |
+
+`02`, `15`, sav izvorni kod, testovi, migracije, Prisma, SQL, grantovi, RLS politike, permisiona
+matrica, `packages/contracts`, paketi, lockfile, CI, `README` i `AGENTS` ostaju netaknuti.
+
+## Security/privacy uticaj
+
+- Aditivne klauzule iskrenosti: inertna / nepodržana klasa se **ne smije** predstaviti kao
+  redigovana; redakcija ostaje deterministička / rule-based, **nije AI semantički klasifikator** i
+  **nije potpuna granica uklanjanja PHI-a**; autorizacija i kontrole pristupa originalu ostaju
+  **nezavisno obavezne** (`09` §8.3, §8.5).
+- AAD literali i `encryption_key_ref` se zamrzavaju **prije prvog perzistiranog `P5-I6B` reda**, uz
+  obavezne determinističke test vektore.
+- PHI-nosivi `request_sha256` ostaje **izričita odluka izvršnog ugovora** (`OD-P5-I6-7`).
+- Audit payload ostaje minimiziran: **nijedan tekst dokumenta**. **`D-OPEN-007` ostaje otvoren.**
+- **Nijedan postojeći sigurnosni zahtjev se ne slabi, ne uklanja ni ne mijenja.**
+
+## Migration/rollout
+
+**Nema.**
+
+## Test dokaz
+
+**Nijedan test se ovim zapisom ne piše, ne mijenja i ne izvršava.** D-092 sam ne stvara nijednu
+runtime testnu obavezu; buduće dokazne granice su razdvojene po pod-gateovima u `08` §12.14.
+
+```text
+TEST_REQUIREMENT_MUTATION    = 0
+TESTS_WRITTEN_D092           = 0
+TESTS_RERUN_D092_AUTHORING   = 0
+```
+
+## Historijsko očuvanje
+
+```text
+prije uspjesnog lokalnog commita   D-092 = ASSIGNED BY OWNER TO P5-I6 GOVERNANCE / SEGMENTATION /
+                                           NOT CONSUMED
+nakon uspjesnog lokalnog commita   D-092 = CONSUMED BY LOCAL GOVERNANCE AUTHORSHIP /
+                                           LOCALLY AUTHORED / COMMITTED /
+                                           NOT INDEPENDENTLY REVIEWED / NOT OWNER-ACCEPTED /
+                                           NOT PUBLISHED / NOT CANONICAL / NOT EFFECTIVE
+D-093                              UNASSIGNED / UNRESERVED
+HISTORICAL_RECORDS_REWRITTEN       = 0
+```
+
+## Šta D-092 ne mijenja
+
+- **Ne mijenja D-025, D-043, D-060, D-062, D-070** ni zamrznute ugovore D-085 / D-087 / D-089.
+- **Ne mijenja nijednu rutu, metodu, payload, header, permisiju, statusni ni error kod.**
+- **Ne mijenja nijednu kućicu**; vlasništvo nije zatvaranje.
+- **Ne autorizuje i ne započinje `P5-I6A`, `P5-I6B`, `P5-I6C` ni `P5-I7`.**
+- **Ne adjudicira `D-OPEN-004a`, `D-OPEN-007`, `D-OPEN-009`.**
+- **Ne mijenja `docs/02`, `docs/15` ni `docs/05` §0 Project metadata.**
+- **Ne prepisuje nijedan historijski zapis.**
+
+## Zavisnosti
+
+- **D-025** — format aplikacijske enkripcije i kanonski AAD.
+- **D-043** — permisija `read_original` i `DOCUMENT_VIEWED`.
+- **D-060**, **D-070** — redakcioni obuhvat `phase5-basic-v1` i vlasništvo `P5-I6`.
+- **D-062** — sekvenca slice-ova Faze 5 i semantika document ruta.
+- **D-071** — kanonski `P5-I3` primitivi.
+- **D-082** — vlasništvo redova `P5-I5` / `P5-I7` i neadjudicirani document redovi.
+- **D-091** — formalno zatvaranje `P5-I5`.
+
+## Naredni obavezni gate
+
+**Svjež nezavisan governance pregled tačnog lokalnog D-092 kandidata**, pa — tek nakon izričitog
+vlasničkog prihvatanja — publikacioni preflight, publikacijska autorizacija, publikacija, merge i
+kanonska post-verifikacija. **Nakon efektivnog D-092 naredni gate je `P5-I6A` zamrzavanje izvršnog
+ugovora** — broj odluke za taj gate **nije dodijeljen**.
+
+## Lifecycle odluke
+
+```text
+D-092 LOCALLY AUTHORED                   = YES
+D-092 OWNER DECISIONS INCORPORATED       = YES (OD-P5-I6-1 ... OD-P5-I6-5)
+D-092 INDEPENDENTLY REVIEWED             = NO
+D-092 OWNER-ACCEPTED                     = NO
+D-092 PUBLISHED / MERGED                 = NO
+D-092 CANONICAL                          = NO
+D-092 EFFECTIVE                          = NO
+
+D-091     PUBLISHED / MERGED (PR #76) / CANONICAL / POST-PUBLICATION VERIFIED / EFFECTIVE
+P5-I5     COMPLETE / VERIFIED / FORMALLY CLOSED / EFFECTIVE
+P5-I6     DEPENDENCY-SATISFIED / GOVERNANCE IN PROGRESS / NOT AUTHORIZED / NOT STARTED
+P5-I6A    NOT AUTHORIZED / NOT STARTED
+P5-I6B    NOT AUTHORIZED / NOT STARTED
+P5-I6C    NOT AUTHORIZED / NOT STARTED
+P5-I7     NOT AUTHORIZED / NOT STARTED
+D-093     UNASSIGNED / UNRESERVED
+
+CANONICAL CHECKLIST                      = 37 / 49
+D-092 LOCAL CANDIDATE CHECKLIST          = 37 / 49
+CHECKBOX_TRANSITIONS                     = 0
+```
+
+---
+
 # Otvorene odluke
 
 ## D-OPEN-001 — Produkcijski OIDC provider
