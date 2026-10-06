@@ -3287,6 +3287,35 @@ governance gate nakon efektivnog D-090. `P5-I6` (ručni unos dokumenta i redakci
 kasnije i ovom anotacijom se ne autorizuje. Ovom anotacijom se ne uvodi nijedan implementacijski
 detalj izvan postojećeg kanonskog obuhvata. Vidi D-090 u `06`.
 
+#### Statusna anotacija (D-091) — blokovi iznad se NE prepisuju
+
+**D-090 je objavljen kroz PR #75 (`f9aa276f…`) i efektivan;** `P5-I5D` je **COMPLETE / VERIFIED /
+FORMALLY CLOSED / EFFECTIVE**. Time su svi pod-gateovi `P5-I5A` (D-084), `P5-I5B` (D-086), `P5-I5C`
+(D-088) i `P5-I5D` (D-090) efektivno zatvoreni. **D-091 je post-kompletaciono pomirenje i formalno
+zatvaranje roditeljskog `P5-I5`.** Svih **6 / 6** redova u vlasništvu `P5-I5` je označeno; roditelj
+ne posjeduje vlastiti red, pa D-091 pravi **nula** tranzicija kućica i **nijednu** implementacijsku
+izmjenu. Formulacije D-090 anotacije iznad (`D-090 … NOT CANONICAL / NOT EFFECTIVE`, `P5-I5D …
+FORMALLY CLOSING UNDER D-090 …`, `P5-I5 IN_PROGRESS`) opisuju **pred-D-091 stanje** i **ne prepisuju
+se**. Tabela zavisnosti slice-ova u §7.5 se **ne mijenja**.
+
+```text
+D-091    LOCALLY AUTHORED / NOT CANONICAL / NOT EFFECTIVE
+D-090    PUBLISHED / MERGED (PR #75) / CANONICAL / POST-PUBLICATION VERIFIED / EFFECTIVE
+P5-I5A … P5-I5D   COMPLETE / VERIFIED / FORMALLY CLOSED / EFFECTIVE
+P5-I5    IN_PROGRESS / FORMALLY CLOSING UNDER D-091 / NOT YET EFFECTIVE (tek po lifecycleu D-091)
+P5-I6    NOT AUTHORIZED / NOT STARTED
+
+P5-I5 OWNED ROWS                 = 6 / 6 oznaceno
+PARENT_CHECKBOX_TRANSITIONS      = 0
+CANONICAL CHECKLIST              = 49 / 37
+D-091 LOCAL CANDIDATE CHECKLIST  = 49 / 37
+```
+
+**`P5-I6`** (ručni unos dokumenta i redakcija; zavisi od `P5-I3` i `P5-I5`) postaje naredni slice po
+redoslijedu zavisnosti **tek nakon efektivnog D-091** — tada `DEPENDENCY-SATISFIED / ELIGIBLE FOR
+SEPARATE AUTHORIZATION`, ali i dalje **`NOT AUTHORIZED / NOT STARTED`**. Naredni gate nakon efektivnog
+D-091 je zaseban **`P5-I6` read-only pre-autorizacija / governance preflight**. Vidi D-091 u `06`.
+
 
 ### Segmentacija `P5-I2` na četiri pod-gatea (D-064)
 

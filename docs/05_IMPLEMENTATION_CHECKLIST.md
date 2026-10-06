@@ -5113,6 +5113,53 @@ D-091    UNCONSUMED / NOT RESERVED / NOT ASSIGNED
 kanonski `origin/main` do tada nosi **`49 / 36`**. **Roditeljski `P5-I5` ostaje `IN_PROGRESS`**; njegovo
 formalno zatvaranje je zaseban kasniji governance gate. Vidi D-090 u `06`.
 
+## P5-I5 PARENT FORMAL CLOSURE ANNOTATION — D-091 (2026-10-06)
+
+**Nijedan pasus, blok ni anotacija iznad se ne prepisuje.** Ova anotacija ne dodaje, ne briše i ne
+mijenja nijedan red ni kućicu. **§0 Project metadata se ne mijenja** (izvan obuhvata D-091, `NB-2`).
+
+- **D-090 je objavljen kroz PR #75 (`f9aa276f…`) i efektivan;** `P5-I5D` je **COMPLETE / VERIFIED /
+  FORMALLY CLOSED / EFFECTIVE**. Formulacije D-090 anotacije iznad (`D-090 … NOT CANONICAL / NOT
+  EFFECTIVE`, `P5-I5D … FORMALLY CLOSING UNDER D-090 …`, `49 / 37 je isključivo lokalno kandidatsko
+  stanje`, `D-091 UNCONSUMED …`) opisuju **pred-D-091 stanje** i **ne prepisuju se**.
+- **D-091 je post-kompletaciono pomirenje i formalno zatvaranje roditeljskog `P5-I5`.**
+  **Dokumentacija isključivo.**
+- **Svih šest redova u vlasništvu `P5-I5` je već označeno** (D-082 `OD-D082-4`); roditelj ne posjeduje
+  vlastiti red.
+
+```text
+P5-I5 vlasnistvo       red                              vlasnik   stanje
+                       Services  state machine.         P5-I5A    [x]
+                       API       POST encounter.        P5-I5B    [x]
+                       Services  optimistic locking.    P5-I5C    [x]
+                       API       PATCH encounter.       P5-I5C    [x]
+                       Tests     stale ETag.            P5-I5C    [x]
+                       API       cancel encounter.      P5-I5D    [x]
+ukupno / oznaceno / neoznaceno   6 / 6 / 0
+
+                        kanonski (prije)   D-091 kandidat
+ukupno redova (S6)      49                 49
+oznaceno                37                 37
+neoznaceno              12                 12   (~75.5 %)
+
+PARENT CHECKBOX TRANSITIONS  = 0
+CHECKBOX_TRANSITIONS         = 0
+```
+
+```text
+D-091    LOCALLY AUTHORED / NOT INDEPENDENTLY REVIEWED / NOT OWNER-ACCEPTED /
+         NOT PUBLISHED / NOT CANONICAL / NOT EFFECTIVE
+D-090    PUBLISHED / MERGED (PR #75) / CANONICAL / POST-PUBLICATION VERIFIED / EFFECTIVE
+P5-I5A … P5-I5D   COMPLETE / VERIFIED / FORMALLY CLOSED / EFFECTIVE
+P5-I5    IN_PROGRESS / FORMALLY CLOSING UNDER D-091 / NOT YET EFFECTIVE
+P5-I6    NOT AUTHORIZED / NOT STARTED
+D-092    UNCONSUMED / NOT RESERVED / NOT ASSIGNED
+```
+
+**Očekivano buduće stanje, isključivo nakon punog lifecyclea D-091:** `P5-I5 = COMPLETE / VERIFIED /
+FORMALLY CLOSED / EFFECTIVE`; `P5-I6 = DEPENDENCY-SATISFIED / ELIGIBLE FOR SEPARATE AUTHORIZATION /
+NOT AUTHORIZED / NOT STARTED`. Vidi D-091 u `06`.
+
 
 ## Schema
 
