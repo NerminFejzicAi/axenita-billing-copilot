@@ -956,6 +956,25 @@ API SEMANTIC MUTATION      = 0
 
 Vidi D-092 u `06`.
 
+**STATUSNA ANOTACIJA (D-093, 2026-10-11) — sekcija i anotacije iznad se NE prepisuju.** D-092 je
+objavljen kroz **PR #77** (`ad739da6…`, publication drift `ZERO`) i **efektivan**. Formulacije D-092
+anotacije iznad (`D-092 … NOT CANONICAL / NOT EFFECTIVE`, `P5-I6 … GOVERNANCE IN PROGRESS …`) su
+**pred-D-093 snapshot** i **ne prepisuju se**. D-093 zamrzava izvršni ugovor `P5-I6A` — čist
+redakcioni ruleset bez API-ja (vidi §13.5); **ne mijenja nijednu API semantiku** i **ne autorizuje
+implementaciju**.
+
+```text
+D-093    LOCALLY AUTHORED / NOT INDEPENDENTLY REVIEWED / NOT OWNER-ACCEPTED /
+         NOT PUBLISHED / NOT CANONICAL / NOT EFFECTIVE
+D-092    PUBLISHED / MERGED (PR #77) / CANONICAL / POST-PUBLICATION VERIFIED / EFFECTIVE
+P5-I6    DEPENDENCY-SATISFIED / D-092 GOVERNANCE EFFECTIVE / IMPLEMENTATION NOT AUTHORIZED /
+         NOT STARTED
+P5-I6A   CONTRACT CANDIDATE AUTHORED / IMPLEMENTATION NOT AUTHORIZED / NOT STARTED
+API SEMANTIC MUTATION      = 0
+```
+
+Vidi D-093 u `06`.
+
 
 ---
 
@@ -3069,6 +3088,47 @@ API SEMANTIC MUTATION = 0
 ```
 
 Vidi D-092 u `06`.
+
+## 13.5 Granica izvršnog ugovora `P5-I6A` (D-093, 2026-10-11)
+
+**Sekcije §13.1–§13.4 se NE prepisuju i ostaju mjerodavne za ono što već utvrđuju.** Ova sekcija
+**ne mijenja nijednu rutu, metodu, payload, DTO, header, permisiju, statusni ni error kod**. Postaje
+kanonska tek nakon punog lifecyclea D-093. **`P5-I6A` nema API površinu**; ovdje se bilježi samo
+ono što je iz njegovog ugovora vidljivo na `POST …/documents/text` (`P5-I6B`).
+
+Red `FAILED politika redakcije` iz tabele otvorenih granica §13.4 (`OD-P5-I6-4`) **zatvara izvršni
+ugovor `P5-I6A` (D-093)** za `P5-I6A` stranu:
+
+```text
+REDACTION_FAILED_SET          = { REDACTED_OUTPUT_TOO_LARGE }
+MAKSIMUM REDIGOVANOG IZLAZA   = 262144 UTF-8 bajta, mjereno na konacnom sastavljenom izlazu
+SKRACIVANJE                   = nikada (ni izlaza, ni tokena)
+```
+
+**Nizvodno vezivanje — restatement postojećeg kanona (§13.1, §13.3; D-062 G.1/G.3), ne nova
+odluka:**
+
+```text
+ocekivani P5-I6A FAILED  -> READY / FAILED -> 201 -> redactionStatus = FAILED,
+                            redactedTextHash izostaje
+neocekivana greska       -> rollback / bez reda
+```
+
+- HTTP mapiranje neočekivane putanje ostaje **`OD-P5-I6-6` OPEN**; create audit ostaje
+  **`OD-P5-I6-9` OPEN**; `OD-P5-I6-5`, `-7`, `-8`, `-10` ostaju kako ih §13.4 navodi.
+- **Aktivne klase v1 su tačno** `EMAIL`, `URL`, `AHV`, `IBAN`, `PHONE`. Klasa eksterne reference iz
+  §13.1 je **`INERT WITHOUT INPUT SOURCE`** (D-092 `RULING E`; D-093 `RULING E`): `redactionStatus =
+  COMPLETED` **ne tvrdi** da je ta klasa redigovana.
+- `redactBeforeAiProcessing`, `processingStatus`, `redactionStatus` vokabular i zabrana fallbacka
+  `view=redacted` ostaju nepromijenjeni.
+
+```text
+P5-I6A   CONTRACT CANDIDATE AUTHORED / IMPLEMENTATION NOT AUTHORIZED / NOT STARTED
+P5-I6A / P5-I6B / P5-I6C / P5-I7 IMPLEMENTATION AUTHORIZED = NO
+API SEMANTIC MUTATION = 0
+```
+
+Vidi D-093 u `06`.
 
 ---
 

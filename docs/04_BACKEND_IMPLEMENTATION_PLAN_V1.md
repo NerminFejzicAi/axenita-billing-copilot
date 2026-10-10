@@ -3374,6 +3374,51 @@ CHECKBOX_TRANSITIONS             = 0
 Naredni gate nakon efektivnog D-092 je **`P5-I6A` zamrzavanje izvršnog ugovora**; broj odluke za taj
 gate **nije dodijeljen**. Vidi D-092 u `06`.
 
+### `P5-I6A` IZVRŠNI UGOVOR — D-093 (2026-10-11)
+
+**Blokovi i anotacije iznad se NE prepisuju; tabela zavisnosti slice-ova u §7.5 se ne mijenja.**
+**D-092 je objavljen kroz PR #77 (`ad739da6…`) i efektivan;** formulacije D-092 sekcije iznad
+(`D-092 … NOT CANONICAL / NOT EFFECTIVE`, „D-092 te vrijednosti **ne bira**", „broj odluke … **nije
+dodijeljen**") opisuju **pred-D-093 stanje**.
+
+**D-093 zamrzava isključivo izvršni ugovor `P5-I6A`** i **ne autorizuje implementaciju**. Normativni
+tekst (gramatike, regex izvori, `BLK`/`NEUTRAL` lista, algoritmi) je **isključivo u D-093 u `06`**;
+ovo je sažetak za implementacijski plan.
+
+| Tema | Zamrznuto (D-093) |
+|---|---|
+| Ulaz | isključivo uspješan izlaz `normaliseClinicalText`; bez re-normalizacije, popravke i transformacije |
+| Preduslovi (`G-3`) | **obavezna** assertion-only re-asercija 8 `P5-I3C` postuslova prije matchinga; kršenje = `UNEXPECTED INTERNAL FAILURE — PRECONDITION BREACH`; `normaliseClinicalText(x) === x` zabranjen kao mehanizam |
+| Rezultat | `COMPLETED { rulesetVersion, redactedText }` / `FAILED { rulesetVersion, failureCode }`; bez originala, hasheva, match metadata, liste klasa i audit payloada |
+| `FAILED` skup | tačno `{ REDACTED_OUTPUT_TOO_LARGE }`; granica 262144 UTF-8 bajta na sastavljenom izlazu; bez skraćivanja |
+| Klase / tokeni | `EMAIL`, `URL`, `AHV`, `IBAN`, `PHONE` → `[REDACTED:<KLASA>]`; eksterna referenca `INERT WITHOUT INPUT SOURCE`; osiguranje/kartica nije v1 klasa |
+| Gramatike | EMAIL (sa vlasničkom korekcijom lijeve granice); URL (`G-1` bez prefiks fallbacka, `G-2` host ≤ 253); AHV (`756`, EAN-13); IBAN (`CH`, mod-97, `kk` 02–98); PHONE (D-070 `RULING 5` + rezidualna pojašnjenja) |
+| Granice | eksplicitan `BLK` / `NEUTRAL` model (38 code pointa), bez `\p{…}`, `\w`, `\d`, `\b` |
+| Otkrivanje | sve klase nad nepromjenjivim ulazom; izlaz se gradi jednom i ne re-skenira |
+| Preklapanje | `start` → najduži → `URL > EMAIL > IBAN > AHV > PHONE`; presječeni kandidat odbačen cijeli; bez deduplikacije |
+| Runtime | Node 24.19.0; zastavice `gu`; `i`/`s`/`m`/`y` zabranjene; linearno trimovanje URL repa |
+| Hashevi | odgovornost `P5-I6B` |
+| Nizvodno | očekivani `FAILED` → `READY`/`FAILED`, `201`, bez `redactedTextHash`; neočekivano → rollback; `OD-P5-I6-6` / `OD-P5-I6-9` OPEN |
+
+```text
+D-093    LOCALLY AUTHORED / NOT CANONICAL / NOT EFFECTIVE
+D-092    PUBLISHED / MERGED (PR #77) / CANONICAL / POST-PUBLICATION VERIFIED / EFFECTIVE
+P5-I6    DEPENDENCY-SATISFIED / D-092 GOVERNANCE EFFECTIVE / IMPLEMENTATION NOT AUTHORIZED /
+         NOT STARTED
+P5-I6A   CONTRACT CANDIDATE AUTHORED / IMPLEMENTATION NOT AUTHORIZED / NOT STARTED
+P5-I6B   NOT AUTHORIZED / NOT STARTED
+P5-I6C   NOT AUTHORIZED / NOT STARTED
+P5-I7    NOT AUTHORIZED / NOT STARTED
+
+CANONICAL CHECKLIST              = 49 / 37
+D-093 LOCAL CANDIDATE CHECKLIST  = 49 / 37
+CHECKBOX_TRANSITIONS             = 0
+```
+
+Nakon efektivnog D-093 stanje je **`P5-I6A = CONTRACT FROZEN / IMPLEMENTATION NOT YET AUTHORIZED`**;
+implementacija traži **zaseban vlasnički autorizacijski gate** (D-093 `RULING M`). Vidi D-093 u
+`06`.
+
 
 ### Segmentacija `P5-I2` na četiri pod-gatea (D-064)
 

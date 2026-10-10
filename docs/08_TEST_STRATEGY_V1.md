@@ -2466,6 +2466,296 @@ CHECKBOX TRANSITIONS (D-092 kandidat) = 0
 
 Vidi D-092 u `06`.
 
+## 12.15 `P5-I6A` — obavezna dokazna matrica redakcionog ruleseta (D-093, 2026-10-11)
+
+**Sekcije iznad, uključujući §12.5 i §12.14, se NE prepisuju i ne slabe.** D-092 je efektivan
+(PR #77, `ad739da6…`); formulacije §12.14 („testovi … se pišu **tek nakon** zamrzavanja izvršnog
+ugovora `P5-I6A`") opisuju **pred-D-093 stanje**. Ova sekcija je **isključivo aditivno planiranje
+dokaza** (D-093 `RULING J`): **nijedan test se ovdje ne implementira ni ne izvršava**, i postojanje
+ove sekcije **ne označava nijednu kućicu**. Normativna pravila su u D-093 u `06`; ova sekcija ih ne
+ponavlja i ne proširuje.
+
+**Runtime i izvršenje.**
+
+- Formalni dokaz zatvaranja se izvršava na **Node 24.19.0**. Izlaz prototipa pod Node 20.9.0 **nije
+  dokaz zatvaranja**.
+- Nijedan wall-clock prag u milisekundama se ne zamrzava; adversarial vektori dokazuju odsustvo
+  super-linearnog ponašanja relativnim, determinističkim kriterijem, ne apsolutnim vremenom.
+- **Vektori sa ne-ASCII ili kontrolnim znakovima se grade iz code pointa** (`String.fromCodePoint`),
+  nikada iz literala ili escape sekvenci u izvoru.
+
+**Notacija vektora ispod.** `⟨U+XXXX⟩` je jedan code point (ne literalni tekst); `x×N` je `N`
+ponavljanja; `=` znači **izlaz identičan ulazu** (`COMPLETED`, nula pogodaka); `→` daje očekivani
+`redactedText`. Svi podaci su sintetički.
+
+**Particija §12.5 (bez prepisivanja).**
+
+```text
+P5-I6A   klase, checksumi, klinicka ne-redakcija, tokeni, determinizam,
+         P5-I6A strana COMPLETED, bez teksta u greskama
+P5-I6B   svjez IV pri ponovnoj redakciji, hashevi (§12.6)
+P5-I6C   view=redacted bez fallbacka
+§12.5 pozitivan slucaj eksterne reference -> zamijenjen dokazom inertnosti (ispod)
+```
+
+### 12.15.1 Obavezne kategorije
+
+```text
+pozitivni validni oblici             negativni / near-match
+checksum (validan / nevalidan)       granice
+ponovljeni / susjedni                preklapanje / precedencija
+interpunkcija                        inertnost eksterne reference
+klinicka ne-redakcija                prethodno postojeci tokeni
+determinizam                         granica izlaza
+neocekivano krsenje preduslova       bez teksta u gresci
+adversarial / dugi ulaz
++ EMAIL vlasnicka korekcija, G-1, G-2, G-3
+```
+
+### 12.15.2 Minimalni obavezni vektori
+
+**EMAIL — pozitivni.**
+
+```text
+a@b.cd                              → [REDACTED:EMAIL]
+john.doe@example.ch                 → [REDACTED:EMAIL]
+x_y+tag@mail.example.co.uk          → [REDACTED:EMAIL]
+JOHN@X.CH                           → [REDACTED:EMAIL]
+⟨U+00AB⟩info@test.ch⟨U+00BB⟩        → ⟨U+00AB⟩[REDACTED:EMAIL]⟨U+00BB⟩
+⟨U+2019⟩a@b.ch⟨U+2019⟩              → ⟨U+2019⟩[REDACTED:EMAIL]⟨U+2019⟩
+(info@test-praxis.ch)               → ([REDACTED:EMAIL])
+a×64@x.ch                           → [REDACTED:EMAIL]        (lokalni dio tacno 64)
+```
+
+**EMAIL — negativni (svi `=`), uključujući obaveznu vlasničku korekciju.**
+
+```text
+foo!bar@x.ch   foo&bar@x.ch   foo=bar@x.ch                  (OBAVEZNO — vlasnicka korekcija)
+foo#bar@x.ch   foo$bar@x.ch   foo'bar@x.ch   foo*bar@x.ch   foo/bar@x.ch
+foo?bar@x.ch   foo^bar@x.ch   foo{bar@x.ch   foo|bar@x.ch   foo}bar@x.ch   foo~bar@x.ch
+'a@b.ch'   *a@b.ch*   x=a@b.ch   /a@b.ch   a@b.ch omeđen ⟨U+0060⟩ znakovima
+john@localhost   john@x.c   john@x.c1   john..doe@x.ch   .john@x.ch   john.@x.ch
+john@-x.ch   john@x-.ch   john@x..ch   john@x.ch-foo   john@x.ch_   a@b@c.ch   john @x.ch
+m⟨U+00FC⟩ller@x.ch   john@m⟨U+00FC⟩ller.ch   john⟨U+FF20⟩x.ch   john@x.ch⟨U+0301⟩
+a×65@x.ch                                                  (lokalni dio > 64)
+```
+
+**URL — pozitivni i interpunkcija.**
+
+```text
+https://example.ch                  → [REDACTED:URL]
+http://example.ch/path?a=1&b=2#frag → [REDACTED:URL]
+HTTPS://WWW.EXAMPLE.CH/A            → [REDACTED:URL]
+www.example.ch                      → [REDACTED:URL]
+https://user:pw@example.ch/a        → [REDACTED:URL]
+http://localhost:3000/x             → [REDACTED:URL]
+http://192.168.1.1/x                → [REDACTED:URL]
+https://example.ch/Bericht_M⟨U+00FC⟩ller.pdf → [REDACTED:URL]
+www.example.ch/bericht.pdf.         → [REDACTED:URL].
+Siehe https://example.ch/a_(b)).    → Siehe [REDACTED:URL]).
+(https://example.ch/x)              → ([REDACTED:URL])
+[https://example.ch/a]              → [[REDACTED:URL]]
+https://example.ch:8443/a,          → [REDACTED:URL],
+'www.example.ch'                    → '[REDACTED:URL]'
+https://example.ch/?q=x!?           → [REDACTED:URL]!?
+https://example.ch/a⟨U+00BB⟩        → [REDACTED:URL]⟨U+00BB⟩
+https://example.ch/a/               → [REDACTED:URL]
+```
+
+**URL — negativni (svi `=`).**
+
+```text
+http://999.1.1.1/x   http:/example.ch   http//example.ch   htps://example.ch   hxxp://example.ch
+https://intranet/x   wwww.example.ch   www.example   www-Seite   foo.www.example.ch
+https://m⟨U+00FC⟩ller.ch   xhttps://example.ch   https://example.c   https:// example.ch
+http⟨U+017F⟩://example.ch   http://[::1]/x   https://localhostx   www.localhost
+http://1.2.3.4.5/x
+```
+
+**`G-1` — obavezno (svi `=`).**
+
+```text
+https://example.ch:99999999/x
+https://example.ch:80abc
+https://example.ch:
+https://user.ch:pw@-x/
+```
+
+**`G-2` — obavezno.** `H253` je DNS ime od tačno 253 znaka (npr. tri labele od 63 znaka, labela od
+58 znakova i `.ch`); `H254` je isto sa labelom od 59 znakova.
+
+```text
+https://H253/x                      → [REDACTED:URL]
+https://H254/x                      =
+www.-oblik, cijeli host 253 znaka   → [REDACTED:URL]
+www.-oblik, cijeli host 254 znaka   =
+a@H253                              → [REDACTED:EMAIL]
+a@H254                              =
+```
+
+**AHV.**
+
+```text
+756.1234.5678.97   7561234567897   756.0000.0000.02   756.9876.5432.17   → [REDACTED:AHV]
+AHV: 756.1234.5678.97.              → AHV: [REDACTED:AHV].
+756.1234.5678.97,                   → [REDACTED:AHV],
+=   756.1234.5678.98   7561234567898                     (nevalidna kontrolna cifra)
+=   756 1234 5678 97   756-1234-5678-97   756.1234.567897   1756.1234.5678.97
+=   756.1234.5678.971   AHV756.1234.5678.97   1.756.1234.5678.97   756.1234.5678.97.5
+=   7561234567897/2   757.1234.5678.97   756.1234.5678.97⟨U+0663⟩
+=   ⟨U+0667⟩⟨U+0665⟩⟨U+0666⟩1234567897   7561234567897⟨U+0301⟩
+```
+
+**IBAN.**
+
+```text
+CH09 0070 0123 4567 8901 2   CH0900700123456789012   CH05 0839 0000 0000 0000 1   → [REDACTED:IBAN]
+IBAN CH65 0070 0ABC DEFG H123 4.    → IBAN [REDACTED:IBAN].
+CH09 0070 0123 4567 8901 2,         → [REDACTED:IBAN],
+=   CH0900700123456789013                                (nevalidan checksum)
+=   CH0000700000000000083   CH0100700000000000065        (alias kontrolne cifre; OBAVEZNO)
+=   ch0900700123456789012   LI0900700123456789012   DE89370400440532013000
+=   CH09 0070 01234567 8901 2   CH09  0070 0123 4567 8901 2   CH09-0070-0123-4567-8901-2
+=   CH09⟨U+0009⟩0070 0123 4567 8901 2   CH09⟨U+000A⟩0070 0123 4567 8901 2
+=   CH09⟨U+00A0⟩0070 0123 4567 8901 2   CH0900700123456789012X   XCH0900700123456789012
+=   CH09007001234567890123   CH0900700123456789012-5
+```
+
+**PHONE (D-070 `RULING 5` + rezidualna pojašnjenja).**
+
+```text
++41791234567   0041791234567   +41 79 123 45 67   0041 79 123 45 67
++41-79-123-45-67   0041-79-123-45-67                → [REDACTED:PHONE]
+Tel 079 123 45 67                   → Tel [REDACTED:PHONE]
+Tel.: 079-123-45-67                 → Tel.: [REDACTED:PHONE]
+TELEFON:0791234567                  → TELEFON:[REDACTED:PHONE]
+Mobile⟨U+0009⟩079 123 45 67         → Mobile⟨U+0009⟩[REDACTED:PHONE]
+Natel : 0791234567                  → Natel : [REDACTED:PHONE]
+fax 0441234567                      → fax [REDACTED:PHONE]
+Tel/Fax: 044 123 45 67              → Tel/Fax: [REDACTED:PHONE]
+Tel.0791234567                      → Tel.[REDACTED:PHONE]
+Tel 079 123 45 67.                  → Tel [REDACTED:PHONE].
+Tel 079 123 45 67, 079 765 43 21    → Tel [REDACTED:PHONE], 079 765 43 21   (kanonski lazno negativan)
+=   0791234567   079 123 45 67   Hotel 0791234567   Automobile 0791234567   Telefax 0441234567
+=   Tel 079.123.45.67   +41 (0)79 123 45 67   +41 79-123 45 67   +41 791234567   +410791234567
+=   +417912345678   10041791234567   Tel 0012345678   Tel 044 123 45 67/68   Tel 0791234567.5
+=   Tel⟨U+000A⟩0791234567   Tel⟨U+00A0⟩0791234567   Tel ⟨U+00A0⟩0791234567
+=   +41 79 123 45 67 89   12 0041 79 123 45 67   Tel::0791234567   ++41791234567
+=   Tel 07912345678   Tel 079 123 4567   1.0041791234567
+```
+
+**Ponovljeni / susjedni.**
+
+```text
+e1@x.ch,e2@y.ch                     → [REDACTED:EMAIL],[REDACTED:EMAIL]
+a@b.cd a@b.cd                       → [REDACTED:EMAIL] [REDACTED:EMAIL]
+756.1234.5678.97/+41791234567       → [REDACTED:AHV]/[REDACTED:PHONE]
++41 79 123 45 67/+41 79 765 43 21   → [REDACTED:PHONE]/[REDACTED:PHONE]
++41791234567,+41797654321           → [REDACTED:PHONE],[REDACTED:PHONE]
+CH0900700123456789012+41791234567   → [REDACTED:IBAN]+41791234567
+```
+
+**Preklapanje / precedencija.**
+
+```text
++41791234567@example.ch             → [REDACTED:EMAIL]
+7561234567897@example.ch            → [REDACTED:EMAIL]
+https://example.ch/?tel=+41791234567     → [REDACTED:URL]
+https://example.ch/p/756.1234.5678.97    → [REDACTED:URL]
+https://example.ch/CH0900700123456789012 → [REDACTED:URL]
+https://user@example.ch             → [REDACTED:URL]
+john@www.example.ch                 → [REDACTED:EMAIL]
+www.example.ch/john@x.ch            → [REDACTED:URL]
+a@b.cd,756.1234.5678.97;CH0900700123456789012.
+                                    → [REDACTED:EMAIL],[REDACTED:AHV];[REDACTED:IBAN].
+Tel 079 123 45 67 756.1234.5678.97  → Tel 079 123 45 67 [REDACTED:AHV]
+```
+
+**Prethodno postojeći tokeni.**
+
+```text
+[REDACTED:EMAIL][REDACTED:URL][REDACTED:AHV][REDACTED:IBAN][REDACTED:PHONE]   =
+svaki od pet tokena pojedinacno                                                =
+Tel [REDACTED:PHONE]                =
+[REDACTED:EMAIL                     =
+[REDACTED:john@x.ch]                → [REDACTED:[REDACTED:EMAIL]]
+[REDACTED:EMAIL]john@x.ch           → [REDACTED:EMAIL][REDACTED:EMAIL]
+```
+
+**Inertnost eksterne reference.**
+
+```text
+=   Pat.-Nr. 1234567   Ref: AX-2026-000123   Fall-ID 98765/2026   P-K7M2QX4TB9
+Ref: pat123@clinic.ch               → Ref: [REDACTED:EMAIL]   (iskljucivo kroz EMAIL gramatiku)
+```
+
+Uz vektore, obavezne asercije: katalog tokena ima **tačno 5** unosa; ruleset **nema** parametar
+eksterne reference; oblik rezultata **nema** polje klase ni pokrivenosti; **nijedan** naziv testa
+ni dokument ne tvrdi da je klasa eksterne reference redigovana.
+
+**Klinička ne-redakcija (svi `=`).**
+
+```text
+12.03.2026   2026-03-12   Metformin 500 mg 1-0-1   0.5 mg/kg   i.v. 2x t⟨U+00E4⟩glich
+Hb 135 g/l   CRP 12.4 mg/l   eGFR 78 ml/min/1.73m2   INR 2.3 am 12.03.2026 um 07:45
+E11.9   J45.909   AA.00.0010   00.0010   BD 120/80 mmHg   1'250 ml
+GTIN 7680123456789   Ch.-B. 7561234   Tel. R⟨U+00FC⟩cksprache erfolgt   Fax-Ger⟨U+00E4⟩t
+```
+
+**Granica izlaza i determinizam.**
+
+```text
+a@b.cd⟨U+0020⟩x×262127   (262134 B)  → COMPLETED, izlaz tacno 262144 B
+a@b.cd⟨U+0020⟩x×262137   (262144 B)  → FAILED REDACTED_OUTPUT_TOO_LARGE, bez redactedText
+37449 × a@b.cd razdvojeno ⟨U+0020⟩   → FAILED REDACTED_OUTPUT_TOO_LARGE
+```
+
+- Svaki vektor ove sekcije, izvršen dvaput nad istom verzijom, daje **identičan** rezultat.
+- `FAILED` rezultat **nema** `redactedText` ni bilo kakav djelimičan tekst; izlaz se **nikada ne
+  skraćuje**.
+
+**`G-3` — kršenje preduslova (svi → `UNEXPECTED INTERNAL FAILURE — PRECONDITION BREACH`, bez union
+rezultata, bez teksta u grešci).**
+
+```text
+usamljen surogat ⟨U+D800⟩ u tekstu          sadrzi ⟨U+000D⟩          sadrzi ⟨U+0000⟩
+sadrzi ⟨U+0001⟩    sadrzi ⟨U+000B⟩          sadrzi ⟨U+0085⟩ (C1)
+e⟨U+0301⟩ (nije NFC)                        vodeci ⟨U+0020⟩          prateci ⟨U+000A⟩
+vodeci ⟨U+00A0⟩                             prazan string            x×262145
+```
+
+Kontrolni vektori koji **NE SMIJU** proizvesti kršenje preduslova (dokaz da re-asercija nije
+`normaliseClinicalText(x) === x` i da skup nije širi od ratifikovanog):
+
+```text
+⟨U+FEFF⟩abc                          =   (validan normalizovan izlaz; vodeci BOM)
+abc⟨U+FEFF⟩                          =
+a⟨U+007F⟩b                           =   (U+007F nije u ratifikovanom C0/C1 skupu)
+a⟨U+0009⟩b⟨U+000A⟩c                  =
+x×262144                             =   (tacno na granici)
+```
+
+**Bez teksta u grešci.** Ni `FAILED` rezultat ni greška kršenja preduslova ne sadrže ulazni tekst,
+podniz, odbijenu vrijednost ni dužinu.
+
+**Adversarial / dugi ulaz (svaki 256 KiB klase; završava linearno, bez pada).**
+
+```text
+a×262144   (a.)×131072   1×262144   www.(a.)×131070   https://a×262136   a@(b.)×131071
+(Tel⟨U+0020⟩)×65536   (a-)×131072   https://x.ch/)×262000   !×262138 a@b.ch
+(https://x.ch:)×20000
+```
+
+```text
+TEST_REQUIREMENT_MUTATION    = 0 (aditivno planiranje; §12.5 nije oslabljen)
+TESTS_WRITTEN_D093           = 0
+TESTS_RERUN_D093_AUTHORING   = 0
+P5-I6A   CONTRACT CANDIDATE AUTHORED / IMPLEMENTATION NOT AUTHORIZED / NOT STARTED
+CHECKBOX TRANSITIONS (D-093 kandidat) = 0
+```
+
+Vidi D-093 u `06`.
+
 ---
 
 
