@@ -938,6 +938,24 @@ API SEMANTIC MUTATION      = 0
 Zatvaranje roditelja postaje efektivno **tek nakon punog lifecyclea D-091**. **D-091 ne autorizuje
 `P5-I6`.** Vidi D-091 u `06`.
 
+**STATUSNA ANOTACIJA (D-092, 2026-10-07) — sekcija i anotacije iznad se NE prepisuju.** D-091 je
+objavljen kroz **PR #76** (`0e149023…`, publication drift `ZERO`) i **efektivan**; `P5-I5` je
+**COMPLETE / VERIFIED / FORMALLY CLOSED / EFFECTIVE**. Formulacije D-091 anotacije iznad (`D-091 … NOT
+CANONICAL / NOT EFFECTIVE`, `P5-I5 … FORMALLY CLOSING UNDER D-091 …`) su **pred-D-092 snapshot** i **ne
+prepisuju se**. D-092 je governance / segmentacija `P5-I6` (vidi §13.4); **ne mijenja nijednu API
+semantiku** i **ne autorizuje implementaciju**.
+
+```text
+D-092    LOCALLY AUTHORED / NOT INDEPENDENTLY REVIEWED / NOT OWNER-ACCEPTED /
+         NOT PUBLISHED / NOT CANONICAL / NOT EFFECTIVE
+D-091    PUBLISHED / MERGED (PR #76) / CANONICAL / POST-PUBLICATION VERIFIED / EFFECTIVE
+P5-I5    COMPLETE / VERIFIED / FORMALLY CLOSED / EFFECTIVE
+P5-I6    DEPENDENCY-SATISFIED / GOVERNANCE IN PROGRESS / NOT AUTHORIZED / NOT STARTED
+API SEMANTIC MUTATION      = 0
+```
+
+Vidi D-092 u `06`.
+
 
 ---
 
@@ -3002,6 +3020,55 @@ Umjesto DELETE nakon analize.
 - **Fizičko brisanje ne postoji nigdje u Fazi 5**, i **nijedna delete ruta se ne izmišlja**.
   Retenciona i pravna pitanja (`09` §20, `D-OPEN-007`) **ostaju otvorena** i ovom odlukom se **ne
   zatvaraju**.
+
+## 13.4 Governance granica `P5-I6` (D-092, 2026-10-07)
+
+**Sekcije §13.1–§13.3 se NE prepisuju i ostaju mjerodavne za ono što već utvrđuju.** Ova sekcija je
+**isključivo governance**: ne mijenja nijednu rutu, metodu, payload, header, permisiju, statusni ni
+error kod, i **ne zamrzava nijedan izvršni ugovor**. Postaje kanonska tek nakon punog lifecyclea
+D-092.
+
+**Vlasništvo API površine (`OD-P5-I6-1`).**
+
+```text
+POST /encounters/{encounterId}/documents/text              P5-I6 (P5-I6B)
+GET  /encounters/{id}/documents/{documentId}?view=redacted P5-I6 (P5-I6C)
+GET  /encounters/{id}/documents/{documentId}?view=original P5-I6 (P5-I6C)
+GET  /encounters/{id}/documents                            P5-I7
+POST /encounters/{id}/documents/{documentId}/archive       P5-I7
+GET  /encounters                                           P5-I7
+GET  /encounters/{encounterId}                             P5-I7
+upload putanja (§13.2)                                     DEFERRED — nije P5-I6
+```
+
+**Segmentacija (`OD-P5-I6-2`):** `P5-I6A` (deterministički ruleset `phase5-basic-v1`, bez API-ja i
+perzistencije) → `P5-I6B` (`POST …/documents/text`) → `P5-I6C` (detaljni `GET`). Listanje, arhiva,
+upload i filteri **nisu** `P5-I6`.
+
+**Klasa eksterne reference (`OD-P5-I6-3`).** Formulacija §13.1 „eksternu referencu pacijenta iz
+tekućeg zahtjeva" se ne prepisuje, ali se aditivno kvalifikuje: manuelni tekstualni zahtjev **ne nosi
+polje eksterne reference** i **nijedno se ne uvodi** radi aktivacije te klase. Za `phase5-basic-v1`
+klasa je **`INERT WITHOUT INPUT SOURCE`**: odgovor, `redactionStatus = COMPLETED`, dokumentacija ni test
+**ne smiju** tvrditi da je ta klasa redigovana dok ne postoji stvarni, kanonski definisan ulazni
+izvor; heurističko, AI ni semantičko izvođenje iz teksta **nije dozvoljeno**.
+
+**Otvorene granice izvršnog ugovora — NE rješavaju se ovdje.**
+
+```text
+FAILED politika redakcije   smjer CLOSED / EXPLICIT FAILURE SET; tacan skup, 201 / rollback,
+                            maksimum redigovanog izlaza -> izvrsni ugovor P5-I6A  (OD-P5-I6-4)
+AAD literali / key-ref      OPEN -> izvrsni ugovor P5-I6B                         (OD-P5-I6-5)
+create zahtjev / greske     OPEN                                                  (OD-P5-I6-6)
+idempotencija               OPEN                                                  (OD-P5-I6-7)
+konkurencija / DRAFT->RFA   OPEN                                                  (OD-P5-I6-8)
+audit (create / read)       OPEN                                                  (OD-P5-I6-9)
+detaljni GET ugovor         OPEN                                                  (OD-P5-I6-10)
+
+P5-I6A / P5-I6B / P5-I6C / P5-I7 IMPLEMENTATION AUTHORIZED = NO
+API SEMANTIC MUTATION = 0
+```
+
+Vidi D-092 u `06`.
 
 ---
 

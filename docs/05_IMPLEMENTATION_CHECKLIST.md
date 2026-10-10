@@ -5160,6 +5160,66 @@ D-092    UNCONSUMED / NOT RESERVED / NOT ASSIGNED
 FORMALLY CLOSED / EFFECTIVE`; `P5-I6 = DEPENDENCY-SATISFIED / ELIGIBLE FOR SEPARATE AUTHORIZATION /
 NOT AUTHORIZED / NOT STARTED`. Vidi D-091 u `06`.
 
+## P5-I6 ROW OWNERSHIP AND SEGMENTATION ANNOTATION — D-092 (2026-10-07)
+
+**Nijedan pasus, blok ni anotacija iznad se ne prepisuje.** Ova anotacija je **isključivo governance
+metapodatak**: ne dodaje, ne briše, ne duplira i ne mijenja nijedan red ni kućicu. **§0 Project
+metadata se ne mijenja** (`NB-2`, LEAVE AS-IS).
+
+- **D-091 je objavljen kroz PR #76 (`0e149023…`, publication drift `ZERO`) i efektivan;** `P5-I5` je
+  **COMPLETE / VERIFIED / FORMALLY CLOSED / EFFECTIVE** (`P5_I5_PARENT_CLOSURE_COMPLETE = YES`).
+  Formulacije D-091 anotacije iznad (`D-091 … NOT CANONICAL / NOT EFFECTIVE`, `P5-I5 … FORMALLY
+  CLOSING UNDER D-091 …`, `D-092 UNCONSUMED …`) opisuju **pred-D-092 stanje** i **ne prepisuju se**.
+- **D-092 (`OD-P5-I6-1`) adjudicira vlasništvo svih dvanaest neoznačenih redova Faze 5**, uključujući
+  šest document redova koje je D-082 ostavio `NOT ADJUDICATED BY D-082`.
+- **Dodijeljeno vlasništvo NIJE zatvaranje kućice.** Svaki red se zatvara isključivo formalnim
+  zatvaranjem (pod-)gatea koji ga posjeduje.
+
+```text
+sekcija    red                        vlasnik          pod-gate   stanje
+Services   redaction.                 P5-I6            P5-I6A     [ ]
+API        POST text document.        P5-I6            P5-I6B     [ ]
+API        read redacted.             P5-I6            P5-I6C     [ ]
+API        read original permission.  P5-I6            P5-I6C     [ ]
+Tests      document read audit.       P5-I6            P5-I6C     [ ]
+API        GET encounter list.        P5-I7            —          [ ]
+API        GET encounter detail.      P5-I7            —          [ ]
+API        list documents.            P5-I7            —          [ ]
+API        archive.                   P5-I7            —          [ ]
+Services   outbox base.               SHARED / LATER   —          [ ]
+Tests      cross-tenant FK.           SHARED / LATER   —          [ ]
+Tests      no text in logs.           SHARED / LATER   —          [ ]
+
+P5-I6 = 5    P5-I7 = 4    SHARED / LATER = 3    UNASSIGNED = 0
+
+                        kanonski (prije)   D-092 kandidat
+ukupno redova (S6)      49                 49
+oznaceno                37                 37
+neoznaceno              12                 12   (~75.5 %)
+
+CHECKBOX_TRANSITIONS  = 0
+```
+
+**Segmentacija `P5-I6` (`OD-P5-I6-2`):** `P5-I6A` (deterministički ruleset `phase5-basic-v1`, bez
+baze) → `P5-I6B` (kreiranje manuelnog tekstualnog dokumenta) → `P5-I6C` (čitanje detalja
+dokumenta). `P5-I6B` traži efektivan `P5-I6A`; `P5-I6C` traži efektivan `P5-I6B`. Listanje, arhiva,
+upload i filteri **nisu** `P5-I6`. **`P5-I7` se ovom anotacijom ne autorizuje i ne započinje.**
+
+```text
+D-092    LOCALLY AUTHORED / NOT INDEPENDENTLY REVIEWED / NOT OWNER-ACCEPTED /
+         NOT PUBLISHED / NOT CANONICAL / NOT EFFECTIVE
+D-091    PUBLISHED / MERGED (PR #76) / CANONICAL / POST-PUBLICATION VERIFIED / EFFECTIVE
+P5-I5    COMPLETE / VERIFIED / FORMALLY CLOSED / EFFECTIVE
+P5-I6    DEPENDENCY-SATISFIED / GOVERNANCE IN PROGRESS / NOT AUTHORIZED / NOT STARTED
+P5-I6A   NOT AUTHORIZED / NOT STARTED
+P5-I6B   NOT AUTHORIZED / NOT STARTED
+P5-I6C   NOT AUTHORIZED / NOT STARTED
+P5-I7    NOT AUTHORIZED / NOT STARTED
+```
+
+Ovo vlasništvo postaje kanonsko **tek nakon punog lifecyclea D-092**. Naredni gate nakon efektivnog
+D-092 je **`P5-I6A` zamrzavanje izvršnog ugovora** (broj odluke nije dodijeljen). Vidi D-092 u `06`.
+
 
 ## Schema
 

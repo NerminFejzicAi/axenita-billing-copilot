@@ -2421,6 +2421,51 @@ CHECKBOX TRANSITIONS (D-091 kandidat) = 0
 
 Vidi D-091 u `06`.
 
+## 12.14 `P5-I6` — razdvajanje budućeg dokaza po pod-gateovima (D-092, 2026-10-07)
+
+**Sekcije iznad, uključujući §12.5–§12.7, se NE prepisuju i ne slabe.** D-091 je efektivan (PR #76,
+`0e149023…`); `P5-I5` je **COMPLETE / VERIFIED / FORMALLY CLOSED / EFFECTIVE**, a formulacije D-091
+anotacije iznad opisuju **pred-D-092 stanje**.
+
+**D-092 sam ne stvara nijednu runtime testnu obavezu i ne izvršava nijedan implementacijski suite.**
+Ova sekcija samo razdvaja **buduće** dokazne granice po segmentaciji `OD-P5-I6-2`; konkretni testovi
+se utvrđuju u izvršnom ugovoru svakog pod-gatea.
+
+```text
+P5-I6A   redakciona matrica / dokaz determinističkog ruleseta (bez baze)
+         -> red: Services -> redaction
+P5-I6B   create / idempotencija / enkripcija / hash / tenant / audit /
+         dokaz tranzicije stanja
+         -> red: API -> POST text document
+P5-I6C   detalj / read-original / bez fallbacka / read-audit / dokaz permisija
+         -> redovi: API -> read redacted; API -> read original permission;
+                    Tests -> document read audit
+```
+
+- **Eksterna referenca (`OD-P5-I6-3`).** Pozitivan slučaj iz §12.5 „eksterna referenca pacijenta iz
+  tekućeg zahtjeva" se ne prepisuje, ali se aditivno kvalifikuje: klasa je u `phase5-basic-v1`
+  **`INERT WITHOUT INPUT SOURCE`**. **Nijedan test ne smije tvrditi** da je ta klasa redigovana dok
+  ne postoji stvarni, kanonski definisan ulazni izvor; dokaz `P5-I6A` mora tu inertnost dokazivati
+  iskreno, a ne simulirati pokrivenost.
+- **`FAILED` politika (`OD-P5-I6-4`)** — testovi `FAILED` okidača, maksimuma redigovanog izlaza i
+  `201` / rollback granice se pišu **tek nakon** zamrzavanja izvršnog ugovora `P5-I6A`.
+- **AAD / key-ref (`OD-P5-I6-5`)** — determinističke encrypt/decrypt test vektore za tačne AAD
+  literale i `encryption_key_ref` **mora** utvrditi izvršni ugovor `P5-I6B` **prije** njegove
+  implementacijske autorizacije.
+- **`OD-P5-I6-6` … `OD-P5-I6-10` su OPEN** — za njih se ovdje **ne izmišlja nijedan konkretan test**.
+- **Tri dijeljena / kasnija reda** (`outbox base`, `cross-tenant FK`, `no text in logs`) **nisu**
+  dokazna obaveza zatvaranja `P5-I6`.
+
+```text
+TEST_REQUIREMENT_MUTATION    = 0
+TESTS_WRITTEN_D092           = 0
+TESTS_RERUN_D092_AUTHORING   = 0
+P5-I6    DEPENDENCY-SATISFIED / GOVERNANCE IN PROGRESS / NOT AUTHORIZED / NOT STARTED
+CHECKBOX TRANSITIONS (D-092 kandidat) = 0
+```
+
+Vidi D-092 u `06`.
+
 ---
 
 

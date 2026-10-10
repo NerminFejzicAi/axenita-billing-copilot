@@ -3316,6 +3316,64 @@ redoslijedu zavisnosti **tek nakon efektivnog D-091** — tada `DEPENDENCY-SATIS
 SEPARATE AUTHORIZATION`, ali i dalje **`NOT AUTHORIZED / NOT STARTED`**. Naredni gate nakon efektivnog
 D-091 je zaseban **`P5-I6` read-only pre-autorizacija / governance preflight**. Vidi D-091 u `06`.
 
+### `P5-I6` GOVERNANCE, VLASNIŠTVO I SEGMENTACIJA — D-092 (2026-10-07)
+
+**Blokovi i anotacije iznad se NE prepisuju; tabela zavisnosti slice-ova u §7.5 se ne mijenja.**
+**D-091 je objavljen kroz PR #76 (`0e149023…`) i efektivan;** `P5-I5` je **COMPLETE / VERIFIED /
+FORMALLY CLOSED / EFFECTIVE** i nijedan roditeljski gate `P5-I5` ne preostaje. Formulacije D-091
+anotacije iznad (`D-091 … NOT CANONICAL / NOT EFFECTIVE`, `P5-I5 … FORMALLY CLOSING UNDER D-091 …`)
+opisuju **pred-D-092 stanje**.
+
+**D-092 je isključivo governance**: vlasništvo redova, segmentacija i presjecna pred-ugovorna pravila
+`P5-I6`. **Ne autorizuje implementaciju** nijednog pod-gatea i ne zamrzava nijedan izvršni ugovor.
+
+| Pod-gate | Obuhvat | Red(ovi) checklista | Zavisi od |
+|---|---|---|---|
+| **`P5-I6A`** | `phase5-basic-v1` deterministički redakcioni ruleset — čist engine **bez baze**; puna pozitivna/negativna matrica ruleseta; hashevi samo gdje su potrebni za deterministički dokaz; **bez API-ja, controllera i perzistencije** | `Services → redaction` | `P5-I3C` primitivi |
+| **`P5-I6B`** | kreiranje manuelnog tekstualnog dokumenta — validacija/normalizacija; source hash; enkripcija; deterministička redakcija; redacted hash; enkripcija redigovanog teksta; **jedan** transakcioni `INSERT`; idempotencija; create audit; uslovno `DRAFT → READY_FOR_ANALYSIS`; `ENCOUNTER_READY_FOR_ANALYSIS` audit; odbijanje nad `CANCELLED` | `API → POST text document` | **efektivan** `P5-I6A` |
+| **`P5-I6C`** | čitanje detalja dokumenta — `view=redacted`; `view=original`; podjela permisija; bez fallbacka; `DOCUMENT_VIEWED`; read-audit | `API → read redacted`; `API → read original permission`; `Tests → document read audit` | **efektivan** `P5-I6B` |
+
+```text
+sekvenca      P5-I6A -> P5-I6B -> P5-I6C
+iskljuceno    listanje dokumenata / arhiva / upload / filteri / svako P5-I7 ponasanje
+P5-I7         GET encounter list / GET encounter detail / list documents / archive
+              (vlasnistvo dodijeljeno; NOT AUTHORIZED / NOT STARTED)
+SHARED/LATER  outbox base / cross-tenant FK / no text in logs (nisu P5-I6)
+```
+
+**Pred-ugovorna pravila koja svaki budući izvršni ugovor mora poštovati:**
+
+- **`OD-P5-I6-3`** — klasa eksterne reference je za `phase5-basic-v1` **`INERT WITHOUT INPUT
+  SOURCE`**; nijedno polje se ne dodaje radi njene aktivacije; bez heurističkog / AI / semantičkog
+  izvođenja; ugovor `P5-I6A` **mora** nositi klauzulu iskrenosti.
+- **`OD-P5-I6-4`** — smjer `FAILED` politike je **`CLOSED / EXPLICIT FAILURE SET`**; ugovor `P5-I6A`
+  **mora** definisati konačne `FAILED` uslove, perzistenciju i `201` takvog reda, maksimum
+  redigovanog izlaza, ekspanziju zamjenskog tokena i granicu očekivani `FAILED` naspram
+  interne greške / rollbacka. D-092 te vrijednosti **ne bira**.
+- **`OD-P5-I6-5`** — prije autorizacije `P5-I6B` njegov ugovor **mora** zamrznuti oba AAD literala
+  kolona, vrijednost/format `encryption_key_ref` i determinističke encrypt/decrypt test vektore, i
+  proglasiti kasniju promjenu literala nekompatibilnom. D-092 te vrijednosti **ne bira**.
+- **`OD-P5-I6-6` … `OD-P5-I6-10`** — **OPEN**; zamrzavaju se prije odgovarajuće implementacijske
+  autorizacije.
+
+```text
+D-092    LOCALLY AUTHORED / NOT CANONICAL / NOT EFFECTIVE
+D-091    PUBLISHED / MERGED (PR #76) / CANONICAL / POST-PUBLICATION VERIFIED / EFFECTIVE
+P5-I5    COMPLETE / VERIFIED / FORMALLY CLOSED / EFFECTIVE
+P5-I6    DEPENDENCY-SATISFIED / GOVERNANCE IN PROGRESS / NOT AUTHORIZED / NOT STARTED
+P5-I6A   NOT AUTHORIZED / NOT STARTED
+P5-I6B   NOT AUTHORIZED / NOT STARTED
+P5-I6C   NOT AUTHORIZED / NOT STARTED
+P5-I7    NOT AUTHORIZED / NOT STARTED
+
+CANONICAL CHECKLIST              = 49 / 37
+D-092 LOCAL CANDIDATE CHECKLIST  = 49 / 37
+CHECKBOX_TRANSITIONS             = 0
+```
+
+Naredni gate nakon efektivnog D-092 je **`P5-I6A` zamrzavanje izvršnog ugovora**; broj odluke za taj
+gate **nije dodijeljen**. Vidi D-092 u `06`.
+
 
 ### Segmentacija `P5-I2` na četiri pod-gatea (D-064)
 
