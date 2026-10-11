@@ -82,7 +82,7 @@ const LINE_ENDINGS = /\r\n?/g;
 const OUTER_WHITE_SPACE = /^\p{White_Space}+|\p{White_Space}+$/gu;
 
 /** Whether `value` contains `U+0000` (step 3). */
-function containsNul(value: string): boolean {
+export function containsNul(value: string): boolean {
   for (let index = 0; index < value.length; index += 1) {
     if (value.charCodeAt(index) === 0x00) {
       return true;
@@ -106,7 +106,7 @@ function containsNul(value: string): boolean {
  * Unicode general category `Cc`, and widening it would reject documents this pipeline accepts
  * today.
  */
-function containsRejectedControl(value: string): boolean {
+export function containsRejectedControl(value: string): boolean {
   for (let index = 0; index < value.length; index += 1) {
     const unit = value.charCodeAt(index);
 
