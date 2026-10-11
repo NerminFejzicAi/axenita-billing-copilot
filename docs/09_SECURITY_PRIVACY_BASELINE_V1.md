@@ -623,6 +623,56 @@ D_OPEN_009    UNCHANGED / UNADJUDICATED
 
 Vidi D-092 u `06`.
 
+## 8.6 Sigurnosne posljedice izvršnog ugovora `P5-I6A` (D-093, 2026-10-11)
+
+**Nijedna tvrdnja iz §7, §8, §8.1–§8.5, §10, §11 ni §12 se ne slabi i ne prepisuje.** D-092 je
+efektivan (PR #77, `ad739da6…`); formulacija §8.5 stavke 9 („tačan skup ostaje za izvršni ugovor
+`P5-I6A`") opisuje **pred-D-093 stanje**. Ova sekcija aditivno bilježi sigurnosne / privatnosne
+posljedice zamrznutog ugovora. Postaje kanonska tek nakon punog lifecyclea D-093. **D-093 ne
+autorizuje implementaciju `P5-I6A`.**
+
+**Iskrenost i obuhvat.**
+
+1. **Aktivne klase v1 su tačno** `EMAIL`, `URL`, `AHV`, `IBAN`, `PHONE`, sa fiksnim tokenima
+   `[REDACTED:EMAIL]`, `[REDACTED:URL]`, `[REDACTED:AHV]`, `[REDACTED:IBAN]`, `[REDACTED:PHONE]`.
+   Tokeni su **fiksni, stabilni, neindeksirani i nederivativni**.
+2. Klasa eksterne / tekuće-intake reference je **`INERT WITHOUT INPUT SOURCE`**: nema parametra,
+   tokena ni sintetičke detekcije; **`COMPLETED` je ne predstavlja kao redigovanu** (§8.5 stavka 2
+   ostaje na snazi). Osiguranje / kartica / `VeKa` **nije v1 klasa**; imena, adrese i klinički
+   sadržaj su **isključeni**.
+3. Prethodno postojeći tekst oblika `[REDACTED:…]` **nije dokaz** izvršene redakcije.
+4. Prepoznavanje je **konzervativno**: dvosmislen ili malformisan kandidat ostaje neredigovan, bez
+   djelimične redakcije i bez fallbacka na validan prefiks (`G-1`). Lažno negativni rezultati su
+   prihvaćeni; redakcija i dalje **nije potpuna granica uklanjanja PHI-a** (§8.3, §8.5 stavka 3).
+
+**Bez curenja teksta.**
+
+5. Rezultat ruleseta **ne sadrži** originalni tekst, hasheve, match metadata ni listu pogođenih
+   klasa i **nije audit payload** (`OD-P5-I6-9` ostaje OPEN).
+6. Očekivani `FAILED` (`REDACTED_OUTPUT_TOO_LARGE`) i neočekivana greška kršenja preduslova su
+   **statični**: ne sadrže ulazni tekst, podniz, odbijenu vrijednost ni dužinu.
+7. **Redigovani izlaz se nikada ne skraćuje**; prekoračenje granice od 262144 UTF-8 bajta je
+   eksplicitan `FAILED` bez ikakvog teksta. Zabrana fallbacka `view=redacted` (§8.3) ostaje
+   nepromijenjena; nizvodno, `FAILED` daje `READY`/`FAILED` bez `redactedTextHash`, a neočekivana
+   greška rollback bez reda (HTTP mapiranje: `OD-P5-I6-6` OPEN).
+
+**Determinizam i otpornost.**
+
+8. Gramatike koriste **eksplicitne ASCII klase i eksplicitnu `BLK`/`NEUTRAL` listu**, bez Unicode
+   property tabela, `\w`, `\d`, `\b` i zastavice `i` — ponašanje se ne mijenja nadogradnjom runtimea
+   i nema tihog proširenja prepoznavanja preko case-foldinga ili lookalike znakova.
+9. Nijedan algoritam ne smije biti super-linearan (posebno trimovanje URL repa), kako dugi ili
+   adversarial ulaz ne bi postao vektor iscrpljivanja resursa.
+
+```text
+SECURITY_REQUIREMENT_UNAUTHORIZED_MUTATION = 0
+D_OPEN_004A   UNCHANGED / UNADJUDICATED
+D_OPEN_007    OPEN / DEFERRED
+D_OPEN_009    UNCHANGED / UNADJUDICATED
+```
+
+Vidi D-093 u `06`.
+
 ---
 
 # 9. Secrets

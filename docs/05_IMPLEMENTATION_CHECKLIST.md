@@ -5220,6 +5220,48 @@ P5-I7    NOT AUTHORIZED / NOT STARTED
 Ovo vlasništvo postaje kanonsko **tek nakon punog lifecyclea D-092**. Naredni gate nakon efektivnog
 D-092 je **`P5-I6A` zamrzavanje izvršnog ugovora** (broj odluke nije dodijeljen). Vidi D-092 u `06`.
 
+## P5-I6A EXECUTABLE-CONTRACT FREEZE ANNOTATION — D-093 (2026-10-11)
+
+**Nijedan pasus, blok ni anotacija iznad se ne prepisuje.** Ova anotacija je **isključivo governance
+metapodatak**: ne dodaje, ne briše, ne duplira i ne mijenja nijedan red ni kućicu. **§0 Project
+metadata se ne mijenja** (`NB-2`, LEAVE AS-IS).
+
+- **D-092 je objavljen kroz PR #77 (`ad739da6…`, publication drift `ZERO`) i efektivan.**
+  Formulacije D-092 anotacije iznad (`D-092 … NOT CANONICAL / NOT EFFECTIVE`, „broj odluke nije
+  dodijeljen") opisuju **pred-D-093 stanje** i **ne prepisuju se**.
+- **D-093 zamrzava izvršni ugovor `P5-I6A`** (redakcioni ruleset `phase5-basic-v1`) i **ne
+  autorizuje implementaciju**.
+- **Zamrznut ugovor NIJE zatvaranje kućice.** Red `Services → redaction` ostaje **neoznačen** i
+  zatvara se isključivo formalnim zatvaranjem `P5-I6A` nakon zasebno autorizovane implementacije.
+
+```text
+sekcija    red          vlasnik   pod-gate   stanje
+Services   redaction.   P5-I6     P5-I6A     [ ]   (ugovor zamrznut kandidatom D-093; kucica nepromijenjena)
+
+                        kanonski (prije)   D-093 kandidat
+ukupno redova (S6)      49                 49
+oznaceno                37                 37
+neoznaceno              12                 12   (~75.5 %)
+
+CHECKBOX_TRANSITIONS  = 0
+```
+
+```text
+D-093    LOCALLY AUTHORED / NOT INDEPENDENTLY REVIEWED / NOT OWNER-ACCEPTED /
+         NOT PUBLISHED / NOT CANONICAL / NOT EFFECTIVE
+D-092    PUBLISHED / MERGED (PR #77) / CANONICAL / POST-PUBLICATION VERIFIED / EFFECTIVE
+P5-I6    DEPENDENCY-SATISFIED / D-092 GOVERNANCE EFFECTIVE / IMPLEMENTATION NOT AUTHORIZED /
+         NOT STARTED
+P5-I6A   CONTRACT CANDIDATE AUTHORED / IMPLEMENTATION NOT AUTHORIZED / NOT STARTED
+P5-I6B   NOT AUTHORIZED / NOT STARTED
+P5-I6C   NOT AUTHORIZED / NOT STARTED
+P5-I7    NOT AUTHORIZED / NOT STARTED
+```
+
+Nakon efektivnog D-093 stanje je **`P5-I6A = CONTRACT FROZEN / IMPLEMENTATION NOT YET
+AUTHORIZED`**; naredni gate nakon autorstva je **svjež nezavisan D-093 governance pregled**. Vidi
+D-093 u `06`.
+
 
 ## Schema
 

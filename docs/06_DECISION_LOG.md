@@ -22354,6 +22354,1029 @@ CHECKBOX_TRANSITIONS                     = 0
 
 ---
 
+# D-093 — P5-I6A executable-contract freeze: deterministički redakcioni ruleset `phase5-basic-v1`
+
+- **Status:** vlasničke odluke `OD-P5-I6A-1` … `OD-P5-I6A-5` i rezidualne semantike `G-1` … `G-3`
+  OWNER-RATIFIED — **LOCALLY AUTHORED / NOT INDEPENDENTLY REVIEWED / NOT OWNER-ACCEPTED / NOT
+  PUBLISHED / NOT CANONICAL / NOT EFFECTIVE**
+- **Datum:** 2026-10-11
+- **Tip:** vlasnički ratifikovan **zapis zamrzavanja izvršnog ugovora `P5-I6A`** — čist,
+  deterministički redakcioni ruleset `phase5-basic-v1`. **Dokumentacija isključivo.**
+- **Amandman na:** **isključivo tekuće statusne metapodatke** D-092 / `P5-I6` / `P5-I6A`, aditivno.
+  **Nijedan zapis D-001 … D-092 se ne prepisuje, ne prenumeriše i ne briše — svi ostaju
+  bajt-identični.**
+- **D-093 NE autorizuje implementaciju** `P5-I6A`, `P5-I6B`, `P5-I6C` ni `P5-I7`. D-093 zamrzava
+  **isključivo izvršni ugovor** `P5-I6A`. Ne uvodi nijednu liniju izvornog koda, nijedan test,
+  nijednu migraciju, schemu, Prisma model, API rutu, DTO, grant, rolu, politiku, permisiju ni
+  `packages/contracts`. **Nijedna baza nije kontaktirana** i **nijedan test se ovom odlukom ne piše
+  ni ne izvršava.**
+- **Ova odluka mijenja NULA kućica** (`CHECKBOX_TRANSITIONS = 0`). Checklist Faze 5 ostaje
+  **`37 / 49`** i u kanonskom stanju i u ovom lokalnom kandidatu; `Services → redaction` ostaje
+  neoznačen.
+- **Ova odluka troši ISKLJUČIVO `D-093`.** `D-094` se **ne dodjeljuje, ne rezerviše i ne izvodi**.
+- **Lokalni authoring commit ove odluke NIJE kanonski ni efektivan.** Pravila D-093 postaju
+  efektivna tek nakon vlastitog lifecyclea D-093 (vidi `RULING O`).
+
+## Kontekst/problem — trigger
+
+D-092 je objavljen kroz **PR #77** i merged na `origin/main` kao
+**`ad739da6ac447acb4195d88b37b1c89dd63e53fb`**, i time je postao efektivan. Po D-092 `RULING M`
+naredni obavezni gate je **`P5-I6A` zamrzavanje izvršnog ugovora**, a D-092 `RULING E` i `RULING F`
+izričito delegiraju tom ugovoru klauzulu iskrenosti eksterne reference, konačan `FAILED` skup,
+maksimum redigovanog izlaza, ekspanziju tokena i granicu očekivani `FAILED` naspram interne greške.
+
+Tri read-only gatea su pripremila ovaj zapis: izvršni preflight (paket vlasničkih odluka
+`OD-P5-I6A-1` … `5`), konkretizacija gramatike `OD-P5-I6A-4` i priprema governance authoringa (koja
+je završila `P5_I6A_GOVERNANCE_AUTHORING_PREP_HOLD` zbog tri rezidualne semantike `G-1` … `G-3`).
+Vlasnik je ratifikovao `OD-P5-I6A-1` … `5` (uključujući vlasničku korekciju lijeve granice EMAIL
+klase u `OD-P5-I6A-4`), ratifikovao `G-1`, `G-2` i `G-3`, i izričito dodijelio `D-093` isključivo
+zamrzavanju izvršnog ugovora `P5-I6A`.
+
+```text
+P5_I6A_INTERNAL_OPEN_SEMANTIC_COUNT = 0
+```
+
+## Kanonsko stanje ulaza ovog gatea
+
+```text
+repozitorij                  D:\AI\Arztpraxis
+kanonski main                ad739da6ac447acb4195d88b37b1c89dd63e53fb
+HEAD tree                    0d9a84f899f0b4007aa31027d53b4d379b8e75be
+zivi remote refs/heads/main  ad739da6ac447acb4195d88b37b1c89dd63e53fb
+authoring grana              docs/p5-i6a-d093-contract-freeze (direktno sa kanonskog main-a)
+worktree                     CLEAN
+stash                        EMPTY
+
+MANIFEST                     19 / 19 MATCH
+checklist Faze 5             49 ukupno / 37 oznaceno / 12 neoznaceno   (~75.5 %)
+najnovija kanonska odluka    D-092
+D-092                        PUBLISHED / MERGED (PR #77, ad739da6ac447acb4195d88b37b1c89dd63e53fb) /
+                             CANONICAL / POST-PUBLICATION VERIFIED / EFFECTIVE
+D-093 prije ovog zapisa      AVAILABLE / NOT RESERVED / NOT ASSIGNED -> dodijeljen od vlasnika
+                             iskljucivo P5-I6A executable-contract governanceu
+D-094                        UNASSIGNED / UNRESERVED
+
+P5-I6                        DEPENDENCY-SATISFIED / D-092 GOVERNANCE EFFECTIVE /
+                             IMPLEMENTATION NOT AUTHORIZED / NOT STARTED
+P5-I6A                       EXECUTABLE-CONTRACT DECISIONS OWNER-RATIFIED / CONTRACT NOT AUTHORED /
+                             IMPLEMENTATION NOT AUTHORIZED / NOT STARTED
+P5-I6B / P5-I6C / P5-I7      NOT AUTHORIZED / NOT STARTED
+```
+
+## Vlasničke odluke — atribucija
+
+```text
+OD-P5-I6A-1  cista funkcija: ulaz, granica, oblik rezultata              (RULING C)
+OD-P5-I6A-2  konacan FAILED skup, granica izlaza, nizvodno vezivanje      (RULING D)
+OD-P5-I6A-3  katalog klasa i mehanika tokena                             (RULING E)
+OD-P5-I6A-4  tacna gramatika i deterministicka precedencija,
+             uz vlasnicku korekciju lijeve granice EMAIL klase           (RULING F, G, H, I)
+OD-P5-I6A-5  dokazna matrica i particija zatvaranja                      (RULING J)
+
+G-1          NO VALID PREFIX FALLBACK AFTER MALFORMED EXPLICIT
+             URL COMPONENT                                               (RULING F.2)
+G-2          DNS_HOST_MAX_LENGTH = 253 ASCII characters                  (RULING F.2)
+G-3          obavezna assertion-only re-asercija kanonskih P5-I3C
+             postuslova; izricit skup predikata                          (RULING C)
+
+OD-P5-I6-6 … OD-P5-I6-10   OPEN — ne adjudiciraju se                     (RULING K)
+
+OWNER_DECISION_ATTRIBUTION_DRIFT_COUNT = 0
+P5_I6A_INTERNAL_OPEN_SEMANTIC_COUNT    = 0
+HISTORICAL_REWRITE_ALLOWED             = NO                              (RULING A, RULING L)
+```
+
+Identifikatori `OD-P5-I6A-1` … `OD-P5-I6A-5` i `G-1` … `G-3` se **ne prenumerišu i ne
+prenamjenjuju**.
+
+## Odluka
+
+### `RULING A` — pomirenje efektivnosti D-092
+
+D-092 je objavljen kroz **PR #77** i merged na `origin/main` kao:
+
+```text
+kandidat         8f8b0029eb5f31c8db1f1062d20a968b13bdca9b   docs: correct D-092 external-reference qualification
+merge commit     ad739da6ac447acb4195d88b37b1c89dd63e53fb   (2026-10-10T21:44:34Z)
+roditelji        0e14902343ece08ad9c781d7512e9452d25aba78 / 8f8b0029eb5f31c8db1f1062d20a968b13bdca9b
+tree kandidata   0d9a84f899f0b4007aa31027d53b4d379b8e75be
+tree merge-a     0d9a84f899f0b4007aa31027d53b4d379b8e75be   (identican)
+PUBLICATION_DRIFT  ZERO
+
+D-092            PUBLISHED / MERGED / CANONICAL / POST-PUBLICATION VERIFIED / EFFECTIVE
+P5-I6            DEPENDENCY-SATISFIED / D-092 GOVERNANCE EFFECTIVE /
+                 IMPLEMENTATION NOT AUTHORIZED / NOT STARTED
+```
+
+To je **kasnija izjava pomirenja**, ne izmjena D-092. Tijelo D-092 i njegove anotacije iz trenutka
+autorstva — `06` (status, „Historijsko očuvanje", „Lifecycle odluke"), `03` (statusna anotacija §4 i
+§13.4), `04` §7.5a, `05` (anotacija vlasništva i segmentacije), `08` §12.14 i `09` §8.5, sa
+formulacijama `LOCALLY AUTHORED / … / NOT CANONICAL / NOT EFFECTIVE` i `D-093 UNASSIGNED /
+UNRESERVED` — **historijski su tačne** za svoj izvorni trenutak i **ne prepisuju se**. **Vlasnička
+dodjela `D-093` u ovom gateu nadjačava raniju izjavu D-092 (`RULING M`) o nedodijeljenom `D-093`
+isključivo prospektivno.**
+
+### `RULING B` — obuhvat, autoritet i identitet ruleseta
+
+`P5-I6A` je **čist, deterministički redakcioni engine** `phase5-basic-v1`:
+
+- **bez baze, API-ja, controllera, perzistencije, enkripcije, hasheva, idempotencije, audita i
+  mutacije encountera**;
+- posjeduje **tačno jedan** red checklista: `Services → redaction` (D-092 `RULING B`);
+- zavisi isključivo od kanonskih `P5-I3C` primitiva (D-071).
+
+```text
+RULESET_VERSION = phase5-basic-v1
+```
+
+- Literal verzije je fiksan. **Svako pravilo ovog zapisa je dio nepromjenjivog ponašanja
+  `phase5-basic-v1`** (D-060, klauzula 28). Svaka promjena ponašanja — klase, tokena, gramatike,
+  granice, precedencije, granice izlaza — traži **novu verziju ruleseta** uz vlasničko odobrenje.
+- **D-060, D-070 (`RULING 4`, `RULING 5`) i D-092 (`RULING E`, `RULING F`) se ne mijenjaju.** D-093 je
+  izvršni ugovor koji ih konkretizuje u granicama koje oni već postavljaju.
+- **D-070 `RULING 5` ostaje nepromijenjen**; `RULING F.5` dodaje **isključivo rezidualna
+  pojašnjenja**, ne amandman.
+
+### `RULING C` — ulaz i rezultat (`OD-P5-I6A-1`, `G-3`)
+
+**C.1 Ulaz.** Semantički ulaz ruleseta je **isključivo jedan string**: već **uspješan izlaz**
+kanonske `P5-I3C` normalizacije kliničkog teksta (`normaliseClinicalText`, D-071). Ruleset nema
+parametar eksterne reference ni bilo kakav parametar koji bi aktivirao klasu (`RULING E`).
+
+**C.2 Bez transformacije ulaza.** `P5-I6A` **ne re-normalizuje, ne popravlja i ne transformiše**
+ulaz.
+
+**C.3 Obavezna re-asercija postuslova (`G-3`).** **Prije matching enginea** `P5-I6A` **MORA**
+assertion-only provjeriti **svih osam** kanonskih `P5-I3C` postuslova:
+
+```text
+1  well-formed Unicode           nema usamljenog surogata (isti predikat kao P5-I3C korak 1)
+2  nema CR                       nema U+000D
+3  nema NUL                      nema U+0000
+4  nema odbijenog C0/C1          nema U+0001-U+0008, U+000B, U+000C, U+000E-U+001F, U+0080-U+009F
+                                 (ratifikovan P5-I3C skup; U+0009 i U+000A su dozvoljeni;
+                                  U+007F nije u skupu)
+5  NFC                           vrijednost je jednaka svom NFC obliku
+6  nema vanjskog White_Space     prvi i posljednji code point nisu Unicode White_Space u
+                                 kanonskom P5-I3C smislu (OD-P5-I3C-1, korak 7)
+7  neprazno                      duzina > 0
+8  velicina                      UTF-8 duzina <= 262144 bajta
+```
+
+- Re-asercija **samo provjerava**; nikada ne mijenja vrijednost.
+- **Zabranjeno je** koristiti `normaliseClinicalText(input) === input` kao mehanizam asercije:
+  normalizator uklanja **samo jedan** vodeći `U+FEFF`, pa validan normalizovan izlaz smije počinjati
+  sa `U+FEFF` i bio bi pogrešno odbijen drugim prolazom.
+- Predikat 6 koristi kanonsku `P5-I3C` definiciju `White_Space` i **nije matching pravilo**;
+  zabrana `\p{…}` iz `RULING I` važi za matching gramatike, ne za re-aserciju `P5-I3C` postuslova.
+- **Kršenje bilo kojeg predikata je `UNEXPECTED INTERNAL FAILURE — PRECONDITION BREACH`**: nije
+  očekivani `FAILED`, **nije dio union rezultata**, i greška je **statična** — ne sadrži ulazni
+  tekst, podniz, dužinu ni odbijenu vrijednost. Konkretna klasa izuzetka nije eksterno vidljiv
+  ugovor; njeno HTTP mapiranje ostaje **`OD-P5-I6-6` OPEN**.
+
+**C.4 Rezultat.** Diskriminisana unija sa tačno dva oblika:
+
+```text
+COMPLETED   { status: 'COMPLETED', rulesetVersion: 'phase5-basic-v1', redactedText }
+FAILED      { status: 'FAILED',    rulesetVersion: 'phase5-basic-v1', failureCode  }
+```
+
+Rezultat **NE sadrži**: originalni tekst; source hash; redacted hash; match metadata (spanove,
+pozicije, brojače); listu pogođenih klasa; audit payload. Ovaj zapis **ne zahtijeva i ne zabranjuje**
+nijedno polje audita — **`OD-P5-I6-9` ostaje OPEN** — ali rezultat `P5-I6A` **nije dizajniran kao
+audit payload**; svaka buduća potreba za match metadata traži novu verziju ugovora.
+
+**C.5 Nula pogodaka.** Nula pogodaka daje **`COMPLETED`** sa `redactedText` **identičnim**
+normalizovanom ulazu.
+
+**C.6 Invarijante izlaza.** `COMPLETED.redactedText` zadovoljava predikate 1–7 iz C.3, a predikat 8
+garantuje `RULING D`. Tokeni su ASCII, počinju sa `[` i završavaju sa `]`, a `BLK` (`RULING G`)
+zabranjuje kombinujući znak neposredno iza pogotka — izlaz zato ostaje NFC, bez vanjskog
+`White_Space` i bez kontrolnih znakova. **`P5-I6B` hashira `redactedText` direktno, bez
+re-normalizacije** (čime je za `P5-I6A` izlaz razriješena formulacija D-060, klauzule 21 „istim
+postupkom").
+
+**C.7 Hashevi.** `source_text_hash` i `redacted_text_hash` su **odgovornost `P5-I6B`** (D-092
+`RULING D`; D-070 `RULING 1`). `P5-I6A` ne računa nijedan hash; „hashevi samo gdje su potrebni za
+deterministički dokaz" (D-092 `RULING D`) znači isključivo dokaznu, test-side upotrebu.
+
+**C.8 Determinizam.** Ruleset je čista funkcija: bez I/O-a, sata, slučajnosti i globalnog
+promjenjivog stanja. **Isti ulaz + ista verzija = isti skup pogodaka + identičan rezultat.**
+
+### `RULING D` — konačan `FAILED` skup, granica izlaza i nizvodno vezivanje (`OD-P5-I6A-2`)
+
+**D.1 Konačan skup.**
+
+```text
+REDACTION_FAILED_SET = { REDACTED_OUTPUT_TOO_LARGE }
+```
+
+**D.2 Granica.** Konačno sastavljeni redigovani izlaz mora imati **≤ 262144 UTF-8 bajta** (ista
+granica kao `CLINICAL_TEXT_MAX_UTF8_BYTES`). Mjeri se **na konačnom sastavljenom izlazu**, nakon
+svih zamjena. Prekoračenje daje `FAILED` sa `failureCode = REDACTED_OUTPUT_TOO_LARGE`, **bez
+`redactedText`** i bez ikakvog djelimičnog teksta.
+
+**D.3 Bez skraćivanja.** Redigovani izlaz se **nikada ne skraćuje**; tokeni se **nikada ne
+skraćuju** i ne zamjenjuju kompaktnijim oblikom; djelimična redakcija ne postoji.
+
+**D.4 Deterministička ekspanzija.** Ekspanzija po pogotku je tačno `|token| − |span|` UTF-8 bajtova.
+Tokeni su ASCII: `EMAIL` 16, `URL` 14, `AHV` 14, `IBAN` 15, `PHONE` 16 bajtova. Najkraći pogoci
+(informativno): `a@b.cd` (6) → +10; `www.a.bc` (8) → +6; kompaktni AHV (13) → +1; kompaktni IBAN
+(21) → −6 (IBAN nikada ne ekspandira); nacionalni kompaktni telefon (10) → +6. Granica je dosežna.
+
+**D.5 Sve ostalo je neočekivano.** Svaki drugi neuspjeh — kršenje preduslova (`RULING C.3`),
+narušena invarijanta izlaza, defekt enginea — je **`UNEXPECTED INTERNAL FAILURE`**, nikada `FAILED`.
+
+**D.6 Nizvodno vezivanje — restatement postojećeg kanona, ne nova odluka.**
+
+```text
+ocekivani P5-I6A FAILED  -> kanonski P5-I6B READY / FAILED -> 201 -> redactionStatus = FAILED,
+                            bez redactedTextHash, redigovani artefakti null
+                            (D-062 G.1 / G.3; 03 §13.1)
+neocekivana greska       -> neuspjeh transakcije / rollback / bez reda
+```
+
+- HTTP mapiranje neočekivane putanje ostaje **`OD-P5-I6-6` OPEN**.
+- Sadržaj create audita ostaje **`OD-P5-I6-9` OPEN**.
+- Zabrana fallbacka `view=redacted` (`03` §13.3; `09` §8.3) ostaje nepromijenjena.
+- Neprazan `FAILED` skup čuva dosežnost `READY`/`FAILED` iz D-062 G.1.
+
+### `RULING E` — katalog klasa i tokeni (`OD-P5-I6A-3`)
+
+```text
+klasa    token
+EMAIL    [REDACTED:EMAIL]
+URL      [REDACTED:URL]
+AHV      [REDACTED:AHV]
+IBAN     [REDACTED:IBAN]
+PHONE    [REDACTED:PHONE]
+
+ACTIVE_CLASS_COUNT = 5
+```
+
+**Klauzula iskrenosti — eksterna / tekuće-intake referenca pacijenta (D-092 `RULING E`).**
+
+```text
+EXTERNAL_REFERENCE_CLASS_V1 = INERT WITHOUT INPUT SOURCE
+```
+
+- **nema parametra**, **nema tokena**, **nema sintetičke detekcije**;
+- bez heurističkog, AI ni semantičkog izvođenja;
+- **`COMPLETED` ne predstavlja tu klasu kao redigovanu**; nijedan izlaz, status, test ni dokument ne
+  smije tvrditi tu pokrivenost;
+- tekst nalik referenci ostaje **nepromijenjen**, osim ako **nezavisno** odgovara jednoj od pet
+  aktivnih gramatika — tada je token te klase, a ne eksterne reference.
+
+**Ostale klase.** Osiguranje / kartica / `VeKa`: **`NOT A V1 CLASS`** (D-070 `RULING 4`). Imena,
+adrese i klinički sadržaj: **`EXCLUDED`** (D-060, klauzula 26).
+
+**Svojstva tokena.** Tokeni su **fiksni, stabilni, neindeksirani i nederivativni** (bez hasha,
+prefiksa, sufiksa, skraćenog originala ili bilo kojeg derivata); dužina originala se **ne čuva**.
+Sav tekst izvan zamijenjenog spana — uključujući whitespace i interpunkciju — ostaje bajt-identičan.
+
+**Prethodno postojeći tekst tokena.** Tekst oblika `[REDACTED:…]` u ulazu **nije dokaz** da je
+redakcija izvršena. **Ne uvodi se mehanizam neprozirnih spanova**: takav tekst se skenira kao
+svaki drugi tekst. Pet kanonskih tokena ne sadrži nijedan kandidat po konstrukciji (bez `@`, sheme,
+cifara i telefonske oznake); npr. `[REDACTED:john@x.ch]` → `[REDACTED:[REDACTED:EMAIL]]`.
+
+### `RULING F` — gramatike klasa (`OD-P5-I6A-4`, `G-1`, `G-2`)
+
+**F.0 Notacija.** Izvori regexa su normativni u **ECMAScript semantici na pinovanom runtimeu**
+(`RULING I`), sa zastavicama `gu`, uključujući **redoslijed alternacija kako je zapisan**
+(leftmost-first). Makroi se tekstualno uvrštavaju:
+
+```text
+LBL     [A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?
+DNS     (?:LBL\.)+[A-Za-z]{2,63}
+J       [.,'/-]
+NA      tijelo klase: svi rasponi iz RULING G.3 (ne-ASCII BLK), zapisani kao
+        ECMAScript code-point escape-ovi pod u zastavicom
+BLK     tijelo klase: A-Za-z0-9_ + NA
+[BLK…]  klasa BLK prosirena navedenim znakovima
+```
+
+Brojevi grupa hvatanja u izvorima ispod **nisu normativni**; normativni su prihvaćeni jezik,
+post-validacija i spanovi.
+
+#### F.1 EMAIL
+
+- **ASCII isključivo.** Lokalni dio: atomi `[A-Za-z0-9_%+-]` razdvojeni tačkom; bez vodeće, prateće
+  i uzastopne tačke; **≤ 64** znaka. Domen: `DNS` (labela 1–63, bez crtice na krajevima; TLD
+  `[A-Za-z]{2,63}`); **≤ 253** znaka.
+- **Odbija se:** domen sa jednom labelom (`localhost`), numerički ili jednoznakovni TLD, lokalni dio
+  pod navodnicima, IP-literal domen, IDN/Unicode na bilo kojoj strani.
+- **Lijeva granica (vlasnička korekcija):** prethodni code point **ne smije** biti u
+  `` BLK ∪ { ! # $ % & ' * + - / = ? ^ _ ` { | } ~ . @ } `` — tj. BLK plus svi isključeni ASCII RFC
+  `atext` znakovi, plus `.` i `@`. **Djelimična redakcija nepodržanog lokalnog dijela ne postoji.**
+- **Desna granica:** naredni code point nije u `BLK ∪ { - @ }`, i nije `.` praćena BLK znakom.
+  Završna `.` ili `,` ostaje izvan pogotka po gramatici; korak trimovanja nije potreban.
+
+```text
+EMAIL  (?<![BLK!#$%&'*+\-/=?^`{|}~.@])[A-Za-z0-9_%+-]+(?:\.[A-Za-z0-9_%+-]+)*@(DNS)(?![BLK\-@])(?!\.[BLK])
+```
+
+- **Post-validacija (obavezna; regex nije dovoljan):** lokalni dio ≤ 64 i domen ≤ 253; neuspjeh
+  odbacuje **cijeli** kandidat.
+- **Span** = cijeli pogodak = zamijenjeni span.
+- **Obavezno nepromijenjeno:** `foo!bar@x.ch`, `foo&bar@x.ch`, `foo=bar@x.ch`. Ranija predložena
+  varijanta `foo!bar@x.ch` → `foo![REDACTED:EMAIL]` je **odbijena** i ne smije se implementirati.
+- **Prihvaćene konzervativne posljedice:** `'a@b.ch'`, `*a@b.ch*`, `` `a@b.ch` ``, `x=a@b.ch` i
+  `/a@b.ch` ostaju nepromijenjeni; `a@b.ch` između `U+2019` znakova se redigira (`U+2019` je
+  NEUTRAL).
+
+#### F.2 URL
+
+- **Prepoznaju se isključivo** `http://`, `https://` i `www.`; slova sheme i `www` su ASCII
+  case-insensitive kroz eksplicitne klase.
+- **Oblik sa shemom:** opcioni userinfo `[A-Za-z0-9\-._~%!$&'()*+,;=:]+@`; host je jedno od: ASCII
+  `DNS` ime (najmanje jedna tačka); IPv4 `[0-9]{1,3}(\.[0-9]{1,3}){3}`; `localhost` (ASCII
+  case-insensitive). **`localhost` isključivo u obliku sa shemom.**
+- **`www.` oblik:** `www.` + `DNS`; bez userinfo, IP-a i `localhost`-a.
+- **Zajedničko:** opcioni port `:[0-9]{1,5}`; opcioni rep koji počinje sa `/`, `?` ili `#`, a
+  nastavlja se ASCII RFC 3986 skupom `[A-Za-z0-9\-._~:/?#\[\]@!$&'()*+,;=%]` **ili bilo kojim
+  ne-ASCII code pointom koji nije NEUTRAL** (`NA`). Razmak, prelom reda, `"<>{}|\^`, backtick i
+  NEUTRAL znakovi završavaju URL.
+- **Odbija se:** IPv6; IDN host; host sa jednom labelom uz shemu (`https://intranet/x`); svaki
+  malformisan oblik sheme (`http:/`, `http//`, `htps`, `hxxp`, `https:// x`); `wwww.`; `U+017F`
+  lookalike.
+- **Lijeva granica:** oblik sa shemom — prethodni code point nije BLK; `www.` oblik — nije u
+  `BLK ∪ { . @ / : - }`.
+
+**`G-1` — obavezujuće (maksimalni omotač + puna potrošnja + bez fallbacka na validan prefiks):**
+
+```text
+NO VALID PREFIX FALLBACK AFTER MALFORMED EXPLICIT URL COMPONENT
+
+MAXIMAL_ENVELOPE           = YES
+FULL_CONSUMPTION_REQUIRED  = YES
+NO_VALID_PREFIX_FALLBACK   = YES
+```
+
+URL klasa se **ne definiše** konačnim desnim lookaheadom iza autoriteta. Normativna semantika je
+**maksimalni URL omotač + puna potrošnja + bez fallbacka na validan prefiks**:
+
+```text
+URL_ENV_CHAR   [A-Za-z0-9\-._~:\/?#\[\]@!$&'()*+,;=%NA]      (= ratifikovan skup znakova repa)
+URL_HARD_TERM  svaki code point koji nije URL_ENV_CHAR, te kraj ulaza
+               (npr. U+0020, U+0009, U+000A, "<>{}|\^, backtick, NEUTRAL)
+
+SCHEME_START   (?<![BLK])[Hh][Tt][Tt][Pp][Ss]?:\/\/        A = S + duzina startera
+WWW_START      (?<![BLK.@\/:\-])[Ww]{3}\.                  A = S   (www je dio hosta)
+
+1 starter     validan starter (sa lijevom granicom) na poziciji S
+2 omotac      envEnd = prva pozicija p >= A na kojoj je URL_HARD_TERM
+              omotac = recognitionSpan = [S, envEnd)                    (MAKSIMALAN)
+3 komponente  tailStart = prva pozicija u [A, envEnd) sa '/', '?' ili '#', ako postoji
+              autoritet = [A, tailStart) ako rep postoji; inace [A, envEnd)
+4 trim        ratifikovani linearni trim (ispod) nad [floor, envEnd)  ->  e
+              floor = tailStart ako rep postoji; inace A
+5 validacija  CIJELI [S, e) mora biti potpuno prihvacen sidrenim URL_FULL (ispod)
+              + obavezna post-validacija (IPv4 okteti, G-2)
+6 ishod       validno   -> URL kandidat: recognitionSpan [S, envEnd), replacementSpan [S, e)
+              nevalidno -> URL KANDIDAT = NO MATCH
+```
+
+```text
+URL_FULL  ^(?:[Hh][Tt][Tt][Pp][Ss]?:\/\/(?:[A-Za-z0-9\-._~%!$&'()*+,;=:]+@)?(?:(DNS)|([0-9]{1,3}(?:\.[0-9]{1,3}){3})|[Ll][Oo][Cc][Aa][Ll][Hh][Oo][Ss][Tt])|([Ww]{3}\.DNS))(?::[0-9]{1,5})?(?:[\/?#][A-Za-z0-9\-._~:\/?#\[\]@!$&'()*+,;=%NA]*)?$
+```
+
+`URL_FULL` se primjenjuje **isključivo na izdvojen kandidat `[S, e)`** (sidra `^`/`$` bez zastavice
+`m`); lijeve granice se provjeravaju na starteru u `T`. `URL_FULL` definiše **prihvaćeni jezik**
+kandidata; on ne uvodi nijednu novu komponentu — starteri, userinfo, host (DNS / IPv4 /
+`localhost`), port `1..5` cifara i rep su gornja, već ratifikovana gramatika.
+
+- **Puna potrošnja.** Nakon trimovanja **svaki** code point u `[S, e)` mora biti potrošen
+  gramatikom. Ostatak koji gramatika ne prihvata **ne skraćuje** kandidat — **odbacuje** ga.
+- **Bez fallbacka na validan prefiks.** Nema fallbacka samo na host, na host+port, na kraći prefiks
+  izabran regex backtrackingom, ni djelimičnog spašavanja URL-a. Semantika **ne zavisi** od toga da
+  regex backtracking izabere kraći prefiks.
+- **Izričito započeta komponenta obavezuje.** `:` nakon hosta obavezuje na port sintaksu
+  (`:[0-9]{1,5}`); `/` obavezuje na path/rep, `?` na query/rep, `#` na fragment/rep (rep po
+  ratifikovanoj gramatici repa); `@` u autoritetu obavezuje na userinfo (isključivo u obliku sa
+  shemom; userinfo je sve prije **prvog** `@` autoriteta). Malformisana započeta komponenta odbacuje
+  **cijeli** kandidat. Granice komponenti su fiksirane korakom 3; trimovanje ih ne pomjera.
+- **Završna interpunkcija izvan URL-a ≠ malformisan nastavak unutar omotača.** Završna interpunkcija
+  je **isključivo sufiks omotača** koji ratifikovani trim uklanja (skup `P` i višak `)` / `]`); ona
+  je **izvan** URL-a i ostaje vidljiva. Svaki drugi znak omotača — uključujući interpunkcijski znak
+  **iza kojeg** u omotaču slijedi još neki znak koji trim ne uklanja — je **nastavak unutar
+  omotača**: mora biti prihvaćen gramatikom, inače odbacuje **cijeli** kandidat. Npr.
+  `https://example.ch.` → `[REDACTED:URL].`, ali `https://example.ch./x` → nepromijenjeno.
+- **Bez repa `:` se ne trimuje:** `:` neposredno iza autoriteta je izričito započeta port komponenta
+  (`https://example.ch:` → nepromijenjeno). U repu `:` ostaje ratifikovana završna interpunkcija.
+- **Sloboda implementacije.** Ugovor zamrzava semantiku, ne jedan regex trik: dozvoljen je skener,
+  parser, regex + deterministička post-validacija omotača, ili ekvivalentna deterministička metoda —
+  ali svaka mora zadovoljiti `MAXIMAL_ENVELOPE`, `FULL_CONSUMPTION_REQUIRED` i
+  `NO_VALID_PREFIX_FALLBACK`. Konačni desni lookahead iza autoriteta (raniji
+  `(?![BLK\-@:])(?!\.[BLK])`) **nije** opšti `G-1` mehanizam i **nije normativan**.
+- **`G-1` je isključivo URL-klasno pravilo.** Odbijen URL omotač **ne stvara** neprozirnu ni
+  supresijsku zonu za druge klase (`RULING H.1`, N-2).
+
+Obavezno nepromijenjeno (cijeli kandidat odbijen punom potrošnjom):
+
+```text
+https://example.ch:99999999/x       port > 5 cifara
+https://example.ch:80abc            port nije [0-9]{1,5}
+https://example.ch:                 zapoceta port komponenta bez cifara
+https://example.ch./x               host example.ch.
+https://example.ch.:8443/admin      host example.ch.
+https://example.ch:8443./x          port 8443.
+www.example.ch.:8443/x              host www.example.ch.
+https://example.ch%2F/secret        host example.ch%2F
+https://example.ch~admin/x          host example.ch~admin
+https://example.ch*admin/x          host example.ch*admin
+https://example.ch=1/x              host example.ch=1
+https://example.ch$x/y              host example.ch$x
+https://example.ch&a=1              autoritet bez repa example.ch&a=1
+```
+
+**`G-2` — obavezujuće:**
+
+```text
+DNS_HOST_MAX_LENGTH = 253 ASCII characters
+```
+
+Primjenjuje se na DNS ime hosta i u obliku sa shemom i u `www.` obliku (u `www.` obliku host je
+cijelo DNS ime, uključujući vodeću labelu `www`). Prekoračenje odbacuje **cijeli** kandidat.
+
+**Post-validacija (obavezna; regex nije dovoljan):**
+
+1. kad je host prepoznat **IPv4 alternativom**, svaki od četiri okteta mora imati decimalnu
+   vrijednost ≤ 255 (vodeće nule su prihvaćene); DNS ime čije su labele numeričke **nije** IPv4;
+2. DNS host ≤ 253 znaka (`G-2`);
+3. neuspjeh bilo kojeg koraka odbacuje **cijeli** kandidat — bez djelimičnog URL fallbacka
+   (npr. `http://999.1.1.1/x` ostaje nepromijenjeno).
+
+**Trimovanje prateće interpunkcije — isključivo sufiks omotača iznad `floor`, linearno vrijeme.**
+
+```text
+tailStart, floor iz koraka 3/4; end = envEnd (kraj maksimalnog omotaca)
+P = { . , ; : ! ? ' }   ako rep postoji              (ratifikovan skup)
+P = { . , ; ! ' }       ako rep ne postoji           (':' = zapoceta port komponenta;
+                                                      '?' bi zapoceo rep)
+jednim prolazom preko [floor, end) izbroji '(' ')' '[' ']'
+e = end
+dok e > floor:
+  c = tekst[e-1]
+  ako c ∈ P                               -> e--; nastavi
+  ako c == ')' i zatvorene() > otvorene() -> zatvorene()--; e--; nastavi
+  ako c == ']' i zatvorene[] > otvorene[] -> zatvorene[]--; e--; nastavi
+  stani
+replacementSpan URL-a = [S, e)
+```
+
+- Uz rep, ovo je **nepromijenjen** ratifikovani algoritam (`end` maksimalnog omotača je identičan
+  kraju pohlepnog repa).
+- Balansirane `()` i `[]` se čuvaju; trimuje se **samo višak** zatvarajućeg znaka.
+- Prateći `/` se zadržava i ostaje dio URL-a.
+- Algoritam **mora biti linearan**; ponovno brojanje u svakoj iteraciji je zabranjeno. **Cjelokupno**
+  URL otkrivanje (omotač, trim i validacija za **sve** startere zajedno) mora biti linearno u dužini
+  ulaza; ponovno skeniranje zajedničkog omotača ili sufiksa po starteru je zabranjeno (dozvoljeno je
+  npr. jednokratno predizračunavanje `envEnd` i trim granica).
+- Nakon **prihvaćenog** URL kandidata otkrivanje URL-a se nastavlja od `envEnd` (kraj **netrimovanog**
+  omotača); nakon **odbijenog** (NO MATCH) od `S + 1`.
+- **`recognitionSpan`** = maksimalni omotač `[S, envEnd)`; **`replacementSpan`** = trimovan validan
+  URL `[S, e)` = zamijenjeni span (`RULING H.0`).
+
+#### F.3 AHV
+
+- **Oblici:** kompaktno `756` + 10 cifara (13 ukupno); tačkasto tačno `756.dddd.dddd.dd`.
+- Prefiks tačno `756`; **isključivo ASCII cifre**.
+- **Odbija se:** razmaci, crtice, miješana ili druga grupisanja, drugi prefiksi, Unicode cifre.
+
+```text
+AHV  (?<![BLK])(?<![0-9]J)(?:756[0-9]{10}|756\.[0-9]{4}\.[0-9]{4}\.[0-9]{2})(?![BLK])(?!J[0-9])
+```
+
+**Kontrolna cifra — EAN-13 (obavezna post-validacija):**
+
+```text
+d = 13 cifara nakon uklanjanja '.'
+s = Σ_{i=0..11} d[i] * (i parno ? 1 : 3)
+validno  akko  (10 - s mod 10) mod 10 == d[12]
+```
+
+- **Neispravna kontrolna cifra → nepromijenjeno.**
+- Granice: globalni BLK; lijevi joiner guard `(?<![0-9]J)` blokira npr. `1.756…`; desni
+  `(?!J[0-9])` blokira npr. `…97.5`.
+- **Span** = cijeli kandidat → `[REDACTED:AHV]`.
+
+#### F.4 IBAN
+
+- **Isključivo `CH`**; `LI` i sve druge zemlje su izvan ove v1 klase.
+- **21 kanonski znak:** `CH` + 2 kontrolne cifre + 5 numeričkih IID/bank-code pozicija + 12
+  velikih ASCII alfanumeričkih pozicija.
+- **Prihvaćeno:** kompaktno, ili tačno print grupisanje 4-4-4-4-4-1 sa **tačno jednim `U+0020`**
+  između grupa. **Isključivo velika slova.**
+- **Odbija se:** mala slova; dvostruki ili miješani razmaci; `U+0009`; `U+000A`; `U+00A0`; crtice;
+  Unicode lookalike znakovi; pogrešna dužina.
+
+```text
+IBAN  (?<![BLK])(?:CH[0-9]{7}[A-Z0-9]{12}|CH[0-9]{2} [0-9]{4} [0-9][A-Z0-9]{3} [A-Z0-9]{4} [A-Z0-9]{4} [A-Z0-9])(?![BLK])(?:(?<=[0-9])(?!J[0-9])|(?<=[A-Z]))
+```
+
+Desni joiner guard `(?!J[0-9])` važi isključivo kad je posljednji znak kandidata cifra.
+
+**Validacija (obavezna post-validacija):**
+
+```text
+c  = kandidat bez razmaka (21 znak)
+kk = int(c[2..3]);  zahtijeva 2 <= kk <= 98
+r  = 0
+za svaki znak ch u c[4..20] + c[0..3]:
+  v = ch ako je cifra, inace decimalni zapis (kod(ch) - 55)      (A=10 … Z=35)
+  za svaku cifru q u v:  r = (r*10 + q) mod 97
+validno  akko  r == 1                                            (ISO/IEC 7064 Modulo-97-10)
+```
+
+- Provjera opsega `02..98` je **obavezna**: sirovi mod-97 prihvata i alias kontrolne cifre
+  (`00`/`01`/`99`).
+- **Bez live IID lookupa.**
+- **Neispravan checksum → nepromijenjeno.**
+- **Span** = cijeli kandidat → `[REDACTED:IBAN]`.
+
+#### F.5 PHONE — rezidualna pojašnjenja (D-070 `RULING 5` nepromijenjen)
+
+**D-070 `RULING 5` ostaje mjerodavan i nepromijenjen.** Ispod su **isključivo rezidualna
+pojašnjenja** koja on nije utvrdio:
+
+- **Oznake:** tačno `Telefon`, `Tel.`, `Tel`, `Mobile`, `Natel`, `Fax`; ASCII case-insensitive kroz
+  eksplicitne klase. **`Telefax` nije oznaka.**
+- **Lijeva granica oznake:** prethodni code point nije BLK — oznaka ne smije biti dio BLK riječi
+  (`Hotel`, `Automobile`, `Telefax` ne okidaju; `Tel/Fax:` okida na oznaci `Fax`).
+- **Separator oznaka → broj:** `[ \t]*(?::[ \t]*)?` — nula ili više ASCII razmaka / `U+0009`,
+  opciono jedna `:`, pa nula ili više ASCII razmaka / `U+0009`. `U+000A`, `U+00A0` i `::` su
+  zabranjeni. Ovo je **v1 pojašnjenje** „whitespace" formulacije D-070 (jedan red), ne amandman.
+- **Zamijenjeni span:** **isključivo broj**; oznaka i separator ostaju vidljivi.
+- **Desni guardovi:** nije BLK; nije `J` praćen cifrom; za oblike grupisane razmacima: nije razmak
+  praćen cifrom.
+- **Lijevi guardovi međunarodnog oblika:** `0041` — nije BLK, nije cifra+`J`, nije cifra+razmak;
+  `+41` — nije BLK i nije `+`.
+- Nacionalni i međunarodni oblik se ne preklapaju (prva cifra područja nacionalnog oblika je
+  `1`–`9`).
+- **Kanonska lažno negativna posljedica (nepromijenjena):** nacionalni broj koji slijedi bez
+  vlastite oznake ostaje neredigovan — `Tel 079 123 45 67, 079 765 43 21` →
+  `Tel [REDACTED:PHONE], 079 765 43 21`.
+
+```text
+PHONE_INTL  (?:(?<![BLK+])\+41|(?<![BLK])(?<![0-9]J)(?<![0-9] )0041)(?:[1-9][0-9]{8}|-[1-9][0-9]-[0-9]{3}-[0-9]{2}-[0-9]{2}| [1-9][0-9] [0-9]{3} [0-9]{2} [0-9]{2}(?! [0-9]))(?![BLK])(?!J[0-9])
+
+PHONE_NAT   (?<![BLK])(?:[Tt][Ee][Ll][Ee][Ff][Oo][Nn]|[Tt][Ee][Ll]\.?|[Mm][Oo][Bb][Ii][Ll][Ee]|[Nn][Aa][Tt][Ee][Ll]|[Ff][Aa][Xx])[ \t]*(?::[ \t]*)?(0[1-9][0-9]{8}|0[1-9][0-9]-[0-9]{3}-[0-9]{2}-[0-9]{2}|0[1-9][0-9] [0-9]{3} [0-9]{2} [0-9]{2}(?! [0-9]))(?![BLK])(?!J[0-9])
+```
+
+`PHONE_INTL`: `recognitionSpan` = `replacementSpan` = cijeli pogodak. `PHONE_NAT`:
+`recognitionSpan` = oznaka + separator + broj (cijeli pogodak); `replacementSpan` = **isključivo
+grupa broja** (`RULING H.0`). Oba daju klasu `PHONE` i token `[REDACTED:PHONE]`.
+
+### `RULING G` — globalni model granica (`BLK` / `NEUTRAL`)
+
+**G.1 Definicija.**
+
+```text
+BLK     = ASCII [A-Za-z0-9_]  ∪  (svi ne-ASCII code pointi U+0080-U+10FFFF  \  NEUTRAL)
+NEUTRAL = tacno 38 ne-ASCII code pointa (G.2)
+```
+
+Sve ostalo je neutralno: preostala ASCII interpunkcija, `U+0020`, `U+0009`, `U+000A`, te početak i
+kraj ulaza. Nepoznat susjedni znak znači **bez redakcije** (konzervativno); kombinujući znak uz
+pogodak blokira, pa izlaz ostaje NFC.
+
+**G.2 Normativna NEUTRAL lista (38).**
+
+```text
+razmaci                    U+00A0, U+1680, U+2000-U+200A, U+202F, U+205F, U+3000
+separatori reda/paragrafa  U+2028, U+2029
+navodnici                  U+00AB, U+00BB, U+2018, U+2019, U+201A, U+201B,
+                           U+201C, U+201D, U+201E, U+201F, U+2039, U+203A
+crtice                     U+2010-U+2015
+ostalo                     U+2022, U+2026
+
+NEUTRAL_COUNT = 1+1+11+1+1+1 + 2 + 12 + 6 + 2 = 38
+```
+
+**G.3 Ne-ASCII BLK rasponi (`NA`) — tačan komplement G.2 nad `U+0080`–`U+10FFFF`.**
+
+```text
+U+0080-U+009F   U+00A1-U+00AA   U+00AC-U+00BA   U+00BC-U+167F   U+1681-U+1FFF
+U+200B-U+200F   U+2016-U+2017   U+2020-U+2021   U+2023-U+2025   U+2027
+U+202A-U+202E   U+2030-U+2038   U+203B-U+205E   U+2060-U+2FFF   U+3001-U+10FFFF
+```
+
+**G.4 Zabranjene prečice:** `\p{L}`, `\p{M}`, `\p{N}`, `\p{…}` uopšte, `\w`, `\d`, `\b`. Model ne
+koristi Unicode property tabele, pa se ponašanje ne mijenja nadogradnjom Node/ICU verzije.
+
+**G.5 Upotreba po klasi.**
+
+```text
+EMAIL   klasno specificno prosirenje (lijevo: RFC atext + . @; desno: - @, .+BLK)
+URL     klasno specificno prosirenje (www lijevi skup; maksimalni omotac + puna potrosnja; rep)
+AHV     globalni model + numericki joiner guard
+IBAN    globalni model + desni numericki joiner guard
+PHONE   klasno specificno prosirenje (+, joiner i razmak guardovi)
+```
+
+### `RULING H` — otkrivanje, preklapanje, precedencija
+
+**H.0 Dva spana kandidata.** Svaki kandidat nosi dva odvojena spana nad nepromjenjivim
+normalizovanim ulazom `T` (polu-otvoreni intervali pozicija):
+
+```text
+recognitionSpan  [recStart, recEnd)          span / kontekst u T potreban za validaciju kandidata;
+                                             SMIJE sadrzavati kontekstualne znakove koji se
+                                             NE zamjenjuju
+replacementSpan  [replaceStart, replaceEnd)  TACAN span koji se zamjenjuje tokenom klase
+
+klasa        recognitionSpan                           replacementSpan
+EMAIL        cijeli pogodak                            = recognitionSpan
+URL          maksimalni omotac [S, envEnd) (F.2)       trimovan validan URL [S, e) (F.2)
+AHV          cijeli pogodak                            = recognitionSpan
+IBAN         cijeli pogodak                            = recognitionSpan
+PHONE_INTL   cijeli pogodak                            = recognitionSpan
+PHONE_NAT    oznaka + separator + broj                 isključivo broj; oznaka i separator ostaju
+```
+
+- `replacementSpan` je neprazan i sadržan u `recognitionSpan`.
+- Lookaround kontekst granica (`BLK`, joiner guardovi) se čita, ali nije dio nijednog spana.
+- Svako nekvalifikovano „span" / „zamijenjeni span" u D-093 (uključujući `RULING D.4`, `RULING E`
+  i `RULING F`) znači **`replacementSpan`**.
+- Komparator (H.3) i preklapanje (H.2) koriste **isključivo** `replaceStart` / `replaceEnd`.
+  **`recognitionSpan` koordinate se nikada ne koriste za razrješavanje preklapanja.**
+
+**H.1 Otkrivanje.**
+
+```text
+T = nepromjenjiv normalizovan ulaz (nakon RULING C.3)
+kandidati = []
+za svaku klasu-pass u [EMAIL, URL, AHV, IBAN, PHONE_INTL, PHONE_NAT]:   nezavisni prolazi nad T
+  ako klasa == URL:
+    kandidati += URL kandidati po F.2       (prihvacen -> nastavi od envEnd; NO MATCH -> od S + 1)
+    sljedeca klasa
+  pos = 0
+  dok m = regex.exec(T od pos):
+    ako !postValidacija(klasa, m):  pos = m.start + 1; nastavi
+    [recStart, recEnd)         = [m.start, m.end)
+    [replaceStart, replaceEnd) = PHONE_NAT: grupa broja; inace [m.start, m.end)
+    kandidati.push({klasa, recStart, recEnd, replaceStart, replaceEnd}); pos = m.end
+prihvaceni = razrijesi(kandidati)                   (H.2; isključivo replacement koordinate)
+izlaz = T sa svakim prihvacenim [replaceStart, replaceEnd) zamijenjenim TOKEN[klasa],
+        sastavljen JEDNOM
+ako UTF-8(izlaz) > 262144 -> FAILED REDACTED_OUTPUT_TOO_LARGE   (RULING D)
+inace                      -> COMPLETED
+```
+
+- Sve klase skeniraju **isključivo nepromjenjiv originalni normalizovani ulaz**.
+- Izlaz se gradi **jednom**; izlaz i tokeni se **nikada ne re-skeniraju**; zamjena ne može stvoriti
+  novi pogodak.
+- **Prepoznavanje je završeno prije zamjene.** Svaki `recognitionSpan` se validira nad originalnim
+  `T`. Kontekstualni znak (npr. `PHONE_NAT` oznaka) koji leži u `replacementSpan`-u drugog
+  prihvaćenog kandidata i nestane zamjenom **ne poništava** već završeno prepoznavanje.
+
+**N-2 — odbijen URL ne stvara neprozirnu zonu.**
+
+```text
+OTHER_CLASS_SUPPRESSION_AFTER_URL_REJECTION = NO
+REJECTED_URL_OPAQUE_SPAN                    = NONE
+```
+
+- `G-1` (`NO VALID PREFIX FALLBACK`) važi **isključivo za URL-klasni fallback**. Odbijen URL omotač
+  **ne potiskuje** nijednu drugu klasu i ne uvodi „odbijeni URL neprozirni span" ni „zonu
+  supresije nakon neuspjeha URL-a".
+- EMAIL, AHV, IBAN, PHONE, kao i **zaseban** URL kandidat sa vlastitim validnim starterom i
+  granicama, skeniraju se nezavisno nad `T` i uspijevaju **akko** zadovoljavaju vlastitu kompletnu
+  zamrznutu gramatiku. Takav pogodak **nije** URL fallback.
+- Npr. `https://user:pw@example.ch:999999/x`: URL kandidat je NO MATCH (port), a **nezavisna EMAIL
+  detekcija** (`pw@example.ch`; lijevo `:` nije u EMAIL lijevom skupu, desno `:` nije blokirajuće)
+  daje `https://user:[REDACTED:EMAIL]:999999/x`.
+
+**H.2 Preklapanje.**
+
+```text
+sortiraj kandidate komparatorom H.3
+lastEnd = 0
+za svaki kandidat c:
+  ako c.replaceStart >= lastEnd:  prihvati c; lastEnd = c.replaceEnd
+  inace:                          odbaci c CIJELI
+```
+
+- **Konflikt zamjene postoji isključivo** kad se `replacementSpan` A i `replacementSpan` B sijeku
+  (`A.replaceStart < B.replaceEnd` i `B.replaceStart < A.replaceEnd`).
+- **Preklapanje `recognitionSpan`-ova samo po sebi NIJE konflikt zamjene.**
+- Kandidat se odbacuje razrješavanjem preklapanja **isključivo** ako njegov `replacementSpan` siječe
+  `replacementSpan` već prihvaćenog kandidata. Ovo je ispravno jer se sve prepoznavanje izvršava nad
+  nepromjenjivim originalnim `T` prije bilo kakve zamjene (H.1).
+
+**Bez skraćivanja, bez unije, bez djelimičnog spašavanja.** Ugniježđeni kandidat gubi od
+kontejnera; kasniji djelimično preklapajući kandidat se odbacuje cijeli.
+
+**H.3 Precedencija i komparator.**
+
+```text
+PRIO: URL > EMAIL > IBAN > AHV > PHONE
+
+cmp(a, b) = (a.replaceStart - b.replaceStart)
+         || ((b.replaceEnd - b.replaceStart) - (a.replaceEnd - a.replaceStart))
+         || (PRIO[a] - PRIO[b])
+            najmanji replaceStart  ->  najduzi replacementSpan  ->  klasna precedencija
+```
+
+Komparator je totalni poredak; ishod ne zavisi od redoslijeda izvršavanja regexa.
+
+**Obavezni vektor (recognition preklapanje ≠ konflikt zamjene):**
+
+```text
+www.praxis.ch/Tel 079 123 45 67   ->   [REDACTED:URL] [REDACTED:PHONE]
+```
+
+- URL `replacementSpan` = `www.praxis.ch/Tel` (validan URL zaključno sa `Tel`; omotač završava na
+  `U+0020`);
+- `PHONE_NAT` `recognitionSpan` koristi originalni `Tel 079 123 45 67` (oznaka `Tel` leži unutar
+  URL `replacementSpan`-a);
+- `PHONE_NAT` `replacementSpan` = isključivo `079 123 45 67`;
+- dva `replacementSpan`-a se **ne sijeku** → oba se prihvataju. Broj **ne smije** ostati vidljiv
+  zbog knjigovodstva preklapanja.
+
+**H.4 Ponovljeni i susjedni pogoci.** Ponovljena pojavljivanja su **dozvoljena** i svako se
+zamjenjuje; **deduplikacije nema**. Susjedni pogoci (razdvojeni whitespaceom, interpunkcijom ili
+direktno) zamjenjuju se nezavisno; **susjedni tokeni su dozvoljeni**. Kandidat koji direktno
+dodiruje BLK znak se ne prepoznaje (npr. `CH0900700123456789012+41791234567` →
+`[REDACTED:IBAN]+41791234567`).
+
+### `RULING I` — Unicode, regex i runtime
+
+```text
+FORMAL_EVIDENCE_RUNTIME = Node 24.19.0
+REGEX_FLAGS             = g u
+FORBIDDEN_FLAGS         = i s m y
+```
+
+- **Zastavica `i` je zabranjena** (pod `u` preklapa `U+017F` u `s` i `U+212A` u `k`); ASCII
+  case-insensitivity ide **isključivo kroz eksplicitne klase** (`[Hh]` …).
+- Ugovor se **ne oslanja** na `\w`, `\d`, `\b` ni `\p{…}` za zamrznuti semantički model.
+- **Lookbehind je dozvoljen** na pinovanom runtimeu.
+- Nijedna gramatika ni algoritam ne smije imati katastrofalno / patološki super-linearno ponašanje;
+  trimovanje URL repa **mora biti linearno**. **Nijedan wall-clock prag u milisekundama se ne
+  zamrzava.**
+- Svi prepoznati znakovi su ASCII, osim ne-NEUTRAL ne-ASCII znakova u URL repu. Unicode cifre se
+  nikada ne prepoznaju i uvijek blokiraju. Lookalike znakovi se ne preklapaju. Nema IDN podrške.
+- **Prototip izvršen pod Node 20.9.0 nije dokaz zatvaranja.** Formalni dokaz se izvršava na Node
+  24.19.0.
+
+### `RULING J` — dokazna matrica i particija zatvaranja (`OD-P5-I6A-5`)
+
+Obavezne dokazne kategorije budućeg `P5-I6A` suitea:
+
+```text
+pozitivni validni oblici             negativni / near-match
+checksum (validan / nevalidan)       granice
+ponovljeni / susjedni                preklapanje / precedencija
+interpunkcija                        inertnost eksterne reference
+klinicka ne-redakcija                prethodno postojeci tokeni
+determinizam                         granica izlaza
+neocekivano krsenje preduslova       bez teksta u gresci
+adversarial / dugi ulaz
+```
+
+- EMAIL vlasnička korekcija (`foo!bar@x.ch`, `foo&bar@x.ch`, `foo=bar@x.ch` → nepromijenjeno) je
+  **obavezna**.
+- Dokaz za `G-1`, `G-2` i `G-3` je **obavezan**. Dokaz za `G-1` uključuje maksimalni omotač, punu
+  potrošnju i odsustvo fallbacka na validan prefiks, kao i pozitivan dokaz da ratifikovano
+  trimovanje završne interpunkcije i dalje radi.
+- Dokaz `recognitionSpan` / `replacementSpan` razdvajanja (`RULING H.0`–`H.3`) i nezavisnog
+  otkrivanja drugih klasa nakon odbijenog URL-a (N-2) je **obavezan**.
+- Minimalni obavezni vektori su u `08` §12.15. Vektori sa ne-ASCII ili kontrolnim znakovima se
+  grade iz code pointa, nikada iz literala.
+- **Formalni dokaz zatvaranja se izvršava na Node 24.19.0.**
+- **Particija `08` §12.5** (bez prepisivanja): klase, checksumi, klinički sadržaj, tokeni,
+  determinizam, `P5-I6A` strana `COMPLETED` i bez teksta u greškama → `P5-I6A`; svjež IV i hashevi →
+  `P5-I6B`; `view=redacted` bez fallbacka → `P5-I6C`; pozitivan slučaj eksterne reference se
+  zamjenjuje dokazom inertnosti.
+- **`Services → redaction` se zatvara isključivo formalnim zatvaranjem `P5-I6A` nakon
+  implementacije** — ne ovim zapisom.
+- **Nijedan test se ovim zapisom ne implementira.**
+
+### `RULING K` — firewall odgođenih odluka i D-OPEN
+
+```text
+OD-P5-I6-6    OPEN   (create zahtjev / greske / HTTP mapiranje)
+OD-P5-I6-7    OPEN   (idempotencija)
+OD-P5-I6-8    OPEN   (konkurencija / DRAFT -> READY_FOR_ANALYSIS)
+OD-P5-I6-9    OPEN   (audit ugovor)
+OD-P5-I6-10   OPEN   (detaljni GET)
+AAD_ORIGINAL_LITERAL / AAD_REDACTED_LITERAL / ENCRYPTION_KEY_REF_VALUE_FORMAT   OPEN
+enkripcijska implementacija / I6B DTO / I6B idempotencija / I6B race /
+I6B audit payload / I6C detail-read / P5-I7 implementacija                     NIJE ADJUDICIRANO
+
+DEFERRED_OD_PREMATURE_ADJUDICATION_COUNT = 0
+
+D_OPEN_004A   UNCHANGED / UNADJUDICATED
+D_OPEN_007    OPEN / DEFERRED
+D_OPEN_009    UNCHANGED / UNADJUDICATED
+D_OPEN_ADJUDICATIONS_D093 = 0
+```
+
+### `RULING L` — checklist i historijsko očuvanje
+
+```text
+                         kanonski (prije)   D-093 kandidat
+UKUPNO REDOVA (S6)       49                 49
+OZNACENO                 37                 37
+NEOZNACENO               12                 12
+FORMALNA ZAVRSENOST      37 / 49 ~= 75.5 %  37 / 49 ~= 75.5 %
+
+CHECKBOX_TRANSITIONS     = 0
+Services -> redaction    [ ]  (nepromijenjeno)
+
+HISTORICAL_REWRITE_ALLOWED  = NO
+HISTORICAL_REWRITE_COUNT    = 0
+```
+
+**Tijela odluka D-001 … D-092 ostaju bajt-identična**, uključujući lifecycle / statusne snapshote
+D-092 iz trenutka autorstva. `05` §0 se ne mijenja. Tekuće stanje se pomiruje **isključivo
+dodavanjem** D-093 anotacija.
+
+### `RULING M` — firewall implementacijske autorizacije
+
+D-093 **zamrzava isključivo izvršni ugovor** i **NE autorizuje implementaciju**. D-093 **ne kopira**
+semantiku odgođene implementacijske autorizacije iz D-085 / D-087 / D-089: efektivnost D-093
+**ne aktivira** nikakvu autorizaciju i **ne dozvoljava** implementacijskom preflightu da nastavi bez
+nove vlasničke autorizacije.
+
+```text
+nakon efektivnog D-093:
+P5-I6A = CONTRACT FROZEN / IMPLEMENTATION NOT YET AUTHORIZED
+
+P5_I6A_IMPLEMENTATION_AUTHORIZED = NO
+zaseban kasniji vlasnicki autorizacijski gate = OBAVEZAN
+```
+
+### `RULING N` — infrastrukturni firewall
+
+```text
+RUNTIME_CHANGE                           = NO
+TEST_CHANGE                              = NO
+SCHEMA_CHANGE                            = NO
+MIGRATION_CHANGE                         = NO
+RLS_CHANGE                               = NO
+GRANT_CHANGE                             = NO
+PERMISSION_MATRIX_CHANGE                 = NO
+PACKAGES_CONTRACT_IMPLEMENTATION_CHANGE  = NO
+CI_OR_LOCKFILE_CHANGE                    = NO
+SECURITY_REQUIREMENT_UNAUTHORIZED_MUTATION = 0
+```
+
+### `RULING O` — lifecycle, efektivnost i naredni gate
+
+Pravila D-093 postaju efektivna **tek** nakon:
+
+```text
+autorstvo
+-> svjez nezavisan governance pregled
+-> vlasnicko prihvatanje
+-> publikacioni preflight
+-> vlasnicka publikacijska autorizacija
+-> push + PR
+-> vlasnicka merge autorizacija
+-> merge
+-> kanonska post-verifikacija
+```
+
+```text
+naredni obavezni gate                 = FRESH INDEPENDENT D-093 GOVERNANCE REVIEW
+nakon efektivnog D-093                = zaseban vlasnicki gate implementacijske autorizacije P5-I6A
+NEXT_DECISION_ID_PREASSIGNED          = NO
+D-094                                 UNASSIGNED / UNRESERVED
+```
+
+## Razmotrene i odbijene alternative
+
+- **EMAIL bez vlasničke korekcije** (`foo!bar@x.ch` → `foo![REDACTED:EMAIL]`) — **odbijeno**
+  (`RULING F.1`).
+- **Fallback na validan prefiks URL-a nakon malformisane komponente** — **odbijeno** (`G-1`).
+- **Konačni desni lookahead iza autoriteta kao opšti `G-1` mehanizam** (i njegovo proširivanje
+  dodatnim znakovima) — **odbijeno**; ne pokriva nastavke van konačnog skupa. Zamijenjen
+  maksimalnim omotačem + punom potrošnjom (`RULING F.2`).
+- **Razrješavanje preklapanja po `recognitionSpan` koordinatama** — **odbijeno**; ostavlja
+  vidljiv broj kad `PHONE_NAT` oznaka leži u drugom pogotku (`RULING H.0`–`H.3`).
+- **Neprozirna / supresijska zona nakon odbijenog URL kandidata** — **odbijeno** (N-2,
+  `RULING H.1`).
+- **URL host bez gornje granice dužine** — **odbijeno** (`G-2`).
+- **Opciona re-asercija preduslova / `normaliseClinicalText(x) === x`** — **odbijeno** (`G-3`).
+- **BLK preko `\p{L}\p{M}\p{N}`** — **odbijeno**; zavisi od Unicode verzije (`RULING G`).
+- **Mehanizam neprozirnih spanova za prethodno postojeće tokene** — **odbijeno**; tokeni su inertni
+  po konstrukciji (`RULING E`).
+- **Skraćivanje izlaza ili tokena pri prekoračenju granice** — **odbijeno** (`RULING D`).
+- **Unija ili skraćivanje preklapajućih kandidata** — **odbijeno** (`RULING H`).
+- **`LI` IBAN, mala slova, AHV grupisan razmacima** — **odbijeno** za v1 (konzervativno).
+- **Parametar ili heuristika eksterne reference** — **odbijeno** (`RULING E`; D-092 `RULING E`).
+- **Kopiranje odgođene implementacijske autorizacije iz D-085 / D-087 / D-089** — **odbijeno**
+  (`RULING M`).
+- **Prepisivanje D-092 statusnih blokova** — **odbijeno**; pomirenje je aditivno (`RULING A`).
+
+## Posljedice — dokumentaciono pomirenje
+
+| Lokacija | Zahvat |
+|---|---|
+| `06` | dodat ovaj D-093 zapis nakon D-092; **D-001 … D-092 bajt-identični** |
+| `03` §4 / §13.5 | aditivna D-093 statusna anotacija nakon D-092 anotacije; aditivna §13.5 — granica `P5-I6A` ugovora i restatement nizvodnog vezivanja; **nijedna ruta, DTO, statusni ni error kod se ne mijenja** |
+| `04` §7.5a | aditivna D-093 sekcija sa sažetkom zamrznutog ugovora; **tabela zavisnosti §7.5 se ne mijenja** |
+| `05` §6 | aditivna D-093 anotacija nakon D-092 anotacije; **nula kućica se mijenja**; **§0 se ne mijenja** |
+| `08` §12.15 | aditivna obavezna dokazna matrica i minimalni vektori `P5-I6A`; **nijedan test se ne piše** |
+| `09` §8.6 | aditivne sigurnosne posljedice zamrznutog ugovora; **nijedan zahtjev se ne slabi** |
+| `MANIFEST.md` | ponovo izračunati bajtovi i SHA-256 za šest izmijenjenih dokumenata; **19 redova ostaje 19** |
+
+`02`, `15`, sav izvorni kod, testovi, migracije, Prisma, SQL, grantovi, RLS politike, permisiona
+matrica, `packages/contracts`, paketi, lockfile, CI, `README` i `AGENTS` ostaju netaknuti.
+
+## Security/privacy uticaj
+
+- Redakcija ostaje **deterministička i rule-based**, nije AI klasifikator, **nije anonimizacija** ni
+  potpuna granica uklanjanja PHI-a; izlaz ostaje Class A.
+- Inertna klasa eksterne reference se **ne smije** predstaviti kao redigovana.
+- Rezultat i greške ne nose originalni tekst, podnizove, hasheve ni match metadata; `FAILED` kod i
+  greška kršenja preduslova su **statični**.
+- Izlaz se nikada ne skraćuje; prekoračenje je eksplicitan `FAILED`, ne tiho skraćen artefakt.
+- Konzervativne granice favorizuju lažno negativne rezultate nad kliničkim lažno pozitivnim.
+- **Nijedan postojeći sigurnosni zahtjev se ne slabi, ne uklanja ni ne mijenja.**
+
+## Migration/rollout
+
+**Nema.**
+
+## Test dokaz
+
+**Nijedan test se ovim zapisom ne piše, ne mijenja i ne izvršava.** Obavezna buduća dokazna matrica
+je u `08` §12.15 i izvršava se na Node 24.19.0 tek nakon zasebne implementacijske autorizacije.
+
+```text
+TEST_REQUIREMENT_MUTATION    = 0 (aditivno planiranje dokaza)
+TESTS_WRITTEN_D093           = 0
+TESTS_RERUN_D093_AUTHORING   = 0
+```
+
+## Historijsko očuvanje
+
+```text
+prije uspjesnog lokalnog commita   D-093 = ASSIGNED TO P5-I6A EXECUTABLE-CONTRACT GOVERNANCE /
+                                           NOT CONSUMED
+nakon uspjesnog lokalnog commita   D-093 = LOCALLY AUTHORED / COMMITTED / NOT PUSHED /
+                                           NOT CANONICAL / NOT EFFECTIVE
+D-094                              UNASSIGNED / UNRESERVED
+HISTORICAL_RECORDS_REWRITTEN       = 0
+```
+
+## Šta D-093 ne mijenja
+
+- **Ne mijenja D-025, D-043, D-060, D-062, D-070, D-071 ni D-092** ni zamrznute ugovore D-085 /
+  D-087 / D-089.
+- **Ne mijenja nijednu rutu, metodu, payload, header, permisiju, statusni ni error kod.**
+- **Ne mijenja nijednu kućicu.**
+- **Ne autorizuje i ne započinje `P5-I6A`, `P5-I6B`, `P5-I6C` ni `P5-I7`.**
+- **Ne adjudicira `OD-P5-I6-6` … `OD-P5-I6-10`, AAD literale ni `encryption_key_ref`.**
+- **Ne adjudicira `D-OPEN-004a`, `D-OPEN-007`, `D-OPEN-009`.**
+- **Ne mijenja `docs/02`, `docs/15` ni `docs/05` §0.**
+- **Ne prepisuje nijedan historijski zapis.**
+
+## Zavisnosti
+
+- **D-060** — redakcioni obuhvat Faze 5, tokeni, nepromjenjivost verzije.
+- **D-062** — `READY`/`FAILED` dosežnost i statusna tabela (nizvodno vezivanje).
+- **D-070** — `RULING 4` (bez klase osiguranja/kartice), `RULING 5` (telefon).
+- **D-071** — kanonski `P5-I3C` primitivi (normalizacija).
+- **D-092** — governance, segmentacija i pred-ugovorna pravila `P5-I6`.
+
+## Naredni obavezni gate
+
+**FRESH INDEPENDENT D-093 GOVERNANCE REVIEW** tačnog lokalnog D-093 kandidata, pa — tek nakon
+izričitog vlasničkog prihvatanja — publikacioni preflight, publikacijska autorizacija, publikacija,
+merge i kanonska post-verifikacija. **Nakon efektivnog D-093 implementacija `P5-I6A` i dalje traži
+zaseban vlasnički autorizacijski gate.**
+
+## Lifecycle odluke
+
+```text
+D-093 LOCALLY AUTHORED                   = YES
+D-093 OWNER DECISIONS INCORPORATED       = YES (OD-P5-I6A-1 ... OD-P5-I6A-5; G-1 ... G-3)
+D-093 INDEPENDENTLY REVIEWED             = NO
+D-093 OWNER-ACCEPTED                     = NO
+D-093 PUBLISHED / MERGED                 = NO
+D-093 CANONICAL                          = NO
+D-093 EFFECTIVE                          = NO
+
+D-092     PUBLISHED / MERGED (PR #77) / CANONICAL / POST-PUBLICATION VERIFIED / EFFECTIVE
+P5-I6     DEPENDENCY-SATISFIED / D-092 GOVERNANCE EFFECTIVE / IMPLEMENTATION NOT AUTHORIZED /
+          NOT STARTED
+P5-I6A    CONTRACT CANDIDATE AUTHORED / IMPLEMENTATION NOT AUTHORIZED / NOT STARTED
+P5-I6B    NOT AUTHORIZED / NOT STARTED
+P5-I6C    NOT AUTHORIZED / NOT STARTED
+P5-I7     NOT AUTHORIZED / NOT STARTED
+D-094     UNASSIGNED / UNRESERVED
+
+CANONICAL CHECKLIST                      = 37 / 49
+D-093 LOCAL CANDIDATE CHECKLIST          = 37 / 49
+CHECKBOX_TRANSITIONS                     = 0
+```
+
+---
+
 # Otvorene odluke
 
 ## D-OPEN-001 — Produkcijski OIDC provider
