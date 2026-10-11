@@ -2510,6 +2510,8 @@ determinizam                         granica izlaza
 neocekivano krsenje preduslova       bez teksta u gresci
 adversarial / dugi ulaz
 + EMAIL vlasnicka korekcija, G-1, G-2, G-3
++ G-1 maksimalni omotac / puna potrosnja / bez prefiks fallbacka, zavrsna interpunkcija,
+  recognitionSpan / replacementSpan, N-2 nezavisno otkrivanje nakon odbijenog URL-a
 ```
 
 ### 12.15.2 Minimalni obavezni vektori
@@ -2580,6 +2582,65 @@ https://example.ch:80abc
 https://example.ch:
 https://user.ch:pw@-x/
 ```
+
+**`G-1` — maksimalni omotač + puna potrošnja (svi `=`, OBAVEZNO).** Za svaki vektor dokaz mora
+utvrditi da je odbijen **cijeli URL kandidat** jer validacija pune potrošnje odbija kompletan
+kandidat, i da **nijedan kraći prefiks** (npr. `https://example.ch`, `www.example.ch` ili
+host+port) **nije** zamijenjen. Omotač (`recognitionSpan`) je u svakom vektoru cijeli ulaz.
+
+```text
+ulaz                                komponenta koja ne prolazi punu potrosnju
+https://example.ch./x               host example.ch.
+https://example.ch.:8443/admin      host example.ch.
+https://example.ch:8443./x          port 8443.
+www.example.ch.:8443/x              host www.example.ch.
+https://example.ch%2F/secret        host example.ch%2F
+https://example.ch~admin/x          host example.ch~admin
+https://example.ch*admin/x          host example.ch*admin
+https://example.ch=1/x              host example.ch=1
+https://example.ch$x/y              host example.ch$x
+https://example.ch&a=1              autoritet bez repa example.ch&a=1
+www.example.ch*x                    autoritet bez repa www.example.ch*x
+https://example.ch,x                ',' nije sufiks omotaca (slijedi 'x') -> nije zavrsna interpunkcija
+https://example.ch(x)               '(' ')' balansirane, ')' se ne trimuje -> host example.ch(x)
+Siehe www.example.ch: Termin        ':' iza autoriteta = zapoceta port komponenta (bez cifara)
+```
+
+**`G-1` — dokaz da odbijanje NIJE konačna jednoznakovna zakrpa (OBAVEZNO, generativno).** `{c}`
+označava jedan znak umetnut na to mjesto. Za **svaki** ASCII znak `c` iz `URL_ENV_CHAR` osim
+`[A-Za-z0-9]` i `/ ? #` — tj. `- . _ ~ : @ ! $ & ' ( ) * + , ; = % [ ]` — i za ne-ASCII ne-NEUTRAL
+`⟨U+00E9⟩`:
+
+```text
+https://example.ch{c}x/y            =
+https://example.ch{c}x              =
+www.example.ch{c}x/y                =
+```
+
+Dokaz mora pasti za implementaciju koja `G-1` nosi konačnim desnim lookaheadom iza autoriteta (npr.
+raniji `(?![BLK\-@:])(?!\.[BLK])`): takva implementacija bi za `c ∈ { ~ % * = $ & ! ' ( ) + , ; [
+] }` pogrešno zamijenila kraći prefiks. Odbijanje mora proizaći iz validacije cijelog kandidata.
+
+**URL — završna interpunkcija ostaje izvan URL-a (pozitivni, OBAVEZNO).** Isključivo ratifikovana
+trim politika (D-093 `RULING F.2`); redigira se samo validan URL, a vanjska interpunkcija ostaje.
+
+```text
+https://example.ch.                 → [REDACTED:URL].
+https://example.ch, siehe oben      → [REDACTED:URL], siehe oben
+(https://example.ch)                → ([REDACTED:URL])
+[www.example.ch]                    → [[REDACTED:URL]]
+www.example.ch!                     → [REDACTED:URL]!
+'https://example.ch';               → '[REDACTED:URL]';
+https://example.ch:8443.            → [REDACTED:URL].
+https://example.ch?                 → [REDACTED:URL]?
+https://example.ch/a.               → [REDACTED:URL].
+https://example.ch/a/;              → [REDACTED:URL];         (prateci '/' ostaje dio URL-a)
+https://example.ch/a_(b).           → [REDACTED:URL].         (balansirane () ostaju u URL-u)
+https://example.ch/x:               → [REDACTED:URL]:         (u repu ':' je zavrsna interpunkcija)
+```
+
+Kontrast: `https://example.ch.` → `[REDACTED:URL].` (završna interpunkcija izvan URL-a), ali
+`https://example.ch./x` → `=` (malformisan nastavak unutar omotača).
 
 **`G-2` — obavezno.** `H253` je DNS ime od tačno 253 znaka (npr. tri labele od 63 znaka, labela od
 58 znakova i `.ch`); `H254` je isto sa labelom od 59 znakova.
@@ -2671,6 +2732,42 @@ a@b.cd,756.1234.5678.97;CH0900700123456789012.
 Tel 079 123 45 67 756.1234.5678.97  → Tel 079 123 45 67 [REDACTED:AHV]
 ```
 
+**`recognitionSpan` ≠ `replacementSpan` — preklapanje prepoznavanja nije konflikt zamjene
+(OBAVEZNO).**
+
+```text
+www.praxis.ch/Tel 079 123 45 67           → [REDACTED:URL] [REDACTED:PHONE]       (OBAVEZNO)
+https://example.ch/?q=Natel 0791234567    → [REDACTED:URL] [REDACTED:PHONE]
+www.praxis.ch/Tel:0791234567              → [REDACTED:URL]       (kontrast: stvaran konflikt)
+```
+
+- Za prva dva vektora dokaz mora eksplicitno utvrditi: `PHONE` `recognitionSpan` (oznaka +
+  separator + broj u originalnom ulazu) **smije** preklapati URL `replacementSpan` / kontekst;
+  `PHONE` `replacementSpan` (isključivo broj) **ne siječe** URL `replacementSpan`; komparator i
+  presjek koriste **isključivo** `replaceStart` / `replaceEnd`. Broj **ne smije** ostati vidljiv.
+- Kontrast: omotač URL-a obuhvata cijeli `www.praxis.ch/Tel:0791234567`, pa `PHONE`
+  `replacementSpan` leži unutar URL `replacementSpan`-a — stvaran konflikt zamjene; `PHONE` se
+  odbacuje cijeli (ugniježđeni kandidat gubi od kontejnera).
+- Implementacija koja preklapanje razrješava po `recognitionSpan` koordinatama mora pasti na prvom
+  vektoru (izlaz bi bio `[REDACTED:URL] 079 123 45 67`).
+
+**N-2 — nezavisno otkrivanje drugih klasa nakon odbijenog URL kandidata (OBAVEZNO).** Ovo **nije**
+URL fallback: izlaz proizlazi isključivo iz vlastite kompletne gramatike druge klase nad
+originalnim ulazom; odbijen URL omotač ne stvara neprozirnu ni supresijsku zonu.
+
+```text
+https://user:pw@example.ch:999999/x       → https://user:[REDACTED:EMAIL]:999999/x   (OBAVEZNO)
+https://example.ch./?tel=+41791234567     → https://example.ch./?tel=[REDACTED:PHONE]
+https://bad_host.ch/?u=www.example.ch     → https://bad_host.ch/?u=[REDACTED:URL]
+```
+
+- Prvi vektor: URL kandidat je NO MATCH (port od 6 cifara); `pw@example.ch` je **nezavisna EMAIL
+  detekcija** (lijevo `:` nije u EMAIL lijevom skupu; desno `:` nije blokirajuće).
+- Drugi vektor: URL kandidat je NO MATCH (host `example.ch.`); `+41791234567` je nezavisan
+  `PHONE_INTL` pogodak (lijevo `=`).
+- Treći vektor: vanjski URL je NO MATCH (host `bad_host.ch`); `www.example.ch` je **zaseban** URL
+  kandidat sa vlastitim validnim starterom i lijevom granicom (`=`), ne prefiks vanjskog kandidata.
+
 **Prethodno postojeći tokeni.**
 
 ```text
@@ -2744,7 +2841,13 @@ podniz, odbijenu vrijednost ni dužinu.
 a×262144   (a.)×131072   1×262144   www.(a.)×131070   https://a×262136   a@(b.)×131071
 (Tel⟨U+0020⟩)×65536   (a-)×131072   https://x.ch/)×262000   !×262138 a@b.ch
 (https://x.ch:)×20000
+(https://x.ch./)×18724   (https://x.ch~)×18724   (www.a.ch')×14563⧺!×131000
 ```
+
+`⧺` označava direktnu konkatenaciju (bez razmaka). Posljednja tri vektora dokazuju da je
+**cjelokupno** URL otkrivanje (maksimalni omotač, trim i validacija pune potrošnje za sve startere)
+linearno i kad mnogo startera dijeli isti omotač ili isti sufiks završne interpunkcije (D-093
+`RULING F.2`).
 
 ```text
 TEST_REQUIREMENT_MUTATION    = 0 (aditivno planiranje; §12.5 nije oslabljen)

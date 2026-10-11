@@ -22701,28 +22701,92 @@ EMAIL  (?<![BLK!#$%&'*+\-/=?^`{|}~.@])[A-Za-z0-9_%+-]+(?:\.[A-Za-z0-9_%+-]+)*@(D
   lookalike.
 - **Lijeva granica:** oblik sa shemom — prethodni code point nije BLK; `www.` oblik — nije u
   `BLK ∪ { . @ / : - }`.
-- **Desni nastavak nakon autoriteta (host ili host+port), kad rep nije prisutan:** naredni code
-  point nije u `BLK ∪ { - @ : }`, i nije `.` praćena BLK znakom.
 
-```text
-URL  (?:(?<![BLK])[Hh][Tt][Tt][Pp][Ss]?:\/\/(?:[A-Za-z0-9\-._~%!$&'()*+,;=:]+@)?(?:(DNS)|([0-9]{1,3}(?:\.[0-9]{1,3}){3})|[Ll][Oo][Cc][Aa][Ll][Hh][Oo][Ss][Tt])|(?<![BLK.@\/:\-])([Ww]{3}\.DNS))(?::[0-9]{1,5})?(?:([\/?#])[A-Za-z0-9\-._~:\/?#\[\]@!$&'()*+,;=%NA]*|(?![BLK\-@:])(?!\.[BLK]))
-```
-
-**`G-1` — obavezujuće:**
+**`G-1` — obavezujuće (maksimalni omotač + puna potrošnja + bez fallbacka na validan prefiks):**
 
 ```text
 NO VALID PREFIX FALLBACK AFTER MALFORMED EXPLICIT URL COMPONENT
+
+MAXIMAL_ENVELOPE           = YES
+FULL_CONSUMPTION_REQUIRED  = YES
+NO_VALID_PREFIX_FALLBACK   = YES
 ```
 
-Kad je URL komponenta **izričito započeta** (userinfo `@`, port `:`, host), a nije validno
-završena, **cijeli kandidat se odbacuje**; kraći validan prefiks (npr. samo shema + host) se **ne
-smije** redigovati. Mehanički, to nosi desni nastavak iz F.2 (`@` i `:` su u skupu koji blokira) i
-post-validacija ispod. Obavezno nepromijenjeno:
+URL klasa se **ne definiše** konačnim desnim lookaheadom iza autoriteta. Normativna semantika je
+**maksimalni URL omotač + puna potrošnja + bez fallbacka na validan prefiks**:
 
 ```text
-https://example.ch:99999999/x
-https://example.ch:80abc
-https://example.ch:
+URL_ENV_CHAR   [A-Za-z0-9\-._~:\/?#\[\]@!$&'()*+,;=%NA]      (= ratifikovan skup znakova repa)
+URL_HARD_TERM  svaki code point koji nije URL_ENV_CHAR, te kraj ulaza
+               (npr. U+0020, U+0009, U+000A, "<>{}|\^, backtick, NEUTRAL)
+
+SCHEME_START   (?<![BLK])[Hh][Tt][Tt][Pp][Ss]?:\/\/        A = S + duzina startera
+WWW_START      (?<![BLK.@\/:\-])[Ww]{3}\.                  A = S   (www je dio hosta)
+
+1 starter     validan starter (sa lijevom granicom) na poziciji S
+2 omotac      envEnd = prva pozicija p >= A na kojoj je URL_HARD_TERM
+              omotac = recognitionSpan = [S, envEnd)                    (MAKSIMALAN)
+3 komponente  tailStart = prva pozicija u [A, envEnd) sa '/', '?' ili '#', ako postoji
+              autoritet = [A, tailStart) ako rep postoji; inace [A, envEnd)
+4 trim        ratifikovani linearni trim (ispod) nad [floor, envEnd)  ->  e
+              floor = tailStart ako rep postoji; inace A
+5 validacija  CIJELI [S, e) mora biti potpuno prihvacen sidrenim URL_FULL (ispod)
+              + obavezna post-validacija (IPv4 okteti, G-2)
+6 ishod       validno   -> URL kandidat: recognitionSpan [S, envEnd), replacementSpan [S, e)
+              nevalidno -> URL KANDIDAT = NO MATCH
+```
+
+```text
+URL_FULL  ^(?:[Hh][Tt][Tt][Pp][Ss]?:\/\/(?:[A-Za-z0-9\-._~%!$&'()*+,;=:]+@)?(?:(DNS)|([0-9]{1,3}(?:\.[0-9]{1,3}){3})|[Ll][Oo][Cc][Aa][Ll][Hh][Oo][Ss][Tt])|([Ww]{3}\.DNS))(?::[0-9]{1,5})?(?:[\/?#][A-Za-z0-9\-._~:\/?#\[\]@!$&'()*+,;=%NA]*)?$
+```
+
+`URL_FULL` se primjenjuje **isključivo na izdvojen kandidat `[S, e)`** (sidra `^`/`$` bez zastavice
+`m`); lijeve granice se provjeravaju na starteru u `T`. `URL_FULL` definiše **prihvaćeni jezik**
+kandidata; on ne uvodi nijednu novu komponentu — starteri, userinfo, host (DNS / IPv4 /
+`localhost`), port `1..5` cifara i rep su gornja, već ratifikovana gramatika.
+
+- **Puna potrošnja.** Nakon trimovanja **svaki** code point u `[S, e)` mora biti potrošen
+  gramatikom. Ostatak koji gramatika ne prihvata **ne skraćuje** kandidat — **odbacuje** ga.
+- **Bez fallbacka na validan prefiks.** Nema fallbacka samo na host, na host+port, na kraći prefiks
+  izabran regex backtrackingom, ni djelimičnog spašavanja URL-a. Semantika **ne zavisi** od toga da
+  regex backtracking izabere kraći prefiks.
+- **Izričito započeta komponenta obavezuje.** `:` nakon hosta obavezuje na port sintaksu
+  (`:[0-9]{1,5}`); `/` obavezuje na path/rep, `?` na query/rep, `#` na fragment/rep (rep po
+  ratifikovanoj gramatici repa); `@` u autoritetu obavezuje na userinfo (isključivo u obliku sa
+  shemom; userinfo je sve prije **prvog** `@` autoriteta). Malformisana započeta komponenta odbacuje
+  **cijeli** kandidat. Granice komponenti su fiksirane korakom 3; trimovanje ih ne pomjera.
+- **Završna interpunkcija izvan URL-a ≠ malformisan nastavak unutar omotača.** Završna interpunkcija
+  je **isključivo sufiks omotača** koji ratifikovani trim uklanja (skup `P` i višak `)` / `]`); ona
+  je **izvan** URL-a i ostaje vidljiva. Svaki drugi znak omotača — uključujući interpunkcijski znak
+  **iza kojeg** u omotaču slijedi još neki znak koji trim ne uklanja — je **nastavak unutar
+  omotača**: mora biti prihvaćen gramatikom, inače odbacuje **cijeli** kandidat. Npr.
+  `https://example.ch.` → `[REDACTED:URL].`, ali `https://example.ch./x` → nepromijenjeno.
+- **Bez repa `:` se ne trimuje:** `:` neposredno iza autoriteta je izričito započeta port komponenta
+  (`https://example.ch:` → nepromijenjeno). U repu `:` ostaje ratifikovana završna interpunkcija.
+- **Sloboda implementacije.** Ugovor zamrzava semantiku, ne jedan regex trik: dozvoljen je skener,
+  parser, regex + deterministička post-validacija omotača, ili ekvivalentna deterministička metoda —
+  ali svaka mora zadovoljiti `MAXIMAL_ENVELOPE`, `FULL_CONSUMPTION_REQUIRED` i
+  `NO_VALID_PREFIX_FALLBACK`. Konačni desni lookahead iza autoriteta (raniji
+  `(?![BLK\-@:])(?!\.[BLK])`) **nije** opšti `G-1` mehanizam i **nije normativan**.
+- **`G-1` je isključivo URL-klasno pravilo.** Odbijen URL omotač **ne stvara** neprozirnu ni
+  supresijsku zonu za druge klase (`RULING H.1`, N-2).
+
+Obavezno nepromijenjeno (cijeli kandidat odbijen punom potrošnjom):
+
+```text
+https://example.ch:99999999/x       port > 5 cifara
+https://example.ch:80abc            port nije [0-9]{1,5}
+https://example.ch:                 zapoceta port komponenta bez cifara
+https://example.ch./x               host example.ch.
+https://example.ch.:8443/admin      host example.ch.
+https://example.ch:8443./x          port 8443.
+www.example.ch.:8443/x              host www.example.ch.
+https://example.ch%2F/secret        host example.ch%2F
+https://example.ch~admin/x          host example.ch~admin
+https://example.ch*admin/x          host example.ch*admin
+https://example.ch=1/x              host example.ch=1
+https://example.ch$x/y              host example.ch$x
+https://example.ch&a=1              autoritet bez repa example.ch&a=1
 ```
 
 **`G-2` — obavezujuće:**
@@ -22742,26 +22806,36 @@ cijelo DNS ime, uključujući vodeću labelu `www`). Prekoračenje odbacuje **ci
 3. neuspjeh bilo kojeg koraka odbacuje **cijeli** kandidat — bez djelimičnog URL fallbacka
    (npr. `http://999.1.1.1/x` ostaje nepromijenjeno).
 
-**Trimovanje prateće interpunkcije — isključivo nad repom, linearno vrijeme.**
+**Trimovanje prateće interpunkcije — isključivo sufiks omotača iznad `floor`, linearno vrijeme.**
 
 ```text
-tailStart = pozicija pocetnog '/', '?' ili '#' repa; end = kraj regex pogotka
-jednim prolazom preko [tailStart, end) izbroji '(' ')' '[' ']'
+tailStart, floor iz koraka 3/4; end = envEnd (kraj maksimalnog omotaca)
+P = { . , ; : ! ? ' }   ako rep postoji              (ratifikovan skup)
+P = { . , ; ! ' }       ako rep ne postoji           (':' = zapoceta port komponenta;
+                                                      '?' bi zapoceo rep)
+jednim prolazom preko [floor, end) izbroji '(' ')' '[' ']'
 e = end
-dok e > tailStart:
+dok e > floor:
   c = tekst[e-1]
-  ako c ∈ { . , ; : ! ? ' }              -> e--; nastavi
+  ako c ∈ P                               -> e--; nastavi
   ako c == ')' i zatvorene() > otvorene() -> zatvorene()--; e--; nastavi
   ako c == ']' i zatvorene[] > otvorene[] -> zatvorene[]--; e--; nastavi
   stani
-span URL-a = [pocetak, e)
+replacementSpan URL-a = [S, e)
 ```
 
+- Uz rep, ovo je **nepromijenjen** ratifikovani algoritam (`end` maksimalnog omotača je identičan
+  kraju pohlepnog repa).
 - Balansirane `()` i `[]` se čuvaju; trimuje se **samo višak** zatvarajućeg znaka.
-- Prateći `/` se zadržava.
-- Algoritam **mora biti linearan**; ponovno brojanje u svakoj iteraciji je zabranjeno.
-- Otkrivanje se nastavlja od kraja **netrimovanog** regex pogotka.
-- **Span** = trimovan span = zamijenjeni span.
+- Prateći `/` se zadržava i ostaje dio URL-a.
+- Algoritam **mora biti linearan**; ponovno brojanje u svakoj iteraciji je zabranjeno. **Cjelokupno**
+  URL otkrivanje (omotač, trim i validacija za **sve** startere zajedno) mora biti linearno u dužini
+  ulaza; ponovno skeniranje zajedničkog omotača ili sufiksa po starteru je zabranjeno (dozvoljeno je
+  npr. jednokratno predizračunavanje `envEnd` i trim granica).
+- Nakon **prihvaćenog** URL kandidata otkrivanje URL-a se nastavlja od `envEnd` (kraj **netrimovanog**
+  omotača); nakon **odbijenog** (NO MATCH) od `S + 1`.
+- **`recognitionSpan`** = maksimalni omotač `[S, envEnd)`; **`replacementSpan`** = trimovan validan
+  URL `[S, e)` = zamijenjeni span (`RULING H.0`).
 
 #### F.3 AHV
 
@@ -22849,8 +22923,9 @@ PHONE_INTL  (?:(?<![BLK+])\+41|(?<![BLK])(?<![0-9]J)(?<![0-9] )0041)(?:[1-9][0-9
 PHONE_NAT   (?<![BLK])(?:[Tt][Ee][Ll][Ee][Ff][Oo][Nn]|[Tt][Ee][Ll]\.?|[Mm][Oo][Bb][Ii][Ll][Ee]|[Nn][Aa][Tt][Ee][Ll]|[Ff][Aa][Xx])[ \t]*(?::[ \t]*)?(0[1-9][0-9]{8}|0[1-9][0-9]-[0-9]{3}-[0-9]{2}-[0-9]{2}|0[1-9][0-9] [0-9]{3} [0-9]{2} [0-9]{2}(?! [0-9]))(?![BLK])(?!J[0-9])
 ```
 
-`PHONE_INTL` span = cijeli pogodak; `PHONE_NAT` span = **isključivo grupa broja**. Oba daju klasu
-`PHONE` i token `[REDACTED:PHONE]`.
+`PHONE_INTL`: `recognitionSpan` = `replacementSpan` = cijeli pogodak. `PHONE_NAT`:
+`recognitionSpan` = oznaka + separator + broj (cijeli pogodak); `replacementSpan` = **isključivo
+grupa broja** (`RULING H.0`). Oba daju klasu `PHONE` i token `[REDACTED:PHONE]`.
 
 ### `RULING G` — globalni model granica (`BLK` / `NEUTRAL`)
 
@@ -22893,7 +22968,7 @@ koristi Unicode property tabele, pa se ponašanje ne mijenja nadogradnjom Node/I
 
 ```text
 EMAIL   klasno specificno prosirenje (lijevo: RFC atext + . @; desno: - @, .+BLK)
-URL     klasno specificno prosirenje (www lijevi skup; desni nastavak - @ :; rep)
+URL     klasno specificno prosirenje (www lijevi skup; maksimalni omotac + puna potrosnja; rep)
 AHV     globalni model + numericki joiner guard
 IBAN    globalni model + desni numericki joiner guard
 PHONE   klasno specificno prosirenje (+, joiner i razmak guardovi)
@@ -22901,19 +22976,49 @@ PHONE   klasno specificno prosirenje (+, joiner i razmak guardovi)
 
 ### `RULING H` — otkrivanje, preklapanje, precedencija
 
+**H.0 Dva spana kandidata.** Svaki kandidat nosi dva odvojena spana nad nepromjenjivim
+normalizovanim ulazom `T` (polu-otvoreni intervali pozicija):
+
+```text
+recognitionSpan  [recStart, recEnd)          span / kontekst u T potreban za validaciju kandidata;
+                                             SMIJE sadrzavati kontekstualne znakove koji se
+                                             NE zamjenjuju
+replacementSpan  [replaceStart, replaceEnd)  TACAN span koji se zamjenjuje tokenom klase
+
+klasa        recognitionSpan                           replacementSpan
+EMAIL        cijeli pogodak                            = recognitionSpan
+URL          maksimalni omotac [S, envEnd) (F.2)       trimovan validan URL [S, e) (F.2)
+AHV          cijeli pogodak                            = recognitionSpan
+IBAN         cijeli pogodak                            = recognitionSpan
+PHONE_INTL   cijeli pogodak                            = recognitionSpan
+PHONE_NAT    oznaka + separator + broj                 isključivo broj; oznaka i separator ostaju
+```
+
+- `replacementSpan` je neprazan i sadržan u `recognitionSpan`.
+- Lookaround kontekst granica (`BLK`, joiner guardovi) se čita, ali nije dio nijednog spana.
+- Svako nekvalifikovano „span" / „zamijenjeni span" u D-093 (uključujući `RULING D.4`, `RULING E`
+  i `RULING F`) znači **`replacementSpan`**.
+- Komparator (H.3) i preklapanje (H.2) koriste **isključivo** `replaceStart` / `replaceEnd`.
+  **`recognitionSpan` koordinate se nikada ne koriste za razrješavanje preklapanja.**
+
 **H.1 Otkrivanje.**
 
 ```text
 T = nepromjenjiv normalizovan ulaz (nakon RULING C.3)
 kandidati = []
 za svaku klasu-pass u [EMAIL, URL, AHV, IBAN, PHONE_INTL, PHONE_NAT]:   nezavisni prolazi nad T
+  ako klasa == URL:
+    kandidati += URL kandidati po F.2       (prihvacen -> nastavi od envEnd; NO MATCH -> od S + 1)
+    sljedeca klasa
   pos = 0
   dok m = regex.exec(T od pos):
-    span = klasniSpan(m)            URL: trimovan (F.2); PHONE_NAT: grupa broja
     ako !postValidacija(klasa, m):  pos = m.start + 1; nastavi
-    kandidati.push({klasa, start, end}); pos = m.end   (kraj netrimovanog pogotka)
-prihvaceni = razrijesi(kandidati)                   (H.2)
-izlaz = T praznine + TOKEN[klasa]                    sastavljen JEDNOM
+    [recStart, recEnd)         = [m.start, m.end)
+    [replaceStart, replaceEnd) = PHONE_NAT: grupa broja; inace [m.start, m.end)
+    kandidati.push({klasa, recStart, recEnd, replaceStart, replaceEnd}); pos = m.end
+prihvaceni = razrijesi(kandidati)                   (H.2; isključivo replacement koordinate)
+izlaz = T sa svakim prihvacenim [replaceStart, replaceEnd) zamijenjenim TOKEN[klasa],
+        sastavljen JEDNOM
 ako UTF-8(izlaz) > 262144 -> FAILED REDACTED_OUTPUT_TOO_LARGE   (RULING D)
 inace                      -> COMPLETED
 ```
@@ -22921,6 +23026,26 @@ inace                      -> COMPLETED
 - Sve klase skeniraju **isključivo nepromjenjiv originalni normalizovani ulaz**.
 - Izlaz se gradi **jednom**; izlaz i tokeni se **nikada ne re-skeniraju**; zamjena ne može stvoriti
   novi pogodak.
+- **Prepoznavanje je završeno prije zamjene.** Svaki `recognitionSpan` se validira nad originalnim
+  `T`. Kontekstualni znak (npr. `PHONE_NAT` oznaka) koji leži u `replacementSpan`-u drugog
+  prihvaćenog kandidata i nestane zamjenom **ne poništava** već završeno prepoznavanje.
+
+**N-2 — odbijen URL ne stvara neprozirnu zonu.**
+
+```text
+OTHER_CLASS_SUPPRESSION_AFTER_URL_REJECTION = NO
+REJECTED_URL_OPAQUE_SPAN                    = NONE
+```
+
+- `G-1` (`NO VALID PREFIX FALLBACK`) važi **isključivo za URL-klasni fallback**. Odbijen URL omotač
+  **ne potiskuje** nijednu drugu klasu i ne uvodi „odbijeni URL neprozirni span" ni „zonu
+  supresije nakon neuspjeha URL-a".
+- EMAIL, AHV, IBAN, PHONE, kao i **zaseban** URL kandidat sa vlastitim validnim starterom i
+  granicama, skeniraju se nezavisno nad `T` i uspijevaju **akko** zadovoljavaju vlastitu kompletnu
+  zamrznutu gramatiku. Takav pogodak **nije** URL fallback.
+- Npr. `https://user:pw@example.ch:999999/x`: URL kandidat je NO MATCH (port), a **nezavisna EMAIL
+  detekcija** (`pw@example.ch`; lijevo `:` nije u EMAIL lijevom skupu, desno `:` nije blokirajuće)
+  daje `https://user:[REDACTED:EMAIL]:999999/x`.
 
 **H.2 Preklapanje.**
 
@@ -22928,9 +23053,16 @@ inace                      -> COMPLETED
 sortiraj kandidate komparatorom H.3
 lastEnd = 0
 za svaki kandidat c:
-  ako c.start >= lastEnd:  prihvati c; lastEnd = c.end
-  inace:                   odbaci c CIJELI
+  ako c.replaceStart >= lastEnd:  prihvati c; lastEnd = c.replaceEnd
+  inace:                          odbaci c CIJELI
 ```
+
+- **Konflikt zamjene postoji isključivo** kad se `replacementSpan` A i `replacementSpan` B sijeku
+  (`A.replaceStart < B.replaceEnd` i `B.replaceStart < A.replaceEnd`).
+- **Preklapanje `recognitionSpan`-ova samo po sebi NIJE konflikt zamjene.**
+- Kandidat se odbacuje razrješavanjem preklapanja **isključivo** ako njegov `replacementSpan` siječe
+  `replacementSpan` već prihvaćenog kandidata. Ovo je ispravno jer se sve prepoznavanje izvršava nad
+  nepromjenjivim originalnim `T` prije bilo kakve zamjene (H.1).
 
 **Bez skraćivanja, bez unije, bez djelimičnog spašavanja.** Ugniježđeni kandidat gubi od
 kontejnera; kasniji djelimično preklapajući kandidat se odbacuje cijeli.
@@ -22940,11 +23072,27 @@ kontejnera; kasniji djelimično preklapajući kandidat se odbacuje cijeli.
 ```text
 PRIO: URL > EMAIL > IBAN > AHV > PHONE
 
-cmp(a, b) = (a.start - b.start)  ||  (b.end - a.end)  ||  (PRIO[a] - PRIO[b])
-            najraniji pocetak  ->  najduzi span  ->  klasna precedencija
+cmp(a, b) = (a.replaceStart - b.replaceStart)
+         || ((b.replaceEnd - b.replaceStart) - (a.replaceEnd - a.replaceStart))
+         || (PRIO[a] - PRIO[b])
+            najmanji replaceStart  ->  najduzi replacementSpan  ->  klasna precedencija
 ```
 
 Komparator je totalni poredak; ishod ne zavisi od redoslijeda izvršavanja regexa.
+
+**Obavezni vektor (recognition preklapanje ≠ konflikt zamjene):**
+
+```text
+www.praxis.ch/Tel 079 123 45 67   ->   [REDACTED:URL] [REDACTED:PHONE]
+```
+
+- URL `replacementSpan` = `www.praxis.ch/Tel` (validan URL zaključno sa `Tel`; omotač završava na
+  `U+0020`);
+- `PHONE_NAT` `recognitionSpan` koristi originalni `Tel 079 123 45 67` (oznaka `Tel` leži unutar
+  URL `replacementSpan`-a);
+- `PHONE_NAT` `replacementSpan` = isključivo `079 123 45 67`;
+- dva `replacementSpan`-a se **ne sijeku** → oba se prihvataju. Broj **ne smije** ostati vidljiv
+  zbog knjigovodstva preklapanja.
 
 **H.4 Ponovljeni i susjedni pogoci.** Ponovljena pojavljivanja su **dozvoljena** i svako se
 zamjenjuje; **deduplikacije nema**. Susjedni pogoci (razdvojeni whitespaceom, interpunkcijom ili
@@ -22989,7 +23137,11 @@ adversarial / dugi ulaz
 
 - EMAIL vlasnička korekcija (`foo!bar@x.ch`, `foo&bar@x.ch`, `foo=bar@x.ch` → nepromijenjeno) je
   **obavezna**.
-- Dokaz za `G-1`, `G-2` i `G-3` je **obavezan**.
+- Dokaz za `G-1`, `G-2` i `G-3` je **obavezan**. Dokaz za `G-1` uključuje maksimalni omotač, punu
+  potrošnju i odsustvo fallbacka na validan prefiks, kao i pozitivan dokaz da ratifikovano
+  trimovanje završne interpunkcije i dalje radi.
+- Dokaz `recognitionSpan` / `replacementSpan` razdvajanja (`RULING H.0`–`H.3`) i nezavisnog
+  otkrivanja drugih klasa nakon odbijenog URL-a (N-2) je **obavezan**.
 - Minimalni obavezni vektori su u `08` §12.15. Vektori sa ne-ASCII ili kontrolnim znakovima se
   grade iz code pointa, nikada iz literala.
 - **Formalni dokaz zatvaranja se izvršava na Node 24.19.0.**
@@ -23099,6 +23251,13 @@ D-094                                 UNASSIGNED / UNRESERVED
 - **EMAIL bez vlasničke korekcije** (`foo!bar@x.ch` → `foo![REDACTED:EMAIL]`) — **odbijeno**
   (`RULING F.1`).
 - **Fallback na validan prefiks URL-a nakon malformisane komponente** — **odbijeno** (`G-1`).
+- **Konačni desni lookahead iza autoriteta kao opšti `G-1` mehanizam** (i njegovo proširivanje
+  dodatnim znakovima) — **odbijeno**; ne pokriva nastavke van konačnog skupa. Zamijenjen
+  maksimalnim omotačem + punom potrošnjom (`RULING F.2`).
+- **Razrješavanje preklapanja po `recognitionSpan` koordinatama** — **odbijeno**; ostavlja
+  vidljiv broj kad `PHONE_NAT` oznaka leži u drugom pogotku (`RULING H.0`–`H.3`).
+- **Neprozirna / supresijska zona nakon odbijenog URL kandidata** — **odbijeno** (N-2,
+  `RULING H.1`).
 - **URL host bez gornje granice dužine** — **odbijeno** (`G-2`).
 - **Opciona re-asercija preduslova / `normaliseClinicalText(x) === x`** — **odbijeno** (`G-3`).
 - **BLK preko `\p{L}\p{M}\p{N}`** — **odbijeno**; zavisi od Unicode verzije (`RULING G`).

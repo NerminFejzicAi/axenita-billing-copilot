@@ -3389,7 +3389,7 @@ ovo je sažetak za implementacijski plan.
 |---|---|
 | Ulaz | isključivo uspješan izlaz `normaliseClinicalText`; bez re-normalizacije, popravke i transformacije |
 | Preduslovi (`G-3`) | **obavezna** assertion-only re-asercija 8 `P5-I3C` postuslova prije matchinga; kršenje = `UNEXPECTED INTERNAL FAILURE — PRECONDITION BREACH`; `normaliseClinicalText(x) === x` zabranjen kao mehanizam |
-| Rezultat | `COMPLETED { rulesetVersion, redactedText }` / `FAILED { rulesetVersion, failureCode }`; bez originala, hasheva, match metadata, liste klasa i audit payloada |
+| Rezultat | `COMPLETED { status, rulesetVersion, redactedText }` / `FAILED { status, rulesetVersion, failureCode }`; bez originala, hasheva, match metadata, liste klasa i audit payloada |
 | `FAILED` skup | tačno `{ REDACTED_OUTPUT_TOO_LARGE }`; granica 262144 UTF-8 bajta na sastavljenom izlazu; bez skraćivanja |
 | Klase / tokeni | `EMAIL`, `URL`, `AHV`, `IBAN`, `PHONE` → `[REDACTED:<KLASA>]`; eksterna referenca `INERT WITHOUT INPUT SOURCE`; osiguranje/kartica nije v1 klasa |
 | Gramatike | EMAIL (sa vlasničkom korekcijom lijeve granice); URL (`G-1` bez prefiks fallbacka, `G-2` host ≤ 253); AHV (`756`, EAN-13); IBAN (`CH`, mod-97, `kk` 02–98); PHONE (D-070 `RULING 5` + rezidualna pojašnjenja) |
