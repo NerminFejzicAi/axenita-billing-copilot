@@ -2839,12 +2839,45 @@ podniz, odbijenu vrijednost ni dužinu.
 
 ```text
 a×262144   (a.)×131072   1×262144   www.(a.)×131070   https://a×262136   a@(b.)×131071
-(Tel⟨U+0020⟩)×65536   (a-)×131072   https://x.ch/)×262000   !×262138 a@b.ch
+(Tel⟨U+0020⟩)×65535⧺Tel   (a-)×131072   https://x.ch/)×262000   !×262126⧺⟨U+0020⟩⧺a@b.ch
 (https://x.ch:)×20000
 (https://x.ch./)×18724   (https://x.ch~)×18724   (www.a.ch')×14563⧺!×131000
 ```
 
-`⧺` označava direktnu konkatenaciju (bez razmaka). Posljednja tri vektora dokazuju da je
+**Invarijanta kategorija dokaza.** Tri kategorije dokaza su **logički odvojene**; nijedan vektor ne
+služi kao dokaz druge kategorije:
+
+```text
+G-3 krsenje preduslova       (gore)    namjerno krsi preduslov -> PRECONDITION BREACH
+OD-P5-I6A-2 granica izlaza   (gore)    zadovoljava preduslove; dokazuje COMPLETED / FAILED
+                                       REDACTED_OUTPUT_TOO_LARGE na granici izlaza
+linearnost matchera          (ovdje)   dokazuje linearno ponasanje ciljanog matchera
+```
+
+Svaki vektor linearnosti matchera **mora**: (1) zadovoljiti **svih osam** `P5-I6A` preduslova
+(D-093 `RULING C.3`); (2) stvarno **doseći ciljani matcher**; (3) **ne aktivirati** nijednu drugu
+očekivanu granu neuspjeha (kršenje preduslova, `REDACTED_OUTPUT_TOO_LARGE`); (4) imati **eksplicitan**
+očekivani rezultat i izlaz. Ova invarijanta ne uvodi nova pravila matchinga; normativna pravila su u
+D-093 u `06`.
+
+**Očekivani ishodi vektora linearnosti PHONE i EMAIL.**
+
+```text
+(Tel⟨U+0020⟩)×65535⧺Tel     ulaz 262143 B   =   (COMPLETED; nema validnog PHONE broja)
+!×262126⧺⟨U+0020⟩⧺a@b.ch    ulaz 262133 B   ->  !×262126⧺⟨U+0020⟩⧺[REDACTED:EMAIL]
+                                                (COMPLETED; izlaz 262143 B)
+```
+
+- **PHONE:** ulaz završava oznakom `Tel`, ne `⟨U+0020⟩`, pa zadovoljava preduslov 6 (nema vanjskog
+  `White_Space`); svih 65536 oznaka `Tel` (65535 + završna) doseže PHONE matcher, a nijedna nije
+  praćena validnim brojem. Izlaz je bajt-identičan ulazu.
+- **EMAIL:** `a@b.ch` je validan EMAIL (`RULING F.1`; lijevi susjed `⟨U+0020⟩` je neutralan) i
+  zamjenjuje se 16-bajtnim tokenom `[REDACTED:EMAIL]`: 262133 − 6 + 16 = 262143 B ≤ 262144, pa se
+  `REDACTED_OUTPUT_TOO_LARGE` ne aktivira. `!×262137⧺⟨U+0020⟩⧺a@b.ch` (262144 B) **nije** vektor
+  linearnosti: izlaz bi bio 262154 B → `FAILED REDACTED_OUTPUT_TOO_LARGE`.
+
+`⧺` označava direktnu konkatenaciju (bez razmaka). Posljednja tri vektora u bloku adversarial
+vektora dokazuju da je
 **cjelokupno** URL otkrivanje (maksimalni omotač, trim i validacija pune potrošnje za sve startere)
 linearno i kad mnogo startera dijeli isti omotač ili isti sufiks završne interpunkcije (D-093
 `RULING F.2`).

@@ -3395,8 +3395,9 @@ ovo je sažetak za implementacijski plan.
 | Gramatike | EMAIL (sa vlasničkom korekcijom lijeve granice); URL (`G-1` bez prefiks fallbacka, `G-2` host ≤ 253); AHV (`756`, EAN-13); IBAN (`CH`, mod-97, `kk` 02–98); PHONE (D-070 `RULING 5` + rezidualna pojašnjenja) |
 | Granice | eksplicitan `BLK` / `NEUTRAL` model (38 code pointa), bez `\p{…}`, `\w`, `\d`, `\b` |
 | Otkrivanje | sve klase nad nepromjenjivim ulazom; izlaz se gradi jednom i ne re-skenira |
-| Preklapanje | `start` → najduži → `URL > EMAIL > IBAN > AHV > PHONE`; presječeni kandidat odbačen cijeli; bez deduplikacije |
-| Runtime | Node 24.19.0; zastavice `gu`; `i`/`s`/`m`/`y` zabranjene; linearno trimovanje URL repa |
+| Spanovi | svaki kandidat nosi `recognitionSpan` (span / kontekst za validaciju) i `replacementSpan` `[replaceStart, replaceEnd)` (tačan span zamijenjen tokenom); normativno `RULING H.0` u `06` |
+| Preklapanje | redoslijed i preklapanje isključivo po `replaceStart` / `replaceEnd`: najmanji `replaceStart` → najduži `replacementSpan` → `URL > EMAIL > IBAN > AHV > PHONE`; kandidat čiji `replacementSpan` siječe prihvaćeni odbačen cijeli; preklapanje samo `recognitionSpan`-ova **nije** konflikt zamjene; bez deduplikacije |
+| Runtime | Node 24.19.0; zastavice `gu`; `i`/`s`/`m`/`y` zabranjene; **cjelokupan** URL prolaz linearan u dužini ulaza (otkrivanje startera, maksimalni omotač, trim završne interpunkcije, validacija pune potrošnje); bez wall-clock praga |
 | Hashevi | odgovornost `P5-I6B` |
 | Nizvodno | očekivani `FAILED` → `READY`/`FAILED`, `201`, bez `redactedTextHash`; neočekivano → rollback; `OD-P5-I6-6` / `OD-P5-I6-9` OPEN |
 
