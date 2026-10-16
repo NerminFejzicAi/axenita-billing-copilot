@@ -5262,6 +5262,63 @@ Nakon efektivnog D-093 stanje je **`P5-I6A = CONTRACT FROZEN / IMPLEMENTATION NO
 AUTHORIZED`**; naredni gate nakon autorstva je **svjež nezavisan D-093 governance pregled**. Vidi
 D-093 u `06`.
 
+## P5-I6A FORMAL CLOSURE ANNOTATION — D-094 (2026-10-17)
+
+**Nijedan pasus, blok ni anotacija iznad se ne prepisuje.** Ova anotacija ne dodaje i ne briše
+nijedan red; prati **tačno jednu** tranziciju kućice ispod. **§0 Project metadata se ne mijenja**
+(izvan obuhvata D-094, `NB-2`, LEAVE AS-IS).
+
+- **D-093 je objavljen kroz PR #78 (`010fd7b7…`, publication drift `ZERO`) i efektivan.**
+  Implementacija `P5-I6A` (`fd10e37e…`, merged kroz **PR #79** kao **`dcc70ee9…`**, tree `d331a3df…`)
+  je kanonska, post-merge verifikovana i efektivna kao implementacija. Formulacije D-093 anotacije
+  iznad (`D-093 … NOT CANONICAL / NOT EFFECTIVE`, `P5-I6A … CONTRACT CANDIDATE AUTHORED /
+  IMPLEMENTATION NOT AUTHORIZED / NOT STARTED`, „Red `Services → redaction` ostaje **neoznačen**",
+  `CHECKBOX_TRANSITIONS = 0`) opisuju **pred-D-094 stanje** i **ne prepisuju se**.
+- **D-094 je post-publikaciono pomirenje i formalno zatvaranje pod-gatea `P5-I6A`.** **Dokumentacija
+  isključivo.**
+- **Red u vlasništvu `P5-I6A`** (D-092, `RULING B`; D-093, `RULING J`) — označen ispod:
+  `Services → redaction`. **Kućica odražava formalno zatvaranje pod D-094.** **Nijedan drugi red se
+  ne mijenja.**
+- **`37 / 49` je pred-D-094 kanonsko stanje; `38 / 49` je D-094 kandidat zatvaranja i stanje nakon
+  efektivnosti.**
+
+```text
+sekcija    red          vlasnik   pod-gate   stanje
+Services   redaction.   P5-I6     P5-I6A     [x]   (formalno zatvaranje pod D-094 kandidatom)
+
+                        kanonski (prije)   D-094 kandidat
+ukupno redova (S6)      49                 49
+oznaceno                37                 38
+neoznaceno              12                 11   (38 / 49 ~= 77.55 %)
+
+CHECKBOX TRANSITIONS    = 1   (Services -> redaction)
+UNCHECKED_TO_CHECKED    = 1
+CHECKED_TO_UNCHECKED    = 0
+OTHER ROW TRANSITIONS   = 0
+NEW_ROWS                = 0
+DELETED_ROWS            = 0
+```
+
+```text
+D-094    OWNER-ASSIGNED / LOCALLY AUTHORED / NOT INDEPENDENTLY REVIEWED / NOT OWNER-ACCEPTED /
+         NOT PUBLISHED / NOT CANONICAL / NOT EFFECTIVE
+D-093    PUBLISHED / MERGED (PR #78) / CANONICAL / POST-PUBLICATION VERIFIED / EFFECTIVE
+P5-I6    NOT FORMALLY CLOSED
+P5-I6A   PUBLISHED / MERGED (PR #79) / CANONICAL / POST-MERGE VERIFIED /
+         EFFECTIVE AS IMPLEMENTATION / FORMALLY CLOSING UNDER D-094 / NOT YET EFFECTIVE
+P5-I6B   NOT AUTHORIZED / NOT STARTED
+P5-I6C   NOT AUTHORIZED / NOT STARTED
+P5-I7    NOT AUTHORIZED / NOT STARTED
+OD-P5-I6-6 … OD-P5-I6-10 / AAD literali / encryption_key_ref   OPEN
+D-095    UNASSIGNED / UNRESERVED
+```
+
+**`49 / 38` je isključivo lokalno kandidatsko stanje** dok D-094 ne bude objavljen i verifikovan;
+kanonski `origin/main` do tada nosi **`49 / 37`**. **Očekivano stanje, isključivo nakon punog
+lifecyclea D-094:** `P5-I6A = COMPLETE / VERIFIED / FORMALLY CLOSED / EFFECTIVE`, `Services →
+redaction = [x]`, Faza 5 = **`38 / 49`** (11 preostalo). **Roditeljski `P5-I6` se ne zatvara**;
+`P5-I6B`, `P5-I6C` i `P5-I7` ostaju neautorizovani. Vidi D-094 u `06`.
+
 
 ## Schema
 
@@ -5282,7 +5339,7 @@ D-093 u `06`.
 - [x] encryption interface.
 - [x] local encryption implementation.
 - [x] text normalization.
-- [ ] redaction.
+- [x] redaction.
 - [x] state machine.
 - [x] idempotency service.
 - [x] optimistic locking.

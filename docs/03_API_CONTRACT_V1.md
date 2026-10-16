@@ -975,6 +975,33 @@ API SEMANTIC MUTATION      = 0
 
 Vidi D-093 u `06`.
 
+**STATUSNA ANOTACIJA (D-094, 2026-10-17) — sekcija i anotacije iznad se NE prepisuju.** D-093 je
+objavljen kroz **PR #78** (`010fd7b7…`, publication drift `ZERO`) i **efektivan**; **D-093 je
+efektivan kanonski autoritet izvršnog ugovora `P5-I6A`** (ruleset `phase5-basic-v1`). Implementacija
+`P5-I6A` je **kanonska, post-merge verifikovana i efektivna kao implementacija** (`fd10e37e…`, merged
+kroz **PR #79** kao **`dcc70ee9…`**, tree `d331a3df…`, publication drift `ZERO`). **`P5-I6A` nema API
+površinu**; nijedna ruta, metoda, payload, DTO, header, permisija, statusni ni error kod se ne mijenja;
+§13 ostaje nepromijenjen. Formalno zatvaranje `P5-I6A` je predmet **D-094**. Formulacije D-093
+anotacije iznad (`D-093 … NOT CANONICAL / NOT EFFECTIVE`, `P5-I6A … CONTRACT CANDIDATE AUTHORED /
+IMPLEMENTATION NOT AUTHORIZED / NOT STARTED`) i statusni blok §13.5 su **pred-D-094 snapshot**,
+**historijski su tačne** i **ne prepisuju se**.
+
+```text
+D-094    OWNER-ASSIGNED / LOCALLY AUTHORED / NOT INDEPENDENTLY REVIEWED / NOT OWNER-ACCEPTED /
+         NOT PUBLISHED / NOT CANONICAL / NOT EFFECTIVE
+D-093    PUBLISHED / MERGED (PR #78) / CANONICAL / POST-PUBLICATION VERIFIED / EFFECTIVE
+P5-I6A   PUBLISHED / MERGED (PR #79) / CANONICAL / POST-MERGE VERIFIED /
+         EFFECTIVE AS IMPLEMENTATION / FORMALLY CLOSING UNDER D-094 / NOT YET EFFECTIVE
+P5-I6    NOT FORMALLY CLOSED
+P5-I6B / P5-I6C / P5-I7    NOT AUTHORIZED / NOT STARTED
+OD-P5-I6-6 … OD-P5-I6-10   OPEN
+API SEMANTIC MUTATION      = 0
+```
+
+Zatvaranje postaje efektivno **tek nakon punog lifecyclea D-094**; tada `P5-I6A = COMPLETE / VERIFIED
+/ FORMALLY CLOSED / EFFECTIVE`. **D-094 ne zatvara roditeljski `P5-I6` i ne autorizuje `P5-I6B`,
+`P5-I6C` ni `P5-I7`.** Vidi D-094 u `06`.
+
 
 ---
 

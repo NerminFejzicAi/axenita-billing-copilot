@@ -673,6 +673,40 @@ D_OPEN_009    UNCHANGED / UNADJUDICATED
 
 Vidi D-093 u `06`.
 
+**STATUSNA ANOTACIJA (D-094, 2026-10-17) — sekcija, tačke 1–9 i anotacije iznad se NE prepisuju.**
+D-093 je objavljen kroz **PR #78** (`010fd7b7…`) i efektivan; izvršni ugovor `P5-I6A` je **kanonski i
+implementiran** (kanonska implementacija `P5-I6A` kroz **PR #79**, `dcc70ee9…`, tree `d331a3df…`).
+D-094 formalno zatvara pod-gate `P5-I6A`. **Sigurnosni / privatnosni dokaz `P5-I6A` je prihvaćen**
+(nezavisan pregled PASS, nula blokirajućih nalaza):
+
+- aktivne klase v1 su tačno `EMAIL`, `URL`, `AHV`, `IBAN`, `PHONE` sa fiksnim, nederivativnim
+  tokenima; klasa eksterne reference ostaje **`INERT WITHOUT INPUT SOURCE`** i **ne predstavlja se
+  kao redigovana**;
+- obavezna assertion-only re-asercija preduslova (`G-3`); greške su **statične**, bez ulaznog teksta;
+- rezultat bez originala, hasheva i match metadata; izlaz se **nikada ne skraćuje**;
+- redakcija ostaje deterministička i rule-based; **nije anonimizacija** ni potpuna granica uklanjanja
+  PHI-a.
+
+**D-094 ne mijenja nijedan sigurnosni zahtjev.** Enkripcija, hashevi, perzistencija, audit i
+`view=redacted` ostaju u neautorizovanim `P5-I6B` / `P5-I6C`. Formulacija „Postaje kanonska tek nakon
+punog lifecyclea D-093. **D-093 ne autorizuje implementaciju `P5-I6A`.**" iznad opisuje **pred-D-094
+stanje** i **ne prepisuje se**.
+
+```text
+D-094    OWNER-ASSIGNED / LOCALLY AUTHORED / NOT CANONICAL / NOT EFFECTIVE
+D-093    PUBLISHED / MERGED (PR #78) / CANONICAL / POST-PUBLICATION VERIFIED / EFFECTIVE
+P5-I6A   CANONICAL / POST-MERGE VERIFIED / EFFECTIVE AS IMPLEMENTATION /
+         FORMALLY CLOSING UNDER D-094 / NOT YET EFFECTIVE
+P5-I6B / P5-I6C / P5-I7   NOT AUTHORIZED / NOT STARTED
+AAD_ORIGINAL_LITERAL / AAD_REDACTED_LITERAL / ENCRYPTION_KEY_REF_VALUE_FORMAT   OPEN
+D_OPEN_004A   UNCHANGED / UNADJUDICATED
+D_OPEN_007    OPEN / DEFERRED
+D_OPEN_009    UNCHANGED / UNADJUDICATED
+SECURITY REQUIREMENT MUTATION = 0
+```
+
+Vidi D-094 u `06`.
+
 ---
 
 # 9. Secrets
