@@ -2892,6 +2892,59 @@ CHECKBOX TRANSITIONS (D-093 kandidat) = 0
 
 Vidi D-093 u `06`.
 
+### Anotacija zatvaranja `P5-I6A` (D-094, 2026-10-17) — sekcije iznad se NE prepisuju
+
+D-093 je efektivan (PR #78, `010fd7b7…`). Dokaz `P5-I6A` je dio kanonske implementacije (`fd10e37e…`,
+merged kroz **PR #79** kao **`dcc70ee9…`**, tree `d331a3df…`) — unit specovi pod
+`apps/api/src/document/domain/**` (`redaction-ruleset.spec.ts`, `redaction-url.spec.ts`,
+`redaction-matchers.spec.ts`, `redaction-preconditions.spec.ts`). Formalni dokaz zatvaranja je
+izvršen na **Node 24.19.0** (D-093 `RULING J`); kanonski dokaz, ranije verifikovan i vlasnički
+utvrđen:
+
+```text
+Node / pnpm                  24.19.0 / 11.17.0
+verify:toolchain             PASS
+ciljani P5-I6A specovi       4 fajla / 508 testova / 508 PASS / 0 FAIL
+kompletan unit suite         67 fajlova / 2171 testova / PASS
+e2e                          7 fajlova / 49 testova / PASS
+lint / typecheck / build     PASS / PASS / PASS
+format:check                 iskljucivo postojece, nepovezano odstupanje Faze 4
+integration                  NOT RUN / prihvaceno kao neblokirajuce
+security                     NOT RUN / prihvaceno kao neblokirajuce
+nezavisan pregled            PASS / blokirajuci nalazi 0
+IR-NB-1 / IR-NB-2 / IR-NB-3  NON-BLOCKING / ACCEPTED AS-IS
+```
+
+- Nalazi pregleda (D-094 `RULING E`), svi `NON-BLOCKING / ACCEPTED AS-IS`:
+  - **`IR-NB-1`** — za izvršavanje regexa `EMAIL` / `AHV` / `IBAN` / `PHONE` ne postoji
+    deterministički brojač koraka enginea; prihvaćeni dokaz je strukturna analiza linearnosti,
+    adversarijalni / dugi vektori i izvršavanje na Node 24.19.0.
+  - **`IR-NB-2`** — postojeće, nepovezano odstupanje formattera Faze 4 u
+    `apps/api/test/phase4-membership-role-assignment-constraints.security.ts`.
+  - **`IR-NB-3`** — integration / security **NOT RUN** zbog nedostupnog Docker / DB okruženja;
+    prihvaćeno kao neblokirajuće za čisti obuhvat `P5-I6A`.
+- `P5-I6A` je čist ruleset bez baze, API-ja i perzistencije (D-093 `RULING B`); neizvršeni
+  integration / security suiteovi su **vlasnički prihvaćeni kao neblokirajući** za ovaj obuhvat.
+- **Particija §12.5 / §12.14 / §12.15 se ne mijenja:** svjež IV i hashevi ostaju `P5-I6B`,
+  `view=redacted` bez fallbacka ostaje `P5-I6C`; njihove testne obaveze **nisu ispunjene ovim
+  zatvaranjem** i ostaju žive.
+
+**D-094 ne piše, ne mijenja i ne izvršava nijedan test** (governance isključivo; tačan kanonski dokaz
+je već verifikovan) i **ne dodaje nijednu novu testnu obavezu.** Formulacije `TESTS_WRITTEN_D093 = 0`,
+`P5-I6A … CONTRACT CANDIDATE AUTHORED / IMPLEMENTATION NOT AUTHORIZED / NOT STARTED` i `CHECKBOX
+TRANSITIONS (D-093 kandidat) = 0` iznad opisuju **pred-D-094 stanje** i **ne prepisuju se**.
+
+```text
+TESTS WRITTEN IN THIS GATE   0
+TESTS RERUN IN THIS GATE     0
+P5-I6A   CANONICAL / POST-MERGE VERIFIED / EFFECTIVE AS IMPLEMENTATION /
+         FORMALLY CLOSING UNDER D-094 / NOT YET EFFECTIVE
+P5-I6B / P5-I6C / P5-I7   NOT AUTHORIZED / NOT STARTED
+CHECKBOX TRANSITIONS (D-094 kandidat) = 1   (Services -> redaction)
+```
+
+Vidi D-094 u `06`.
+
 ---
 
 

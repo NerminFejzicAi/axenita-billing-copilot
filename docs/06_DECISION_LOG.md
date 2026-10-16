@@ -23377,6 +23377,491 @@ CHECKBOX_TRANSITIONS                     = 0
 
 ---
 
+# D-094 — P5-I6A FORMAL CLOSURE / CHECKLIST RECONCILIATION
+
+- **Status:** vlasnička odluka zatvaranja `P5-I6A` OWNER-ASSIGNED / OWNER-AUTHORIZED — **LOCALLY
+  AUTHORED / NOT INDEPENDENTLY REVIEWED / NOT OWNER-ACCEPTED / NOT PUBLISHED / NOT CANONICAL / NOT
+  EFFECTIVE**
+- **Datum:** 2026-10-17
+- **Tip:** vlasnički autorizovan **governance zapis post-publikacionog pomirenja i formalnog
+  zatvaranja pod-gatea `P5-I6A`** (deterministički redakcioni ruleset `phase5-basic-v1`).
+  **Dokumentacija isključivo.**
+- **Amandman na:** **isključivo tekuće statusne metapodatke** D-093 / `P5-I6A` i **tačno jednu
+  kućicu** checklista Faze 5 (`Services → redaction`). **Nijedan zapis D-001 … D-093 se ne
+  prepisuje, ne prenumeriše i ne briše — svi ostaju bajt-identični.**
+- **Ovo je isključivo governance pomirenje i zatvaranje.** Implementacija `P5-I6A` je bila **kanonska
+  prije ove odluke** (merge **PR #79**, `dcc70ee9…`). D-094 **ne mijenja runtime ponašanje**: ne
+  uvodi nijednu liniju izvornog koda, nijedan test, nijednu migraciju, schemu, Prisma model, API rutu,
+  DTO, grant, rolu, politiku, permisiju ni `packages/contracts`. **Nijedna baza nije kontaktirana** i
+  **nijedan test se ovom odlukom ne izvršava.** D-094 formalizuje lifecycle stanje i kompletnost
+  checklista.
+- **Ova odluka mijenja TAČNO JEDNU kućicu** (red u vlasništvu `P5-I6A`, D-092 `RULING B`; D-093
+  `RULING J`). Checklist Faze 5 prelazi iz **`37 / 49`** u **`38 / 49`** — **isključivo u ovom
+  lokalnom kandidatu**; kanonski `origin/main` nosi **`37 / 49`** dok D-094 ne prođe vlastiti
+  lifecycle.
+- **Ova odluka NE zatvara roditeljski `P5-I6`** i **ne autorizuje ni ne započinje `P5-I6B`, `P5-I6C`
+  ni `P5-I7`**.
+- **Ova odluka troši ISKLJUČIVO `D-094`.** `D-095` se ne troši, ne rezerviše i ne dodjeljuje.
+- **Lokalni authoring commit ove odluke NIJE kanonski ni efektivan.** Formalno zatvaranje `P5-I6A`
+  postaje efektivno tek nakon vlastitog lifecyclea D-094 (vidi `RULING C`).
+
+## Kontekst/problem — trigger
+
+D-092 je mapirao red `Services → redaction` **isključivo** na `P5-I6A` (`RULING B`), a D-093 je
+zamrznuo izvršni ugovor `P5-I6A` i izričito utvrdio da se red zatvara **isključivo formalnim
+zatvaranjem `P5-I6A` nakon implementacije — ne zapisom D-093** (`RULING J`). D-093 je objavljen kroz
+**PR #78** i merged kao `010fd7b7…`. Implementacija `P5-I6A` je zatim izvedena pod zasebnom
+vlasničkom implementacijskom autorizacijom koju traži D-093 `RULING M`, nezavisno pregledana,
+vlasnički prihvaćena, objavljena kroz **PR #79** i merged na `origin/main` kao
+**`dcc70ee9830cf9cbb9d6d5e9998e021303e3c320`**; kanonska post-merge verifikacija je završila
+`P5_I6A_POSTMERGE_VERIFICATION_PASS_CANONICAL_VERIFIED_EFFECTIVE`. Kanonski checklist Faze 5 i dalje
+nosi red `Services → redaction` kao neoznačen, a tekući statusni blokovi u `03`, `04`, `05`, `08` i
+`09` i dalje opisuju D-093 kao `LOCALLY AUTHORED / NOT CANONICAL / NOT EFFECTIVE`, a `P5-I6A` kao
+`CONTRACT CANDIDATE AUTHORED / IMPLEMENTATION NOT AUTHORIZED / NOT STARTED` (pred-D-094 stanje). Po
+pravilu vremena zatvaranja D-084 (`OD-D084-1`), D-092 `RULING B` i D-093 `RULING J`, red se zatvara
+**isključivo kroz formalno zatvaranje `P5-I6A`**. Vlasnik je na osnovu
+`P5_I6A_CLOSURE_ADJUDICATION_PASS_READY_FOR_OWNER_CLOSURE_DECISION` dodijelio `D-094` isključivo
+formalnom zatvaranju `P5-I6A` i pomirenju checklista.
+
+## Kanonsko stanje ulaza ovog gatea
+
+```text
+repozitorij                  D:\AI\Arztpraxis
+kanonski main                dcc70ee9830cf9cbb9d6d5e9998e021303e3c320
+HEAD tree                    d331a3dfd214a14189f443eee3362ed3028945c4
+zivi remote refs/heads/main  dcc70ee9830cf9cbb9d6d5e9998e021303e3c320
+authoring grana              docs/p5-i6a-d094-closure (direktno sa kanonskog main-a)
+worktree                     CLEAN
+stash                        EMPTY
+
+MANIFEST                     19 / 19 MATCH
+checklist Faze 5             49 ukupno / 37 oznaceno / 12 neoznaceno   (~75.5 %)
+P5-I6A closure red           1 / 1 NEOZNACEN   (Services -> redaction)
+najnovija kanonska odluka    D-093
+D-093                        PUBLISHED / MERGED (PR #78, 010fd7b788be442bffa8be8d682dc2eb9d1f616f) /
+                             CANONICAL / POST-PUBLICATION VERIFIED / EFFECTIVE
+D-094 prije ovog zapisa      UNASSIGNED / UNRESERVED -> dodijeljen od vlasnika iskljucivo
+                             P5-I6A FORMAL CLOSURE / CHECKLIST RECONCILIATION / 0 heading pojavljivanja
+D-095                        UNASSIGNED / UNRESERVED / 0 heading pojavljivanja
+
+P5-I6A                       OWNER-ACCEPTED / PUBLISHED / MERGED / CANONICAL /
+                             POST-MERGE VERIFIED / EFFECTIVE AS IMPLEMENTATION /
+                             NOT FORMALLY CLOSED
+P5-I6B / P5-I6C / P5-I7      NOT AUTHORIZED / NOT STARTED
+```
+
+**Kanonska implementacija `P5-I6A`:**
+
+```text
+implementacijski commit      fd10e37ec0b46c88fbbb3dc270d7e298342f28a9   feat: implement P5-I6A deterministic redaction ruleset
+roditelj                     010fd7b788be442bffa8be8d682dc2eb9d1f616f   (merge PR #78, D-093)
+merge commit (PR #79)        dcc70ee9830cf9cbb9d6d5e9998e021303e3c320
+roditelji merge commita      010fd7b788be442bffa8be8d682dc2eb9d1f616f / fd10e37ec0b46c88fbbb3dc270d7e298342f28a9
+tree implementacije          d331a3dfd214a14189f443eee3362ed3028945c4
+tree merge commita           d331a3dfd214a14189f443eee3362ed3028945c4   (identican)
+PUBLICATION_DRIFT            ZERO
+obuhvat                      11 putanja; iskljucivo apps/api/** (apps/api/src/document/domain/**
+                             i izvoz dva postojeca predikata iz
+                             apps/api/src/crypto/clinical-text-normalizer.ts); nula neautorizovanih
+                             putanja; bez scheme, migracije, RLS-a, granta, API rute, DTO-a,
+                             permisione matrice, packages/contracts, docs-a i checklista
+
+lifecycle   IMPLEMENTED / VERIFIED / OWNER-ACCEPTED / PUBLISHED / MERGED /
+            CANONICAL / POST-MERGE VERIFIED / EFFECTIVE AS IMPLEMENTATION
+```
+
+Lifecycle činjenice i implementacijski / publikacioni dokaz iznad su **ranije verifikovani i
+vlasnički utvrđeni**; **ovaj gate ih ne ponavlja izvršavanjem testova.**
+
+## Odluka
+
+### `RULING A` — pomirenje efektivnosti D-093
+
+D-093 je objavljen kroz **PR #78** i merged na `origin/main` kao:
+
+```text
+kandidat         3d52e967c07271a8deaf0dd97f880e6ff50b7ff4   docs: correct D-093 evidence vectors and summaries
+merge commit     010fd7b788be442bffa8be8d682dc2eb9d1f616f
+roditelji        ad739da6ac447acb4195d88b37b1c89dd63e53fb / 3d52e967c07271a8deaf0dd97f880e6ff50b7ff4
+tree kandidata   b7aece028a2b888e12530861165e4aec2a0e3803
+tree merge-a     b7aece028a2b888e12530861165e4aec2a0e3803   (identican)
+PUBLICATION_DRIFT  ZERO
+
+D-093            PUBLISHED / MERGED / CANONICAL / POST-PUBLICATION VERIFIED / EFFECTIVE
+```
+
+**Historijska međufaza (aditivno zabilježena):** posljedica efektivnog D-093 (`RULING M`) bila je
+
+```text
+P5-I6A = CONTRACT FROZEN / IMPLEMENTATION NOT YET AUTHORIZED
+```
+
+nakon čega je zasebna vlasnička implementacijska autorizacija prethodila implementaciji. To je
+**kasnija izjava pomirenja**, ne izmjena D-093. Tijelo D-093 i njegove anotacije iz trenutka
+autorstva — `LOCALLY AUTHORED / … / NOT CANONICAL / NOT EFFECTIVE`, `CONTRACT CANDIDATE AUTHORED /
+IMPLEMENTATION NOT AUTHORIZED / NOT STARTED`, `CHECKBOX_TRANSITIONS = 0`, `D-094 UNASSIGNED /
+UNRESERVED` — **historijski su tačne** za svoj izvorni trenutak i **ne prepisuju se**. **Vlasnička
+dodjela `D-094` u ovom gateu nadjačava raniju izjavu D-093 (`RULING O`, „Historijsko očuvanje",
+„Lifecycle odluke") o nedodijeljenom `D-094` isključivo prospektivno.** **D-093 ostaje kanonska /
+efektivna odluka izvršnog ugovora `P5-I6A`**; D-094 je ne zamjenjuje i ne mijenja.
+
+### `RULING B` — kanonska publikacija implementacije i osnov zatvaranja
+
+```text
+commit               fd10e37ec0b46c88fbbb3dc270d7e298342f28a9
+PR                   #79
+merge                dcc70ee9830cf9cbb9d6d5e9998e021303e3c320
+tree                 d331a3dfd214a14189f443eee3362ed3028945c4
+PUBLICATION_DRIFT    ZERO
+putanje              11 implementacijskih putanja; 0 neautorizovanih
+
+implementacija P5-I6A   IMPLEMENTED / VERIFIED / OWNER-ACCEPTED / PUBLISHED / MERGED /
+                        CANONICAL / POST-MERGE VERIFIED / EFFECTIVE AS IMPLEMENTATION
+```
+
+**Osnov vlasničke odluke zatvaranja** — `P5-I6A` je ispunio formalne preduslove zatvaranja za svoj
+jedini red `Services → redaction`:
+
+```text
+D-092 RULING B             vlasnistvo reda Services -> redaction = P5-I6A         ISPUNJENO
+D-093                      izvrsni ugovor phase5-basic-v1 kanonski / efektivan     ISPUNJENO
+implementacija             vlasnicki prihvacena                                    ISPUNJENO
+nezavisan pregled          PASS / blokirajuci nalazi = 0                           ISPUNJENO
+publikaciona verifikacija  PASS                                                    ISPUNJENO
+PR #79                     MERGED                                                  ISPUNJENO
+post-merge verifikacija    P5_I6A_POSTMERGE_VERIFICATION_PASS_CANONICAL_VERIFIED_EFFECTIVE
+kanonska efektivnost       implementacije utvrdjena                                ISPUNJENO
+vlasnicka adjudikacija     P5_I6A_CLOSURE_ADJUDICATION_PASS_READY_FOR_OWNER_CLOSURE_DECISION
+```
+
+**D-094 sam ne pravi nijednu runtime izmjenu.**
+
+### `RULING C` — formalno zatvaranje `P5-I6A`
+
+Formalno zatvaranje `P5-I6A` zasniva se na kanonskoj implementacijskoj osnovi **`dcc70ee9…`** (merge
+**PR #79**) sa prihvaćenim implementacijskim commitom **`fd10e37e…`** (tree `d331a3df…`) i na ranije
+verifikovanom implementacijskom i publikacionom dokazu. **D-094 isključivo formalizuje zatvaranje.**
+**Lokalno autorstvo D-094 samo po sebi NE čini zatvaranje efektivnim** (presedan D-088 `RULING A`,
+D-090 `RULING C`). Do završetka vlastitog lifecyclea D-094 `P5-I6A` se smije opisati **isključivo**
+kao:
+
+```text
+PUBLISHED / MERGED / CANONICAL / POST-MERGE VERIFIED / EFFECTIVE AS IMPLEMENTATION /
+FORMALLY CLOSING UNDER D-094 / NOT YET EFFECTIVE
+```
+
+`P5-I6A` postaje **COMPLETE / VERIFIED / FORMALLY CLOSED / EFFECTIVE** tek nakon što D-094 sam prođe:
+
+```text
+autorstvo
+-> svjez nezavisan pregled
+-> vlasnicko prihvatanje
+-> publikacioni preflight
+-> vlasnicka publikacijska autorizacija
+-> push + PR
+-> vlasnicka merge autorizacija
+-> merge
+-> kanonska post-verifikacija
+```
+
+Do tada kanonsko stanje `P5-I6A` ostaje `PUBLISHED / MERGED / CANONICAL / POST-MERGE VERIFIED /
+EFFECTIVE AS IMPLEMENTATION / NOT FORMALLY CLOSED`.
+
+### `RULING D` — formalni dokaz (ranije verifikovan, ovdje se ne ponavlja)
+
+```text
+Node                          24.19.0
+pnpm                          11.17.0
+verify:toolchain              PASS
+ciljani P5-I6A specovi        4 fajla / 508 testova / 508 PASS / 0 FAIL
+kompletan unit suite          67 fajlova / 2171 testova / PASS
+lint                          PASS
+typecheck                     PASS
+build                         PASS
+e2e                           7 fajlova / 49 testova / PASS
+format:check                  iskljucivo postojece, nepovezano odstupanje Faze 4
+integration                   NOT RUN / prihvaceno kao neblokirajuce
+security                      NOT RUN / prihvaceno kao neblokirajuce
+
+nezavisan pregled             PASS
+blokirajuci nalazi            0
+```
+
+- Formalni dokaz zatvaranja je izvršen na **Node 24.19.0**, kako traži D-093 `RULING J`.
+- `P5-I6A` je čist ruleset bez baze, API-ja, perzistencije, grantova i RLS-a (D-093 `RULING B`);
+  zato **neizvršeni integration / security suiteovi** ne nose dokaz relevantan za njegov obuhvat i
+  vlasnički su prihvaćeni kao neblokirajući.
+- Odstupanje `format:check` je postojeće odstupanje formattera Faze 4
+  (`apps/api/test/phase4-membership-role-assignment-constraints.security.ts`), izvan putanja
+  `P5-I6A`; ostaje carry-forward (`RULING H`).
+
+### `RULING E` — dispozicija nalaza
+
+```text
+IR-NB-1   NON-BLOCKING / ACCEPTED AS-IS
+IR-NB-2   NON-BLOCKING / ACCEPTED AS-IS
+IR-NB-3   NON-BLOCKING / ACCEPTED AS-IS
+```
+
+- **`IR-NB-1`** — ograničenje dokaza linearnosti regexa: za izvršavanje regexa `EMAIL`, `AHV`, `IBAN`
+  i `PHONE` **ne postoji deterministički brojač koraka enginea**. Prihvaćeni dokaz čine strukturna
+  analiza linearnosti, adversarijalni / dugi ulazni vektori i formalno izvršavanje na
+  **Node 24.19.0**. `NON-BLOCKING / ACCEPTED AS-IS`.
+- **`IR-NB-2`** — postojeće, nepovezano odstupanje formattera Faze 4 u
+  `apps/api/test/phase4-membership-role-assignment-constraints.security.ts`; **nije uzrokovano
+  `P5-I6A`**. `NON-BLOCKING / ACCEPTED AS-IS`.
+- **`IR-NB-3`** — integration i security suiteovi su **NOT RUN** jer potrebno Docker / DB okruženje
+  nije bilo dostupno; prihvaćeno kao neblokirajuće za čisti obuhvat determinističkog redaction
+  enginea `P5-I6A`. `NON-BLOCKING / ACCEPTED AS-IS`.
+
+**Nijedan korektivni implementacijski commit nije potreban.** **Nalazi ne otvaraju ponovo `P5-I6A`**,
+**ne mijenjaju ruleset `phase5-basic-v1`** i **ne stvaraju nikakav novi runtime ugovor.**
+
+### `RULING F` — tačna tranzicija checklista
+
+D-094 pravi **tačno jednu** tranziciju (red u vlasništvu `P5-I6A`, D-092 `RULING B`; D-093
+`RULING J`):
+
+```text
+[ ] Services -> redaction   ->   [x] Services -> redaction
+
+                         prije (kanonski, pred-D-094)   D-094 kandidat / post-efektivnost
+UKUPNO REDOVA (S6)       49                             49
+OZNACENO                 37                             38
+NEOZNACENO               12                             11
+FORMALNA ZAVRSENOST      37 / 49 ~= 75.5 %              38 / 49 ~= 77.6 %   (77.55 %)
+
+UNCHECKED_TO_CHECKED     = 1
+CHECKED_TO_UNCHECKED     = 0
+NEW_ROWS                 = 0
+DELETED_ROWS             = 0
+OTHER_ROW_TRANSITIONS    = 0
+```
+
+**Kućica odražava formalno zatvaranje pod D-094.** **`37 / 49` je pred-D-094 kanonsko stanje**;
+**`38 / 49` je D-094 kandidat zatvaranja i stanje nakon efektivnosti**. Historijske pred-D-094
+vrijednosti (`37 / 49`, `CHECKBOX_TRANSITIONS = 0`) u ranijim zapisima i anotacijama **se ne
+prepisuju**. **Nijedan drugi red se ne mijenja** — preostala četiri reda u vlasništvu `P5-I6`
+(`P5-I6B` / `P5-I6C`), četiri reda `P5-I7` i tri dijeljena / kasnija reda ostaju neoznačeni.
+
+### `RULING G` — firewall odgođenih odluka
+
+D-094 **ne adjudicira** nijednu odgođenu odluku `P5-I6`:
+
+```text
+OD-P5-I6-6    OPEN   (create zahtjev / greske / HTTP mapiranje)
+OD-P5-I6-7    OPEN   (idempotencija)
+OD-P5-I6-8    OPEN   (konkurencija / DRAFT -> READY_FOR_ANALYSIS)
+OD-P5-I6-9    OPEN   (audit ugovor)
+OD-P5-I6-10   OPEN   (detaljni GET)
+AAD_ORIGINAL_LITERAL               OPEN
+AAD_REDACTED_LITERAL               OPEN
+ENCRYPTION_KEY_REF_VALUE_FORMAT    OPEN
+
+DEFERRED_DECISION_ADJUDICATIONS_D094 = 0
+```
+
+### `RULING H` — carry-forward (nepromijenjen, neadjudiciran)
+
+D-094 **ne adjudicira i ne reklasifikuje** nepovezana postojeća pitanja; njihovo kanonsko stanje se
+**čuva bez izmjene**:
+
+- sirovi NUL u `apps/api/src/identity/domain/permission-matrix.ts`;
+- odstupanje formattera Faze 4 u
+  `apps/api/test/phase4-membership-role-assignment-constraints.security.ts`;
+- request-hash vektor `POST /exports/{exportJobId}/retry`;
+- **`D-OPEN-004a`** — UNCHANGED / UNADJUDICATED;
+- **`D-OPEN-007`** — OPEN / DEFERRED;
+- **`D-OPEN-009`** — UNCHANGED / UNADJUDICATED;
+- zaostatak migracija lokalne dev baze (`003` / `011` / `013` / `014`) — higijena lokalnog
+  okruženja; **nije potrebna nikakva mutacija baze**.
+
+```text
+CARRY_FORWARD_SCOPE_DRIFT = 0
+```
+
+### `RULING I` — roditelj / firewall narednog gatea
+
+```text
+P5-I6     NOT FORMALLY CLOSED
+P5-I6B    NOT AUTHORIZED / NOT STARTED
+P5-I6C    NOT AUTHORIZED / NOT STARTED
+P5-I7     NOT AUTHORIZED / NOT STARTED
+D-095     UNASSIGNED / UNRESERVED
+
+I6B_AUTHORIZATION_CHANGE   = 0
+I6C_AUTHORIZATION_CHANGE   = 0
+P5I7_AUTHORIZATION_CHANGE  = 0
+```
+
+- **D-094 NE zatvara formalno roditeljski `P5-I6`.** `P5-I6` i dalje posjeduje četiri neoznačena reda
+  (`P5-I6B` / `P5-I6C`, D-092 `RULING B`); zatvaranje roditelja je **zaseban kasniji governance
+  gate**.
+- **D-094 ne autorizuje, ne započinje i ne imenuje** `P5-I6B`, `P5-I6C` ni `P5-I7`; svaki od njih traži
+  zaseban vlasnički gate. Taj gate se **ne vezuje ni za jedan broj odluke**.
+- **D-094 ne dodjeljuje `D-095` nikakvu ulogu** i **ništa ne rezerviše**.
+
+## Razmotrene i odbijene alternative
+
+- **Zatvoriti `Services → redaction` već u D-093** — **odbijeno** u D-093 (`RULING J`); red se
+  zatvara isključivo ovim zasebnim formalnim zatvaranjem.
+- **Prepisati statusne blokove D-093 / njegove anotacije u `03` / `04` / `05` / `08` / `09`** —
+  **odbijeno**; pomirenje je aditivno.
+- **Ponovno izvršiti implementacijski suite u ovom gateu** — **odbijeno**; kanonski dokaz se odnosi
+  na nepromijenjen implementacijski tree `d331a3df…`, a D-094 je isključivo dokumentacija.
+- **Očistiti ili modernizovati `docs/05` §0 Project metadata** — **odbijeno** (`NB-2`, izvan
+  obuhvata).
+- **Zatvoriti roditeljski `P5-I6` u istom zapisu** — **odbijeno**; `P5-I6B` / `P5-I6C` nisu
+  izvedeni.
+- **Autorizovati `P5-I6B`, `P5-I6C` ili `P5-I7`, ili rezervisati `D-095`** — **odbijeno**.
+- **Adjudicirati `OD-P5-I6-6` … `OD-P5-I6-10`, AAD literale ili `encryption_key_ref`** —
+  **odbijeno** (`RULING G`).
+- **Označiti bilo koji drugi red** — **odbijeno** (D-092 `RULING B`; D-084 `OD-D084-1`).
+
+## Posljedice — dokumentaciono pomirenje
+
+| Lokacija | Zahvat |
+|---|---|
+| `06` | dodat ovaj D-094 zapis nakon D-093; **D-001 … D-093 bajt-identični** |
+| `05` §6 | aditivna **D-094 closure anotacija** nakon D-093 anotacije; **tačno jedna** kućica `[ ]` → `[x]` (`Services → redaction`); **§0 Project metadata se ne mijenja** |
+| `03` §4 | aditivna D-094 statusna anotacija nakon D-093 anotacije; **§13.5 (uključujući njen statusni blok) se ne mijenja; nijedna API semantika se ne mijenja** |
+| `04` §7.5a | aditivna D-094 statusna / implementacijska anotacija zatvaranja nakon D-093 sekcije; **tabela zavisnosti §7.5 se ne mijenja** |
+| `08` §12.15 | aditivna D-094 anotacija dokaza zatvaranja `P5-I6A`; **dokazna matrica i vektori §12.15 bajt-očuvani** |
+| `09` §8.6 | aditivna D-094 statusna / sigurnosna anotacija; **tačke 1–9 i ranije anotacije bajt-očuvane** |
+| `MANIFEST.md` | ponovo izračunati bajtovi i SHA-256 za šest izmijenjenih dokumenata; **19 redova ostaje 19** |
+
+**Nijedan drugi dokument se ne mijenja.** Sav izvorni kod, testovi, migracije, Prisma, SQL, grantovi,
+RLS politike, permisiona matrica, `packages/contracts`, paketi, lockfile i CI ostaju netaknuti.
+
+## Security/privacy uticaj
+
+- **Nijedan sigurnosni zahtjev se ne mijenja, ne slabi i ne uklanja.**
+- Implementirani ruleset `phase5-basic-v1` je **deterministički i rule-based**, nije AI klasifikator,
+  **nije anonimizacija** ni potpuna granica uklanjanja PHI-a (D-093; `09` §8.6).
+- Klasa eksterne reference ostaje **`INERT WITHOUT INPUT SOURCE`**; zatvaranje `P5-I6A` je **ne
+  predstavlja kao redigovanu**.
+- Rezultat i greške ne nose originalni tekst, podnizove, hasheve ni match metadata; izlaz se nikada ne
+  skraćuje.
+- Enkripcija, hashevi, perzistencija, audit i `view=redacted` ostaju u `P5-I6B` / `P5-I6C`, koji
+  **nisu autorizovani**.
+- **Nijedan grant, nijedna RLS politika i nijedan predikat izolacije se ne dira.**
+
+## Migration/rollout
+
+**Nema.**
+
+```text
+RUNTIME_CHANGE                     = NO
+TEST_CHANGE                        = NO
+SCHEMA_CHANGE                      = NO
+MIGRATION_CHANGE                   = NO
+RLS_CHANGE                         = NO
+GRANT_CHANGE                       = NO
+PERMISSION_MATRIX_CHANGE           = NO
+PACKAGES_CONTRACT_CHANGE           = NO
+CI_OR_LOCKFILE_CHANGE              = NO
+DATABASE_WRITER_REQUIRED           = NO
+HISTORICAL_RECORDS_REWRITTEN       = 0
+```
+
+## Test dokaz
+
+**Nijedan test se ovim zapisom ne piše, ne mijenja i ne izvršava.** Kanonski dokaz implementacije
+`fd10e37e…` / `dcc70ee9…` (tree `d331a3df…`) je naveden u `RULING D`, ranije verifikovan i vlasnički
+utvrđen.
+
+```text
+TESTS WRITTEN IN THIS GATE   0
+TESTS RERUN IN THIS GATE     0
+IMPLEMENTATION CODE DELTA    0
+```
+
+Ovaj governance gate **ne tvrdi novu runtime verifikaciju**. **D-094 ne dodaje nijednu novu testnu
+obavezu.**
+
+## Historijsko očuvanje
+
+**Tijela odluka D-001 … D-093 ostaju bajt-identična.** D-094 je **isključivo dodat** nakon D-093.
+Formulacije D-093 iz trenutka autorstva i postojeće D-093 anotacije u `03` / `04` / `05` / `08` / `09`
+(uključujući statusni blok §13.5 u `03`) se **ne prepisuju**.
+
+```text
+prije uspjesnog lokalnog commita   D-094 = OWNER-ASSIGNED TO P5-I6A FORMAL CLOSURE / NOT CONSUMED
+nakon uspjesnog lokalnog commita   D-094 = OWNER-ASSIGNED / AUTHORED / LOCAL CANDIDATE /
+                                           COMMITTED / NOT PUSHED /
+                                           NOT INDEPENDENTLY REVIEWED / NOT OWNER-ACCEPTED /
+                                           NOT PUBLISHED / NOT CANONICAL / NOT EFFECTIVE
+D-095                              UNASSIGNED / UNRESERVED
+HISTORICAL_RECORDS_REWRITTEN       = 0
+D093_HISTORICAL_TEXT_REWRITES      = 0
+```
+
+## Šta D-094 ne mijenja
+
+- **Ne mijenja izvršni ugovor D-093** (ruleset `phase5-basic-v1`), D-060, D-062, D-070, D-071 ni
+  D-092; segmentaciju `P5-I6` ni pravilo vremena zatvaranja D-084.
+- **Ne mijenja nijednu rutu, metodu, payload, DTO, header, permisiju, statusni ni error kod**; `03`
+  §13 ostaje nepromijenjen.
+- **Ne mijenja vlasništvo redova checklista** i **ne označava nijedan red osim reda `Services →
+  redaction`.**
+- **Ne zatvara `P5-I6`; ne autorizuje i ne započinje `P5-I6B`, `P5-I6C` ni `P5-I7`.**
+- **Ne adjudicira `OD-P5-I6-6` … `OD-P5-I6-10`, AAD literale ni format `encryption_key_ref`.**
+- **Ne adjudicira `D-OPEN-004a`, `D-OPEN-007`, `D-OPEN-009`.**
+- **Ne mijenja `docs/05` §0 Project metadata.**
+- **Ne prepisuje nijedan historijski zapis.**
+
+## Otvorena pitanja koja D-094 ne zatvara
+
+- **`OD-P5-I6-6`** … **`OD-P5-I6-10`**, **AAD originalni literal**, **AAD redigovani literal**,
+  **format `encryption_key_ref`** — OPEN;
+- **`D-OPEN-004a`**, **`D-OPEN-007`**, **`D-OPEN-009`** — nepromijenjeni;
+- odstupanje formattera Faze 4, sirovi NUL u `permission-matrix.ts`, request-hash vektor
+  exports-retry, zaostatak migracija lokalne baze — preneseni, nepromijenjeni;
+- formalno zatvaranje roditeljskog `P5-I6` — zaseban kasniji gate.
+
+## Zavisnosti
+
+- **D-084** — pravilo vremena zatvaranja checklista (`OD-D084-1`).
+- **D-088 / D-090** — presedan formalnog zatvaranja pod-gatea i lifecycle razlikovanja.
+- **D-092** — vlasništvo reda `Services → redaction` (`RULING B`), segmentacija `P5-I6`.
+- **D-093** — izvršni ugovor `P5-I6A`, dokazna matrica i particija zatvaranja (`RULING J`),
+  implementacijski firewall (`RULING M`); ovdje pomirena efektivnost.
+
+## Naredni obavezni gate
+
+**FRESH INDEPENDENT D-094 CLOSURE REVIEW** tačnog lokalnog D-094 governance commita, pa — tek nakon
+izričitog vlasničkog prihvatanja — publikacioni preflight, publikacijska autorizacija, publikacija,
+merge i kanonska post-verifikacija.
+
+## Lifecycle odluke
+
+```text
+D-094 OWNER-ASSIGNED                     = YES
+D-094 LOCALLY AUTHORED                   = YES
+D-094 INDEPENDENTLY REVIEWED             = NO
+D-094 OWNER-ACCEPTED                     = NO
+D-094 PUBLISHED / MERGED                 = NO
+D-094 CANONICAL                          = NO
+D-094 EFFECTIVE                          = NO
+
+D-093     PUBLISHED / MERGED (PR #78) / CANONICAL / POST-PUBLICATION VERIFIED / EFFECTIVE
+P5-I6     NOT FORMALLY CLOSED
+P5-I6A    kanonski:   PUBLISHED / MERGED (PR #79) / CANONICAL / POST-MERGE VERIFIED /
+                      EFFECTIVE AS IMPLEMENTATION / NOT FORMALLY CLOSED
+          kandidat:   FORMALLY CLOSING UNDER D-094 / NOT YET EFFECTIVE
+          nakon punog lifecyclea D-094:  COMPLETE / VERIFIED / FORMALLY CLOSED / EFFECTIVE
+P5-I6B    NOT AUTHORIZED / NOT STARTED
+P5-I6C    NOT AUTHORIZED / NOT STARTED
+P5-I7     NOT AUTHORIZED / NOT STARTED
+D-095     UNASSIGNED / UNRESERVED
+
+CANONICAL CHECKLIST                      = 37 / 49
+D-094 LOCAL CANDIDATE CHECKLIST          = 38 / 49   (11 neoznaceno, ~77.55 %)
+CHECKBOX_TRANSITIONS                     = 1   (Services -> redaction)
+```
+
+---
+
 # Otvorene odluke
 
 ## D-OPEN-001 — Produkcijski OIDC provider

@@ -3420,6 +3420,43 @@ Nakon efektivnog D-093 stanje je **`P5-I6A = CONTRACT FROZEN / IMPLEMENTATION NO
 implementacija traži **zaseban vlasnički autorizacijski gate** (D-093 `RULING M`). Vidi D-093 u
 `06`.
 
+#### Statusna anotacija (D-094) — blokovi iznad se NE prepisuju
+
+**D-093 je objavljen kroz PR #78 (`010fd7b7…`) i efektivan;** posljedica efektivnosti bila je
+`P5-I6A = CONTRACT FROZEN / IMPLEMENTATION NOT YET AUTHORIZED` (historijska međufaza, aditivno
+zabilježena u D-094 `RULING A`), nakon čega je zasebna vlasnička implementacijska autorizacija
+prethodila implementaciji. **D-094 je post-publikaciono pomirenje i formalno zatvaranje pod-gatea
+`P5-I6A` (deterministički redakcioni ruleset `phase5-basic-v1`).** Kanonska implementacija
+(`fd10e37e…`, merged kroz **PR #79** kao **`dcc70ee9…`**, tree `d331a3df…`; 11 putanja isključivo pod
+`apps/api/**`; publication drift `ZERO`) je verifikovana na Node 24.19.0, nezavisno pregledana (PASS,
+nula blokirajućih nalaza), vlasnički prihvaćena, objavljena i post-merge verifikovana. Implementacija
+odgovara sažetku zamrznutog ugovora iz tabele iznad; **nijedan red tabele se ne mijenja**. Po
+`OD-D084-1` / D-092 `RULING B` / D-093 `RULING J` zatvara **tačno jedan** red: `Services → redaction`.
+Formulacije D-093 sekcije iznad (`D-093 … NOT CANONICAL / NOT EFFECTIVE`, `P5-I6A … CONTRACT
+CANDIDATE AUTHORED / IMPLEMENTATION NOT AUTHORIZED / NOT STARTED`, `CHECKBOX_TRANSITIONS = 0`) opisuju
+**pred-D-094 stanje** i **ne prepisuju se**.
+
+```text
+D-094    OWNER-ASSIGNED / LOCALLY AUTHORED / NOT CANONICAL / NOT EFFECTIVE
+D-093    PUBLISHED / MERGED (PR #78) / CANONICAL / POST-PUBLICATION VERIFIED / EFFECTIVE
+P5-I6A   PUBLISHED / MERGED (PR #79) / CANONICAL / POST-MERGE VERIFIED /
+         EFFECTIVE AS IMPLEMENTATION /
+         FORMALLY CLOSING UNDER D-094 / NOT YET EFFECTIVE (tek po lifecycleu D-094)
+P5-I6    NOT FORMALLY CLOSED
+P5-I6B   NOT AUTHORIZED / NOT STARTED
+P5-I6C   NOT AUTHORIZED / NOT STARTED
+P5-I7    NOT AUTHORIZED / NOT STARTED
+
+CANONICAL CHECKLIST              = 49 / 37
+D-094 LOCAL CANDIDATE CHECKLIST  = 49 / 38
+CHECKBOX_TRANSITIONS             = 1   (Services -> redaction)
+```
+
+**Roditeljski `P5-I6` se ne zatvara;** `P5-I6B` (enkripcija, hashevi, perzistencija, `POST
+…/documents/text`) i `P5-I6C` ostaju **neautorizovani**, a `OD-P5-I6-6` … `OD-P5-I6-10`, AAD
+literali i format `encryption_key_ref` ostaju **OPEN**. Ovom anotacijom se ne uvodi nijedan
+implementacijski detalj izvan postojećeg kanonskog obuhvata. Vidi D-094 u `06`.
+
 
 ### Segmentacija `P5-I2` na četiri pod-gatea (D-064)
 
