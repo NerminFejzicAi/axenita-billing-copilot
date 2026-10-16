@@ -2915,6 +2915,14 @@ nezavisan pregled            PASS / blokirajuci nalazi 0
 IR-NB-1 / IR-NB-2 / IR-NB-3  NON-BLOCKING / ACCEPTED AS-IS
 ```
 
+- Nalazi pregleda (D-094 `RULING E`), svi `NON-BLOCKING / ACCEPTED AS-IS`:
+  - **`IR-NB-1`** — za izvršavanje regexa `EMAIL` / `AHV` / `IBAN` / `PHONE` ne postoji
+    deterministički brojač koraka enginea; prihvaćeni dokaz je strukturna analiza linearnosti,
+    adversarijalni / dugi vektori i izvršavanje na Node 24.19.0.
+  - **`IR-NB-2`** — postojeće, nepovezano odstupanje formattera Faze 4 u
+    `apps/api/test/phase4-membership-role-assignment-constraints.security.ts`.
+  - **`IR-NB-3`** — integration / security **NOT RUN** zbog nedostupnog Docker / DB okruženja;
+    prihvaćeno kao neblokirajuće za čisti obuhvat `P5-I6A`.
 - `P5-I6A` je čist ruleset bez baze, API-ja i perzistencije (D-093 `RULING B`); neizvršeni
   integration / security suiteovi su **vlasnički prihvaćeni kao neblokirajući** za ovaj obuhvat.
 - **Particija §12.5 / §12.14 / §12.15 se ne mijenja:** svjež IV i hashevi ostaju `P5-I6B`,

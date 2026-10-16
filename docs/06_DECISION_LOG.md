@@ -23603,6 +23603,17 @@ IR-NB-2   NON-BLOCKING / ACCEPTED AS-IS
 IR-NB-3   NON-BLOCKING / ACCEPTED AS-IS
 ```
 
+- **`IR-NB-1`** — ograničenje dokaza linearnosti regexa: za izvršavanje regexa `EMAIL`, `AHV`, `IBAN`
+  i `PHONE` **ne postoji deterministički brojač koraka enginea**. Prihvaćeni dokaz čine strukturna
+  analiza linearnosti, adversarijalni / dugi ulazni vektori i formalno izvršavanje na
+  **Node 24.19.0**. `NON-BLOCKING / ACCEPTED AS-IS`.
+- **`IR-NB-2`** — postojeće, nepovezano odstupanje formattera Faze 4 u
+  `apps/api/test/phase4-membership-role-assignment-constraints.security.ts`; **nije uzrokovano
+  `P5-I6A`**. `NON-BLOCKING / ACCEPTED AS-IS`.
+- **`IR-NB-3`** — integration i security suiteovi su **NOT RUN** jer potrebno Docker / DB okruženje
+  nije bilo dostupno; prihvaćeno kao neblokirajuće za čisti obuhvat determinističkog redaction
+  enginea `P5-I6A`. `NON-BLOCKING / ACCEPTED AS-IS`.
+
 **Nijedan korektivni implementacijski commit nije potreban.** **Nalazi ne otvaraju ponovo `P5-I6A`**,
 **ne mijenjaju ruleset `phase5-basic-v1`** i **ne stvaraju nikakav novi runtime ugovor.**
 
