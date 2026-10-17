@@ -1002,6 +1002,31 @@ Zatvaranje postaje efektivno **tek nakon punog lifecyclea D-094**; tada `P5-I6A 
 / FORMALLY CLOSED / EFFECTIVE`. **D-094 ne zatvara roditeljski `P5-I6` i ne autorizuje `P5-I6B`,
 `P5-I6C` ni `P5-I7`.** Vidi D-094 u `06`.
 
+**STATUSNA ANOTACIJA (D-095, 2026-10-17) — sekcija i anotacije iznad se NE prepisuju.** D-094 je
+objavljen kroz **PR #80** (`72507330…`, publication drift `ZERO`) i **efektivan**; `P5-I6A` je
+**COMPLETE / VERIFIED / FORMALLY CLOSED / EFFECTIVE**, a `Services → redaction` je kanonski označen
+(Faza 5 = `38 / 49`). Formulacije D-094 anotacije iznad (`D-094 … NOT CANONICAL / NOT EFFECTIVE`,
+`P5-I6A … FORMALLY CLOSING UNDER D-094 / NOT YET EFFECTIVE`, `OD-P5-I6-6 … OD-P5-I6-10 OPEN`) su
+**pred-D-095 snapshot**, **historijski su tačne** i **ne prepisuju se**. D-095 zamrzava izvršni ugovor
+`P5-I6B` za `POST /encounters/{encounterId}/documents/text` (vidi §13.6); **oblik zahtjeva i `201`
+odgovora se ne mijenja**, nijedna nova ruta, permisija ni error kod se ne uvodi, i **implementacija
+nije autorizovana**.
+
+```text
+D-095    OWNER-ASSIGNED / AUTHORED LOCAL CANDIDATE / NOT INDEPENDENTLY REVIEWED /
+         NOT OWNER-ACCEPTED / NOT PUSHED / NOT CANONICAL / NOT EFFECTIVE
+D-094    PUBLISHED / MERGED (PR #80) / CANONICAL / POST-MERGE VERIFIED / EFFECTIVE
+P5-I6A   COMPLETE / VERIFIED / FORMALLY CLOSED / EFFECTIVE
+P5-I6    NOT FORMALLY CLOSED
+P5-I6B   CONTRACT CANDIDATE AUTHORED / IMPLEMENTATION NOT AUTHORIZED / NOT STARTED
+P5-I6C / P5-I7             NOT AUTHORIZED / NOT STARTED
+OD-P5-I6-6 / -7 / -8 / -9A FROZEN BY D-095 CANDIDATE
+OD-P5-I6-9B / OD-P5-I6-10  OPEN / DEFERRED TO P5-I6C
+API SHAPE MUTATION         = 0
+```
+
+Ugovor postaje kanonski **tek nakon punog lifecyclea D-095**. Vidi D-095 u `06`.
+
 
 ---
 
@@ -3156,6 +3181,51 @@ API SEMANTIC MUTATION = 0
 ```
 
 Vidi D-093 u `06`.
+
+## 13.6 Izvršni ugovor `P5-I6B` — `POST …/documents/text` (D-095, 2026-10-17)
+
+**Sekcije §13.1–§13.5 se NE prepisuju i ostaju mjerodavne za ono što već utvrđuju**; statusni blok
+§13.5 je pred-D-095 snapshot. Ova sekcija **ne mijenja oblik zahtjeva ni `201` odgovora iz §13.1**,
+ne uvodi rutu, permisiju ni error kod. Normativni tekst je **isključivo u D-095 u `06`**; ovo je
+sažetak. Postaje kanonska tek nakon punog lifecyclea D-095. **D-095 ne autorizuje implementaciju.**
+
+Redovi §13.4 tabele otvorenih granica `OD-P5-I6-5` … `OD-P5-I6-9` (create dio) **zatvara izvršni
+ugovor `P5-I6B` (D-095)**:
+
+```text
+documentType          CONSULTATION_NOTE | DIAGNOSIS_LIST | PROCEDURE_NOTE | REFERRAL |
+                      LAB_RESULT | OTHER;  BILLING_DRAFT / AUDIT_REPORT -> 422 VALIDATION_ERROR
+languageCode          obavezan; ASCII; case-sensitive; ^[a-z]{2,3}(-[A-Z]{2})?$; <= 10; verbatim
+redactBeforeAiProcessing   obavezan literal true; odsutan / null / false -> 422
+uspjeh                201, tijelo §13.1; bez ETag; bez Location
+idempotency endpoint  POST /encounters/{encounterId}/documents/text   (sablon)
+resource pointer      {"resourceId":"<documentId>"}; TTL 48h
+request hash          03 §4.1 (JCS SHA-256, ukljucuje text); bez route HMAC-a
+replay                citanje nepromjenjivog reda; document.encounter_id != putanja -> 409
+                      IDEMPOTENCY_CONFLICT; 201 iz reda; bez dekripcije / audita / tranzicije
+encounter             jedan atomican iskaz FOR UPDATE prije INSERT-a;
+                      DRAFT -> READY_FOR_ANALYSIS (version nepromijenjena); READY -> no-op;
+                      drugo vidljivo stanje -> 409 INVALID_STATE_TRANSITION;
+                      nevidljiv / nepostojeci / cross-tenant -> 404 RESOURCE_NOT_FOUND
+audit                 DOCUMENT_CREATED, pa (samo pri stvarnoj tranziciji)
+                      ENCOUNTER_READY_FOR_ANALYSIS; ista transakcija; fail-closed
+AAD original          v1 / practice_id / table=encounter_documents / row_id=<documentId> /
+                      column=normalized_text_ciphertext / envelope_version=1
+AAD redigovano        ... / column=redacted_text_ciphertext / envelope_version=1
+encryption_key_ref    ^[A-Za-z0-9][A-Za-z0-9._:/-]{0,254}$; lokalno local-static-development-v1
+ocekivani FAILED      201, redactionStatus = FAILED, redigovani artefakti i redactedTextHash null
+neocekivana greska    500 INTERNAL_ERROR, puni rollback; nikada redaction FAILED
+normalizator odbija   422 VALIDATION_ERROR, polje text, genericki staticki detail
+```
+
+```text
+OD-P5-I6-9B (read audit) / OD-P5-I6-10 (detaljni GET)   OPEN / DEFERRED TO P5-I6C
+P5-I6B   CONTRACT CANDIDATE AUTHORED / IMPLEMENTATION NOT AUTHORIZED / NOT STARTED
+P5-I6B / P5-I6C / P5-I7 IMPLEMENTATION AUTHORIZED = NO
+API SHAPE MUTATION = 0
+```
+
+Vidi D-095 u `06`.
 
 ---
 

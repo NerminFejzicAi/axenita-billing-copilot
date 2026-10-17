@@ -707,6 +707,54 @@ SECURITY REQUIREMENT MUTATION = 0
 
 Vidi D-094 u `06`.
 
+## 8.7 Sigurnosne posljedice izvršnog ugovora `P5-I6B` (D-095, 2026-10-17)
+
+**Nijedna tvrdnja iz §7, §8, §8.1–§8.6, §10, §11 ni §12 se ne slabi i ne prepisuje.** D-094 je
+efektivan (PR #80, `72507330…`); `P5-I6A` je formalno zatvoren. Formulacije D-094 anotacije iznad
+(`D-094 … NOT CANONICAL / NOT EFFECTIVE`, `AAD_ORIGINAL_LITERAL / AAD_REDACTED_LITERAL /
+ENCRYPTION_KEY_REF_VALUE_FORMAT OPEN`) opisuju **pred-D-095 stanje** i **ne prepisuju se**. Ova
+sekcija aditivno bilježi sigurnosne / privatnosne posljedice zamrznutog ugovora `P5-I6B`. Postaje
+kanonska tek nakon punog lifecyclea D-095. **D-095 ne autorizuje implementaciju `P5-I6B`.**
+
+1. **AAD vezivanje.** Ciphertext originala i redigovanog teksta vezan je za tačnu ordinaciju, red i
+   kolonu (`column=normalized_text_ciphertext` / `column=redacted_text_ciphertext`); zamjena kolona
+   ili redova **ne dekriptuje**. Bajtni oblik je zamrznut (LF, bez CR, bez završnog LF-a, ASCII,
+   byte-exact); svaka nekompatibilna promjena traži novu governance odluku, verzionisanje i
+   migracionu strategiju.
+2. **`encryption_key_ref`** je neproziran, ne nosi materijal ključa, nepromjenjiv je po redu i
+   zadovoljava `^[A-Za-z0-9][A-Za-z0-9._:/-]{0,254}$`; produkcijski ključ ostaje pod `D-OPEN-004a`.
+3. **IV.** Svako polje dobija svjež 12-bajtni IV (D-025, klauzula 6). Fiksni IV-ovi known-answer
+   vektora (`08` §12.16.2) su **isključivo testni i javni**; fixture ključ se **nikada** ne
+   konfiguriše ni u jednom okruženju.
+4. **`request_sha256`** je SHA-256 bez ključa nad tijelom koje uključuje klinički tekst — **vlasnički
+   prihvaćeno**; nikada izložen kroz API ni logovan; životni vijek 48h.
+5. **Audit minimizacija.** `DOCUMENT_CREATED` / `ENCOUNTER_READY_FOR_ANALYSIS` ne nose tekst,
+   normalizovan ni redigovan tekst, `sourceTextHash`, `redactedTextHash` ni `languageCode`; neuspjeh
+   audita je fail-closed.
+6. **Bez oracle-a.** Nepostojeći, nevidljiv i cross-tenant encounter daju **uniforman `404`**; nema
+   opšteg diskriminirajućeg pre-reada; replay vezivanje čita isključivo red vlastitog kompletiranog
+   ključa pod RLS-om.
+7. **Statične greške.** Odbijanje normalizatora ne otkriva razlog; neočekivana greška je `500` sa
+   statičnim detailom i punim rollbackom — **nikada** se ne predstavlja kao `redactionStatus = FAILED`.
+8. **Bez fallbacka.** Pri `FAILED` redigovani artefakti ne postoje; zabrana fallbacka
+   `view=redacted` (§8.3; `03` §13.3) ostaje nepromijenjena; read ugovor ostaje `P5-I6C`.
+
+```text
+D-095    OWNER-ASSIGNED / AUTHORED LOCAL CANDIDATE / NOT CANONICAL / NOT EFFECTIVE
+D-094    PUBLISHED / MERGED (PR #80) / CANONICAL / POST-MERGE VERIFIED / EFFECTIVE
+P5-I6A   COMPLETE / VERIFIED / FORMALLY CLOSED / EFFECTIVE
+P5-I6B   CONTRACT CANDIDATE AUTHORED / IMPLEMENTATION NOT AUTHORIZED / NOT STARTED
+P5-I6C / P5-I7   NOT AUTHORIZED / NOT STARTED
+AAD_ORIGINAL_LITERAL / AAD_REDACTED_LITERAL / ENCRYPTION_KEY_REF_VALUE_FORMAT   FROZEN BY D-095 CANDIDATE
+OD-P5-I6-9B / OD-P5-I6-10   OPEN / DEFERRED TO P5-I6C
+D_OPEN_004A   UNCHANGED / UNADJUDICATED
+D_OPEN_007    OPEN / DEFERRED
+D_OPEN_009    UNCHANGED / UNADJUDICATED
+SECURITY REQUIREMENT MUTATION = 0
+```
+
+Vidi D-095 u `06`.
+
 ---
 
 # 9. Secrets

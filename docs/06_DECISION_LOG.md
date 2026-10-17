@@ -23862,6 +23862,913 @@ CHECKBOX_TRANSITIONS                     = 1   (Services -> redaction)
 
 ---
 
+# D-095 — P5-I6B EXECUTABLE CONTRACT FREEZE: kreiranje manuelnog tekstualnog dokumenta
+
+- **Status:** vlasničke odluke `OD-P5-I6-6`, `OD-P5-I6-7`, `OD-P5-I6-8`, `OD-P5-I6-9A`, AAD literali,
+  gramatika `encryption_key_ref` i determinističke AES-GCM vektorske činjenice OWNER-RATIFIED —
+  **OWNER-ASSIGNED / AUTHORED LOCAL CANDIDATE / NOT INDEPENDENTLY REVIEWED / NOT OWNER-ACCEPTED /
+  NOT PUSHED / NOT CANONICAL / NOT EFFECTIVE**
+- **Datum:** 2026-10-17
+- **Tip:** vlasnički ratifikovan **zapis zamrzavanja izvršnog ugovora `P5-I6B`** — `POST
+  /encounters/{encounterId}/documents/text`. **Dokumentacija isključivo.**
+- **Amandman na:** **isključivo tekuće statusne metapodatke** D-094 / `P5-I6` / `P5-I6A` / `P5-I6B`,
+  aditivno. **Nijedan zapis D-001 … D-094 se ne prepisuje, ne prenumeriše i ne briše — svi ostaju
+  bajt-identični.**
+- **D-095 NE autorizuje implementaciju** `P5-I6B`, `P5-I6C` ni `P5-I7`. D-095 zamrzava **isključivo
+  izvršni ugovor** `P5-I6B`. Ne uvodi nijednu liniju izvornog koda, nijedan test, nijednu migraciju,
+  schemu, Prisma model, API rutu, DTO, grant, rolu, politiku, permisiju, dependency, CI ni
+  `packages/contracts`. **Nijedna baza nije kontaktirana** i **nijedan repozitorijski test se ovom
+  odlukom ne piše ni ne izvršava.**
+- **Ova odluka mijenja NULA kućica** (`CHECKBOX_TRANSITIONS = 0`). Checklist Faze 5 ostaje
+  **`38 / 49`** i u kanonskom stanju i u ovom lokalnom kandidatu; `API → POST text document` ostaje
+  neoznačen.
+- **Ova odluka troši ISKLJUČIVO `D-095`.** `D-096` se **ne dodjeljuje, ne rezerviše i ne izvodi**.
+- **Lokalni authoring commit ove odluke NIJE kanonski ni efektivan.** Pravila D-095 postaju
+  efektivna tek nakon vlastitog lifecyclea D-095 (vidi `RULING S`).
+
+## Kontekst/problem — trigger
+
+D-094 je formalno zatvorio pod-gate `P5-I6A`, objavljen je kroz **PR #80** i merged na `origin/main`
+kao **`72507330c9b30ecd65d3df3c159030a3d60459f2`**, i time je postao efektivan. Po D-092 `RULING D`
+`P5-I6B` traži **efektivan** `P5-I6A`, što je od tog trenutka ispunjeno. D-092 `RULING G` i
+`RULING H` izričito traže da se **prije implementacijske autorizacije `P5-I6B`** zamrznu: AAD literali
+oba ciphertexta, tačna vrijednost / format `encryption_key_ref`, determinističke encrypt/decrypt test
+vektore za upravo te vrijednosti, te `OD-P5-I6-6` … `OD-P5-I6-9` u dijelu koji pripada `P5-I6B`.
+D-093 (`RULING C.3`, `RULING D.6`) je HTTP mapiranje neočekivane putanje i sadržaj create audita
+izričito ostavio `OD-P5-I6-6` / `OD-P5-I6-9` OPEN.
+
+Read-only governance preflight je završio
+`P5_I6B_GOVERNANCE_PREFLIGHT_PASS_READY_FOR_OWNER_ADJUDICATION`. Vlasnik je ratifikovao ugovor
+create zahtjeva, idempotencije, konkurencije, create audita, AAD literala i `encryption_key_ref`
+gramatike, i izričito dodijelio `D-095` isključivo zamrzavanju izvršnog ugovora `P5-I6B`.
+
+## Kanonsko stanje ulaza ovog gatea
+
+```text
+repozitorij                  D:\AI\Arztpraxis
+kanonski main                72507330c9b30ecd65d3df3c159030a3d60459f2
+HEAD tree                    1f86d60d5af55f1b97c1010d7bbb26f29948ac7e
+zivi remote refs/heads/main  72507330c9b30ecd65d3df3c159030a3d60459f2
+CANONICAL_DRIFT              0
+authoring grana              docs/p5-i6b-d095-contract-freeze (direktno sa kanonskog main-a)
+worktree                     CLEAN
+stash                        EMPTY
+
+MANIFEST                     19 / 19 MATCH
+checklist Faze 5             49 ukupno / 38 oznaceno / 11 neoznaceno   (~77.55 %)
+najnovija kanonska odluka    D-094
+D-094                        PUBLISHED / MERGED (PR #80, 72507330c9b30ecd65d3df3c159030a3d60459f2) /
+                             CANONICAL / POST-MERGE VERIFIED / EFFECTIVE
+D-095 prije ovog zapisa      OWNER-ASSIGNED -> P5-I6B EXECUTABLE CONTRACT FREEZE /
+                             0 heading pojavljivanja
+D-096                        UNASSIGNED / UNRESERVED / 0 heading pojavljivanja
+
+P5-I6                        NOT FORMALLY CLOSED
+P5-I6A                       COMPLETE / VERIFIED / FORMALLY CLOSED / EFFECTIVE
+P5-I6B                       NOT AUTHORIZED / NOT STARTED
+P5-I6C / P5-I7               NOT AUTHORIZED / NOT STARTED
+```
+
+## Vlasničke odluke — atribucija
+
+```text
+OD-P5-I6-6    create zahtjev / greske / HTTP mapiranje                     (RULING C, RULING M)
+OD-P5-I6-7    idempotencija                                               (RULING D)
+OD-P5-I6-8    konkurencija / DRAFT -> READY_FOR_ANALYSIS                   (RULING E)
+OD-P5-I6-9A   create audit                                                (RULING F)
+OD-P5-I6-5    izvrsenje: AAD literali (original / redigovano)             (RULING H)
+              izvrsenje: encryption_key_ref gramatika                      (RULING I)
+              izvrsenje: deterministicki AES-GCM vektori                   (RULING J)
+
+OD-P5-I6-9B   OPEN / DEFERRED TO P5-I6C   read audit                       (RULING G)
+OD-P5-I6-10   OPEN / DEFERRED TO P5-I6C   detaljni GET                     (RULING G)
+
+OWNER_DECISION_ATTRIBUTION_DRIFT_COUNT = 0
+HISTORICAL_REWRITE_ALLOWED             = NO                                (RULING A, RULING S)
+```
+
+**Particija `OD-P5-I6-9`.** D-092 `RULING H` je `OD-P5-I6-9` definisao sa create i read dijelom.
+Vlasnik ga ovim particioniše na **`OD-P5-I6-9A`** (create audit, `P5-I6B`) i **`OD-P5-I6-9B`** (read
+audit, `P5-I6C`). Ovo je **pod-particija postojećeg identifikatora**, ne prenumeracija ni
+prenamjena: unija `9A ∪ 9B` je tačno izvorni obuhvat `OD-P5-I6-9`. Identifikatori `OD-P5-I6-1` …
+`OD-P5-I6-10` ostaju nepromijenjeni.
+
+## Odluka
+
+### `RULING A` — pomirenje efektivnosti D-094
+
+D-094 je objavljen kroz **PR #80** i merged na `origin/main` kao:
+
+```text
+kandidat         93cfdbabecc9d103f25f21e9f4392612947d65ee   docs: clarify D-094 review findings
+merge commit     72507330c9b30ecd65d3df3c159030a3d60459f2
+roditelji        dcc70ee9830cf9cbb9d6d5e9998e021303e3c320 / 93cfdbabecc9d103f25f21e9f4392612947d65ee
+tree kandidata   1f86d60d5af55f1b97c1010d7bbb26f29948ac7e
+tree merge-a     1f86d60d5af55f1b97c1010d7bbb26f29948ac7e   (identican)
+PUBLICATION_DRIFT  ZERO
+
+D-094            PUBLISHED / MERGED / CANONICAL / POST-MERGE VERIFIED / EFFECTIVE
+P5-I6A           IMPLEMENTATION CANONICAL / EFFECTIVE / FORMALLY CLOSED
+                 (= COMPLETE / VERIFIED / FORMALLY CLOSED / EFFECTIVE)
+Services -> redaction   CANONICALLY CHECKED
+Faza 5           38 / 49   (11 preostalo, ~77.55 %)
+
+P5-I6B           NOT AUTHORIZED / NOT STARTED   (u trenutku autorstva D-095)
+```
+
+To je **kasnija izjava pomirenja**, ne izmjena D-094. Tijelo D-094 i njegove anotacije iz trenutka
+autorstva — `OWNER-ASSIGNED / LOCALLY AUTHORED / … / NOT CANONICAL / NOT EFFECTIVE`, `P5-I6A …
+FORMALLY CLOSING UNDER D-094 / NOT YET EFFECTIVE`, `CANONICAL CHECKLIST = 37 / 49`, `D-095
+UNASSIGNED / UNRESERVED` — **historijski su tačne** za svoj izvorni trenutak i **ne prepisuju se**.
+**Vlasnička dodjela `D-095` u ovom gateu nadjačava raniju izjavu D-094 (`RULING I`, „Historijsko
+očuvanje", „Lifecycle odluke") o nedodijeljenom `D-095` isključivo prospektivno.** **D-094 ostaje
+kanonska / efektivna odluka zatvaranja `P5-I6A`**; D-095 je ne zamjenjuje i ne mijenja.
+
+### `RULING B` — obuhvat i autoritet
+
+`P5-I6B` je **kreiranje manuelnog tekstualnog dokumenta** (D-092 `RULING D`):
+
+```text
+ruta         POST /api/v1/encounters/{encounterId}/documents/text
+permisija    encounter.document.create                       (03 §13.1; nepromijenjena)
+red          API -> POST text document                        (D-092 RULING B)
+zavisi od    P5-I6A EFFECTIVE                                 (ispunjeno, RULING A)
+```
+
+- **Nepromijenjeni i mjerodavni ostaju:** D-025 (envelope i kanonski AAD), D-060 (normalizacija,
+  hashevi, redakcija, pogledi), D-062 (statusi, `READY`/`FAILED` dosežnost, retry bez rute), D-069
+  `RULING 4` (kanonski request hash, `03` §4.1), D-070, D-071 (`P5-I3` primitivi), D-089 (presedan
+  redoslijeda validacije i atomičnog iskaza ishoda), D-092 i D-093 (ruleset `phase5-basic-v1`).
+- **Oblik zahtjeva i oblik `201` odgovora iz `03` §13.1 se ne mijenjaju.** D-095 zamrzava
+  semantiku koju §13.1 nije utvrdio; nijedan član se ne dodaje ni ne uklanja.
+- **Izvan obuhvata `P5-I6B`:** detaljni `GET` (oba pogleda), `DOCUMENT_VIEWED`, read audit, listanje,
+  arhiva, upload, retry redakcije i svako ponašanje `P5-I7`.
+
+### `RULING C` — `OD-P5-I6-6`: create zahtjev / greške
+
+**C.1 `documentType` (A1).** Dozvoljeni skup za manuelni tekst je **tačno**:
+
+```text
+CONSULTATION_NOTE  DIAGNOSIS_LIST  PROCEDURE_NOTE  REFERRAL  LAB_RESULT  OTHER
+```
+
+`BILLING_DRAFT` i `AUDIT_REPORT` (članovi kanonskog enuma `document_type`) se **odbijaju** sa
+**`422 VALIDATION_ERROR`**; svaka druga vrijednost ili tip takođe daje `422 VALIDATION_ERROR`.
+Enum baze se **ne mijenja**; ograničenje je isključivo ulazna allowlista ove rute.
+
+**C.2 `languageCode` (A2).**
+
+```text
+obavezan          DA (odsutan / null / ne-string -> 422 VALIDATION_ERROR)
+repertoar         ASCII
+case-sensitive    DA
+gramatika         ^[a-z]{2,3}(-[A-Z]{2})?$     (podudaranje CIJELOG stringa; bez pratećeg LF-a)
+maksimum          10 znakova
+pohrana           verbatim u language_code; bez case foldinga, trimovanja i kanonizacije
+```
+
+Npr. `de`, `de-CH`, `gsw-CH` su prihvaćeni; `DE`, `de-ch`, `de_CH`, `de-CH ` i `deu-CHE` se odbijaju
+sa `422 VALIDATION_ERROR`. Kolona `language_code` ostaje schema-nullable; obaveznost je ugovor rute.
+
+**C.3 `redactBeforeAiProcessing` (A3).** Obavezan i mora biti **JSON literal `true`**. Odsutan,
+`null`, `false` ili ne-boolean → **`422 VALIDATION_ERROR`**. **Nema implicitnog podrazumijevanja**
+(`03` §13.1 ostaje: `false` → `422`).
+
+**C.4 Neočekivane interne greške (A4).** Kršenje preduslova redakcije (D-093 `RULING C.3`, `PRECONDITION
+BREACH`), neuspjeh enkripcije ili ekvivalentna neočekivana invariantna greška:
+
+```text
+-> 500 INTERNAL_ERROR
+   staticki detail bez PHI-ja
+   puni rollback: bez reda dokumenta, bez audita, bez tranzicije encountera,
+                  bez kompletiranog idempotencijskog rezultata
+   NIKADA ne postaje ocekivani redaction FAILED
+```
+
+**C.5 Odbijanje normalizatora (A5).** Svako odbijanje kanonskog `normaliseClinicalText` (`P5-I3C`)
+→ **`422 VALIDATION_ERROR`**, polje **`text`**, **generički statični detail**; razlog odbijanja
+(prazno, NUL, kontrolni znak, veličina nakon normalizacije) se **ne otkriva** pojedinačno. Tekst se
+nikada ne echo-uje.
+
+**C.6 Redoslijed validacije i headeri (A6)** — D-089 `RULING E` prilagođen ovoj ruti:
+
+```text
+ 1  autentifikacija
+ 2  admisija / permisija encounter.document.create
+ 3  validacija encounterId (UUID)                              -> 400 VALIDATION_ERROR
+ 4  validacija Idempotency-Key                                 -> 400 IDEMPOTENCY_KEY_REQUIRED
+ 5  strukturna / zatvorena-objekt validacija tijela
+    (ne-objekt, nepoznat clan, pogresan tip)                   -> 422 VALIDATION_ERROR
+ 6  documentType allowlista (C.1)                              -> 422
+ 7  languageCode (C.2)                                         -> 422
+ 8  redactBeforeAiProcessing === true (C.3)                    -> 422
+ 9  prisutnost / tip text; Unicode well-formedness
+    (usamljeni surogat)                                        -> 422
+10  sirova (pred-normalizaciona) UTF-8 duzina text <= 262144   -> 422
+11  kanonska normalizacija (normaliseClinicalText)             -> 422 (C.5)
+12  izracun request hasha (03 §4.1; RULING D)
+13  idempotency runOnce / lock / replay / conflict / in-progress / claim
+14  atomican iskaz ishoda encountera (RULING E)                -> 404 / 409
+15  documentId, source hash, redakcija, redacted hash, enkripcija (RULING K)
+16  INSERT dokumenta
+17  audit DOCUMENT_CREATED; uslovno ENCOUNTER_READY_FOR_ANALYSIS (RULING F)
+18  idempotency kompletiranje + commit transakcije
+```
+
+- **Nema procjene tijela prije admisije.** Unicode well-formedness se provjerava **prije** JCS
+  hashiranja.
+- Čist deterministički izračun iz koraka 15 (source hash, redakcija, redacted hash) **smije** se
+  izvršiti ranije, nakon koraka 11, jer nema nikakav efekat; generisanje `documentId` i enkripcija
+  **smiju** prethoditi koraku 13 isključivo bez ikakvog perzistentnog efekta i bez logovanja. Ovo
+  ne mijenja nijedan HTTP ishod iz `RULING M` osim što neočekivana greška u tom izračunu (C.4) daje
+  `500` prije claima.
+- **Uspjeh je `201`** sa tijelom iz `03` §13.1. **Bez `ETag` headera. Bez `Location` headera.**
+- Greške su `application/problem+json` (`03` §9; D-075 `instance` / `requestId` dozvoljeni).
+
+### `RULING D` — `OD-P5-I6-7`: idempotencija
+
+```text
+interni idempotency endpoint literal   POST /encounters/{encounterId}/documents/text
+                                       (sablon, NIKADA konkretan UUID)
+javna ruta                             POST /api/v1/encounters/{encounterId}/documents/text
+response_status                        201
+resource pointer (response_body)       {"resourceId":"<documentId>"}
+TTL                                    48h (claim_time + 48h; D-072 / D-079 RULING D)
+```
+
+**Nijedan PHI-nosivi keširani odgovor** osim ovog minimalnog pokazivača; `encounterId` se **ne
+dodaje** u `response_body`.
+
+**Request hash.** Postojeći kanonski algoritam `03` §4.1 (D-069 `RULING 4`) **nepromijenjen**:
+
+```text
+request_sha256 = SHA-256( RFC 8785 / JCS validiranog parsiranog tijela, UKLJUCUJUCI text )
+```
+
+- **Bez route-specifičnog HMAC-a** i bez ključa. Putanja nije dio hasha.
+- `request_sha256` je izveden iz PHI-nosivog tijela; to je **izričito vlasnički prihvaćeno**
+  (zatvara stavku „potvrda PHI-nosivog `request_sha256`" iz D-092 `RULING H`). Hash se **ne izlaže
+  kroz API**, **ne loguje** i podliježe postojećem **48-satnom** životnom vijeku idempotencijskog
+  reda.
+
+**Replay (isti ključ + isti hash, kompletiran):**
+
+1. tenant-scoped čitanje **nepromjenjivog** reda dokumenta po keširanom `resourceId`;
+2. ako `document.encounter_id ≠ encounterId` iz putanje → **`409 IDEMPOTENCY_CONFLICT`**
+   (vezivanje putanje; `B3`);
+3. inače rekonstrukcija `201` iz nepromjenjivog reda — **identično** tijelo §13.1;
+   **bez dekripcije**, **bez novog audita**, **bez tranzicije encountera**.
+
+- Kompletiran ključ **smije** replayati i kad je encounter **kasnije otkazan** (replay prethodi
+  koraku 14).
+- Za razliku od D-089 `RULING D` (gdje je `resourceId` sam `encounterId`), ovdje je `resourceId`
+  `documentId`, pa vezivanje putanje traži čitanje reda dokumenta. To čitanje se izvršava
+  **isključivo** za vlastiti kompletiran ključ pozivaoca (scope `practice + user + endpoint + key`),
+  pod RLS-om, i daje isti `409` kao neusklađen hash — **nije opšti diskriminirajući oracle**.
+- Neočekivano odsustvo reda pri replayu je invariantna greška → `500 INTERNAL_ERROR` (C.4).
+
+```text
+isti kljuc + razlicit request (hash)          -> 409 IDEMPOTENCY_CONFLICT
+isti kljuc + isto tijelo + drugi encounterId   -> 409 IDEMPOTENCY_CONFLICT
+konkurentan zahtjev sa istim kljucem           -> 409 REQUEST_ALREADY_IN_PROGRESS
+```
+
+Postojeći zajednički idempotency servis i njegov transakcijski ne-blokirajući advisory lock ostaju
+kanonski; **nema drugog idempotencijskog podsistema**.
+
+### `RULING E` — `OD-P5-I6-8`: konkurencija / `DRAFT → READY_FOR_ANALYSIS`
+
+**Jedan atomičan iskaz / CTE ishoda encountera** unutar iste admitovane tenant transakcije, koji:
+
+- uzima **`FOR UPDATE`** na redu encountera;
+- utvrđuje vidljivost i stanje;
+- uslovno izvršava `DRAFT → READY_FOR_ANALYSIS`;
+- izvršava se **prije** `INSERT`-a dokumenta;
+- ispravno se serijalizuje naspram cancel-a (oba zaključavaju isti red encountera).
+
+```text
+nevidljiv / nepostojeci / cross-tenant      -> 404 RESOURCE_NOT_FOUND   (uniformno)
+DRAFT                                       -> tranzicija -> READY_FOR_ANALYSIS; nastavak
+READY_FOR_ANALYSIS                          -> bez upisa u encounter; nastavak
+svako drugo vidljivo stanje                 -> 409 INVALID_STATE_TRANSITION
+  (CANCELLED, CLOSED, ANALYSIS_IN_PROGRESS, REVIEW_REQUIRED i svako kasnije stanje
+   koje Faza 5 izricito ne autorizuje)
+```
+
+- **Nema opšteg diskriminirajućeg pre-reada** encountera (`09` §18.1, `T1`; D-089 `RULING F`).
+- **Stvarna tranzicija:**
+
+```text
+status       = READY_FOR_ANALYSIS
+updated_by   = admitovani autentifikovani korisnik
+updated_at   = clock_timestamp() baze
+version      = NEPROMIJENJENA     (03 §12, OD-P5-D2-7: tranzicija ne trosi version inkrement)
+```
+
+- Već `READY_FOR_ANALYSIS` → **nijedan upis u encounter**, nijedan transition audit.
+- **Create naspram cancel-a:** ako cancel commituje prvi, create vidi `CANCELLED` → `409`; ako create
+  commituje prvi, cancel čeka zaključan red i zatim vidi `READY_FOR_ANALYSIS` (dozvoljeno izvorno
+  stanje cancel-a, D-089). Nema međustanja u kojem dokument nastaje nad već otkazanim encounterom.
+- **Konkurentni create-ovi sa različitim ključevima:** oba smiju uspjeti; `FOR UPDATE` serijalizuje
+  tranziciju, pa se `DRAFT → READY_FOR_ANALYSIS` i njen audit izvršavaju **tačno jednom**.
+- **Bez izmjene scheme, migracije, RLS-a, granta i grafa stanja.**
+
+### `RULING F` — `OD-P5-I6-9A`: create audit
+
+**`DOCUMENT_CREATED`** (uvijek, tačno jednom po uspješnom create-u):
+
+```text
+actor_type      USER
+actor_user_id   admitovani korisnik
+resource_type   DOCUMENT
+action          DOCUMENT_CREATED
+resource_id     <documentId>
+previous_value  null
+new_value       {"encounterId": "<encounterId>", "documentType": "<documentType>",
+                 "source": "MANUAL_TEXT", "processingStatus": "READY",
+                 "redactionStatus": "<COMPLETED|FAILED>"}
+metadata        {"rulesetVersion": "phase5-basic-v1"}
+                + "failureCode": "REDACTED_OUTPUT_TOO_LARGE"   isklucivo kad je redactionStatus = FAILED
+```
+
+- `new_value` je **semantički tačno** ovih pet članova; `metadata` je tačno `rulesetVersion` (+
+  `failureCode` pri `FAILED`). **Nema dodatnih članova.**
+- **Audit payload NE SMIJE sadržavati:** `text`, normalizovan tekst, redigovan tekst,
+  `sourceTextHash`, `redactedTextHash`, `languageCode`.
+- `processingStatus` je u Fazi 5 uvijek `READY` (D-062 G; `03` §13.3).
+
+**`ENCOUNTER_READY_FOR_ANALYSIS`** (isključivo pri stvarnoj tranziciji, `RULING E`):
+
+```text
+actor_type      USER
+resource_type   ENCOUNTER
+action          ENCOUNTER_READY_FOR_ANALYSIS
+resource_id     <encounterId>
+previous_value  {"status": "DRAFT", "version": <v>}
+new_value       {"status": "READY_FOR_ANALYSIS", "version": <v>}      (ista v)
+metadata        {"documentId": "<documentId>"}
+```
+
+- **Fiksni redoslijed:** `1. DOCUMENT_CREATED` → `2. ENCOUNTER_READY_FOR_ANALYSIS`; **ista
+  transakcija**.
+- **Nikada pri replayu**; nikada kad je encounter već `READY_FOR_ANALYSIS`.
+- **Neuspjeh audita → fail-closed / puni rollback** (C.4).
+- Kanonski audit hash lanac (`09` §12.2) se ne mijenja.
+
+### `RULING G` — `OD-P5-I6-9B` / `OD-P5-I6-10`: izričita odgoda
+
+```text
+OD-P5-I6-9B   READ AUDIT    OPEN / DEFERRED TO P5-I6C
+OD-P5-I6-10   DETAIL GET    OPEN / DEFERRED TO P5-I6C
+```
+
+**Nijedno ne blokira `P5-I6B`.** D-095 **ne autorizuje nikakvo read-contract ponašanje**: ni
+`view=redacted`, ni `view=original`, ni `DOCUMENT_VIEWED` payload, ni status / kod odbijanja
+`FAILED`-redigovanog pogleda, ni ponašanje neusklađenog encounter / document para. Postojeći kanon
+(`03` §13.3; D-043; D-060) ostaje mjerodavan za ono što već utvrđuje.
+
+### `RULING H` — AAD literali (`OD-P5-I6-5`, stavke 1, 2, 5)
+
+Kanonski D-025 AAD (`02` §2.7.4; `buildEncryptionAad`) se **ne mijenja**. D-095 zamrzava njegove
+tačne vrijednosti za dvije kolone `encounter_documents`.
+
+**H.1 Original / normalizovan tekst — logički oblik:**
+
+```text
+v1
+practice_id=<lowercase canonical UUID>
+table=encounter_documents
+row_id=<documentId lowercase>
+column=normalized_text_ciphertext
+envelope_version=1
+```
+
+Tačan bajtni oblik:
+
+```text
+v1\npractice_id=<lowercase canonical UUID>\ntable=encounter_documents\nrow_id=<documentId lowercase>\ncolumn=normalized_text_ciphertext\nenvelope_version=1
+```
+
+**H.2 Redigovan tekst — logički oblik:**
+
+```text
+v1
+practice_id=<lowercase canonical UUID>
+table=encounter_documents
+row_id=<documentId lowercase>
+column=redacted_text_ciphertext
+envelope_version=1
+```
+
+Tačan bajtni oblik:
+
+```text
+v1\npractice_id=<lowercase canonical UUID>\ntable=encounter_documents\nrow_id=<documentId lowercase>\ncolumn=redacted_text_ciphertext\nenvelope_version=1
+```
+
+(`\n` iznad označava tačno jedan bajt `0x0A`.)
+
+**H.3 Svojstva (oba literala):**
+
+```text
+case-sensitive                    DA
+repertoar znakova                 ASCII
+encoding                          UTF-8
+separator reda                    LF (0x0A)
+CR                                ZABRANJEN
+zavrsni newline                   NE
+dodatni whitespace                ZABRANJEN
+verzionisano                      DA (v1; envelope_version=1)
+parser                            NEMA
+GCM autentifikaciono poredjenje   BYTE EXACT
+```
+
+- `practice_id` i `row_id` su **mala slova, kanonski 8-4-4-4-12 UUID**; builder ne normalizuje ulaz
+  (`encryption-aad.ts`), pa implementacija **mora** proslijediti vrijednosti već u tom obliku.
+- `envelope_version=1` je `ENCRYPTION_VERSION` (D-025, klauzula 1).
+- **Bilo koja nekompatibilna buduća promjena AAD-a** perzistiranih redova je **nekompatibilna
+  kriptografska / storage promjena** (D-092 `RULING G`, stavka 5) i traži **izričitu novu governance
+  odluku**, **izričito verzionisanje** i **migracionu / kompatibilnosnu strategiju**.
+
+### `RULING I` — `encryption_key_ref` (`OD-P5-I6-5`, stavka 3)
+
+```text
+lokalna development vrijednost   local-static-development-v1   (postojeca, LOCAL_STATIC_ENCRYPTION_KEY_REF)
+ugovor                           neprozirni identifikator providera
+gramatika                        ^[A-Za-z0-9][A-Za-z0-9._:/-]{0,254}$   (podudaranje CIJELOG stringa)
+duzina                           1-255 ASCII znakova                     (varchar(255), 02 §2.7.3)
+case-sensitive                   DA
+whitespace                       ZABRANJEN
+parser                           NEMA
+poredjenje                       BYTE EXACT
+perzistirana vrijednost          NEPROMJENJIVA po redu
+```
+
+- Sufiks `-v1` lokalne development vrijednosti je **imenovanje generacije providera** i **ne
+  zamjenjuje** `encryption_key_version`.
+- `encryption_key_ref` **nije dio AAD-a**; ne nosi materijal ključa.
+- Produkcijski key ref ostaje pod **`D-OPEN-004a`**, ali **mora** zadovoljiti ovu gramatiku osim ako
+  je kasnija governance odluka izričito ne promijeni.
+- Budući implementacijski ugovor **smije** uključiti startup guard gramatike; D-095 ga ne uvodi.
+
+### `RULING J` — determinističke AES-GCM vektorske činjenice (`OD-P5-I6-5`, stavka 4)
+
+**J.1 Kanonski parametri** (utvrđeni iz `encryption.port.ts`, `aes-gcm-encryption.service.ts`,
+`encryption-aad.ts`; D-025; `02` §2.7):
+
+```text
+algoritam             AES-256-GCM            (node:crypto 'aes-256-gcm'; ENCRYPTION_ALGORITHM)
+kljuc                 32 bajta
+IV                    12 bajtova             (ENCRYPTION_IV_BYTE_LENGTH)
+auth tag              16 bajtova             (ENCRYPTION_AUTH_TAG_BYTE_LENGTH)
+AAD encoding          UTF-8 (encodeEncryptionAad)
+plaintext encoding    UTF-8
+envelope_version      1                      (ENCRYPTION_VERSION)
+```
+
+**J.2 Fiksni NE-PRODUKCIJSKI fixture-i** (javni, isključivo testni; **nikada** konfigurisan ključ
+ni u jednom okruženju):
+
+```text
+kljuc (hex)          000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f
+practice_id          11111111-1111-4111-8111-111111111111
+documentId (row_id)  22222222-2222-4222-8222-222222222222
+encryption_key_version   1   (informativno; NIJE dio AAD-a ni ulaz cifre)
+```
+
+Fixture ključ **nije** zabranjeni all-zero development fixture (D-025, klauzula 10). Vektori koriste
+**različite** fiksne IV-ove, pa **ne postoji ponovna upotreba IV-a** između njih. Fiksni IV je
+**isključivo testni**; produkcijska slučajnost IV-a (svjež 12-bajtni `randomBytes` po operaciji,
+D-025 klauzula 6) **ostaje nepromijenjena**.
+
+**J.3 Vektor ORIGINAL (`normalized_text_ciphertext`):**
+
+```text
+IV (hex)               101112131415161718191a1b
+plaintext (UTF-8)      Tel 079 123 45 67
+plaintext (hex)        54656c2030373920313233203435203637                       (17 bajtova)
+AAD                    v1\npractice_id=11111111-1111-4111-8111-111111111111\ntable=encounter_documents\nrow_id=22222222-2222-4222-8222-222222222222\ncolumn=normalized_text_ciphertext\nenvelope_version=1
+AAD (UTF-8 hex)        76310a70726163746963655f69643d31313131313131312d313131312d343131312d383131312d3131313131313131313131310a7461626c653d656e636f756e7465725f646f63756d656e74730a726f775f69643d32323232323232322d323232322d343232322d383232322d3232323232323232323232320a636f6c756d6e3d6e6f726d616c697a65645f746578745f636970686572746578740a656e76656c6f70655f76657273696f6e3d31
+AAD duzina             174 bajta
+ciphertext (hex)       299bf43679fe0393fb473b3d3b4c4965e0
+auth tag (hex)         5fee425c579b90048087ddfafca7bc18
+```
+
+**J.4 Vektor REDACTED (`redacted_text_ciphertext`):**
+
+```text
+IV (hex)               202122232425262728292a2b
+plaintext (UTF-8)      Tel [REDACTED:PHONE]
+plaintext (hex)        54656c205b52454441435445443a50484f4e455d                 (20 bajtova)
+AAD                    v1\npractice_id=11111111-1111-4111-8111-111111111111\ntable=encounter_documents\nrow_id=22222222-2222-4222-8222-222222222222\ncolumn=redacted_text_ciphertext\nenvelope_version=1
+AAD (UTF-8 hex)        76310a70726163746963655f69643d31313131313131312d313131312d343131312d383131312d3131313131313131313131310a7461626c653d656e636f756e7465725f646f63756d656e74730a726f775f69643d32323232323232322d323232322d343232322d383232322d3232323232323232323232320a636f6c756d6e3d72656461637465645f746578745f636970686572746578740a656e76656c6f70655f76657273696f6e3d31
+AAD duzina             172 bajta
+ciphertext (hex)       865fca5037ca5f4a5b3f168b8522a4b19f07a9c1
+auth tag (hex)         41171fa30ccd2480a21e3c3c1548b552
+```
+
+Plaintext par je konzistentan sa kanonskim `phase5-basic-v1` (`PHONE_NAT`, D-093 `RULING F.5`:
+oznaka i separator ostaju, zamjenjuje se isključivo broj); broj je izmišljen testni podatak. Oba
+plaintexta su ASCII, pa je UTF-8 hex jednak ASCII hex.
+
+**J.5 Nezavisno izvođenje.** Vrijednosti su izračunate **izvan repozitorijskog implementacijskog
+koda**, bez importa ili poziva `AesGcmEncryptionService`, iz samostalnih scratch skripti koje AAD
+grade direktno iz zamrznutog literala:
+
+```text
+metod 1   Node.js 20.9.0, node:crypto createCipheriv('aes-256-gcm', authTagLength 16)
+          + createDecipheriv round-trip                                         MATCH
+metod 2   Python cryptography 46.0.5, AESGCM.encrypt                           MATCH
+AAD bajtovi = dokumentovani literal (bez CR, bez zavrsnog LF)                    DA
+```
+
+**J.6 Pregledljivost.**
+
+- Vektori su **ne-produkcijski fixture-i**; zamrzavaju očekivanu **interoperabilnost / dokaz**.
+- **Produkcijska slučajnost IV-a ostaje nepromijenjena**; D-095 ne uvodi testni IV seam. Oblik
+  eventualnog test-only IV mehanizma za encrypt-side known-answer dokaz pripada **kasnijoj
+  implementacijskoj autorizaciji** i ne smije oslabiti svježinu IV-a u produkcijskom putu.
+- **Nezavisan pregled MORA ponovo izračunati oba vektora** iz zabilježenih fixture-a.
+- **Svako neslaganje vektora blokira publikaciju D-095.**
+
+### `RULING K` — ugovor perzistencije redakcije (D-093 očuvan)
+
+```text
+COMPLETED   perzistira: original/normalizovan enkriptovan artefakt; source_text_hash;
+                        redigovan enkriptovan artefakt; redacted_text_hash;
+                        redaction_status = COMPLETED; processing_status = READY
+FAILED      ocekivani skup TACNO { REDACTED_OUTPUT_TOO_LARGE }  (D-093 RULING D)
+            perzistira: original/normalizovan enkriptovan artefakt; source_text_hash;
+                        redaction_status = FAILED; processing_status = READY
+            NE perzistira: redacted_text_ciphertext, redacted_text_iv, redacted_text_auth_tag,
+                           redacted_text_hash   (sve NULL)
+neocekivana interna greska   rollback; bez reda dokumenta; bez kompletiranog idempotencijskog
+                             rezultata; bez uspjesnog odgovora   (C.4)
+```
+
+- `source_text_hash` = lowercase hex SHA-256 normalizovanog UTF-8 (`03` §13.1); `redacted_text_hash`
+  = lowercase hex SHA-256 UTF-8 bajtova `redactedText`, **bez re-normalizacije** (D-093 `RULING C.6`).
+- Enkriptuju se UTF-8 bajtovi normalizovanog teksta, odnosno `redactedText`; svako polje dobija
+  **vlastiti svjež IV**; red dijeli jedan `encryption_algorithm` / `encryption_version` /
+  `encryption_key_ref` / `encryption_key_version` (`02` §2.7.3).
+- `documentId` generiše aplikacija **prije** enkripcije i `INSERT`-a (`02` §2.2; D-025 klauzula 11).
+- `rulesetVersion` i `failureCode` nemaju namjenske kolone dokumenta; predstavljeni su **isključivo**
+  kroz odobreni audit ugovor (`RULING F`).
+- `201` tijelo pri `FAILED`: `redactionStatus = FAILED`, `redactedTextHash` **izostaje** (`03` §13.1).
+
+### `RULING L` — transakcioni model
+
+**Jedan rollback-spregnut model.** Čist deterministički izračun **smije** prethoditi mutaciji
+(`RULING C.6`). Unutar admitovanog tenant mutacionog toka (jedna pinovana interaktivna transakcija,
+`TenantRequestPipeline`; D-047 / D-054 / D-056) rollback-spregnuto se izvršavaju:
+
+```text
+idempotency claim
+-> encounter FOR UPDATE / atomican ishod (RULING E)
+-> uslovno DRAFT -> READY_FOR_ANALYSIS
+-> INSERT dokumenta
+-> audit DOCUMENT_CREATED
+-> uslovno audit ENCOUNTER_READY_FOR_ANALYSIS
+-> idempotency kompletiranje / vezivanje resursa
+-> COMMIT
+```
+
+- **Nema poslovne mutacije nakon commita.** Create naspram cancel-a se serijalizuje na redu
+  encountera.
+- **Ne izmišlja se drugi transakcioni model**, druga transakcija ni vlastiti `PrismaClient`.
+
+### `RULING M` — matrica grešaka / oracle
+
+```text
+malformiran encounterId                          -> 400 VALIDATION_ERROR
+nedostaje Idempotency-Key                        -> 400 IDEMPOTENCY_KEY_REQUIRED
+nepoznato polje / ne-objekt / pogresan tip       -> 422 VALIDATION_ERROR
+malformiran Unicode / usamljeni surogat          -> 422 VALIDATION_ERROR
+text > 256 KiB (kanonska granica, prije norm.)   -> 422 VALIDATION_ERROR
+odbijanje normalizatora                          -> 422 VALIDATION_ERROR (generican staticki
+                                                    detail polja text)
+nepostojeci / nevidljiv / cross-tenant encounter -> 404 RESOURCE_NOT_FOUND
+CANCELLED ili drugo nedozvoljeno vidljivo stanje -> 409 INVALID_STATE_TRANSITION
+isti kljuc + isti request                        -> 201 replay
+isti kljuc + razlicit request                    -> 409 IDEMPOTENCY_CONFLICT
+isti kljuc / tijelo + drugi encounter u putanji  -> 409 IDEMPOTENCY_CONFLICT
+konkurentan zahtjev sa istim kljucem             -> 409 REQUEST_ALREADY_IN_PROGRESS
+ocekivani redaction FAILED                       -> 201, redactionStatus = FAILED
+neocekivana redakcijska / interna / enkripcijska
+greska                                           -> 500 INTERNAL_ERROR, puni rollback
+neautentifikovan / bez permisije                 -> 401 / 403 (postojeci kanon, nepromijenjen)
+```
+
+**Bez PHI curenja** (tekst, podnizovi, hashevi, `languageCode` vrijednost se ne echo-uju u greškama
+ni logovima). **Bez cross-tenant oracle-a postojanja.**
+
+### `RULING N` — schema / arhitektura
+
+```text
+SCHEMA CHANGE REQUIRED   = NO
+MIGRATION IN P5-I6B      = NONE
+```
+
+Postojeći kanonski primitivi se **ponovo koriste bez izmjene**; orijentacija za budući implementacijski
+gate (D-095 ih **ne mijenja**):
+
+```text
+apps/api/src/crypto/clinical-text-normalizer.ts      normaliseClinicalText, CLINICAL_TEXT_MAX_UTF8_BYTES
+apps/api/src/crypto/sha256-utf8.ts                   sha256HexUtf8 (source / redacted hash)
+apps/api/src/crypto/request-sha256.ts                requestSha256 (03 §4.1)
+apps/api/src/crypto/json-canonicalizer.ts            RFC 8785 / JCS
+apps/api/src/crypto/encryption.port.ts               ENCRYPTION_SERVICE, EncryptionAad, EncryptionEnvelope
+apps/api/src/crypto/encryption-aad.ts                buildEncryptionAad / encodeEncryptionAad
+apps/api/src/crypto/aes-gcm-encryption.service.ts    AesGcmEncryptionService
+apps/api/src/crypto/local-static-key.provider.ts     LOCAL_STATIC_ENCRYPTION_KEY_REF
+apps/api/src/document/domain/redaction-ruleset.ts    applyRedactionRuleset, REDACTION_RULESET_VERSION
+apps/api/src/idempotency/**                          zajednicki idempotency servis
+apps/api/src/audit/**                                audit writer
+apps/api/src/identity/application/tenant-request.pipeline.ts   admitovana tenant transakcija
+apps/api/src/encounter/infrastructure/encounter.database.ts    presedan atomicnog iskaza ishoda (D-089)
+apps/api/prisma/schema.prisma                        EncounterDocument (encounter_documents)
+```
+
+### `RULING O` — dokazni ugovor (budući; ovdje se ne implementira)
+
+Obavezne dokazne kategorije buduće `P5-I6B` implementacije (detalj u `08` §12.16):
+
+```text
+UNIT         normalizacija; odbijanje normalizatora; source hash; redacted hash; tacni AAD
+             stringovi; encryption_key_ref gramatika; deterministicki AES-GCM known-answer
+             vektori (RULING J); COMPLETED/FAILED mapiranje; krsenje preduslova -> 500;
+             DTO allowliste
+INTEGRATION  happy-path INSERT; ciphertext != plaintext; decrypt round-trip; pogresan /
+             zamijenjen AAD pada; FAILED red sa null redigovanim artefaktima; rollback pri
+             neuspjehu audita / enkripcije; DRAFT -> READY; vec READY no-op; tacnost audit
+             payloada; idempotencijski red bez PHI-ja osim odobrenog request_sha256
+SECURITY     cross-tenant / nepostojeci ekvivalentan 404; RLS / runtime-role dokaz; bez opsteg
+             pre-read oracle-a; bez PHI-ja u logovima; create-vs-cancel trka; duplikat POST
+             trka; B3 konflikt vezivanja encountera
+E2E          tacan 201 odgovor; 400 / 404 / 409 / 422 / 500 problem+json; auth 401 / 403;
+             replay 201 identican odgovor; neslaganje 409
+```
+
+**Nijedan test se ovim zapisom ne implementira.**
+
+### `RULING P` — firewall odgođenih odluka i carry-forward
+
+```text
+OD-P5-I6-9B                                   OPEN / DEFERRED TO P5-I6C
+OD-P5-I6-10                                   OPEN / DEFERRED TO P5-I6C
+D-OPEN-004a  produkcijski KMS / kljuc         UNCHANGED / UNADJUDICATED
+D-OPEN-007   retencija                        OPEN / DEFERRED
+D-OPEN-009                                    UNCHANGED / UNADJUDICATED
+retry redakcije (ruta)                        DEFERRED (D-062 OD-P5-D2-9)
+aktivacija klase eksterne reference           INERT WITHOUT INPUT SOURCE (D-092 RULING E)
+exports-retry request-hash follow-up          CARRY-FORWARD / UNADJUDICATED
+
+DEFERRED_DECISION_ADJUDICATIONS_OUTSIDE_D095_SCOPE = 0
+```
+
+Preneseno bez izmjene i bez adjudikacije: sirovi NUL u
+`apps/api/src/identity/domain/permission-matrix.ts`; odstupanje formattera Faze 4
+(`apps/api/test/phase4-membership-role-assignment-constraints.security.ts`); zaostatak migracija
+lokalne dev baze (`003` / `011` / `013` / `014`); `NB-2` (`docs/05` §0, LEAVE AS-IS); kaskada cancel-a
+Faze 7+ (D-035); i svi ostali ranije kanonski carry-forward-i.
+
+```text
+CARRY_FORWARD_SCOPE_DRIFT = 0
+```
+
+### `RULING Q` — checklist firewall
+
+```text
+                         kanonski (prije)   D-095 kandidat
+UKUPNO REDOVA (S6)       49                 49
+OZNACENO                 38                 38
+NEOZNACENO               11                 11
+FORMALNA ZAVRSENOST      38 / 49 ~= 77.55 % 38 / 49 ~= 77.55 %
+
+CHECKBOX_TRANSITIONS     = 0
+API -> POST text document   [ ]  (nepromijenjeno; zatvara ga iskljucivo formalno zatvaranje P5-I6B)
+```
+
+**Zamrznut ugovor nije zatvaranje kućice** (D-084 `OD-D084-1`; D-092 `RULING B`).
+
+### `RULING R` — firewall implementacijske autorizacije
+
+```text
+P5-I6B IMPLEMENTATION = NOT AUTHORIZED / NOT STARTED
+```
+
+D-095 **ne autorizuje:** implementacijsku granu; controller / servis / repository kod; DTO-e /
+ugovore; crypto izmjene; audit izmjene; idempotency izmjene; transition CTE; testove; schemu /
+migracije. Efektivnost D-095 **ne aktivira** nikakvu autorizaciju (presedan D-093 `RULING M`).
+
+```text
+nakon efektivnog D-095:
+P5-I6B = CONTRACT FROZEN / IMPLEMENTATION NOT YET AUTHORIZED
+
+P5_I6B_IMPLEMENTATION_AUTHORIZED = NO
+zaseban kasniji gate = P5-I6B IMPLEMENTATION AUTHORIZATION PREP / OWNER AUTHORIZATION (OBAVEZAN)
+```
+
+### `RULING S` — lifecycle, historijsko očuvanje i naredni gate
+
+Pravila D-095 postaju efektivna **tek** nakon:
+
+```text
+autorstvo
+-> svjez nezavisan D-095 executable-contract pregled (ukljucujuci ponovni izracun vektora)
+-> vlasnicko prihvatanje
+-> publikacioni preflight
+-> vlasnicka publikacijska autorizacija
+-> push + PR
+-> vlasnicka merge autorizacija
+-> merge
+-> kanonska post-verifikacija
+```
+
+```text
+HISTORICAL_REWRITE_ALLOWED  = NO
+HISTORICAL_REWRITE_COUNT    = 0
+D094_HISTORICAL_TEXT_REWRITES = 0
+NEXT_DECISION_ID_PREASSIGNED  = NO
+D-096                         UNASSIGNED / UNRESERVED
+```
+
+**Tijela odluka D-001 … D-094 ostaju bajt-identična**, uključujući lifecycle / statusne snapshote
+D-094 iz trenutka autorstva. Ranije izjave da je `D-095` nedodijeljen / nerezervisan ostaju
+historijski tačni snapshoti. Tekuće stanje se pomiruje **isključivo dodavanjem** D-095 anotacija.
+
+## Razmotrene i odbijene alternative
+
+- **Dozvoliti `BILLING_DRAFT` / `AUDIT_REPORT` za manuelni tekst** — **odbijeno** (`RULING C.1`).
+- **Case folding ili kanonizacija `languageCode`** — **odbijeno**; pohrana je verbatim (`RULING C.2`).
+- **Implicitni `redactBeforeAiProcessing = true` pri odsustvu** — **odbijeno** (`RULING C.3`).
+- **Neočekivanu grešku predstaviti kao `redactionStatus = FAILED`** — **odbijeno** (`RULING C.4`).
+- **Razlog odbijanja normalizatora u detailu** — **odbijeno**; oracle nad sadržajem (`RULING C.5`).
+- **`ETag` / `Location` na create-u** — **odbijeno** (`RULING C.6`).
+- **`encounterId` u keširanom `response_body`** ili konkretan UUID u endpoint literalu —
+  **odbijeno** (`RULING D`).
+- **Route-specifičan HMAC request hasha** — **odbijeno**; kanonski §4.1 ostaje jedini algoritam
+  (`RULING D`).
+- **Opšti diskriminirajući pre-read encountera** — **odbijeno** (`RULING E`).
+- **Inkrement `version` pri `DRAFT → READY_FOR_ANALYSIS`** — **odbijeno** (`03` §12, `RULING E`).
+- **Hashevi, tekst ili `languageCode` u audit payloadu** — **odbijeno** (`RULING F`).
+- **Adjudicirati read audit ili detaljni `GET` u D-095** — **odbijeno** (`RULING G`).
+- **Mijenjati D-025 AAD format ili ime kolone** — **odbijeno**; zamrzavaju se vrijednosti
+  (`RULING H`).
+- **Parsiran / strukturiran `encryption_key_ref`** — **odbijeno**; neproziran (`RULING I`).
+- **Vektore dobiti pozivom `AesGcmEncryptionService`** — **odbijeno**; izvođenje je nezavisno
+  (`RULING J`).
+- **Dodati testni IV seam sada** — **odbijeno**; pripada implementacijskoj autorizaciji (`RULING J`).
+- **Druga transakcija ili poslovna mutacija nakon commita** — **odbijeno** (`RULING L`).
+- **Schema promjena / nove kolone za `rulesetVersion` / `failureCode`** — **odbijeno** (`RULING K`,
+  `RULING N`).
+- **Označiti `API → POST text document`** — **odbijeno** (`RULING Q`).
+- **Autorizovati implementaciju `P5-I6B` ili dodijeliti `D-096`** — **odbijeno** (`RULING R`,
+  `RULING S`).
+
+## Posljedice — dokumentaciono pomirenje
+
+| Lokacija | Zahvat |
+|---|---|
+| `06` | dodat ovaj D-095 zapis nakon D-094; **D-001 … D-094 bajt-identični** |
+| `03` §4 / §13.6 | aditivna D-095 statusna anotacija nakon D-094 anotacije; aditivna §13.6 — sažetak izvršnog ugovora `P5-I6B`; **§13.1–§13.5 se ne prepisuju; oblik zahtjeva i `201` odgovora se ne mijenja** |
+| `04` §7.5a | aditivna D-095 sekcija sa sažetkom zamrznutog ugovora; **tabela zavisnosti §7.5 se ne mijenja** |
+| `05` §6 | aditivna D-095 anotacija nakon D-094 anotacije; **nula kućica se mijenja**; **§0 se ne mijenja** |
+| `08` §12.16 | aditivna obavezna dokazna matrica i known-answer vektori `P5-I6B`; **nijedan test se ne piše** |
+| `09` §8.7 | aditivne sigurnosne posljedice zamrznutog ugovora; **nijedan zahtjev se ne slabi** |
+| `MANIFEST.md` | ponovo izračunati bajtovi i SHA-256 za šest izmijenjenih dokumenata; **19 redova ostaje 19** |
+
+`02`, `15`, sav izvorni kod, testovi, migracije, Prisma, SQL, grantovi, RLS politike, permisiona
+matrica, `packages/contracts`, paketi, lockfile, CI, `README` i `AGENTS` ostaju netaknuti.
+
+## Security/privacy uticaj
+
+- AAD veže svaki ciphertext za tačnu ordinaciju, red i kolonu; zamjena original ↔ redigovano ili
+  premještanje u drugi red **ne dekriptuje** (D-025).
+- `request_sha256` je SHA-256 bez ključa nad PHI-nosivim tijelom — **vlasnički prihvaćeno**, ograničeno na
+  48h, nikada izloženo ni logovano; RLS i scope ključa ostaju nepromijenjeni.
+- Audit payload je minimiziran: bez teksta, hasheva i `languageCode`.
+- Greške su statične; nema per-reason otkrivanja normalizatora; nema cross-tenant oracle-a.
+- Fiksni testni ključ / IV-ovi su javni i **nikada** produkcijski; produkcijska slučajnost IV-a se
+  ne mijenja.
+- Redakcija ostaje deterministička i rule-based; **nije anonimizacija**; klasa eksterne reference
+  ostaje inertna.
+- **Nijedan postojeći sigurnosni zahtjev se ne slabi, ne uklanja ni ne mijenja.**
+
+## Migration/rollout
+
+**Nema.**
+
+```text
+RUNTIME_CHANGE                     = NO
+TEST_CHANGE                        = NO
+SCHEMA_CHANGE                      = NO
+MIGRATION_CHANGE                   = NO
+RLS_CHANGE                         = NO
+GRANT_CHANGE                       = NO
+PERMISSION_MATRIX_CHANGE           = NO
+PACKAGES_CONTRACT_CHANGE           = NO
+DEPENDENCY_CHANGE                  = NO
+CI_OR_LOCKFILE_CHANGE              = NO
+DATABASE_WRITER_REQUIRED           = NO
+HISTORICAL_RECORDS_REWRITTEN       = 0
+```
+
+## Test dokaz
+
+**Nijedan repozitorijski test se ovim zapisom ne piše, ne mijenja i ne izvršava.** Jedini izračun u
+ovom gateu je nezavisno izvođenje known-answer vektora `RULING J` izvan repozitorija (dva runtimea,
+oba MATCH). Obavezna buduća dokazna matrica je u `08` §12.16 i izvršava se tek nakon zasebne
+implementacijske autorizacije.
+
+```text
+TESTS_WRITTEN_D095            = 0
+TESTS_RERUN_D095_AUTHORING    = 0
+IMPLEMENTATION CODE DELTA     = 0
+ORIGINAL_VECTOR_RECOMPUTE     = MATCH
+REDACTED_VECTOR_RECOMPUTE     = MATCH
+```
+
+## Historijsko očuvanje
+
+```text
+prije uspjesnog lokalnog commita   D-095 = OWNER-ASSIGNED TO P5-I6B EXECUTABLE CONTRACT FREEZE /
+                                           NOT CONSUMED
+nakon uspjesnog lokalnog commita   D-095 = OWNER-ASSIGNED / AUTHORED / LOCAL CANDIDATE /
+                                           COMMITTED / NOT PUSHED /
+                                           NOT INDEPENDENTLY REVIEWED / NOT OWNER-ACCEPTED /
+                                           NOT CANONICAL / NOT EFFECTIVE
+D-096                              UNASSIGNED / UNRESERVED
+HISTORICAL_RECORDS_REWRITTEN       = 0
+D094_HISTORICAL_TEXT_REWRITES      = 0
+```
+
+## Šta D-095 ne mijenja
+
+- **Ne mijenja D-025, D-043, D-060, D-062, D-069, D-070, D-071, D-089, D-092, D-093 ni D-094.**
+- **Ne mijenja nijednu rutu, metodu, oblik payloada, permisiju ni error vokabular**; zamrzava
+  semantiku postojeće rute §13.1.
+- **Ne mijenja nijednu kućicu.**
+- **Ne autorizuje i ne započinje `P5-I6B`, `P5-I6C` ni `P5-I7`; ne zatvara `P5-I6`.**
+- **Ne adjudicira `OD-P5-I6-9B`, `OD-P5-I6-10`, `D-OPEN-004a`, `D-OPEN-007`, `D-OPEN-009`.**
+- **Ne mijenja `docs/02`, `docs/15` ni `docs/05` §0.**
+- **Ne prepisuje nijedan historijski zapis.**
+
+## Otvorena pitanja koja D-095 ne zatvara
+
+- **`OD-P5-I6-9B`** (read audit), **`OD-P5-I6-10`** (detaljni `GET`) — OPEN / DEFERRED TO `P5-I6C`;
+- **`D-OPEN-004a`**, **`D-OPEN-007`**, **`D-OPEN-009`** — nepromijenjeni;
+- ruta retry redakcije; aktivacija klase eksterne reference; exports-retry request-hash follow-up;
+- odstupanje formattera Faze 4, sirovi NUL u `permission-matrix.ts`, zaostatak migracija lokalne
+  baze — preneseni, nepromijenjeni;
+- oblik test-only IV mehanizma — kasnija implementacijska autorizacija;
+- formalno zatvaranje roditeljskog `P5-I6` — zaseban kasniji gate.
+
+## Zavisnosti
+
+- **D-025** — envelope, kanonski AAD, svjež IV.
+- **D-060**, **D-062** — normalizacija, hashevi, statusi, `READY`/`FAILED`.
+- **D-069** — kanonski request hash (`03` §4.1).
+- **D-071** — `P5-I3` primitivi.
+- **D-089** — presedan redoslijeda validacije, idempotencije i atomičnog iskaza ishoda.
+- **D-092** — segmentacija `P5-I6`, `RULING G` (AAD / key-ref obaveze), `RULING H`.
+- **D-093** — ruleset `phase5-basic-v1`, `FAILED` skup, nizvodno vezivanje.
+- **D-094** — formalno zatvaranje `P5-I6A`; ovdje pomirena efektivnost.
+
+## Naredni obavezni gate
+
+**FRESH INDEPENDENT D-095 EXECUTABLE-CONTRACT REVIEW** tačnog lokalnog D-095 kandidata (uključujući
+nezavisan ponovni izračun oba AES-GCM vektora), pa — tek nakon izričitog vlasničkog prihvatanja —
+publikacioni preflight, publikacijska autorizacija, publikacija, merge i kanonska post-verifikacija.
+**Nakon efektivnog D-095 implementacija `P5-I6B` i dalje traži zaseban vlasnički autorizacijski
+gate.**
+
+## Lifecycle odluke
+
+```text
+D-095 OWNER-ASSIGNED                     = YES
+D-095 LOCALLY AUTHORED                   = YES
+D-095 INDEPENDENTLY REVIEWED             = NO
+D-095 OWNER-ACCEPTED                     = NO
+D-095 PUSHED / PUBLISHED / MERGED        = NO
+D-095 CANONICAL                          = NO
+D-095 EFFECTIVE                          = NO
+
+D-094     PUBLISHED / MERGED (PR #80) / CANONICAL / POST-MERGE VERIFIED / EFFECTIVE
+P5-I6     NOT FORMALLY CLOSED
+P5-I6A    COMPLETE / VERIFIED / FORMALLY CLOSED / EFFECTIVE
+P5-I6B    CONTRACT CANDIDATE AUTHORED / IMPLEMENTATION NOT AUTHORIZED / NOT STARTED
+P5-I6C    NOT AUTHORIZED / NOT STARTED
+P5-I7     NOT AUTHORIZED / NOT STARTED
+D-096     UNASSIGNED / UNRESERVED
+
+CANONICAL CHECKLIST                      = 38 / 49
+D-095 LOCAL CANDIDATE CHECKLIST          = 38 / 49
+CHECKBOX_TRANSITIONS                     = 0
+```
+
+---
+
 # Otvorene odluke
 
 ## D-OPEN-001 — Produkcijski OIDC provider
