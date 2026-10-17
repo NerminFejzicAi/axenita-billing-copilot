@@ -3249,6 +3249,14 @@ P5-I6B / P5-I6C / P5-I7 IMPLEMENTATION AUTHORIZED = NO
 API SHAPE MUTATION = 0
 ```
 
+**Logički naspram vremenskog redoslijeda (D-095 `RULING C.6.1`, prospektivno).** Za `P5-I6B` se
+historijski „Redoslijed obrade" iz §13.1 **zadržava** kao **logički / data-derivation redoslijed**
+(`source_text_hash` i original ciphertext iz normalizovanog teksta; redakcija iz normalizovanog;
+`redacted_text_hash` i redigovani ciphertext iz redigovanog teksta). **Vremenski redoslijed
+izvršavanja** mjerodavno fiksira D-095 `RULING C.6` (redovi „prije claima" / „nakon claima" iznad).
+§13.1 se **ne prepisuje**; nema promjene perzistiranih bajtova, hasheva, AAD-a, scheme ni oblika
+odgovora.
+
 Vidi D-095 u `06`.
 
 ---

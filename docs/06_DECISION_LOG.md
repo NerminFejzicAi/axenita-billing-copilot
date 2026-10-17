@@ -23868,9 +23868,10 @@ CHECKBOX_TRANSITIONS                     = 1   (Services -> redaction)
   gramatika `encryption_key_ref` i determinističke AES-GCM vektorske činjenice OWNER-RATIFIED —
   **OWNER-ASSIGNED / AUTHORED / INDEPENDENTLY REVIEWED WITH BLOCKING FINDINGS / OWNER-ADJUDICATED /
   BR-1, BR-2, NB-1, NB-2 CORRECTED / CORRECTION INDEPENDENTLY REVIEWED / CR-NB-1 OWNER-ADJUDICATED /
-  CR-NB-1 CORRECTED / LOCAL CANDIDATE / AWAITING FINAL FRESH INDEPENDENT REVIEW /
-  NOT OWNER-ACCEPTED / NOT PUSHED / NOT CANONICAL / NOT EFFECTIVE** (vidi „Korekcija nezavisnog
-  pregleda" i „Korekcija pregleda korekcije")
+  CR-NB-1 CORRECTED / FINAL REVIEWED WITH FR-NB-1 / FR-NB-1 OWNER-ADJUDICATED / FR-NB-1 CORRECTED /
+  LOCAL CANDIDATE / AWAITING FINAL VERIFICATION / NOT OWNER-ACCEPTED / NOT PUSHED / NOT CANONICAL /
+  NOT EFFECTIVE** (vidi „Korekcija nezavisnog pregleda", „Korekcija pregleda korekcije" i „Korekcija
+  završnog pregleda")
 - **Datum:** 2026-10-17
 - **Tip:** vlasnički ratifikovan **zapis zamrzavanja izvršnog ugovora `P5-I6B`** — `POST
   /encounters/{encounterId}/documents/text`. **Dokumentacija isključivo.**
@@ -24117,6 +24118,45 @@ nikada ne echo-uje.
   ikakvog efekta; ovo ne mijenja nijedan drugi HTTP ishod iz `RULING M`.
 - **Uspjeh je `201`** sa tijelom iz `03` §13.1. **Bez `ETag` headera. Bez `Location` headera.**
 - Greške su `application/problem+json` (`03` §9; D-075 `instance` / `requestId` dozvoljeni).
+
+**C.6.1 Pomirenje logičkog i vremenskog redoslijeda (`FR-NB-1`, aditivno i prospektivno).**
+Historijski „normativni redoslijed obrade" iz **D-062 `G.3`**, **`03` §13.1** („Redoslijed
+obrade") i **`02` §2.10.3** glasi: normalizacija → `source_text_hash` → enkripcija i pohrana
+normalizovanog → redakcija → `redacted_text_hash` → enkripcija i pohrana redigovanog. **Za `P5-I6B`**
+se ti historijski pasusi tumače kao opis **LOGIČKOG / DATA-DERIVATION REDOSLIJEDA** — iz koje
+vrijednosti je izveden koji artefakt i koja perzistirana vrijednost. Oni **NE** propisuju
+**VREMENSKI (TEMPORALNI) REDOSLIJED IZVRŠAVANJA** i **ne nadjačavaju** ga. **Vremenski redoslijed
+izvršavanja za `P5-I6B` prospektivno i mjerodavno fiksira isključivo `RULING C.6`.**
+
+```text
+LOGICKI / DATA-DERIVATION REDOSLIJED (D-062 G.3; 03 §13.1; 02 §2.10.3 -- nepromijenjen)
+  source_text_hash             <- normalizovani tekst
+  original ciphertext          <- normalizovani plaintext
+  redakcija                    <- normalizovani tekst
+  redacted_text_hash           <- redigovani tekst
+  redigovani ciphertext        <- redigovani tekst
+
+VREMENSKI REDOSLIJED IZVRSAVANJA (P5-I6B; mjerodavan RULING C.6)
+  validacija / normalizacija / cist deterministicki izracun (koraci 5-12)
+  -> request hash (13) -> razrjesenje idempotencije (14) -> ishod encountera (15)
+  -> documentId (16) -> AAD (17) -> enkripcija (18) -> INSERT (19) -> audit (20)
+  -> kompletiranje idempotencije (21)
+```
+
+- Oba redoslijeda su **istovremeno tačna** i **nisu u konfliktu**: `RULING C.6` premješta enkripciju
+  **u vremenu** (nakon claima i ishoda encountera), ali **ne mijenja ulaz** nijedne izvedene
+  vrijednosti. Ciphertext originala je i dalje izveden iz normalizovanog plaintexta, a redigovani
+  ciphertext iz redigovanog teksta.
+- **Nema historijskog prepisivanja.** Tekst D-062 `G.3`, `03` §13.1 i `02` §2.10.3 ostaje
+  **bajt-identičan** i ostaje dokaz ranijeg stanja ugovora. D-062 **nije pogrešan** i **nije
+  zamijenjen u cjelini**; za `P5-I6B` se precizira **isključivo** njegovo tumačenje u pogledu
+  vremena izvršavanja. Ovo je konzistentno sa „Šta D-095 ne mijenja".
+- **Perzistirani-bajt firewall.** C.6.1 **ne mijenja**: perzistirane bajtove dokumenta;
+  vrijednost normalizovanog plaintexta; vrijednost redigovanog plaintexta; `source_text_hash`;
+  `redacted_text_hash`; semantiku ciphertexta; AAD bajtove (`RULING H`); ponašanje IV-a / auth taga;
+  kripto vektore (`RULING J`); `encryption_key_ref` (`RULING I`); schemu (`RULING N`); atomičnost transakcije (`RULING L`); audit payload
+  (`RULING F`); javni API odgovor (`03` §13.1, `RULING M`). C.6.1 **isključivo razlikuje** logički /
+  data-derivation redoslijed od vremenskog redoslijeda izvršavanja.
 
 ### `RULING D` — `OD-P5-I6-7`: idempotencija
 
@@ -24852,6 +24892,48 @@ P5-I6B                             NOT AUTHORIZED / NOT STARTED
 izmijenjeni putevi                 docs/04, docs/06, MANIFEST.md
 ```
 
+## Korekcija završnog pregleda (vlasnička adjudikacija `FR-NB-1`, 2026-10-17)
+
+Završni nezavisan pregled kandidata `c264ca19fab869577937c17bd7b10a1824b74364` (tree
+`c95652d5c39ba13e6300c015c62a8897416aaa93`) je prijavio doslovnu governance dvosmislenost između
+historijskog redoslijeda obrade (D-062 `G.3`, `03` §13.1, `02` §2.10.3: enkripcija normalizovanog
+prije redakcije) i `RULING C.6` (normalizacija, hashevi i redakcija prije claima; enkripcija tek
+nakon claima i ishoda encountera). Vlasnik je adjudicirao:
+
+```text
+FR-NB-1   NON-BLOCKING   / ACCEPTED / CORRECTED   PRVA PREPORUCENA OPCIJA: logicki vs vremenski
+                                                  redoslijed (RULING C.6.1)
+FR-I-1    INFORMATIONAL  / ACCEPTED AS-IS
+FR-I-2    INFORMATIONAL  / ACCEPTED AS-IS
+```
+
+- **`FR-NB-1`** — dodat `RULING C.6.1`: historijski pasusi se za `P5-I6B` tumače kao **logički /
+  data-derivation redoslijed**; **vremenski redoslijed izvršavanja** mjerodavno fiksira `RULING C.6`.
+  Historijski tekst D-062 `G.3`, `03` §13.1 i `02` §2.10.3 se **ne prepisuje**; `03` §13.6 nosi
+  aditivnu prospektivnu napomenu.
+- **`FR-I-1`** — prihvaćen bez izmjene; zastarjeli lifecycle / statusni snapshotovi u `03` / `04` /
+  `05` / `09` se ne osvježavaju.
+- **`FR-I-2`** — prihvaćen bez izmjene; dokazni zahtjevi (conflict / in-progress bez enkripcije,
+  eksplicitan dokaz koraka 12 prije claima) se ovdje ne dodaju; `08` se ne mijenja.
+
+```text
+LOGICAL_ORDER_INTERPRETATION       = EXPLICIT (RULING C.6.1)
+TEMPORAL_ORDER_AUTHORITY           = D-095 RULING C.6 FOR P5-I6B
+D062_G3_REWRITE                    = 0
+DOCS02_2_10_3_REWRITE              = 0
+DOCS03_13_1_REWRITE                = 0
+PERSISTED_BYTE_CHANGE              = NONE
+SCHEMA_CHANGE                      = NONE
+PUBLIC_ERROR_CONTRACT_CHANGE       = NO
+AAD_ORIGINAL_LITERAL_DRIFT         = 0
+AAD_REDACTED_LITERAL_DRIFT         = 0
+CRYPTO_VECTOR_DRIFT                = 0
+CHECKBOX_TRANSITIONS               = 0
+D-096                              UNASSIGNED / UNRESERVED
+P5-I6B                             NOT AUTHORIZED / NOT STARTED
+izmijenjeni putevi                 docs/03, docs/06, MANIFEST.md
+```
+
 ## Historijsko očuvanje
 
 ```text
@@ -24875,6 +24957,16 @@ nakon CR-NB-1 korektivnog commita  D-095 = OWNER-ASSIGNED / AUTHORED /
                                            LOCAL CANDIDATE / AWAITING FINAL FRESH INDEPENDENT
                                            REVIEW / NOT OWNER-ACCEPTED / NOT PUSHED /
                                            NOT CANONICAL / NOT EFFECTIVE
+nakon FR-NB-1 korektivnog commita  D-095 = OWNER-ASSIGNED / AUTHORED /
+                                           INDEPENDENTLY REVIEWED / OWNER-ADJUDICATED /
+                                           CORRECTED / CORRECTION REVIEWED /
+                                           CR-NB-1 CORRECTED /
+                                           FINAL REVIEWED WITH FR-NB-1 /
+                                           FR-NB-1 OWNER-ADJUDICATED / FR-NB-1 CORRECTED /
+                                           LOCAL CANDIDATE / AWAITING FINAL VERIFICATION /
+                                           NOT OWNER-ACCEPTED / NOT PUSHED /
+                                           NOT CANONICAL / NOT EFFECTIVE
+naredni gate                       FRESH FINAL D-095 RECONCILIATION VERIFICATION
 D-096                              UNASSIGNED / UNRESERVED
 HISTORICAL_RECORDS_REWRITTEN       = 0
 D094_HISTORICAL_TEXT_REWRITES      = 0
@@ -24914,9 +25006,10 @@ D094_HISTORICAL_TEXT_REWRITES      = 0
 
 ## Naredni obavezni gate
 
-**FRESH FINAL INDEPENDENT D-095 REVIEW** tačnog korigovanog lokalnog D-095 kandidata
-(uključujući nezavisan ponovni izračun oba AES-GCM vektora), pa — tek nakon izričitog vlasničkog
-prihvatanja —
+**FRESH FINAL D-095 RECONCILIATION VERIFICATION** tačnog `FR-NB-1`-korigovanog lokalnog D-095
+kandidata (završni nezavisan pregled je izvršen i prijavio `FR-NB-1`, vlasnički adjudiciran i
+korigovan; uključujući nezavisan ponovni izračun oba AES-GCM vektora), pa — tek nakon izričitog
+vlasničkog prihvatanja —
 publikacioni preflight, publikacijska autorizacija, publikacija, merge i kanonska post-verifikacija.
 **Nakon efektivnog D-095 implementacija `P5-I6B` i dalje traži zaseban vlasnički autorizacijski
 gate.**
@@ -24930,7 +25023,9 @@ D-095 INDEPENDENTLY REVIEWED             = YES (BLOCKING FINDINGS; OWNER-ADJUDIC
 D-095 REVIEW FINDINGS CORRECTED          = YES (BR-1, BR-2, NB-1, NB-2; I-1..I-3 AS-IS)
 D-095 FRESH CORRECTION REVIEW            = YES (CR-NB-1 OWNER-ADJUDICATED / CORRECTED;
                                                 CR-I-1, CR-I-2 AS-IS)
-D-095 FRESH FINAL INDEPENDENT REVIEW     = NO (naredni gate)
+D-095 FRESH FINAL INDEPENDENT REVIEW     = YES (FR-NB-1 OWNER-ADJUDICATED / CORRECTED;
+                                                FR-I-1, FR-I-2 AS-IS)
+D-095 FINAL RECONCILIATION VERIFICATION  = NO (naredni gate)
 D-095 OWNER-ACCEPTED                     = NO
 D-095 PUSHED / PUBLISHED / MERGED        = NO
 D-095 CANONICAL                          = NO
