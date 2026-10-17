@@ -23867,9 +23867,10 @@ CHECKBOX_TRANSITIONS                     = 1   (Services -> redaction)
 - **Status:** vlasničke odluke `OD-P5-I6-6`, `OD-P5-I6-7`, `OD-P5-I6-8`, `OD-P5-I6-9A`, AAD literali,
   gramatika `encryption_key_ref` i determinističke AES-GCM vektorske činjenice OWNER-RATIFIED —
   **OWNER-ASSIGNED / AUTHORED / INDEPENDENTLY REVIEWED WITH BLOCKING FINDINGS / OWNER-ADJUDICATED /
-  BR-1, BR-2, NB-1, NB-2 CORRECTED / LOCAL CANDIDATE / AWAITING FRESH INDEPENDENT CORRECTION REVIEW /
+  BR-1, BR-2, NB-1, NB-2 CORRECTED / CORRECTION INDEPENDENTLY REVIEWED / CR-NB-1 OWNER-ADJUDICATED /
+  CR-NB-1 CORRECTED / LOCAL CANDIDATE / AWAITING FINAL FRESH INDEPENDENT REVIEW /
   NOT OWNER-ACCEPTED / NOT PUSHED / NOT CANONICAL / NOT EFFECTIVE** (vidi „Korekcija nezavisnog
-  pregleda")
+  pregleda" i „Korekcija pregleda korekcije")
 - **Datum:** 2026-10-17
 - **Tip:** vlasnički ratifikovan **zapis zamrzavanja izvršnog ugovora `P5-I6B`** — `POST
   /encounters/{encounterId}/documents/text`. **Dokumentacija isključivo.**
@@ -24084,11 +24085,25 @@ nikada ne echo-uje.
 
 - **Nema procjene tijela prije admisije.** Unicode well-formedness se provjerava **prije** JCS
   hashiranja.
-- **Prije idempotencijskog claima (korak 14) dozvoljena je ISKLJUČIVO validacija i čist
-  deterministički izračun** (koraci 5–13): zatvoreno-objekt / DTO validacija; Unicode
+- **Koraci 1–13 se izvršavaju PRIJE razrješenja idempotencijskog claima (korak 14), tačno ovim
+  jednim determinističkim redoslijedom.** Prije claima se izvršava **ISKLJUČIVO** validacija i čist
+  deterministički izračun (koraci 5–13): zatvoreno-objekt / DTO validacija; Unicode
   well-formedness; kanonske provjere veličine; `normaliseClinicalText`; `source_text_hash`;
-  `applyRedactionRuleset`; `redacted_text_hash` pri `COMPLETED`; kanonski `requestSha256`. Koraci 12 i
-  13 su međusobno zamjenjivi.
+  `applyRedactionRuleset`; `redacted_text_hash` pri `COMPLETED`; kanonski `requestSha256`.
+- **Korak 12 SE IZVRŠAVA prije idempotencijskog claima** i **obavezan je** dio pred-claim sekvence;
+  nije opcion i nije implementacijska diskrecija. Buduća implementacija **ne smije** premjestiti
+  korak 12 u izvršnu putanju (nakon claima). Korak 12 prethodi koraku 13; redoslijed koraka 12 i 13
+  **nije** zamjenjiv.
+- **Korak 14 je granica idempotencijskog claima** (replay / conflict / in-progress / novi claim).
+  `runOnce` razrješava te ishode **isključivo nakon** uspješnog završetka koraka 1–13.
+- **Prednost (precedence):** kompletiran replay istog ključa i istog requesta koji vraća `201` je
+  **uslovljen** time da tekući zahtjev **uspješno završi pred-claim korake 1–13**. Zato: neuspjeh
+  validacije prije claima zadržava svoju već zamrznutu javnu grešku (`RULING M`); neuspjeh invarijante
+  čistog determinističkog izračuna prije claima smije dati već zamrznuti `500 INTERNAL_ERROR` (C.4);
+  tek nakon uspjeha koraka 1–13 `runOnce` određuje replay / conflict / in-progress / novi claim. Ovo
+  **nije** novi javni error ugovor; zamrzava isključivo redoslijed i prednost. Kompletiran replay
+  nakon uspješne pred-claim obrade ostaje `201` — bez enkripcije, bez poziva key provideru, bez novog
+  IV-a, bez novog `documentId`, bez audita i bez tranzicije encountera (`RULING D`).
 - **Enkripcija NE SMIJE prethoditi idempotencijskom claimu.** **Pristup key provideru i generisanje
   AES-GCM IV-a NE SMIJU prethoditi razrješenju replay / conflict / in-progress ishoda.** Novi
   `documentId` se generiše **isključivo** u izvršnoj putanji stvarnog kreiranja (korak 16), **nakon**
@@ -24460,10 +24475,10 @@ neocekivana interna greska   rollback; bez reda dokumenta; bez kompletiranog ide
 
 ### `RULING L` — transakcioni model
 
-**Jedan rollback-spregnut model.** Isključivo validacija i čist deterministički izračun **smiju**
-prethoditi claimu (`RULING C.6`, koraci 5–13); enkripcija, pristup key provideru i generisanje IV-a
-**ne smiju**. Unutar admitovanog tenant mutacionog toka (jedna pinovana interaktivna transakcija,
-`TenantRequestPipeline`; D-047 / D-054 / D-056) rollback-spregnuto se izvršavaju:
+**Jedan rollback-spregnut model.** Validacija i čist deterministički izračun **se izvršavaju**
+prije claima — isključivo oni, obavezno i fiksnim redoslijedom (`RULING C.6`, koraci 5–13);
+enkripcija, pristup key provideru i generisanje IV-a **ne smiju** prethoditi claimu. Unutar admitovanog tenant
+mutacionog toka (jedna pinovana interaktivna transakcija, `TenantRequestPipeline`; D-047 / D-054 / D-056) rollback-spregnuto se izvršavaju:
 
 ```text
 idempotency claim (replay / conflict / in-progress razrijesen; RULING D)
@@ -24802,6 +24817,41 @@ P5-I6B                       NOT AUTHORIZED / NOT STARTED
 izmijenjeni putevi           docs/03, docs/06, docs/08, MANIFEST.md
 ```
 
+## Korekcija pregleda korekcije (vlasnička adjudikacija `CR-NB-1`, 2026-10-17)
+
+Svjež nezavisan pregled korektivnog kandidata `07f1be049b0174d0dbc259c79ae254bfb63617ee` (tree
+`6d77b171009262b3d29d0cda48bcd293dd5e9a54`) je prijavio da `RULING C.6` ne fiksira jedan
+deterministički redoslijed: pred-claim izračun je bio formulisan kao „dozvoljen", a koraci 12 i 13
+kao međusobno zamjenjivi. Vlasnik je adjudicirao:
+
+```text
+CR-NB-1   NON-BLOCKING   / ACCEPTED / CORRECTED   OPTION (a): korak 12 fiksno prije claima
+CR-I-1    INFORMATIONAL  / ACCEPTED AS-IS
+CR-I-2    INFORMATIONAL  / ACCEPTED AS-IS
+```
+
+- **`CR-NB-1`** — `RULING C.6` sada fiksira jedan deterministički redoslijed: koraci 1–13 se
+  izvršavaju prije razrješenja claima; korak 12 je obavezan, nije opcion i ne smije se premjestiti u
+  izvršnu putanju; korak 14 je granica claima; kompletiran replay `201` je uslovljen uspješnim
+  završetkom koraka 1–13. Formulacija `RULING L` je usklađena; sažetak redoslijeda u `04` je
+  usklađen sa `RULING C.6`. **Javni error ugovor (`RULING M`) je nepromijenjen.**
+- **`CR-I-1` / `CR-I-2`** — prihvaćeni bez izmjene; historijski statusni blokovi u `04` / `05` /
+  `09` i opšta formulacija infrastrukturnih grešaka se ne mijenjaju.
+
+```text
+STEP12_PLACEMENT                   = FIXED BEFORE IDEMPOTENCY CLAIM
+STEP12_OPTIONALITY                 = NO
+COMPLETED_REPLAY_201_PRECONDITION  = STEPS 1–13 SUCCESSFULLY COMPLETED
+PUBLIC_ERROR_CONTRACT_CHANGE       = NO
+AAD_ORIGINAL_LITERAL_DRIFT         = 0
+AAD_REDACTED_LITERAL_DRIFT         = 0
+CRYPTO_VECTOR_DRIFT                = 0
+CHECKBOX_TRANSITIONS               = 0
+D-096                              UNASSIGNED / UNRESERVED
+P5-I6B                             NOT AUTHORIZED / NOT STARTED
+izmijenjeni putevi                 docs/04, docs/06, MANIFEST.md
+```
+
 ## Historijsko očuvanje
 
 ```text
@@ -24816,6 +24866,14 @@ nakon korektivnog lokalnog commita D-095 = OWNER-ASSIGNED / AUTHORED /
                                            OWNER-ADJUDICATED / BR-1, BR-2, NB-1, NB-2 CORRECTED /
                                            LOCAL CANDIDATE / AWAITING FRESH INDEPENDENT
                                            CORRECTION REVIEW / NOT OWNER-ACCEPTED / NOT PUSHED /
+                                           NOT CANONICAL / NOT EFFECTIVE
+nakon CR-NB-1 korektivnog commita  D-095 = OWNER-ASSIGNED / AUTHORED /
+                                           INDEPENDENTLY REVIEWED / OWNER-ADJUDICATED /
+                                           BR-1, BR-2, NB-1, NB-2 CORRECTED /
+                                           CORRECTION INDEPENDENTLY REVIEWED /
+                                           CR-NB-1 OWNER-ADJUDICATED / CR-NB-1 CORRECTED /
+                                           LOCAL CANDIDATE / AWAITING FINAL FRESH INDEPENDENT
+                                           REVIEW / NOT OWNER-ACCEPTED / NOT PUSHED /
                                            NOT CANONICAL / NOT EFFECTIVE
 D-096                              UNASSIGNED / UNRESERVED
 HISTORICAL_RECORDS_REWRITTEN       = 0
@@ -24856,7 +24914,7 @@ D094_HISTORICAL_TEXT_REWRITES      = 0
 
 ## Naredni obavezni gate
 
-**FRESH INDEPENDENT D-095 CORRECTION REVIEW** tačnog korigovanog lokalnog D-095 kandidata
+**FRESH FINAL INDEPENDENT D-095 REVIEW** tačnog korigovanog lokalnog D-095 kandidata
 (uključujući nezavisan ponovni izračun oba AES-GCM vektora), pa — tek nakon izričitog vlasničkog
 prihvatanja —
 publikacioni preflight, publikacijska autorizacija, publikacija, merge i kanonska post-verifikacija.
@@ -24870,7 +24928,9 @@ D-095 OWNER-ASSIGNED                     = YES
 D-095 LOCALLY AUTHORED                   = YES
 D-095 INDEPENDENTLY REVIEWED             = YES (BLOCKING FINDINGS; OWNER-ADJUDICATED)
 D-095 REVIEW FINDINGS CORRECTED          = YES (BR-1, BR-2, NB-1, NB-2; I-1..I-3 AS-IS)
-D-095 FRESH CORRECTION REVIEW            = NO (naredni gate)
+D-095 FRESH CORRECTION REVIEW            = YES (CR-NB-1 OWNER-ADJUDICATED / CORRECTED;
+                                                CR-I-1, CR-I-2 AS-IS)
+D-095 FRESH FINAL INDEPENDENT REVIEW     = NO (naredni gate)
 D-095 OWNER-ACCEPTED                     = NO
 D-095 PUSHED / PUBLISHED / MERGED        = NO
 D-095 CANONICAL                          = NO
