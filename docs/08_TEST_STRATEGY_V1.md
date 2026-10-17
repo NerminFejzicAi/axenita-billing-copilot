@@ -3029,6 +3029,50 @@ u `06`. Obavezno: decrypt svakog vektora pod **zamijenjenim** AAD-om (drugi `col
 pasti**. Nezavisan pregled D-095 **mora** ponovo izračunati oba vektora; neslaganje blokira
 publikaciju.
 
+### 12.16.3 Dopunski obavezni dokazi (korekcija nezavisnog pregleda D-095, `NB-2`)
+
+Aditivno uz §12.16.1 (D-095 `RULING O`, O.1–O.6). **Nijedan test se ovim ne piše.**
+
+```text
+O.1  KOMPLETIRAN REPLAY BEZ SPOREDNIH EFEKATA                       INTEGRATION + E2E
+     201; tijelo identicno originalnom odgovoru
+     bez dekripcije; bez enkripcije; bez poziva key providera; bez novog IV-a
+     bez audit dogadjaja; bez tranzicije / upisa u encounter
+     (dokaz: spy / brojac nad enkripcijom i key providerom = 0; broj audit redova i
+      encounter red nepromijenjeni)
+
+O.2  REPLAY NAKON KASNIJEG OTKAZIVANJA                              INTEGRATION + E2E
+     1. originalno kreiranje uspjesno kompletirano
+     2. encounter zatim CANCELLED
+     3. replay istog kompletiranog kljuca -> originalni 201
+     bez novog audita; bez tranzicije
+
+O.3  text UCESTVUJE U request_sha256                                INTEGRATION + E2E
+     isti Idempotency-Key; sva polja ista osim text
+     -> 409 IDEMPOTENCY_CONFLICT   (text je dio JCS request hasha)
+
+O.4  KONKURENTNI CREATE-OVI SA RAZLICITIM KLJUCEVIMA                 SECURITY / CONCURRENCY
+     dva konkurentna kreiranja nad istim DRAFT encounterom, razliciti kljucevi
+     oba se sigurno serijalizuju (FOR UPDATE)
+     DRAFT -> READY_FOR_ANALYSIS tacno jednom
+     tacno jedan ENCOUNTER_READY_FOR_ANALYSIS audit dogadjaj
+     drugo kreiranje vidi READY_FOR_ANALYSIS i ne re-tranzicionira
+     DOCUMENT_CREATED po svakom stvarnom kreiranju dokumenta
+     (konkurencija sa ISTIM kljucem ostaje postojeci dokaz duplikat POST trke)
+
+O.5  INVARIJANTA NEDOSTAJUCEG REPLAY RESURSA                        INTEGRATION
+     konstruisano u test infrastrukturi: kompletiran idempotencijski red pokazuje na
+     resurs dokumenta koji se ne moze rekonstruisati
+     -> 500 INTERNAL_ERROR; staticki detail bez PHI-ja; bez oracle-a postojanja;
+        bez nove mutacije (dokument, audit, encounter, idempotencijski red nepromijenjeni)
+
+O.6  FAILED AUDIT METADATA                                          INTEGRATION
+     redaction FAILED sa REDACTED_OUTPUT_TOO_LARGE
+     DOCUMENT_CREATED metadata je TACNO { rulesetVersion, failureCode }
+     zabranjeni clanovi odsutni: text, normalizovan / redigovan tekst, sourceTextHash,
+     redactedTextHash, languageCode
+```
+
 ```text
 TESTS WRITTEN IN THIS GATE   0
 TESTS RERUN IN THIS GATE     0

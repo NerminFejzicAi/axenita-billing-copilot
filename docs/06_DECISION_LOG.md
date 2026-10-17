@@ -23866,8 +23866,10 @@ CHECKBOX_TRANSITIONS                     = 1   (Services -> redaction)
 
 - **Status:** vlasničke odluke `OD-P5-I6-6`, `OD-P5-I6-7`, `OD-P5-I6-8`, `OD-P5-I6-9A`, AAD literali,
   gramatika `encryption_key_ref` i determinističke AES-GCM vektorske činjenice OWNER-RATIFIED —
-  **OWNER-ASSIGNED / AUTHORED LOCAL CANDIDATE / NOT INDEPENDENTLY REVIEWED / NOT OWNER-ACCEPTED /
-  NOT PUSHED / NOT CANONICAL / NOT EFFECTIVE**
+  **OWNER-ASSIGNED / AUTHORED / INDEPENDENTLY REVIEWED WITH BLOCKING FINDINGS / OWNER-ADJUDICATED /
+  BR-1, BR-2, NB-1, NB-2 CORRECTED / LOCAL CANDIDATE / AWAITING FRESH INDEPENDENT CORRECTION REVIEW /
+  NOT OWNER-ACCEPTED / NOT PUSHED / NOT CANONICAL / NOT EFFECTIVE** (vidi „Korekcija nezavisnog
+  pregleda")
 - **Datum:** 2026-10-17
 - **Tip:** vlasnički ratifikovan **zapis zamrzavanja izvršnog ugovora `P5-I6B`** — `POST
   /encounters/{encounterId}/documents/text`. **Dokumentacija isključivo.**
@@ -24066,22 +24068,38 @@ nikada ne echo-uje.
     (usamljeni surogat)                                        -> 422
 10  sirova (pred-normalizaciona) UTF-8 duzina text <= 262144   -> 422
 11  kanonska normalizacija (normaliseClinicalText)             -> 422 (C.5)
-12  izracun request hasha (03 §4.1; RULING D)
-13  idempotency runOnce / lock / replay / conflict / in-progress / claim
-14  atomican iskaz ishoda encountera (RULING E)                -> 404 / 409
-15  documentId, source hash, redakcija, redacted hash, enkripcija (RULING K)
-16  INSERT dokumenta
-17  audit DOCUMENT_CREATED; uslovno ENCOUNTER_READY_FOR_ANALYSIS (RULING F)
-18  idempotency kompletiranje + commit transakcije
+12  cist deterministicki izracun bez efekta: source_text_hash; applyRedactionRuleset;
+    redacted_text_hash (samo pri COMPLETED)                    (RULING K)
+13  izracun request hasha (03 §4.1; RULING D)
+14  idempotency runOnce / lock / replay / conflict / in-progress / claim
+    -- granica claima: sve ispod se izvrsava ISKLJUCIVO u izvrsnoj putanji stvarnog kreiranja --
+15  atomican iskaz ishoda encountera / FOR UPDATE (RULING E)   -> 404 / 409
+16  generisanje novog documentId
+17  konstrukcija tacnih AAD vrijednosti iz stvarnog documentId (RULING H)
+18  enkripcija originala; enkripcija redigovanog teksta samo pri COMPLETED (RULING K)
+19  INSERT dokumenta
+20  audit DOCUMENT_CREATED; uslovno ENCOUNTER_READY_FOR_ANALYSIS (RULING F)
+21  idempotency kompletiranje / vezivanje resursa + commit transakcije (RULING L)
 ```
 
 - **Nema procjene tijela prije admisije.** Unicode well-formedness se provjerava **prije** JCS
   hashiranja.
-- Čist deterministički izračun iz koraka 15 (source hash, redakcija, redacted hash) **smije** se
-  izvršiti ranije, nakon koraka 11, jer nema nikakav efekat; generisanje `documentId` i enkripcija
-  **smiju** prethoditi koraku 13 isključivo bez ikakvog perzistentnog efekta i bez logovanja. Ovo
-  ne mijenja nijedan HTTP ishod iz `RULING M` osim što neočekivana greška u tom izračunu (C.4) daje
-  `500` prije claima.
+- **Prije idempotencijskog claima (korak 14) dozvoljena je ISKLJUČIVO validacija i čist
+  deterministički izračun** (koraci 5–13): zatvoreno-objekt / DTO validacija; Unicode
+  well-formedness; kanonske provjere veličine; `normaliseClinicalText`; `source_text_hash`;
+  `applyRedactionRuleset`; `redacted_text_hash` pri `COMPLETED`; kanonski `requestSha256`. Koraci 12 i
+  13 su međusobno zamjenjivi.
+- **Enkripcija NE SMIJE prethoditi idempotencijskom claimu.** **Pristup key provideru i generisanje
+  AES-GCM IV-a NE SMIJU prethoditi razrješenju replay / conflict / in-progress ishoda.** Novi
+  `documentId` se generiše **isključivo** u izvršnoj putanji stvarnog kreiranja (korak 16), **nakon**
+  claima i atomičnog ishoda encountera, a AAD se gradi iz **tog** `documentId`.
+- **Replay / conflict / in-progress ishodi imaju prednost nad dostupnošću kripto sloja.** Kompletiran
+  replay **ne može** pasti zbog enkripcije, pristupa key provideru ni generisanja IV-a (`RULING D`).
+- **Nema enkripcijskog `500` prije razrješenja koraka 14.** Neočekivan neuspjeh enkripcije / key
+  providera tokom **stvarnog** kreiranja (koraci 16–18) i dalje daje **`500 INTERNAL_ERROR`** sa
+  statičnim detailom bez PHI-ja i punim rollbackom (C.4). Jedini mogući `500` prije claima je
+  neočekivana greška u **čistom** izračunu koraka 12 (npr. kršenje preduslova redakcije, C.4), bez
+  ikakvog efekta; ovo ne mijenja nijedan drugi HTTP ishod iz `RULING M`.
 - **Uspjeh je `201`** sa tijelom iz `03` §13.1. **Bez `ETag` headera. Bez `Location` headera.**
 - Greške su `application/problem+json` (`03` §9; D-075 `instance` / `requestId` dozvoljeni).
 
@@ -24098,6 +24116,23 @@ TTL                                    48h (claim_time + 48h; D-072 / D-079 RULI
 
 **Nijedan PHI-nosivi keširani odgovor** osim ovog minimalnog pokazivača; `encounterId` se **ne
 dodaje** u `response_body`.
+
+**D.1 Pomirenje sa `03` §4 / `OD-P5-I4C-1` (prospektivno).** Standing pravilo `OD-P5-I4C-1` (D-079)
+perzistira kanonsku spelling iz liste obaveznih endpointa `03` §4, gdje ova površina glasi
+`POST /encounters/{id}/documents/text`. **Isključivo za površinu kreiranja manuelnog tekstualnog
+dokumenta**, D-095 prospektivno precizira tu §4 placeholder spelling u vlasnički ratifikovan literal:
+
+```text
+§4 placeholder (stariji)                 POST /encounters/{id}/documents/text
+TACAN PERZISTIRAN idempotency_keys.endpoint
+za ovu povrsinu                          POST /encounters/{encounterId}/documents/text
+```
+
+Ovo je **isključivo pomirenje imena placeholdera**. Ono **ne** perzistira konkretan UUID encountera,
+**ne** mijenja semantiku endpoint šablona, **ne** mijenja `OD-P5-I4C-1` ni za jedan drugi endpoint,
+**ne** prepisuje historijski tekst D-079, **ne** prenumeriše nijednu odluku i **ne** uvodi
+route-specifičan idempotencijski mehanizam. Ista vrijednost je `endpoint` komponenta scope-a i
+advisory lock preimagea (`OD-P5-I4C-3`). `03` §4 nosi odgovarajuću aditivnu anotaciju.
 
 **Request hash.** Postojeći kanonski algoritam `03` §4.1 (D-069 `RULING 4`) **nepromijenjen**:
 
@@ -24119,13 +24154,18 @@ request_sha256 = SHA-256( RFC 8785 / JCS validiranog parsiranog tijela, UKLJUCUJ
 3. inače rekonstrukcija `201` iz nepromjenjivog reda — **identično** tijelo §13.1;
    **bez dekripcije**, **bez novog audita**, **bez tranzicije encountera**.
 
-- Kompletiran ključ **smije** replayati i kad je encounter **kasnije otkazan** (replay prethodi
-  koraku 14).
+Kompletiran replay **ne generiše novi `documentId`**, **ne poziva enkripciju**, **ne pristupa key
+provideru**, **ne generiše IV**, **ne audituje** i **ne mijenja encounter**; `201` se rekonstruiše
+isključivo iz nepromjenjivog reda dokumenta (`RULING C.6`, granica claima).
+
+- Kompletiran ključ **smije** replayati i kad je encounter **kasnije otkazan** (replay se razrješava
+  u koraku 14, prije atomičnog ishoda encountera u koraku 15).
 - Za razliku od D-089 `RULING D` (gdje je `resourceId` sam `encounterId`), ovdje je `resourceId`
   `documentId`, pa vezivanje putanje traži čitanje reda dokumenta. To čitanje se izvršava
   **isključivo** za vlastiti kompletiran ključ pozivaoca (scope `practice + user + endpoint + key`),
   pod RLS-om, i daje isti `409` kao neusklađen hash — **nije opšti diskriminirajući oracle**.
-- Neočekivano odsustvo reda pri replayu je invariantna greška → `500 INTERNAL_ERROR` (C.4).
+- Neočekivano odsustvo reda pri replayu je invariantna greška → `500 INTERNAL_ERROR` (C.4),
+  statičan detail bez PHI-ja, bez oracle-a postojanja i bez nove mutacije.
 
 ```text
 isti kljuc + razlicit request (hash)          -> 409 IDEMPOTENCY_CONFLICT
@@ -24411,21 +24451,26 @@ neocekivana interna greska   rollback; bez reda dokumenta; bez kompletiranog ide
 - Enkriptuju se UTF-8 bajtovi normalizovanog teksta, odnosno `redactedText`; svako polje dobija
   **vlastiti svjež IV**; red dijeli jedan `encryption_algorithm` / `encryption_version` /
   `encryption_key_ref` / `encryption_key_version` (`02` §2.7.3).
-- `documentId` generiše aplikacija **prije** enkripcije i `INSERT`-a (`02` §2.2; D-025 klauzula 11).
+- `documentId` generiše aplikacija **prije** enkripcije i `INSERT`-a (`02` §2.2; D-025 klauzula 11),
+  **isključivo** u izvršnoj putanji stvarnog kreiranja, nakon idempotencijskog claima i atomičnog
+  ishoda encountera (`RULING C.6`, koraci 15–18); **nikada** pri replayu.
 - `rulesetVersion` i `failureCode` nemaju namjenske kolone dokumenta; predstavljeni su **isključivo**
   kroz odobreni audit ugovor (`RULING F`).
 - `201` tijelo pri `FAILED`: `redactionStatus = FAILED`, `redactedTextHash` **izostaje** (`03` §13.1).
 
 ### `RULING L` — transakcioni model
 
-**Jedan rollback-spregnut model.** Čist deterministički izračun **smije** prethoditi mutaciji
-(`RULING C.6`). Unutar admitovanog tenant mutacionog toka (jedna pinovana interaktivna transakcija,
+**Jedan rollback-spregnut model.** Isključivo validacija i čist deterministički izračun **smiju**
+prethoditi claimu (`RULING C.6`, koraci 5–13); enkripcija, pristup key provideru i generisanje IV-a
+**ne smiju**. Unutar admitovanog tenant mutacionog toka (jedna pinovana interaktivna transakcija,
 `TenantRequestPipeline`; D-047 / D-054 / D-056) rollback-spregnuto se izvršavaju:
 
 ```text
-idempotency claim
+idempotency claim (replay / conflict / in-progress razrijesen; RULING D)
 -> encounter FOR UPDATE / atomican ishod (RULING E)
 -> uslovno DRAFT -> READY_FOR_ANALYSIS
+-> generisanje novog documentId; AAD iz stvarnog documentId (RULING H)
+-> enkripcija originala; enkripcija redigovanog teksta pri COMPLETED
 -> INSERT dokumenta
 -> audit DOCUMENT_CREATED
 -> uslovno audit ENCOUNTER_READY_FOR_ANALYSIS
@@ -24458,6 +24503,10 @@ neocekivana redakcijska / interna / enkripcijska
 greska                                           -> 500 INTERNAL_ERROR, puni rollback
 neautentifikovan / bez permisije                 -> 401 / 403 (postojeci kanon, nepromijenjen)
 ```
+
+**Sekvenciranje (`RULING C.6`):** enkripcijski / key-provider `500` je moguć **isključivo** u izvršnoj
+putanji stvarnog kreiranja, nakon claima; replay, `IDEMPOTENCY_CONFLICT` i
+`REQUEST_ALREADY_IN_PROGRESS` imaju prednost nad dostupnošću kripto sloja.
 
 **Bez PHI curenja** (tekst, podnizovi, hashevi, `languageCode` vrijednost se ne echo-uju u greškama
 ni logovima). **Bez cross-tenant oracle-a postojanja.**
@@ -24507,6 +24556,26 @@ SECURITY     cross-tenant / nepostojeci ekvivalentan 404; RLS / runtime-role dok
              trka; B3 konflikt vezivanja encountera
 E2E          tacan 201 odgovor; 400 / 404 / 409 / 422 / 500 problem+json; auth 401 / 403;
              replay 201 identican odgovor; neslaganje 409
+```
+
+**Dopuna (korekcija nezavisnog pregleda, `NB-2`)** — obavezni dodatni dokazi (detalj u `08`
+§12.16.3):
+
+```text
+O.1  kompletiran replay bez sporednih efekata: 201 identican originalu; bez dekripcije,
+     enkripcije, poziva key providera, novog IV-a, audita i tranzicije encountera
+O.2  replay nakon kasnijeg otkazivanja: kreiranje kompletirano -> encounter CANCELLED ->
+     replay istog kompletiranog kljuca -> originalni 201; bez novog audita / tranzicije
+O.3  text ucestvuje u request_sha256: isti kljuc, sva polja ista osim text
+     -> 409 IDEMPOTENCY_CONFLICT
+O.4  konkurentni create-ovi sa RAZLICITIM kljucevima nad istim DRAFT encounterom:
+     sigurna serijalizacija; DRAFT -> READY_FOR_ANALYSIS tacno jednom; tacno jedan
+     ENCOUNTER_READY_FOR_ANALYSIS; drugi vidi READY_FOR_ANALYSIS bez re-tranzicije;
+     DOCUMENT_CREATED po svakom stvarnom kreiranju
+O.5  invarijanta nedostajuceg replay resursa (konstruisano u test infrastrukturi):
+     500 INTERNAL_ERROR; staticki detail bez PHI-ja; bez oracle-a postojanja; bez nove mutacije
+O.6  FAILED audit metadata (REDACTED_OUTPUT_TOO_LARGE): DOCUMENT_CREATED metadata je tacno
+     { rulesetVersion, failureCode }; zabranjeni PHI / hashevi odsutni
 ```
 
 **Nijedan test se ovim zapisom ne implementira.**
@@ -24609,6 +24678,10 @@ historijski tačni snapshoti. Tekuće stanje se pomiruje **isključivo dodavanje
   **odbijeno** (`RULING D`).
 - **Route-specifičan HMAC request hasha** — **odbijeno**; kanonski §4.1 ostaje jedini algoritam
   (`RULING D`).
+- **Perzistirati stariji §4 placeholder `POST /encounters/{id}/documents/text`** za ovu površinu —
+  **odbijeno**; tačan literal je vlasnički ratifikovan `{encounterId}` oblik (`RULING D.1`).
+- **Generisanje `documentId`, enkripcija, pristup key provideru ili generisanje IV-a prije
+  idempotencijskog claima** — **odbijeno**; replay ne smije zavisiti od kripto sloja (`RULING C.6`).
 - **Opšti diskriminirajući pre-read encountera** — **odbijeno** (`RULING E`).
 - **Inkrement `version` pri `DRAFT → READY_FOR_ANALYSIS`** — **odbijeno** (`03` §12, `RULING E`).
 - **Hashevi, tekst ili `languageCode` u audit payloadu** — **odbijeno** (`RULING F`).
@@ -24689,6 +24762,46 @@ ORIGINAL_VECTOR_RECOMPUTE     = MATCH
 REDACTED_VECTOR_RECOMPUTE     = MATCH
 ```
 
+## Korekcija nezavisnog pregleda (vlasnička adjudikacija, 2026-10-17)
+
+Nezavisan pregled authoring kandidata `f66701ccfffea3f594e9f7031f9af6f02ca5c5bf` (tree
+`137ca38c7c10650809516d1fdd1e626c47d7e15f`) je prijavio blokirajuće nalaze. Vlasnik je adjudicirao:
+
+```text
+BR-1   BLOCKING       / ACCEPTED / CORRECTED   enkripcija / documentId prije claima
+BR-2   BLOCKING       / ACCEPTED / CORRECTED   pomirenje endpoint literala sa 03 §4 / OD-P5-I4C-1
+NB-1   NON-BLOCKING   / ACCEPTED / CORRECTED   FAILED odgovor: redactedTextHash izostaje (ne null)
+NB-2   NON-BLOCKING   / ACCEPTED / CORRECTED   dopuna dokazne matrice
+I-1    INFORMATIONAL  / ACCEPTED AS-IS
+I-2    INFORMATIONAL  / ACCEPTED AS-IS
+I-3    INFORMATIONAL  / ACCEPTED AS-IS
+```
+
+- **`BR-1`** — `RULING C.6` je ispravljen: prije claima isključivo validacija i čist deterministički
+  izračun; enkripcija, pristup key provideru, generisanje IV-a i novog `documentId` isključivo u
+  izvršnoj putanji stvarnog kreiranja. Odgovarajuća formulacija u `RULING D`, `K`, `L` i `M` je
+  usklađena. Javni error ugovor stvarnog kreiranja (`500 INTERNAL_ERROR`, puni rollback) je
+  nepromijenjen.
+- **`BR-2`** — dodat `RULING D.1` i aditivna anotacija u `03` §4; tačan perzistiran literal ostaje
+  `POST /encounters/{encounterId}/documents/text`. Historijski tekst D-079 se ne prepisuje.
+- **`NB-1`** — sažetak `03` §13.6 razdvaja bazu (`NULL`) od odgovora (`redactedTextHash`
+  izostaje); ugovor `201` odgovora iz §13.1 i `RULING K` je nepromijenjen.
+- **`NB-2`** — dopunjen `RULING O` (O.1–O.6) i `08` §12.16.3.
+- **`I-1` / `I-2` / `I-3`** — prihvaćeni bez izmjene; `IdempotencyService` se ne redizajnira,
+  `createdAt` mehanika i `actor_user_id` semantika ostaju nepromijenjene.
+
+```text
+AAD_ORIGINAL_LITERAL_DRIFT   = 0
+AAD_REDACTED_LITERAL_DRIFT   = 0
+CRYPTO_VECTOR_DRIFT          = 0
+OD-P5-I6-8 / OD-P5-I6-9A     NEPROMIJENJENI (osim NB-2 dokaznih dopuna)
+OD-P5-I6-9B / OD-P5-I6-10    OPEN / DEFERRED TO P5-I6C
+CHECKBOX_TRANSITIONS         = 0
+D-096                        UNASSIGNED / UNRESERVED
+P5-I6B                       NOT AUTHORIZED / NOT STARTED
+izmijenjeni putevi           docs/03, docs/06, docs/08, MANIFEST.md
+```
+
 ## Historijsko očuvanje
 
 ```text
@@ -24697,6 +24810,12 @@ prije uspjesnog lokalnog commita   D-095 = OWNER-ASSIGNED TO P5-I6B EXECUTABLE C
 nakon uspjesnog lokalnog commita   D-095 = OWNER-ASSIGNED / AUTHORED / LOCAL CANDIDATE /
                                            COMMITTED / NOT PUSHED /
                                            NOT INDEPENDENTLY REVIEWED / NOT OWNER-ACCEPTED /
+                                           NOT CANONICAL / NOT EFFECTIVE
+nakon korektivnog lokalnog commita D-095 = OWNER-ASSIGNED / AUTHORED /
+                                           INDEPENDENTLY REVIEWED WITH BLOCKING FINDINGS /
+                                           OWNER-ADJUDICATED / BR-1, BR-2, NB-1, NB-2 CORRECTED /
+                                           LOCAL CANDIDATE / AWAITING FRESH INDEPENDENT
+                                           CORRECTION REVIEW / NOT OWNER-ACCEPTED / NOT PUSHED /
                                            NOT CANONICAL / NOT EFFECTIVE
 D-096                              UNASSIGNED / UNRESERVED
 HISTORICAL_RECORDS_REWRITTEN       = 0
@@ -24737,8 +24856,9 @@ D094_HISTORICAL_TEXT_REWRITES      = 0
 
 ## Naredni obavezni gate
 
-**FRESH INDEPENDENT D-095 EXECUTABLE-CONTRACT REVIEW** tačnog lokalnog D-095 kandidata (uključujući
-nezavisan ponovni izračun oba AES-GCM vektora), pa — tek nakon izričitog vlasničkog prihvatanja —
+**FRESH INDEPENDENT D-095 CORRECTION REVIEW** tačnog korigovanog lokalnog D-095 kandidata
+(uključujući nezavisan ponovni izračun oba AES-GCM vektora), pa — tek nakon izričitog vlasničkog
+prihvatanja —
 publikacioni preflight, publikacijska autorizacija, publikacija, merge i kanonska post-verifikacija.
 **Nakon efektivnog D-095 implementacija `P5-I6B` i dalje traži zaseban vlasnički autorizacijski
 gate.**
@@ -24748,7 +24868,9 @@ gate.**
 ```text
 D-095 OWNER-ASSIGNED                     = YES
 D-095 LOCALLY AUTHORED                   = YES
-D-095 INDEPENDENTLY REVIEWED             = NO
+D-095 INDEPENDENTLY REVIEWED             = YES (BLOCKING FINDINGS; OWNER-ADJUDICATED)
+D-095 REVIEW FINDINGS CORRECTED          = YES (BR-1, BR-2, NB-1, NB-2; I-1..I-3 AS-IS)
+D-095 FRESH CORRECTION REVIEW            = NO (naredni gate)
 D-095 OWNER-ACCEPTED                     = NO
 D-095 PUSHED / PUBLISHED / MERGED        = NO
 D-095 CANONICAL                          = NO

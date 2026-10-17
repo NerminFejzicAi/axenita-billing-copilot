@@ -324,6 +324,20 @@ POST /api/v1/encounters/{encounterId}/cancel   REQUIRES Idempotency-Key
 state-idempotentna komanda; **ona se NE prenosi analogijom na encounter cancel**, koji nosi kaskadnu
 semantiku i audit posljedicu.
 
+**Pomirenje endpoint literala za manuelni tekstualni dokument (D-095 `RULING D.1`, prospektivno).**
+Lista obaveznih endpointa iznad i anotacija D-079 (`OD-P5-I4C-1`) niže **se ne prepisuju**.
+**Isključivo za površinu kreiranja manuelnog tekstualnog dokumenta**, placeholder `{id}` iz liste
+iznad je pomiren u vlasnički ratifikovan literal; tačna perzistirana vrijednost
+`idempotency_keys.endpoint` za tu površinu je:
+
+```text
+POST /encounters/{encounterId}/documents/text
+```
+
+Ovo je isključivo pomirenje imena placeholdera: **bez** konkretnog UUID-a encountera, **bez** promjene
+semantike endpoint šablona, **bez** promjene `OD-P5-I4C-1` za bilo koji drugi endpoint i **bez**
+route-specifičnog idempotencijskog mehanizma. Mjerodavno je D-095 u `06` (vidi i §13.6).
+
 `P5-I5` **MORA konzumirati/ponovo koristiti kanonski `P5-I4` idempotencijski mehanizam** i **NE SMIJE
 uvesti paralelan idempotencijski podsistem**. Ako se postojeća implementacijska površina pokaže
 prespecifičnom za `create`, `P5-I5` smije kasnije napraviti **minimalno unazad-kompatibilno
@@ -1013,7 +1027,9 @@ odgovora se ne mijenja**, nijedna nova ruta, permisija ni error kod se ne uvodi,
 nije autorizovana**.
 
 ```text
-D-095    OWNER-ASSIGNED / AUTHORED LOCAL CANDIDATE / NOT INDEPENDENTLY REVIEWED /
+D-095    OWNER-ASSIGNED / AUTHORED / INDEPENDENTLY REVIEWED WITH BLOCKING FINDINGS /
+         OWNER-ADJUDICATED / BR-1, BR-2, NB-1, NB-2 CORRECTED / LOCAL CANDIDATE /
+         AWAITING FRESH INDEPENDENT CORRECTION REVIEW /
          NOT OWNER-ACCEPTED / NOT PUSHED / NOT CANONICAL / NOT EFFECTIVE
 D-094    PUBLISHED / MERGED (PR #80) / CANONICAL / POST-MERGE VERIFIED / EFFECTIVE
 P5-I6A   COMPLETE / VERIFIED / FORMALLY CLOSED / EFFECTIVE
@@ -3198,11 +3214,18 @@ documentType          CONSULTATION_NOTE | DIAGNOSIS_LIST | PROCEDURE_NOTE | REFE
 languageCode          obavezan; ASCII; case-sensitive; ^[a-z]{2,3}(-[A-Z]{2})?$; <= 10; verbatim
 redactBeforeAiProcessing   obavezan literal true; odsutan / null / false -> 422
 uspjeh                201, tijelo §13.1; bez ETag; bez Location
-idempotency endpoint  POST /encounters/{encounterId}/documents/text   (sablon)
+idempotency endpoint  POST /encounters/{encounterId}/documents/text   (sablon; TACAN perzistiran
+                      literal; §4 placeholder {id} pomiren prospektivno, D-095 RULING D.1)
 resource pointer      {"resourceId":"<documentId>"}; TTL 48h
 request hash          03 §4.1 (JCS SHA-256, ukljucuje text); bez route HMAC-a
+prije claima          iskljucivo validacija i cist izracun (normalizacija, source hash,
+                      redakcija, redacted hash pri COMPLETED, request hash); BEZ enkripcije,
+                      key providera, IV-a i documentId (D-095 RULING C.6)
+nakon claima          FOR UPDATE ishod encountera -> novi documentId -> AAD -> enkripcija ->
+                      INSERT -> audit -> kompletiranje idempotencije
 replay                citanje nepromjenjivog reda; document.encounter_id != putanja -> 409
-                      IDEMPOTENCY_CONFLICT; 201 iz reda; bez dekripcije / audita / tranzicije
+                      IDEMPOTENCY_CONFLICT; 201 iz reda; bez dekripcije / audita / tranzicije;
+                      bez novog documentId, enkripcije, key providera i IV-a
 encounter             jedan atomican iskaz FOR UPDATE prije INSERT-a;
                       DRAFT -> READY_FOR_ANALYSIS (version nepromijenjena); READY -> no-op;
                       drugo vidljivo stanje -> 409 INVALID_STATE_TRANSITION;
@@ -3213,7 +3236,8 @@ AAD original          v1 / practice_id / table=encounter_documents / row_id=<doc
                       column=normalized_text_ciphertext / envelope_version=1
 AAD redigovano        ... / column=redacted_text_ciphertext / envelope_version=1
 encryption_key_ref    ^[A-Za-z0-9][A-Za-z0-9._:/-]{0,254}$; lokalno local-static-development-v1
-ocekivani FAILED      201, redactionStatus = FAILED, redigovani artefakti i redactedTextHash null
+ocekivani FAILED      201, redactionStatus = FAILED; redigovani artefakti i redacted_text_hash
+                      su NULL u bazi; redactedTextHash IZOSTAJE iz odgovora (nije null)
 neocekivana greska    500 INTERNAL_ERROR, puni rollback; nikada redaction FAILED
 normalizator odbija   422 VALIDATION_ERROR, polje text, genericki staticki detail
 ```
