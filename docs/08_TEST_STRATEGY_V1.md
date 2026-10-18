@@ -2945,6 +2945,143 @@ CHECKBOX TRANSITIONS (D-094 kandidat) = 1   (Services -> redaction)
 
 Vidi D-094 u `06`.
 
+## 12.16 `P5-I6B` — obavezna dokazna matrica kreiranja tekstualnog dokumenta (D-095, 2026-10-17)
+
+**Sekcije iznad (uključujući §12.5, §12.14, §12.15 i njihove anotacije) se NE prepisuju.** D-094 je
+efektivan (PR #80, `72507330…`); formulacije `P5-I6A … FORMALLY CLOSING UNDER D-094 / NOT YET
+EFFECTIVE` i `CHECKBOX TRANSITIONS (D-094 kandidat) = 1` iznad opisuju **pred-D-095 stanje**. Ova
+sekcija aditivno zamrzava **buduće** dokazne kategorije `P5-I6B` (D-095 `RULING O`); **nijedan test se
+ovim ne piše, ne mijenja ni ne izvršava.** Postaje kanonska tek nakon punog lifecyclea D-095. **D-095
+ne autorizuje implementaciju `P5-I6B`.** Particija §12.5 / §12.14 ostaje: svjež IV i hashevi →
+`P5-I6B`; `view=redacted` bez fallbacka i read audit → `P5-I6C`.
+
+### 12.16.1 Obavezne kategorije
+
+```text
+UNIT
+  normalizacija (kanonski P5-I3C normalizator)
+  odbijanje normalizatora -> 422, polje text, genericki staticki detail
+  source hash (lowercase hex SHA-256 normalizovanog UTF-8)
+  redacted hash (SHA-256 redactedText, bez re-normalizacije)
+  tacni AAD stringovi / bajtovi oba literala (D-095 RULING H)
+  encryption_key_ref gramatika (pozitivni / negativni; local-static-development-v1 prihvacen)
+  deterministicki AES-GCM known-answer vektori §12.16.2
+  COMPLETED / FAILED mapiranje (D-093 FAILED skup)
+  krsenje preduslova redakcije -> 500 INTERNAL_ERROR (nikada FAILED)
+  DTO allowliste (documentType, languageCode, redactBeforeAiProcessing, zatvoren objekat)
+
+INTEGRATION
+  happy-path INSERT
+  ciphertext != plaintext (oba polja)
+  decrypt round-trip (oba polja)
+  pogresan / zamijenjen AAD pada (original <-> redigovano, drugi row_id, drugi practice_id)
+  FAILED red: redigovani ciphertext / IV / tag / hash NULL
+  rollback pri neuspjehu audita / enkripcije (bez reda, audita, tranzicije, kompletiranog kljuca)
+  DRAFT -> READY_FOR_ANALYSIS (version nepromijenjena; updated_by / updated_at)
+  vec READY_FOR_ANALYSIS -> bez upisa u encounter, bez transition audita
+  tacnost audit payloada (DOCUMENT_CREATED; ENCOUNTER_READY_FOR_ANALYSIS; redoslijed)
+  idempotencijski red bez PHI-ja osim odobrenog request_sha256
+
+SECURITY
+  cross-tenant / nepostojeci encounter -> ekvivalentan 404
+  RLS / runtime-role dokaz (copilot_app, NOBYPASSRLS)
+  bez opsteg pre-read oracle-a
+  bez PHI-ja u logovima (tekst, hashevi, languageCode, request_sha256)
+  create-vs-cancel trka (serijalizacija na redu encountera)
+  duplikat POST trka (isti kljuc -> 409 REQUEST_ALREADY_IN_PROGRESS)
+  B3 konflikt vezivanja encountera (isti kljuc / tijelo, drugi encounterId -> 409)
+
+E2E
+  tacan 201 odgovor (03 §13.1; bez ETag / Location)
+  400 / 404 / 409 / 422 / 500 kao application/problem+json
+  auth 401 / 403
+  replay -> 201 identican odgovor
+  neslaganje -> 409 IDEMPOTENCY_CONFLICT
+```
+
+### 12.16.2 Known-answer vektori (D-095 `RULING J`)
+
+**Ne-produkcijski fixture-i**; vektori zamrzavaju očekivanu interoperabilnost. Produkcijska
+slučajnost IV-a se ne mijenja; oblik test-only IV mehanizma pripada kasnijoj implementacijskoj
+autorizaciji. AAD i plaintext su UTF-8; `\n` u AAD-u je tačno jedan bajt `0x0A`.
+
+```text
+algoritam   AES-256-GCM; kljuc 32 B; IV 12 B; tag 16 B; envelope_version 1
+kljuc       000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f
+practice_id 11111111-1111-4111-8111-111111111111
+documentId  22222222-2222-4222-8222-222222222222
+
+ORIGINAL (column=normalized_text_ciphertext)
+  IV          101112131415161718191a1b
+  plaintext   "Tel 079 123 45 67"      54656c2030373920313233203435203637
+  ciphertext  299bf43679fe0393fb473b3d3b4c4965e0
+  tag         5fee425c579b90048087ddfafca7bc18
+
+REDACTED (column=redacted_text_ciphertext)
+  IV          202122232425262728292a2b
+  plaintext   "Tel [REDACTED:PHONE]"   54656c205b52454441435445443a50484f4e455d
+  ciphertext  865fca5037ca5f4a5b3f168b8522a4b19f07a9c1
+  tag         41171fa30ccd2480a21e3c3c1548b552
+```
+
+Tačni AAD stringovi i njihov UTF-8 hex (174 / 172 bajta) su normativno u D-095 `RULING J.3` / `J.4`
+u `06`. Obavezno: decrypt svakog vektora pod **zamijenjenim** AAD-om (drugi `column=`) **mora
+pasti**. Nezavisan pregled D-095 **mora** ponovo izračunati oba vektora; neslaganje blokira
+publikaciju.
+
+### 12.16.3 Dopunski obavezni dokazi (korekcija nezavisnog pregleda D-095, `NB-2`)
+
+Aditivno uz §12.16.1 (D-095 `RULING O`, O.1–O.6). **Nijedan test se ovim ne piše.**
+
+```text
+O.1  KOMPLETIRAN REPLAY BEZ SPOREDNIH EFEKATA                       INTEGRATION + E2E
+     201; tijelo identicno originalnom odgovoru
+     bez dekripcije; bez enkripcije; bez poziva key providera; bez novog IV-a
+     bez audit dogadjaja; bez tranzicije / upisa u encounter
+     (dokaz: spy / brojac nad enkripcijom i key providerom = 0; broj audit redova i
+      encounter red nepromijenjeni)
+
+O.2  REPLAY NAKON KASNIJEG OTKAZIVANJA                              INTEGRATION + E2E
+     1. originalno kreiranje uspjesno kompletirano
+     2. encounter zatim CANCELLED
+     3. replay istog kompletiranog kljuca -> originalni 201
+     bez novog audita; bez tranzicije
+
+O.3  text UCESTVUJE U request_sha256                                INTEGRATION + E2E
+     isti Idempotency-Key; sva polja ista osim text
+     -> 409 IDEMPOTENCY_CONFLICT   (text je dio JCS request hasha)
+
+O.4  KONKURENTNI CREATE-OVI SA RAZLICITIM KLJUCEVIMA                 SECURITY / CONCURRENCY
+     dva konkurentna kreiranja nad istim DRAFT encounterom, razliciti kljucevi
+     oba se sigurno serijalizuju (FOR UPDATE)
+     DRAFT -> READY_FOR_ANALYSIS tacno jednom
+     tacno jedan ENCOUNTER_READY_FOR_ANALYSIS audit dogadjaj
+     drugo kreiranje vidi READY_FOR_ANALYSIS i ne re-tranzicionira
+     DOCUMENT_CREATED po svakom stvarnom kreiranju dokumenta
+     (konkurencija sa ISTIM kljucem ostaje postojeci dokaz duplikat POST trke)
+
+O.5  INVARIJANTA NEDOSTAJUCEG REPLAY RESURSA                        INTEGRATION
+     konstruisano u test infrastrukturi: kompletiran idempotencijski red pokazuje na
+     resurs dokumenta koji se ne moze rekonstruisati
+     -> 500 INTERNAL_ERROR; staticki detail bez PHI-ja; bez oracle-a postojanja;
+        bez nove mutacije (dokument, audit, encounter, idempotencijski red nepromijenjeni)
+
+O.6  FAILED AUDIT METADATA                                          INTEGRATION
+     redaction FAILED sa REDACTED_OUTPUT_TOO_LARGE
+     DOCUMENT_CREATED metadata je TACNO { rulesetVersion, failureCode }
+     zabranjeni clanovi odsutni: text, normalizovan / redigovan tekst, sourceTextHash,
+     redactedTextHash, languageCode
+```
+
+```text
+TESTS WRITTEN IN THIS GATE   0
+TESTS RERUN IN THIS GATE     0
+P5-I6B   CONTRACT CANDIDATE AUTHORED / IMPLEMENTATION NOT AUTHORIZED / NOT STARTED
+CHECKBOX TRANSITIONS (D-095 kandidat) = 0
+```
+
+Vidi D-095 u `06`.
+
 ---
 
 

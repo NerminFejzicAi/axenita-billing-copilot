@@ -5319,6 +5319,51 @@ lifecyclea D-094:** `P5-I6A = COMPLETE / VERIFIED / FORMALLY CLOSED / EFFECTIVE`
 redaction = [x]`, Faza 5 = **`38 / 49`** (11 preostalo). **Roditeljski `P5-I6` se ne zatvara**;
 `P5-I6B`, `P5-I6C` i `P5-I7` ostaju neautorizovani. Vidi D-094 u `06`.
 
+## P5-I6B EXECUTABLE-CONTRACT FREEZE ANNOTATION — D-095 (2026-10-17)
+
+**Nijedan pasus, blok ni anotacija iznad se ne prepisuje.** Ova anotacija je **isključivo governance
+metapodatak**: ne dodaje, ne briše, ne duplira i ne mijenja nijedan red ni kućicu. **§0 Project
+metadata se ne mijenja** (`NB-2`, LEAVE AS-IS).
+
+- **D-094 je objavljen kroz PR #80 (`72507330…`, publication drift `ZERO`) i efektivan.** `P5-I6A` je
+  **COMPLETE / VERIFIED / FORMALLY CLOSED / EFFECTIVE**; `Services → redaction` je kanonski `[x]`;
+  Faza 5 je kanonski **`38 / 49`**. Formulacije D-094 anotacije iznad (`D-094 … NOT CANONICAL / NOT
+  EFFECTIVE`, „`49 / 38` je isključivo lokalno kandidatsko stanje", `D-095 UNASSIGNED / UNRESERVED`)
+  opisuju **pred-D-095 stanje** i **ne prepisuju se**.
+- **D-095 zamrzava izvršni ugovor `P5-I6B`** (`POST /encounters/{encounterId}/documents/text`) i
+  **ne autorizuje implementaciju**.
+- **Zamrznut ugovor NIJE zatvaranje kućice.** Red `API → POST text document` ostaje **neoznačen** i
+  zatvara se isključivo formalnim zatvaranjem `P5-I6B` nakon zasebno autorizovane implementacije.
+
+```text
+sekcija    red                    vlasnik   pod-gate   stanje
+API        POST text document.    P5-I6     P5-I6B     [ ]   (ugovor zamrznut kandidatom D-095; kucica nepromijenjena)
+
+                        kanonski (prije)   D-095 kandidat
+ukupno redova (S6)      49                 49
+oznaceno                38                 38
+neoznaceno              11                 11   (38 / 49 ~= 77.55 %)
+
+CHECKBOX TRANSITIONS    = 0
+```
+
+```text
+D-095    OWNER-ASSIGNED / AUTHORED LOCAL CANDIDATE / NOT INDEPENDENTLY REVIEWED /
+         NOT OWNER-ACCEPTED / NOT PUSHED / NOT CANONICAL / NOT EFFECTIVE
+D-094    PUBLISHED / MERGED (PR #80) / CANONICAL / POST-MERGE VERIFIED / EFFECTIVE
+P5-I6    NOT FORMALLY CLOSED
+P5-I6A   COMPLETE / VERIFIED / FORMALLY CLOSED / EFFECTIVE
+P5-I6B   CONTRACT CANDIDATE AUTHORED / IMPLEMENTATION NOT AUTHORIZED / NOT STARTED
+P5-I6C   NOT AUTHORIZED / NOT STARTED
+P5-I7    NOT AUTHORIZED / NOT STARTED
+OD-P5-I6-9B / OD-P5-I6-10   OPEN / DEFERRED TO P5-I6C
+D-096    UNASSIGNED / UNRESERVED
+```
+
+Nakon efektivnog D-095 stanje je **`P5-I6B = CONTRACT FROZEN / IMPLEMENTATION NOT YET
+AUTHORIZED`**; naredni gate nakon autorstva je **svjež nezavisan D-095 executable-contract
+pregled**. Vidi D-095 u `06`.
+
 
 ## Schema
 
